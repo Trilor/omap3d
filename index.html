@@ -127,19 +127,30 @@
     #ui-panel-body {
       padding: 0;
       overflow-y: auto;
-      max-height: calc(90vh - 36px); /* 36px = header height */
-      scrollbar-width: thin;          /* Firefox slim scrollbar */
+      max-height: calc(90vh - 36px);
+      /* 36px = header height */
+      scrollbar-width: thin;
+      /* Firefox slim scrollbar */
       scrollbar-color: #c8c8c8 transparent;
     }
 
     /* WebKit カスタムスクロールバー（Chrome / Edge / Safari） */
-    #ui-panel-body::-webkit-scrollbar { width: 4px; }
-    #ui-panel-body::-webkit-scrollbar-track { background: transparent; }
+    #ui-panel-body::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    #ui-panel-body::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
     #ui-panel-body::-webkit-scrollbar-thumb {
       background: #c8c8c8;
       border-radius: 2px;
     }
-    #ui-panel-body::-webkit-scrollbar-thumb:hover { background: #999; }
+
+    #ui-panel-body::-webkit-scrollbar-thumb:hover {
+      background: #999;
+    }
 
     /* セクションヘッダ（後方互換のため残存） */
     .sec-header {
@@ -159,7 +170,7 @@
     }
 
     /* summary がセクションヘッダ代わり */
-    .panel-section > summary {
+    .panel-section>summary {
       background: #f0f0f0;
       border-top: 1px solid #d8d8d8;
       border-bottom: 1px solid #d8d8d8;
@@ -168,7 +179,8 @@
       font-weight: bold;
       color: #555;
       letter-spacing: 0.02em;
-      list-style: none;          /* デフォルト▶を非表示 */
+      list-style: none;
+      /* デフォルト▶を非表示 */
       cursor: pointer;
       display: flex;
       align-items: center;
@@ -177,23 +189,28 @@
     }
 
     /* Chrome / Safari でのデフォルトマーカーを消す */
-    .panel-section > summary::-webkit-details-marker { display: none; }
+    .panel-section>summary::-webkit-details-marker {
+      display: none;
+    }
 
     /* 開閉インジケーター: 開 = ▲、閉 = ▼ */
-    .panel-section > summary::after {
+    .panel-section>summary::after {
       content: '▲';
       font-size: 9px;
       color: #888;
       flex-shrink: 0;
     }
-    .panel-section:not([open]) > summary::after { content: '▼'; }
+
+    .panel-section:not([open])>summary::after {
+      content: '▼';
+    }
 
     /* ---- CS立体図 都道府県別 サブアコーディオン ---- */
     .cs-regional-details {
       margin: 0;
     }
 
-    .cs-regional-details > summary {
+    .cs-regional-details>summary {
       padding: 5px 10px 5px 14px;
       font-size: 11px;
       font-weight: bold;
@@ -208,14 +225,19 @@
       user-select: none;
     }
 
-    .cs-regional-details > summary::-webkit-details-marker { display: none; }
+    .cs-regional-details>summary::-webkit-details-marker {
+      display: none;
+    }
 
-    .cs-regional-details > summary::after {
+    .cs-regional-details>summary::after {
       content: '▼';
       font-size: 9px;
       color: #888;
     }
-    .cs-regional-details[open] > summary::after { content: '▲'; }
+
+    .cs-regional-details[open]>summary::after {
+      content: '▲';
+    }
 
     /* レイヤー行 */
     .layer-row {
@@ -704,70 +726,113 @@
   <div id="ui-panel">
     <div id="ui-panel-header">3D OMap Viewer <span id="panel-toggle-icon">▲</span></div>
     <div id="ui-panel-body">
-      <!-- OMAP / KMZ（最上層） -->
-      <div class="sec-header">OMAP / KMZ</div>
-      <div id="kmz-list"></div><input type="file" id="kmz-file-input" accept=".kmz" multiple
-        style="display:none" /><button id="kmz-upload-btn">＋ KMZファイルを追加</button>
-      <!-- GPX 軌跡セクション -->
-      <div class="sec-header">GPX 軌跡</div>
-      <div id="gpx-status"></div>
-      <input type="file" id="gpx-file-input" accept=".gpx" style="display:none" />
-      <button id="gpx-upload-btn">＋ GPXファイルを読み込む</button>
-      <p class="privacy-note">※ 読み込んだファイルはブラウザ内でのみ処理されます。サーバーへ送信・保存されることは一切ありません。</p>
-      <!-- CS立体図セクション（全国5m+都道府県別を並列配置） -->
-      <div class="sec-header">CS立体図</div>
-      <!-- 全国CS（5mDEM） -->
-      <div class="layer-row" id="row-cs">
-        <div class="layer-label-row"><input type="checkbox" id="chk-cs" checked /><label class="layer-name"
-            for="chk-cs">CS立体図（5m）―全国</label></div>
-        <div class="opacity-row"><input type="range" id="slider-cs" min="0" max="1" step="0.05" value="1.0" /><span
-            class="opacity-val" id="val-cs">100%</span></div>
-      </div>
-      <!-- 都道府県別CS（0.5m）― JSにより動的生成 -->
-      <div id="regional-cs-list"></div>
-      <!-- 等高線 -->
-      <div class="sec-header">等高線</div>
-      <div class="layer-row" id="row-contour">
-        <div class="layer-label-row"><input type="checkbox" id="chk-contour" checked /><label class="layer-name"
-            for="chk-contour">等高線を表示</label></div>
-        <div class="contour-row"><label for="sel-contour-interval">間隔：</label><select id="sel-contour-interval">
-            <option value="1">1 m</option>
-            <option value="2">2 m</option>
-            <option value="2.5">2.5 m</option>
-            <option value="5" selected>5 m</option>
-            <option value="10">10 m</option>
-          </select></div>
-      </div>
-      <!-- 色別標高図 -->
-      <div class="sec-header">色別標高図</div>
-      <div class="layer-row" id="row-elev">
-        <div class="layer-label-row"><input type="checkbox" id="chk-elev" /><label class="layer-name disabled"
-            for="chk-elev">色別標高図</label></div>
-        <div class="opacity-row"><input type="range" id="slider-elev" min="0" max="1" step="0.05" value="0.5"
-            disabled /><span class="opacity-val" id="val-elev">50%</span></div>
-      </div>
-      <!-- 地形設定 -->
-      <div class="sec-header">地形設定</div>
-      <div class="terrain-row"><span class="terrain-label">地形誇張</span><input type="range" id="slider-exaggeration"
-          min="0.5" max="3" step="0.1" value="1.0" /><span class="opacity-val" id="val-exaggeration">1.0×</span></div>
-      <!-- 縮尺 -->
-      <div class="sec-header">縮尺</div>
-      <div class="layer-row">
-        <div class="contour-row">
-          <label>1 :</label>
-          <div class="scale-combo-wrap">
-            <input type="number" id="scale-input" placeholder="---" min="100" max="1000000" title="縮尺分母を入力してEnter" />
-            <button id="scale-dropdown-btn" type="button" title="プリセット縮尺を選択">▾</button>
-            <ul id="scale-dropdown" style="display:none">
-              <li data-value="2500">1 : 2,500</li>
-              <li data-value="4000">1 : 4,000</li>
-              <li data-value="5000">1 : 5,000</li>
-              <li data-value="10000">1 : 10,000</li>
-              <li data-value="15000">1 : 15,000</li>
-            </ul>
+
+      <!-- ===== OMAP / KMZ（デフォルト open） ===== -->
+      <details class="panel-section" open>
+        <summary>OMAP / KMZ</summary>
+        <div id="kmz-list"></div>
+        <input type="file" id="kmz-file-input" accept=".kmz" multiple style="display:none" />
+        <button id="kmz-upload-btn">＋ KMZファイルを追加</button>
+      </details>
+
+      <!-- ===== GPX 軌跡（デフォルト open） ===== -->
+      <details class="panel-section" open>
+        <summary>GPX 軌跡</summary>
+        <div id="gpx-status"></div>
+        <input type="file" id="gpx-file-input" accept=".gpx" style="display:none" />
+        <button id="gpx-upload-btn">＋ GPXファイルを読み込む</button>
+        <p class="privacy-note">※ 読み込んだファイルはブラウザ内でのみ処理されます。サーバーへ送信・保存されることは一切ありません。</p>
+      </details>
+
+      <!-- ===== CS立体図（常時表示 + 都道府県別は折りたたみ） ===== -->
+      <details class="panel-section" open>
+        <summary>CS立体図</summary>
+        <!-- 全国CS（5mDEM）― 常時表示 -->
+        <div class="layer-row" id="row-cs">
+          <div class="layer-label-row">
+            <input type="checkbox" id="chk-cs" checked />
+            <label class="layer-name" for="chk-cs">CS立体図（5m）―全国</label>
+          </div>
+          <div class="opacity-row">
+            <input type="range" id="slider-cs" min="0" max="1" step="0.05" value="1.0" />
+            <span class="opacity-val" id="val-cs">100%</span>
           </div>
         </div>
-      </div>
+        <!-- 都道府県別CS（0.5m）― サブアコーディオン（デフォルト閉じ） -->
+        <details class="cs-regional-details">
+          <summary>都道府県別 高解像度データ（0.5m）</summary>
+          <!-- JS の buildRegionalCsUI() がこの div に直接書き込む -->
+          <div id="regional-cs-list"></div>
+        </details>
+      </details>
+
+      <!-- ===== 等高線（デフォルト closed） ===== -->
+      <details class="panel-section">
+        <summary>等高線</summary>
+        <div class="layer-row" id="row-contour">
+          <div class="layer-label-row">
+            <input type="checkbox" id="chk-contour" checked />
+            <label class="layer-name" for="chk-contour">等高線を表示</label>
+          </div>
+          <div class="contour-row">
+            <label for="sel-contour-interval">間隔：</label>
+            <select id="sel-contour-interval">
+              <option value="1">1 m</option>
+              <option value="2">2 m</option>
+              <option value="2.5">2.5 m</option>
+              <option value="5" selected>5 m</option>
+              <option value="10">10 m</option>
+            </select>
+          </div>
+        </div>
+      </details>
+
+      <!-- ===== 色別標高図（デフォルト closed） ===== -->
+      <details class="panel-section">
+        <summary>色別標高図</summary>
+        <div class="layer-row" id="row-elev">
+          <div class="layer-label-row">
+            <input type="checkbox" id="chk-elev" />
+            <label class="layer-name disabled" for="chk-elev">色別標高図</label>
+          </div>
+          <div class="opacity-row">
+            <input type="range" id="slider-elev" min="0" max="1" step="0.05" value="0.5" disabled />
+            <span class="opacity-val" id="val-elev">50%</span>
+          </div>
+        </div>
+      </details>
+
+      <!-- ===== 地形設定（デフォルト closed） ===== -->
+      <details class="panel-section">
+        <summary>地形設定</summary>
+        <div class="terrain-row">
+          <span class="terrain-label">地形誇張</span>
+          <input type="range" id="slider-exaggeration" min="0.5" max="3" step="0.1" value="1.0" />
+          <span class="opacity-val" id="val-exaggeration">1.0×</span>
+        </div>
+      </details>
+
+      <!-- ===== 縮尺（デフォルト closed） ===== -->
+      <details class="panel-section">
+        <summary>縮尺</summary>
+        <div class="layer-row">
+          <div class="contour-row">
+            <label>1 :</label>
+            <div class="scale-combo-wrap">
+              <input type="number" id="scale-input" placeholder="---" min="100" max="1000000" title="縮尺分母を入力してEnter" />
+              <button id="scale-dropdown-btn" type="button" title="プリセット縮尺を選択">▾</button>
+              <ul id="scale-dropdown" style="display:none">
+                <li data-value="2500">1 : 2,500</li>
+                <li data-value="4000">1 : 4,000</li>
+                <li data-value="5000">1 : 5,000</li>
+                <li data-value="10000">1 : 10,000</li>
+                <li data-value="15000">1 : 15,000</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </details>
+
     </div>
   </div>
   <!-- 視点切り替えトグルボタン（GPX読み込み後に表示） -->
@@ -1615,7 +1680,7 @@
         */
         const id = kmzCounter++;
         const sourceId = `kmz-source-${id}`;
-        const layerId  = `kmz-layer-${id}`;
+        const layerId = `kmz-layer-${id}`;
 
         /*
           type: 'image' は「指定した4点の座標に画像を貼り付ける」特殊なソースタイプです。
