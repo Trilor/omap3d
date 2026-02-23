@@ -126,9 +126,22 @@
 
     #ui-panel-body {
       padding: 0;
+      overflow-y: auto;
+      max-height: calc(90vh - 36px); /* 36px = header height */
+      scrollbar-width: thin;          /* Firefox slim scrollbar */
+      scrollbar-color: #c8c8c8 transparent;
     }
 
-    /* セクションヘッダ */
+    /* WebKit カスタムスクロールバー（Chrome / Edge / Safari） */
+    #ui-panel-body::-webkit-scrollbar { width: 4px; }
+    #ui-panel-body::-webkit-scrollbar-track { background: transparent; }
+    #ui-panel-body::-webkit-scrollbar-thumb {
+      background: #c8c8c8;
+      border-radius: 2px;
+    }
+    #ui-panel-body::-webkit-scrollbar-thumb:hover { background: #999; }
+
+    /* セクションヘッダ（後方互換のため残存） */
     .sec-header {
       background: #f0f0f0;
       border-top: 1px solid #d8d8d8;
@@ -139,6 +152,70 @@
       color: #555;
       letter-spacing: 0.02em;
     }
+
+    /* ---- アコーディオンセクション (<details> / <summary>) ---- */
+    .panel-section {
+      margin: 0;
+    }
+
+    /* summary がセクションヘッダ代わり */
+    .panel-section > summary {
+      background: #f0f0f0;
+      border-top: 1px solid #d8d8d8;
+      border-bottom: 1px solid #d8d8d8;
+      padding: 5px 10px;
+      font-size: 11px;
+      font-weight: bold;
+      color: #555;
+      letter-spacing: 0.02em;
+      list-style: none;          /* デフォルト▶を非表示 */
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      user-select: none;
+    }
+
+    /* Chrome / Safari でのデフォルトマーカーを消す */
+    .panel-section > summary::-webkit-details-marker { display: none; }
+
+    /* 開閉インジケーター: 開 = ▲、閉 = ▼ */
+    .panel-section > summary::after {
+      content: '▲';
+      font-size: 9px;
+      color: #888;
+      flex-shrink: 0;
+    }
+    .panel-section:not([open]) > summary::after { content: '▼'; }
+
+    /* ---- CS立体図 都道府県別 サブアコーディオン ---- */
+    .cs-regional-details {
+      margin: 0;
+    }
+
+    .cs-regional-details > summary {
+      padding: 5px 10px 5px 14px;
+      font-size: 11px;
+      font-weight: bold;
+      color: #666;
+      background: #f4f4f4;
+      border-bottom: 1px solid #e0e0e0;
+      list-style: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      user-select: none;
+    }
+
+    .cs-regional-details > summary::-webkit-details-marker { display: none; }
+
+    .cs-regional-details > summary::after {
+      content: '▼';
+      font-size: 9px;
+      color: #888;
+    }
+    .cs-regional-details[open] > summary::after { content: '▲'; }
 
     /* レイヤー行 */
     .layer-row {
