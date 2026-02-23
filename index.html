@@ -773,11 +773,7 @@
         signal: abortController.signal
       });
 
-      if (!response.ok) throw new Error(`GSJ DEM fetch failed: $ {
-          response.status
-        }
-
-        `);
+      if (!response.ok) throw new Error(`GSJ DEM fetch failed: ${response.status}`);
 
       // Blob → ImageBitmap に変換します
       const bitmap = await createImageBitmap(await response.blob());
@@ -1545,17 +1541,8 @@
         */
         const id = kmzCounter++;
 
-        const sourceId = `kmz-source-$ {
-          id
-        }
-
-        `;
-
-        const layerId = `kmz-layer-$ {
-          id
-        }
-
-        `;
+        const sourceId = `kmz-source-${id}`;
+        const layerId = `kmz-layer-${id}`;
 
         /*
           type: 'image' は「指定した4点の座標に画像を貼り付ける」特殊なソースタイプです。
@@ -1628,24 +1615,14 @@
         // UIの一覧を更新する
         renderKmzList();
 
-        console.log(`KMZ 読み込み完了: $ {
-        file.name
-      }
-
-      `, {
-          coordinates, rotation
-        });
+        console.log(`KMZ 読み込み完了: ${file.name}`, { coordinates, rotation });
 
       }
 
       catch (err) {
         console.error('KMZ読み込みエラー:', err);
 
-        alert(`KMZファイルの読み込み中にエラーが発生しました。\n詳細: $ {
-          err.message
-        }
-
-        `);
+        alert(`KMZファイルの読み込み中にエラーが発生しました。\n詳細: ${err.message}`);
       }
     }
 
@@ -1674,39 +1651,23 @@
         rowEl.className = 'layer-row';
         rowEl.dataset.id = entry.id;
 
-        rowEl.innerHTML = ` <div class="layer-label-row" > <input type="checkbox" id="chk-kmz-${entry.id}"$ {
-            entry.visible ? 'checked' : ''
-          }
-
-          /> <label class="layer-name${entry.visible ? '' : ' disabled'}" for="chk-kmz-${entry.id}" title="${entry.name}" >$ {
-            shortName
-          }
-
-          </label> <button class="kmz-del-btn" title="削除" onclick="removeKmzLayer(${entry.id})" >✕</button> </div> <div class="opacity-row" > <input type="range" id="slider-kmz-${entry.id}" min="0" max="1" step="0.05" value="${entry.opacity}"$ {
-            entry.visible ? '' : 'disabled'
-          }
-
-          /> <span class="opacity-val" id="val-kmz-${entry.id}" >$ {
-            pct
-          }
-
-          %</span> </div> `;
+        rowEl.innerHTML = `
+          <div class="layer-label-row">
+            <input type="checkbox" id="chk-kmz-${entry.id}" ${entry.visible ? 'checked' : ''} />
+            <label class="layer-name${entry.visible ? '' : ' disabled'}" for="chk-kmz-${entry.id}" title="${entry.name}">${shortName}</label>
+            <button class="kmz-del-btn" title="削除" onclick="removeKmzLayer(${entry.id})">✕</button>
+          </div>
+          <div class="opacity-row">
+            <input type="range" id="slider-kmz-${entry.id}" min="0" max="1" step="0.05" value="${entry.opacity}" ${entry.visible ? '' : 'disabled'} />
+            <span class="opacity-val" id="val-kmz-${entry.id}">${pct}%</span>
+          </div>`;
         listEl.appendChild(rowEl);
 
         // チェックボックス：表示/非表示
-        rowEl.querySelector(`#chk-kmz-$ {
-              entry.id
-            }
-
-            `).addEventListener('change', (e) => {
+        rowEl.querySelector(`#chk-kmz-${entry.id}`).addEventListener('change', (e) => {
           entry.visible = e.target.checked;
           const label = rowEl.querySelector('.layer-name');
-
-          const slider = rowEl.querySelector(`#slider-kmz-$ {
-                  entry.id
-                }
-
-                `);
+          const slider = rowEl.querySelector(`#slider-kmz-${entry.id}`);
           label.classList.toggle('disabled', !entry.visible);
           slider.disabled = !entry.visible;
 
@@ -1716,17 +1677,8 @@
         });
 
         // スライダー：透明度
-        const sliderEl = rowEl.querySelector(`#slider-kmz-$ {
-              entry.id
-            }
-
-            `);
-
-        const valEl = rowEl.querySelector(`#val-kmz-$ {
-              entry.id
-            }
-
-            `);
+        const sliderEl = rowEl.querySelector(`#slider-kmz-${entry.id}`);
+        const valEl = rowEl.querySelector(`#val-kmz-${entry.id}`);
         updateSliderGradient(sliderEl, '#4a7c59');
 
         sliderEl.addEventListener('input', () => {
@@ -2323,19 +2275,7 @@
       input.style.setProperty('--pct', pct + '%');
 
       if (color) {
-        input.style.background = `linear-gradient(to right, $ {
-            color
-          }
-
-          $ {
-            pct
-          }
-
-          %, #d0d0d0 $ {
-            pct
-          }
-
-          %)`;
+        input.style.background = `linear-gradient(to right, ${color} ${pct}%, #d0d0d0 ${pct}%)`;
       }
     }
 
@@ -2348,52 +2288,28 @@
       container.innerHTML = '';
 
       REGIONAL_CS_LAYERS.forEach(layer => {
-        const chkId = `chk-$ {
-            layer.sourceId
-          }
-
-          `;
-
-        const sliderId = `slider-$ {
-            layer.sourceId
-          }
-
-          `;
-
-        const valId = `val-$ {
-            layer.sourceId
-          }
-
-          `;
+        const chkId = `chk-${layer.sourceId}`;
+        const sliderId = `slider-${layer.sourceId}`;
+        const valId = `val-${layer.sourceId}`;
 
         // レイヤー行を生成（デフォルト：未チェック + スライダー disabled）
         const rowEl = document.createElement('div');
         rowEl.className = 'layer-row';
 
-        rowEl.innerHTML = ` <div class="layer-label-row" > <input type="checkbox" id="${chkId}" /> <label class="layer-name disabled" for="${chkId}" >$ {
-            layer.label
-          }
-
-          </label> </div> <div class="opacity-row" > <input type="range" id="${sliderId}" min="0" max="1" step="0.05" value="1.0" disabled /> <span class="opacity-val" id="${valId}" >100%</span> </div> `;
+        rowEl.innerHTML = `
+          <div class="layer-label-row">
+            <input type="checkbox" id="${chkId}" />
+            <label class="layer-name disabled" for="${chkId}">${layer.label}</label>
+          </div>
+          <div class="opacity-row">
+            <input type="range" id="${sliderId}" min="0" max="1" step="0.05" value="1.0" disabled />
+            <span class="opacity-val" id="${valId}">100%</span>
+          </div>`;
         container.appendChild(rowEl);
 
-        const chkEl = rowEl.querySelector(`#$ {
-              chkId
-            }
-
-            `);
-
-        const sliderEl = rowEl.querySelector(`#$ {
-              sliderId
-            }
-
-            `);
-
-        const valEl = rowEl.querySelector(`#$ {
-              valId
-            }
-
-            `);
+        const chkEl = rowEl.querySelector(`#${chkId}`);
+        const sliderEl = rowEl.querySelector(`#${sliderId}`);
+        const valEl = rowEl.querySelector(`#${valId}`);
         const labelEl = rowEl.querySelector('label');
 
         updateSliderGradient(sliderEl, '#4a7c59');
