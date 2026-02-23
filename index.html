@@ -1365,111 +1365,6 @@
 
 
     /* ========================================================
-       KMZ 高ズームクリッピング対策：2×2タイル分割ヘルパー
-       MapLibreのimageソースはWebGLの頂点クリッピングにより高ズーム時に
-       画像の端が切れる既知の問題がある。N×Nタイルに分割することで回避する。
-       ======================================================== */
-    const KMZ_GRID = 8; // タイル分割数（KMZ_GRID × KMZ_GRID 枚に分割）
-
-    /* 双一次補間（Bilinear Interpolation）:
-       UV座標（0〜1）を4隅の地理座標から補間してMapLibreのcoordinates点を算出する。
-       corners = [TL, TR, BR, BL]（MapLibreのimageソースと同じ順）
-       u = 0（左端）〜 1（右端）、v = 0（上端）〜 1（下端） */
-    function bilinearCoord(corners, u, v) {
-      const [TL, TR, BR, BL] = corners;
-      // 双一次補間の公式: P(u,v) = (1-u)(1-v)·TL + u(1-v)·TR + u·v·BR + (1-u)·v·BL
-      const lng = (1-u)*(1-v)*TL[0] + u*(1-v)*TR[0] + u*v*BR[0] + (1-u)*v*BL[0];
-      const lat = (1-u)*(1-v)*TL[1] + u*(1-v)*TR[1] + u*v*BR[1] + (1-u)*v*BL[1];
-      return [lng, lat];
-    }
-
-    /* KMZ画像を KMZ_GRID × KMZ_GRID のタイルに分割し、
-       それぞれ個別のMapLibre imageソース＋rasterレイヤーとして追加する。
-       引数 id         : KMZエントリのID（ソース/レイヤーIDの接頭辞に使用）
-            imgBlob    : 元画像のBlob
-            coordinates: MapLibreのcoordinates（[TL,TR,BR,BL]）
-            opacity    : 初期透明度
-       戻り値: { sourceIds[], layerIds[], tileObjectUrls[] } */
-    async function addKmzTiledLayers(id, imgBlob, coordinates, opacity) {
-      // Blob → ImageBitmap に変換する（OffscreenCanvas で描画するため）
-      const bitmap = await createImageBitmap(imgBlob);
-      const W = bitmap.width;
-      const H = bitmap.height;
-      const N = KMZ_GRID;
-      // 各タイルのピクセルサイズを計算する（端は余りに合わせてクランプ）
-      const tileW = Math.ceil(W / N);
-      const tileH = Math.ceil(H / N);
-
-      const sourceIds = [];
-      const layerIds = [];
-      const tileObjectUrls = [];
-
-      // 行（row）と列（col）の二重ループで N×N 枚のタイルを生成する
-      for (let row = 0; row < N; row++) {
-        for (let col = 0; col < N; col++) {
-          // タイルの元画像上での開始座標（ピクセル）
-          const sx = col * tileW;
-          const sy = row * tileH;
-          // 画像端のタイルは残りサイズにクランプする
-          const sw = Math.min(tileW, W - sx);
-          const sh = Math.min(tileH, H - sy);
-
-          // OffscreenCanvas にタイル部分のみ描画して PNG Blob → ObjectURL を生成する
-          const canvas = new OffscreenCanvas(sw, sh);
-          const ctx = canvas.getContext('2d');
-          // 元画像の (sx,sy)〜(sx+sw, sy+sh) の領域をキャンバス全体に描画する
-          ctx.drawImage(bitmap, sx, sy, sw, sh, 0, 0, sw, sh);
-          const tileBlob = await canvas.convertToBlob({ type: 'image/png' });
-          const tileUrl = URL.createObjectURL(tileBlob);
-          tileObjectUrls.push(tileUrl);
-
-          // タイルの4隅のUV座標を計算し、双一次補間で地理座標に変換する
-          const u0 = col / N;       // タイル左端のU座標（0〜1）
-          const u1 = (col + 1) / N; // タイル右端のU座標
-          const v0 = row / N;       // タイル上端のV座標（0〜1）
-          const v1 = (row + 1) / N; // タイル下端のV座標
-          // MapLibreのcoordinatesは [TL, TR, BR, BL] の順
-          const tileTL = bilinearCoord(coordinates, u0, v0);
-          const tileTR = bilinearCoord(coordinates, u1, v0);
-          const tileBR = bilinearCoord(coordinates, u1, v1);
-          const tileBL = bilinearCoord(coordinates, u0, v1);
-
-          // ソースIDとレイヤーIDを生成して管理配列に追加する
-          const tileSourceId = `kmz-source-${id}-${row}-${col}`;
-          const tileLayerId  = `kmz-layer-${id}-${row}-${col}`;
-          sourceIds.push(tileSourceId);
-          layerIds.push(tileLayerId);
-
-          // MapLibreにタイルのimageソースとrasterレイヤーを追加する
-          map.addSource(tileSourceId, {
-            type: 'image',
-            url: tileUrl,
-            coordinates: [tileTL, tileTR, tileBR, tileBL],
-          });
-          map.addLayer({
-            id: tileLayerId,
-            type: 'raster',
-            source: tileSourceId,
-            minzoom: 0,
-            maxzoom: 24,
-            paint: {
-              'raster-opacity': opacity,
-              'raster-fade-duration': 0,     // フェードなしで再描画を安定させる
-              'raster-resampling': 'linear', // 高ズーム時の補間品質を向上
-            },
-          });
-          // KMZレイヤーを最上層に移動する（等高線・CSレイヤーより上に）
-          map.moveLayer(tileLayerId);
-        }
-      }
-
-      // 使い終わったImageBitmapのメモリを解放する
-      bitmap.close();
-      return { sourceIds, layerIds, tileObjectUrls };
-    }
-
-
-    /* ========================================================
        KMZ ファイルを処理するメイン関数
        引数 file : ユーザーが選択した File オブジェクト
        ======================================================== */
@@ -1631,17 +1526,45 @@
         const imgBlob = await imgEntry.async('blob');
 
         /*
-          --- ステップ⑧ MapLibreにソースとレイヤーを追加する（2×2タイル分割）---
-          高ズーム時のWebGLクリッピング問題を回避するため、単一imageソースではなく
-          KMZ_GRID × KMZ_GRID 枚のタイルに分割して登録する。
+          URL.createObjectURL() は Blob をブラウザ内で使えるメモリURL（"blob:..." 形式）に変換します。
+          この URL は通常の https:// のように MapLibre から参照できます。
+          レイヤーを削除する際には URL.revokeObjectURL() でメモリを解放することが重要です。
+        */
+        const objectUrl = URL.createObjectURL(imgBlob);
+
+        /*
+          --- ステップ⑧ MapLibre にソースとレイヤーを追加する ---
           各 KMZ に一意の ID を付けて管理します。
         */
         const id = kmzCounter++;
+        const sourceId = `kmz-source-${id}`;
+        const layerId  = `kmz-layer-${id}`;
 
-        // imgBlobを2×2タイルに分割してMapLibreに追加する
-        const { sourceIds, layerIds, tileObjectUrls } = await addKmzTiledLayers(
-          id, imgBlob, coordinates, OMAP_INITIAL_OPACITY
-        );
+        /*
+          type: 'image' は「指定した4点の座標に画像を貼り付ける」特殊なソースタイプです。
+          url         : 表示する画像のURL（ObjectURL を使用）
+          coordinates : [ TL, TR, BR, BL ] の順番で [lng, lat] 配列を4つ指定
+        */
+        map.addSource(sourceId, {
+          type: 'image',
+          url: objectUrl,
+          coordinates: coordinates,
+        });
+
+        map.addLayer({
+          id: layerId,
+          type: 'raster',
+          source: sourceId,
+          minzoom: 0,
+          maxzoom: 24,
+          paint: {
+            'raster-opacity': OMAP_INITIAL_OPACITY,
+            'raster-fade-duration': 0,
+            'raster-resampling': 'linear',
+          },
+        });
+        // レイヤーを確実に最上層へ移動（等高線・CSレイヤーより上に）
+        map.moveLayer(layerId);
 
         // --- ステップ⑨ 地図全体が収まる範囲にフィット ---
         // 回転後コーナー座標（coordinates）から正確な BBox を計算する。
@@ -1666,14 +1589,14 @@
             duration: 600,
             maxZoom: 19, // 過度なズームインを防ぎKMZ全体を表示
           });
-        // fitBounds後もすべてのタイルレイヤーを最上層に移動する
-        layerIds.forEach(lid => map.moveLayer(lid));
+        // fitBounds後も画像が最上層になるよう moveLayer
+        map.moveLayer(layerId);
 
         // 管理リストに追加（visible・opacityも保持して個別制御できるようにする）
         const entry = {
           id,
           name: file.name,
-          sourceIds, layerIds, tileObjectUrls,
+          sourceId, layerId, objectUrl,
           visible: true, opacity: OMAP_INITIAL_OPACITY,
         };
         kmzLayers.push(entry);
@@ -1737,11 +1660,9 @@
           label.classList.toggle('disabled', !entry.visible);
           slider.disabled = !entry.visible;
 
-          entry.layerIds.forEach(lid => {
-            if (map.getLayer(lid)) {
-              map.setPaintProperty(lid, 'raster-opacity', entry.visible ? entry.opacity : 0);
-            }
-          });
+          if (map.getLayer(entry.layerId)) {
+            map.setPaintProperty(entry.layerId, 'raster-opacity', entry.visible ? entry.opacity : 0);
+          }
         });
 
         // スライダー：透明度
@@ -1754,12 +1675,8 @@
           valEl.textContent = Math.round(entry.opacity * 100) + '%';
           updateSliderGradient(sliderEl, '#4a7c59');
 
-          if (entry.visible) {
-            entry.layerIds.forEach(lid => {
-              if (map.getLayer(lid)) {
-                map.setPaintProperty(lid, 'raster-opacity', entry.opacity);
-              }
-            });
+          if (entry.visible && map.getLayer(entry.layerId)) {
+            map.setPaintProperty(entry.layerId, 'raster-opacity', entry.opacity);
           }
         });
       });
@@ -1774,16 +1691,9 @@
       if (idx === -1) return;
 
       const entry = kmzLayers[idx];
-      // タイルレイヤーをすべて削除する
-      entry.layerIds.forEach(lid => {
-        if (map.getLayer(lid)) map.removeLayer(lid);
-      });
-      // タイルソースをすべて削除する
-      entry.sourceIds.forEach(sid => {
-        if (map.getSource(sid)) map.removeSource(sid);
-      });
-      // タイルのObjectURLをすべて解放してメモリを戻す
-      entry.tileObjectUrls.forEach(url => URL.revokeObjectURL(url));
+      if (map.getLayer(entry.layerId)) map.removeLayer(entry.layerId);
+      if (map.getSource(entry.sourceId)) map.removeSource(entry.sourceId);
+      URL.revokeObjectURL(entry.objectUrl);
       kmzLayers.splice(idx, 1);
       renderKmzList();
     }
