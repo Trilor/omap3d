@@ -2532,34 +2532,6 @@
       }
     });
 
-    // ---- 色別標高図 チェックボックス ----
-    const chkElev = document.getElementById('chk-elev');
-
-    chkElev.addEventListener('change', () => {
-      const label = document.querySelector('label[for="chk-elev"]');
-      const slider = document.getElementById('slider-elev');
-      label.classList.toggle('disabled', !chkElev.checked);
-      slider.disabled = !chkElev.checked;
-
-      if (map.getLayer('color-elev-layer')) {
-        map.setPaintProperty('color-elev-layer', 'raster-opacity',
-          chkElev.checked ? parseFloat(slider.value) : 0);
-      }
-    });
-
-    // ---- 色別標高図 透明度スライダー ----
-    const sliderElev = document.getElementById('slider-elev');
-    const valElev = document.getElementById('val-elev');
-    updateSliderGradient(sliderElev, '#4a7c59');
-
-    sliderElev.addEventListener('input', () => {
-      valElev.textContent = Math.round(parseFloat(sliderElev.value) * 100) + '%';
-      updateSliderGradient(sliderElev, '#4a7c59');
-
-      if (chkElev.checked && map.getLayer('color-elev-layer')) {
-        map.setPaintProperty('color-elev-layer', 'raster-opacity', parseFloat(sliderElev.value));
-      }
-    });
 
     // ---- 地形誇張スライダー ----
     const sliderExaggeration = document.getElementById('slider-exaggeration');
@@ -2702,10 +2674,6 @@
     valCs.textContent = Math.round(CS_INITIAL_OPACITY * 100) + '%';
     updateSliderGradient(sliderCs, '#4a7c59'); // 値変更後に再計算
 
-    // 色別標高図はデフォルト非表示—スライダー表示値は ELEV_INITIAL_OPACITY
-    sliderElev.value = ELEV_INITIAL_OPACITY;
-    valElev.textContent = Math.round(ELEV_INITIAL_OPACITY * 100) + '%';
-    updateSliderGradient(sliderElev, '#4a7c59'); // 値変更後に再計算
 
     sliderExaggeration.value = TERRAIN_EXAGGERATION;
     valExaggeration.textContent = TERRAIN_EXAGGERATION.toFixed(1) + '×';
