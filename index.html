@@ -239,6 +239,79 @@
       content: '▲';
     }
 
+    /* ---- 表示設定セクション内の1行レイアウト ---- */
+    .setting-row {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 10px;
+      border-bottom: 1px solid #ebebeb;
+    }
+    .setting-row:last-child { border-bottom: none; }
+
+    .setting-row input[type="checkbox"] {
+      width: 13px;
+      height: 13px;
+      flex-shrink: 0;
+      cursor: pointer;
+      accent-color: #4a7c59;
+    }
+
+    .setting-label {
+      font-size: 11px;
+      color: #333;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .setting-sublabel {
+      font-size: 11px;
+      color: #555;
+      white-space: nowrap;
+      flex-shrink: 0;
+      margin-left: auto;
+    }
+
+    .setting-select {
+      background: #f0f0f0;
+      color: #1a1a1a;
+      border: 1px solid #b0b8b0;
+      border-radius: 4px;
+      padding: 2px 4px;
+      font-size: 11px;
+      cursor: pointer;
+      outline: none;
+      flex-shrink: 0;
+    }
+
+    .setting-slider {
+      flex: 1;
+      min-width: 0;
+      height: 3px;
+      cursor: pointer;
+      -webkit-appearance: none;
+      appearance: none;
+      border-radius: 2px;
+      background: linear-gradient(to right, #6a8fa0 var(--pct, 20%), #d0d0d0 var(--pct, 20%));
+      outline: none;
+    }
+
+    .setting-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #fff;
+      border: 1.5px solid #888;
+      cursor: pointer;
+    }
+
+    .setting-slider::-webkit-slider-thumb:hover {
+      border-color: #6a8fa0;
+    }
+
+
     /* レイヤー行 */
     .layer-row {
       padding: 5px 10px 4px;
@@ -766,72 +839,51 @@
         </details>
       </details>
 
-      <!-- ===== 等高線（デフォルト closed） ===== -->
+      <!-- ===== 表示設定（等高線 / 縮尺 / 地形誇張） ===== -->
       <details class="panel-section">
-        <summary>等高線</summary>
-        <div class="layer-row" id="row-contour">
-          <div class="layer-label-row">
-            <input type="checkbox" id="chk-contour" checked />
-            <label class="layer-name" for="chk-contour">等高線を表示</label>
-          </div>
-          <div class="contour-row">
-            <label for="sel-contour-interval">間隔：</label>
-            <select id="sel-contour-interval">
-              <option value="1">1 m</option>
-              <option value="2">2 m</option>
-              <option value="2.5">2.5 m</option>
-              <option value="5" selected>5 m</option>
-              <option value="10">10 m</option>
-            </select>
+        <summary>表示設定</summary>
+
+        <!-- 等高線：1行 -->
+        <div class="setting-row">
+          <input type="checkbox" id="chk-contour" checked />
+          <label for="chk-contour" class="setting-label">等高線</label>
+          <label for="sel-contour-interval" class="setting-sublabel">間隔：</label>
+          <select id="sel-contour-interval" class="setting-select">
+            <option value="1">1 m</option>
+            <option value="2">2 m</option>
+            <option value="2.5">2.5 m</option>
+            <option value="5" selected>5 m</option>
+            <option value="10">10 m</option>
+          </select>
+        </div>
+
+        <!-- 縮尺：1行 -->
+        <div class="setting-row">
+          <span class="setting-label">縮尺：1 :</span>
+          <div class="scale-combo-wrap">
+            <input type="number" id="scale-input" placeholder="---" min="100" max="1000000"
+              title="縮尺分母を入力してEnter" />
+            <button id="scale-dropdown-btn" type="button" title="プリセット縮尺を選択">▾</button>
+            <ul id="scale-dropdown" style="display:none">
+              <li data-value="2500">1 : 2,500</li>
+              <li data-value="4000">1 : 4,000</li>
+              <li data-value="5000">1 : 5,000</li>
+              <li data-value="10000">1 : 10,000</li>
+              <li data-value="15000">1 : 15,000</li>
+            </ul>
           </div>
         </div>
-      </details>
 
-      <!-- ===== 色別標高図（デフォルト closed） ===== -->
-      <details class="panel-section">
-        <summary>色別標高図</summary>
-        <div class="layer-row" id="row-elev">
-          <div class="layer-label-row">
-            <input type="checkbox" id="chk-elev" />
-            <label class="layer-name disabled" for="chk-elev">色別標高図</label>
-          </div>
-          <div class="opacity-row">
-            <input type="range" id="slider-elev" min="0" max="1" step="0.05" value="0.5" disabled />
-            <span class="opacity-val" id="val-elev">50%</span>
-          </div>
-        </div>
-      </details>
-
-      <!-- ===== 地形設定（デフォルト closed） ===== -->
-      <details class="panel-section">
-        <summary>地形設定</summary>
-        <div class="terrain-row">
-          <span class="terrain-label">地形誇張</span>
-          <input type="range" id="slider-exaggeration" min="0.5" max="3" step="0.1" value="1.0" />
+        <!-- 地形誇張：1行 -->
+        <div class="setting-row">
+          <span class="setting-label">地形誇張：</span>
+          <input type="range" id="slider-exaggeration" min="0.5" max="3" step="0.1" value="1.0"
+            class="setting-slider" />
           <span class="opacity-val" id="val-exaggeration">1.0×</span>
         </div>
+
       </details>
 
-      <!-- ===== 縮尺（デフォルト closed） ===== -->
-      <details class="panel-section">
-        <summary>縮尺</summary>
-        <div class="layer-row">
-          <div class="contour-row">
-            <label>1 :</label>
-            <div class="scale-combo-wrap">
-              <input type="number" id="scale-input" placeholder="---" min="100" max="1000000" title="縮尺分母を入力してEnter" />
-              <button id="scale-dropdown-btn" type="button" title="プリセット縮尺を選択">▾</button>
-              <ul id="scale-dropdown" style="display:none">
-                <li data-value="2500">1 : 2,500</li>
-                <li data-value="4000">1 : 4,000</li>
-                <li data-value="5000">1 : 5,000</li>
-                <li data-value="10000">1 : 10,000</li>
-                <li data-value="15000">1 : 15,000</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-      </details>
 
     </div>
   </div>
