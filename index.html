@@ -924,119 +924,19 @@
 
     /*
       ========================================================
-      GSJ NumPNG タイルを Terrarium 形式に変換するカスタムプロトコルの登録
-      ========================================================
-      参考実装: qchizu/qchizu-maps-maplibregljs (demTranscoderProtocol.js)
- 
-      【なぜ単純な (128,0,0) 置換では不十分なのか？】
-      GSJ タイルは「NumPNG（符号付き24ビット整数）」形式で標高を格納しています。
-      MapLibre には NumPNG を直接デコードする機能がありません。
-      そのため、タイルを取得するたびに JavaScript でデコードし、
-      MapLibre が理解できる「Terrarium」形式に変換して渡す必要があります。
- 
-      【NumPNG → Terrarium 変換の手順】
-        1. PNG を ImageBitmap → OffscreenCanvas でピクセルとして読み取る
-        2. R, G, B から 24ビット整数を組み立てる
-           bits24 = (R << 16) | (G << 8) | B
-        3. 符号を考慮して標高（メートル）を求める
-           height = ((bits24 << 8) >> 8) * 0.01
-           ← 左に8ビットシフトして最上位ビットを符号ビットとして扱い、
-              右に8ビット算術シフトで符号を復元（負の標高も正しく計算）
-        4. Terrarium 形式に再エンコードする
-           Terrarium の式: height = R×256 + G + B/256 − 32768
-           → 逆算: t = height + 32768
-                   R_new = floor(t / 256)
-                   G_new = floor(t % 256)
-                   B_new = floor((t % 1) * 256)
-        5. 変換済み PNG を ArrayBuffer として MapLibre に返す
- 
-      【無効値 (128, 0, 0) とアルファ < 255 の扱い】
-        無効値 → Terrarium で height = 0m に相当する (128, 0, 0) にマップ
-        海面・レーザー未計測域が「巨大な山」や「深い穴」にならなくなります。
+      Q地図 DEM タイルは Terrarium 形式の webp を直接配信しているため、
+      カスタムプロトコルによる変換処理は不要です。
+      MapLibre の raster-dem ソースが encoding:'terrarium' で直接デコードします。
       ========================================================
     */
-    maplibregl.addProtocol('gsjdem', async (params, abortController) => {
-      // 'gsjdem://' を 'https://' に置き換えて実際の GSJ タイル URL を組み立てます
-      const url = params.url.replace('gsjdem://', 'https://');
-
-      // GSJ タイルサーバーから PNG 画像を取得します
-      const response = await fetch(url, {
-        signal: abortController.signal
-      });
-
-      if (!response.ok) throw new Error(`GSJ DEM fetch failed: ${response.status}`);
-
-      // Blob → ImageBitmap に変換します
-      const bitmap = await createImageBitmap(await response.blob());
-
-      // OffscreenCanvas はメインスレッドを妨げず、色空間変換が入りにくい利点があります
-      // （document.createElement('canvas') だとブラウザの画面描画設定が影響することがある）
-      const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(bitmap, 0, 0);
-
-      // [R, G, B, A, R, G, B, A, ...] の形の 1 次元配列を取得します（各ピクセル 4 バイト）
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const data = imageData.data;
-
-      // ピクセルを 4 バイトずつ処理します
-      for (let i = 0; i < data.length; i += 4) {
-        const r = data[i];
-        const g = data[i + 1];
-        const b = data[i + 2];
-        const a = data[i + 3];
-
-        // ① 無効値ピクセル (128, 0, 0) またはアルファが 255 未満のピクセルは
-        //    Terrarium で height = 0m を表す (128, 0, 0) にマップします
-        //    ← そのまま Terrarium デコードすると 128×256 + 0 − 32768 = 0m
-        if ((r === 128 && g === 0 && b === 0) || a !== 255) {
-          data[i] = 128;
-          data[i + 1] = 0;
-          data[i + 2] = 0;
-          data[i + 3] = 255;
-          continue; // 次のピクセルへ
-        }
-
-        // ② GSJ NumPNG → 標高（メートル）にデコードします
-        //    3 バイトを 24 ビット整数として結合します
-        const bits24 = (r << 16) | (g << 8) | b;
-        //    32 ビット演算で符号付き 24 ビット整数として解釈します：
-        //    左 8 ビットシフトで最上位ビットを 32 ビットの符号ビット位置へ移動し、
-        //    右 8 ビット算術シフト（>>）で符号を復元しつつ元の位置に戻します
-        const height = ((bits24 << 8) >> 8) * 0.01; // 単位：メートル
-
-        // ③ 標高を Terrarium 形式に再エンコードします
-        //    Terrarium デコード式: height = R×256 + G + B/256 − 32768
-        //    → 逆算: t = height + 32768 として R/G/B を求めます
-        const t = height + 32768;
-        data[i] = Math.min(255, Math.max(0, Math.floor(t / 256))); // R
-        data[i + 1] = Math.min(255, Math.max(0, Math.floor(t % 256))); // G
-        data[i + 2] = Math.min(255, Math.max(0, Math.floor((t % 1) * 256))); // B
-        data[i + 3] = 255; // Alpha は不透明のまま
-      }
-
-      // 変換後のピクセルデータを Canvas に書き戻します
-      ctx.putImageData(imageData, 0, 0);
-
-      // OffscreenCanvas の convertToBlob() → ArrayBuffer に変換して MapLibre に返します
-      const blob = await canvas.convertToBlob({
-        type: 'image/png'
-      });
-
-      return {
-        data: await blob.arrayBuffer()
-      }
-
-        ;
-    });
 
 
     /* ========================================================
        ★ カスタマイズポイント：各種URLと初期パラメータをここで変更します
        ======================================================== */
 
-    // ★ 標高（DEM）タイルのURL（産総研シームレス標高タイル mixed）
-    const TERRAIN_URL = 'gsjdem://tiles.gsj.jp/tiles/elev/mixed/{z}/{y}/{x}.png';
+    // ★ 標高（DEM）タイルのURL（Q地図 / 国土地理院測量成果・Terrarium形式 webp）
+    const TERRAIN_URL = 'https://mapdata.qchizu.xyz/03_dem/52_gsi/all_2025/1_02/{z}/{x}/{y}.webp';
 
     // ★ OriLibre（オリエンテーリング風地図）のプロジェクト設定URL
     //   isomizer がこのYAMLを読み込み、ベースマップのベクタースタイルを動的に構築する。
@@ -1177,9 +1077,9 @@
             type: 'raster-dem',
             tiles: [TERRAIN_URL],
             tileSize: 256,
-            maxzoom: 13,
+            maxzoom: 14,
             encoding: 'terrarium',
-            attribution: '<a href="https://tiles.gsj.jp/tiles/elev/tiles.html">産総研シームレス標高タイル</a>',
+            attribution: '<a href="https://qchizu.jp/" target="_blank">Q地図</a>（国土地理院測量成果）',
           }
 
           ,
