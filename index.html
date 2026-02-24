@@ -2460,11 +2460,19 @@
       const newUrl = buildContourTileUrl(interval);
 
       if (newUrl && map.getSource('contour-source')) {
-        const src = map.getSource('contour-source');
-        // setTiles() でソースのURLを更新し、reload() でキャッシュを破棄して全タイルを再フェッチ
-        // triggerRepaint() だけでは「描画の再試行」のみでタイル再取得は行われない
-        src.setTiles([newUrl]);
-        src.reload();  // VectorTileSource.reload() — 現在ビューポート内のタイルを即座に再取得
+        // MapLibreは高ズーム時に「新タイルが届くまで旧タイルを保持」するため、
+        // 一旦 visibility:none で旧タイルを即座に消去してからURLを切り替え、
+        // setTimeout(0) で次のイベントループで再表示する
+        contourLayerIds.forEach(id => {
+          if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', 'none');
+        });
+        map.getSource('contour-source').setTiles([newUrl]);
+        setTimeout(() => {
+          if (!chkContour.checked) return;
+          contourLayerIds.forEach(id => {
+            if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', 'visible');
+          });
+        }, 0);
       }
     });
 
