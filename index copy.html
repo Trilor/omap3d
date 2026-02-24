@@ -1113,8 +1113,7 @@
         version: 8,
         // OriLibreのisomizerがベクタースタイルを動的に注入するための基本設定
         // glyphs/spriteはOpenMapTiles互換を使用（isomizer内部のシンボルが動作するよう）
-        glyphs: 'https://fonts.openmaptiles.org/{fontstack}/{range}.pbf',
-        sprite: 'https://openmaptiles.github.io/osm-bright-gl-style/sprite',
+        glyphs: 'http://fonts.openmaptiles.org/{fontstack}/{range}.pbf',
 
         sources: {
 
@@ -1147,6 +1146,8 @@
       pitch: INITIAL_PITCH,
       bearing: INITIAL_BEARING,
       maxPitch: 85,
+      hash: true,
+      localIdeographFontFamily: "sans-serif",
     });
 
 
