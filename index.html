@@ -2432,18 +2432,40 @@
     });
 
     // ---- 等高線 間隔セレクト ----
+    // ---- 等高線 間隔セレクト ----
     selContour.addEventListener('change', () => {
       const interval = parseFloat(selContour.value);
       const newUrl = buildContourTileUrl(interval);
+      if (!newUrl || !map.getSource('contour-source')) return;
 
-      if (newUrl && map.getSource('contour-source')) {
-        const src = map.getSource('contour-source');
-        // setTiles() でソースのURLを更新し、reload() でキャッシュを破棄して全タイルを再フェッチ
-        // triggerRepaint() だけでは「描画の再試行」のみでタイル再取得は行われない
-        src.setTiles([newUrl]);
-        src.reload();  // VectorTileSource.reload() — 現在ビューポート内のタイルを即座に再取得
+      // 【高ズーム時のタイル即時更新】
+      // MapLibreは「新しいタイルが届くまで古いタイルを保持する」仕様があるため、
+      // setTiles()だけでは拡大状態で古い等高線が残り続ける。
+      // 対処: レイヤーを即座に非表示にして古いタイルを先に消去し、
+      //       新タイル読み込み完了(idle)後に再表示する。
+      const wasVisible = chkContour.checked;
+
+      // ① 既存レイヤーを即座に非表示（古いタイルをクリア）
+      contourLayerIds.forEach(id => {
+        if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', 'none');
+      });
+
+      // ② ソースを新しいURLに切り替えてタイル再フェッチ開始
+      const src = map.getSource('contour-source');
+      src.setTiles([newUrl]);
+      src.reload();
+
+      // ③ 新しいタイルの読み込み完了後（map が idle になった時点）にレイヤーを再表示
+      //    once('idle') でワンショット: 1回だけ発火してリスナーは自動解除される
+      if (wasVisible) {
+        map.once('idle', () => {
+          contourLayerIds.forEach(id => {
+            if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', 'visible');
+          });
+        });
       }
     });
+
 
     // ---- パネル折りたたみ ----
     document.getElementById('ui-panel-header').addEventListener('click', () => {
