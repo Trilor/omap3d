@@ -994,7 +994,7 @@
       tileUrl: 'https://forestgeo.info/opendata/26_kyoto/csmap_2024/{z}/{x}/{y}.webp',
       label: 'CS立体図（0.5m）—京都府',
       maxzoom: 18,
-      attribution: '林野庁（京都府0.5mCS）',
+      attribution: '<a href="https://www.geospatial.jp/ckan/dataset/csmap_kyoto" target="_blank">京都府 CS立体図</a>（<a href="https://www.geospatial.jp/ckan/pages/terms-and-conditions" target="_blank">公共データ利用規約第1.0版</a>に基づく）',
     }
 
       ,
@@ -1004,7 +1004,7 @@
       tileUrl: 'https://forestgeo.info/opendata/25_shiga/csmap_2023/{z}/{x}/{y}.webp',
       label: 'CS立体図（0.5m）—滋賀県',
       maxzoom: 18,
-      attribution: '林野庁（滋賀県0.5mCS）',
+      attribution: '<a href="https://www.geospatial.jp/ckan/dataset/csmap_shiga" target="_blank">滋賀県 CS立体図</a>（<a href="https://www.geospatial.jp/ckan/pages/terms-and-conditions" target="_blank">公共データ利用規約第1.0版</a>に基づく）',
     }
 
       ,
@@ -1014,7 +1014,7 @@
       tileUrl: 'https://forestgeo.info/opendata/27_osaka/csmap_2020/{z}/{x}/{y}.webp',
       label: 'CS立体図（0.5m）—大阪府',
       maxzoom: 18,
-      attribution: '林野庁（大阪府0.5mCS）',
+      attribution: '<a href="https://www.geospatial.jp/ckan/dataset/csmap_osaka" target="_blank">大阪府 CS立体図</a>（<a href="https://www.geospatial.jp/ckan/pages/terms-and-conditions" target="_blank">公共データ利用規約第1.0版</a>に基づく）',
     }
 
       ,
@@ -1024,7 +1024,7 @@
       tileUrl: 'https://rinya-hyogo.geospatial.jp/2023/rinya/tile/csmap/{z}/{x}/{y}.png',
       label: 'CS立体図（0.5m）—兵庫県',
       maxzoom: 18,
-      attribution: '兵庫県林務課（CS立体図）',
+      attribution: '<a href="https://rinya-hyogo.geospatial.jp/" target="_blank">兵庫県 CS立体図</a>（<a href="https://www.geospatial.jp/ckan/pages/terms-and-conditions" target="_blank">公共データ利用規約第1.0版</a>に基づく）',
     }
 
       ,
@@ -1034,7 +1034,7 @@
       tileUrl: 'https://forestgeo.info/opendata/21_gifu/csmap_2023/{z}/{x}/{y}.webp',
       label: 'CS立体図（0.5m）—岐阜県',
       maxzoom: 18,
-      attribution: '林野庁（岐阜県0.5mCS）',
+      attribution: '<a href="https://www.geospatial.jp/ckan/dataset/csmap_gifu" target="_blank">岐阜県 CS立体図</a>（<a href="https://www.geospatial.jp/ckan/pages/terms-and-conditions" target="_blank">公共データ利用規約第1.0版</a>に基づく）',
     }
 
       ,
@@ -1047,7 +1047,7 @@
       scheme: 'tms',
       label: 'CS立体図（0.5m）—愛媛県',
       maxzoom: 18,
-      attribution: '近畿中国四国森林管理局（愛媛県CS立体図）',
+      attribution: '<a href="https://rinya-ehime.geospatial.jp/" target="_blank">愛媛県 CS立体図</a>（<a href="https://www.geospatial.jp/ckan/pages/terms-and-conditions" target="_blank">公共データ利用規約第1.0版</a>に基づく）',
     }
 
       ,
@@ -1378,8 +1378,11 @@
         id: 'color-elev-layer',
         type: 'raster',
         source: 'color-elev',
+        layout: {
+          visibility: ELEV_DEFAULT_VISIBLE ? 'visible' : 'none',
+        },
         paint: {
-          'raster-opacity': ELEV_DEFAULT_VISIBLE ? ELEV_INITIAL_OPACITY : 0,
+          'raster-opacity': ELEV_INITIAL_OPACITY,
           'raster-fade-duration': 150,
         }
 
@@ -1444,8 +1447,11 @@
           id: layer.layerId,
           type: 'raster',
           source: layer.sourceId,
+          layout: {
+            visibility: 'none',
+          },
           paint: {
-            'raster-opacity': 0,
+            'raster-opacity': 1.0,
             'raster-fade-duration': 150,
           }
 
@@ -1789,7 +1795,7 @@
           slider.disabled = !entry.visible;
 
           if (map.getLayer(entry.layerId)) {
-            map.setPaintProperty(entry.layerId, 'raster-opacity', entry.visible ? entry.opacity : 0);
+            map.setLayoutProperty(entry.layerId, 'visibility', entry.visible ? 'visible' : 'none');
           }
         });
 
@@ -2419,8 +2425,10 @@
           sliderEl.disabled = !isOn;
 
           if (map.getLayer(layer.layerId)) {
-            map.setPaintProperty(layer.layerId, 'raster-opacity',
-              isOn ? parseFloat(sliderEl.value) : 0);
+            map.setLayoutProperty(layer.layerId, 'visibility', isOn ? 'visible' : 'none');
+            if (isOn) {
+              map.setPaintProperty(layer.layerId, 'raster-opacity', parseFloat(sliderEl.value));
+            }
           }
         });
 
@@ -2447,8 +2455,7 @@
       slider.disabled = !chkCs.checked;
 
       if (map.getLayer('cs-relief-layer')) {
-        map.setPaintProperty('cs-relief-layer', 'raster-opacity',
-          chkCs.checked ? parseFloat(slider.value) : 0);
+        map.setLayoutProperty('cs-relief-layer', 'visibility', chkCs.checked ? 'visible' : 'none');
       }
     });
 
