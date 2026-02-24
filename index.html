@@ -249,7 +249,8 @@
     }
     .setting-row:last-child { border-bottom: none; }
 
-    .setting-row input[type="checkbox"] {
+    /* パネル内のすべてのチェックボックスを同一サイズに統一 */
+    #ui-panel input[type="checkbox"] {
       width: 13px;
       height: 13px;
       flex-shrink: 0;
@@ -358,13 +359,7 @@
       margin-bottom: 3px;
     }
 
-    .layer-label-row input[type="checkbox"] {
-      width: 13px;
-      height: 13px;
-      cursor: pointer;
-      accent-color: #4a7c59;
-      flex-shrink: 0;
-    }
+    /* #ui-panel input[type="checkbox"] に統合済み */
 
     .layer-name {
       flex: 1;
@@ -2466,9 +2461,17 @@
     });
 
     // ---- 縮尺セレクト ----
-    // 縮尺分母からズームレベルを計算して地図を移動するヘルパー
     const SCREEN_DPI = (window.devicePixelRatio || 1) * 96;
 
+    // 現在の地図ズーム・中心緯度から縮尺分母を計算する
+    function calcScaleDenominator() {
+      const center = map.getCenter();
+      const zoom = map.getZoom();
+      const groundRes = 156543.03392 * Math.cos(center.lat * Math.PI / 180) / Math.pow(2, zoom);
+      return Math.round(groundRes * SCREEN_DPI / 0.0254);
+    }
+
+    // 縮尺分母からズームレベルを計算して地図を移動するヘルパー
     function zoomToScale(targetScale) {
       if (!targetScale) return;
       const center = map.getCenter();
@@ -2478,6 +2481,22 @@
     }
 
     const selScale = document.getElementById('sel-scale');
+    const SCALE_PRESETS = [2500, 4000, 5000, 10000, 15000, 25000];
+
+    // 現在の縮尺に最も近いプリセット値をセレクトに反映する
+    function updateScaleSelect() {
+      const s = calcScaleDenominator();
+      const closest = SCALE_PRESETS.reduce((prev, curr) =>
+        Math.abs(curr - s) < Math.abs(prev - s) ? curr : prev
+      );
+      selScale.value = closest;
+    }
+
+    // 地図の移動・ズームに連動してセレクトを更新
+    map.on('move', updateScaleSelect);
+    map.on('zoom', updateScaleSelect);
+    map.once('idle', updateScaleSelect);
+
     selScale.addEventListener('change', () => {
       zoomToScale(parseInt(selScale.value, 10));
     });
