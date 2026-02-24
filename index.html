@@ -569,9 +569,18 @@
       cursor: default;
     }
 
-    /* 縮尺セレクト */
+    /* 縮尺セレクト（等高線セレクトと同一スタイル） */
     #sel-scale {
       flex: 1;
+      font-size: 12px;
+      padding: 3px 6px;
+    }
+
+    /* チェックボックスのない行でラベル位置を揃えるスペーサー */
+    .chk-spacer {
+      display: inline-block;
+      width: 13px;
+      flex-shrink: 0;
     }
 
     /* 現在位置ボタン（MapLibre GeolocateControl）のカスタムスタイル */
@@ -789,9 +798,27 @@
         </details>
       </details>
 
-      <!-- ===== 表示設定（等高線 / 縮尺 / 地形誇張） ===== -->
+      <!-- ===== 表示設定（縮尺 / 等高線 / 地形誇張） ===== -->
       <details class="panel-section">
         <summary>表示設定</summary>
+
+        <!-- 縮尺：1行（chk-spacer でチェックボックス分の左余白を確保してラベルを等高線と揃える） -->
+        <div class="setting-row">
+          <div class="setting-left">
+            <span class="chk-spacer"></span>
+            <span class="setting-label">縮尺</span>
+          </div>
+          <div class="setting-right">
+            <select id="sel-scale" class="setting-select">
+              <option value="2500">1 : 2,500</option>
+              <option value="4000">1 : 4,000</option>
+              <option value="5000">1 : 5,000</option>
+              <option value="10000">1 : 10,000</option>
+              <option value="15000" selected>1 : 15,000</option>
+              <option value="25000">1 : 25,000</option>
+            </select>
+          </div>
+        </div>
 
         <!-- 等高線：1行 -->
         <div class="setting-row">
@@ -806,22 +833,6 @@
               <option value="2.5">2.5 m</option>
               <option value="5" selected>5 m</option>
               <option value="10">10 m</option>
-            </select>
-          </div>
-        </div>
-
-        <!-- 縮尺：1行 -->
-        <div class="setting-row">
-          <div class="setting-left">
-            <span class="setting-label">縮尺</span>
-          </div>
-          <div class="setting-right">
-            <select id="sel-scale" class="setting-select">
-              <option value="2500">1 : 2,500</option>
-              <option value="4000">1 : 4,000</option>
-              <option value="5000">1 : 5,000</option>
-              <option value="10000">1 : 10,000</option>
-              <option value="15000" selected>1 : 15,000</option>
             </select>
           </div>
         </div>
