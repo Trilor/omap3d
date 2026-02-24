@@ -818,6 +818,29 @@
           </div>
         </div>
 
+        <!-- ズームレベル：縮尺と同一デザイン -->
+        <div class="setting-row">
+          <div class="setting-left">
+            <span class="chk-spacer"></span>
+            <span class="setting-label">ズーム</span>
+          </div>
+          <div class="setting-right">
+            <select id="sel-zoom" class="setting-select">
+              <option value="" id="opt-current-zoom">z --.-</option>
+              <option disabled>──────</option>
+              <option value="10">z 10</option>
+              <option value="12">z 12</option>
+              <option value="13">z 13</option>
+              <option value="14">z 14</option>
+              <option value="15">z 15</option>
+              <option value="16">z 16</option>
+              <option value="17">z 17</option>
+              <option value="18">z 18</option>
+            </select>
+          </div>
+        </div>
+
+
         <!-- 等高線：1行 -->
         <div class="setting-row">
           <div class="setting-left">
@@ -2497,6 +2520,26 @@
       const val = parseInt(selScale.value, 10);
       if (val) zoomToScale(val);
     });
+
+    // ---- ズームレベルセレクト（リアルタイム表示 ＋ プリセット選択でズーム） ----
+    const selZoom = document.getElementById('sel-zoom');
+    const optCurrentZoom = document.getElementById('opt-current-zoom');
+
+    function updateZoomDisplay() {
+      const z = map.getZoom();
+      optCurrentZoom.textContent = 'z ' + z.toFixed(1);
+      selZoom.selectedIndex = 0; // 常に先頭（現在値）を選択表示
+    }
+
+    map.on('zoom', updateZoomDisplay);
+    map.once('idle', updateZoomDisplay);
+
+    // プリセット選択 → そのズームレベルに移動
+    selZoom.addEventListener('change', () => {
+      const val = parseFloat(selZoom.value);
+      if (val) map.easeTo({ zoom: val, duration: 600 });
+    });
+
 
     // スライダーの初期値をUIに反映（値を設定してからグラデーションを更新する）
     sliderCs.value = CS_INITIAL_OPACITY;
