@@ -9,66 +9,142 @@
 すべてのファイル処理（解釈・描画）はユーザーのブラウザのメモリ内でのみ実行すること。サーバーへのファイルアップロード（HTTPリクエストでの送信）は絶対に行わないアーキテクチャとする。
 
 ## 2. 技術スタック（CDN経由・Vanilla JS）
-- **地図描画**: MapLibre GL JS
-- **3D地形**: Terrain-RGB（例: Q地図1A 1mメッシュDEM等のURLを指定）
-- **GPXパース**: `togeojson` （GPXからGeoJSONへの変換）
-- **空間計算**: `Turf.js` （2点間の距離、方位角計算、線形補間など）
-- **UI実装**: HTML5 / CSS3 / Vanilla JavaScript（React等は不使用）
 
-## 3. 画面UIとコンポーネント構成
+| ライブラリ | 用途 | 備考 |
+|---|---|---|
+| MapLibre GL JS 4.7.1 | 地図描画・3D地形・レイヤー制御 | unpkg CDN |
+| isomizer（OriLibre） | ベースマップのベクタースタイル動的構築 | `tjmsy/maplibre-gl-isomizer` |
+| mlcontour | DEMタイルから等高線を動的生成 | `maplibre-contour-adding-Numerical-PNG-Tile` |
+| JSZip | KMZファイル（ZIP形式）の解凍 | cdnjs CDN |
+| Turf.js | 方位角計算（GPXリプレイのカメラ制御） | unpkg CDN |
+| PMTiles | 将来の自前タイル配信に備えてプロトコル登録済み | unpkg CDN |
+
+**GPXパース**: 外部ライブラリ不使用。ネイティブ `DOMParser` + `querySelectorAll('trkpt')` で解析する。
+**UIフレームワーク**: 不使用。HTML5 / CSS3 / Vanilla JavaScript のみ。
+**単一ファイル構成**: `index.html` にすべてインライン（外部JSファイルなし）。
+
+## 3. データソース
+
+### 3D地形DEM
+- **Q地図タイル** `mapdata.qchizu.xyz/03_dem/52_gsi/all_2025/` （国土地理院測量成果）
+- タイル形式は GSJ NumPNG 互換のため、`gsjdem://` カスタムプロトコルで Terrarium 形式に変換してから MapLibre に渡す
+
+### 等高線
+- **産総研シームレス標高タイル** `tiles.gsj.jp/tiles/elev/land/` （NumPNG形式）
+- mlcontour の DemSource を通じて動的に等高線ベクタータイルを生成する
+
+### CS立体図
+- **全国（5m DEM由来）**: 地理院タイル `cyberjapandata.gsi.go.jp/xyz/cs/`
+- **都道府県別（0.5m DEM由来）**: 下表のタイルを重ね、全国CSより上層に表示する
+
+| 府県 | タイル提供元 |
+|---|---|
+| 京都府 | forestgeo.info（G空間情報センター） |
+| 滋賀県 | forestgeo.info（G空間情報センター） |
+| 大阪府 | forestgeo.info（G空間情報センター） |
+| 兵庫県 | rinya-hyogo.geospatial.jp |
+| 岐阜県 | forestgeo.info（G空間情報センター） |
+| 愛媛県 | rinya-ehime.geospatial.jp（TMSスキーム） |
+
+## 4. レイヤースタック（上が前面）
+
+```
+KMZ画像レイヤー（動的追加・常に最上層）
+  ↑ 都道府県別CS立体図（0.5m）
+  ↑ CS立体図 全国（5m）
+  ↑ 色別標高図（デフォルト非表示）
+  ↑ OriLibreベクタースタイル群（ベースマップ）
+```
+
+### CS立体図の描画設定（乗算代替）
+白浮きを防ぎコントラストを強調するため以下の値で描画する：
+- `raster-opacity: 0.6`
+- `raster-contrast: 0.2`
+- `raster-brightness-max: 0.8`
+
+## 5. Attribution（出典）アーキテクチャ
+
+MapLibre 標準の Attribution 表示機能を使い、現在表示されているレイヤーの出典のみを右下に動的表示する。
+
+### 原則
+1. `map` 初期化時に `customAttribution` を設定しない
+2. 各 `map.addSource()` の `attribution` プロパティに HTML リンク形式で出典を記述する
+3. レイヤーのON/OFFは必ず `setLayoutProperty(layerId, 'visibility', 'none'/'visible')` で行う
+   → `visibility: 'none'` のソースは MapLibre が attribution から自動除外する
+   → `setPaintProperty(raster-opacity, 0)` による疑似非表示は使わない
+
+### 初期非表示レイヤーの addLayer パターン
+```javascript
+map.addLayer({
+  id: 'some-layer',
+  type: 'raster',
+  source: 'some-source',
+  layout: { visibility: 'none' },   // 非表示で開始
+  paint: { 'raster-opacity': 1.0 }, // opacity は実際の値を設定（0にしない）
+});
+```
+
+### 都道府県別CS立体図の attribution 形式
+```
+<a href="https://www.geospatial.jp/ckan/dataset/csmap_XXXX" target="_blank">XX県 CS立体図</a>
+（<a href="https://www.geospatial.jp/ckan/pages/terms-and-conditions" target="_blank">公共データ利用規約第1.0版</a>に基づく）
+```
+
+## 6. 画面UIとコンポーネント構成
+
 画面は地図全体を背景とし、その上に以下のUI要素（絶対配置）を重ねる。
 
-1. **ファイルインポートエリア（画面端）**:
-   - KMZおよびGPXファイルを読み込むための `<input type="file" multiple>`。
-   - **【重要】** ファイル選択ボタンの直下に、以下の注意書きを小さく（グレーアウト等で）必ず配置すること。
-     `「※ 読み込んだファイルはブラウザ内でのみ処理されます。サーバーへ送信・保存されることは一切ありません。」`
+1. **左パネル（折りたたみ可）**:
+   - OMAP / KMZ セクション: 読み込み済みレイヤー一覧（チェック・透明度スライダー・削除ボタン）
+   - GPX 軌跡セクション: 読み込みボタン・状態表示・プライバシー注記
+   - CS立体図セクション: 全国チェック＋透明度スライダー / 都道府県別サブアコーディオン
+   - 表示設定セクション: 等高線ON/OFF・間隔セレクト / 縮尺表示 / 地形誇張スライダー
 
-2. **視点切り替えトグルボタン**:
-   - 「1人称視点（ドローン追従）」と「3人称視点（俯瞰）」を切り替えるボタン。
+2. **視点切り替えトグルボタン（GPX読み込み後に表示）**:
+   - 「1人称視点（ドローン追従）」と「3人称視点（俯瞰）」を切り替え
 
-3. **タイムライン・コントロールパネル（画面下部）**:
-   - 再生 / 一時停止 ボタン。
-   - シークバー（`<input type="range">`）。※距離ではなく「時間」ベースで稼働。
-   - 時間表示パネル（フォーマット: `現在時間(MM:SS) / 総時間(MM:SS)`）。
+3. **タイムライン・コントロールパネル（画面下部、GPX読み込み後に表示）**:
+   - 再生 / 一時停止ボタン
+   - シークバー（時間ベース）
+   - 時間表示（`現在時間(MM:SS) / 総時間(MM:SS)`）
+   - 再生速度セレクト（10x / 30x / 60x / 120x）
 
-## 4. 地図・レイヤーの描画仕様
-1. **3D地形（Terrain）**: MapLibreの `raster-dem` ソースとして読み込み、立体化する。
-2. **CS立体図（陰影）レイヤー**:
-   - 乗算（Multiply）の代替として、白浮きを防ぐため以下のプロパティで描画する。
-     `raster-opacity: 0.6`, `raster-contrast: 0.2`, `raster-brightness-max: 0.8`（※数値は調整可）
-3. **KMZレイヤー**: ユーザーがアップロードしたKMZを展開し、Imageレイヤーとして指定座標にオーバーレイする。
-4. **GPXレイヤー（軌跡と現在地）**:
-   - 軌跡全体を描画するLineStringレイヤー。
-   - アニメーションに連動して動く現在地マーカー（Pointレイヤー、目立つ円形）。
+## 7. GPX 3Dリプレイ機能のロジック
 
-## 5. GPX 3Dリプレイ機能（タイムラインベース）のロジック
-アニメーションは「距離」ではなく、GPXの `<time>` タグに基づく「経過時間（ミリ秒/秒）」をベースに行う（立ち止まっていた時間をリアルに再現するため）。
+アニメーションは「距離」ではなく、GPXの `<time>` タグに基づく「経過時間（ミリ秒）」をベースとする（立ち止まっていた時間をリアルに再現するため）。
 
-1. **時間と状態の管理**:
-   - GPXロード時に `startTime`, `endTime`, `totalDuration` を算出。
-   - `currentTime` （0 〜 totalDuration）をシークバーおよびアニメーションの現在値とする。
-2. **座標の補間計算**:
-   - 毎フレーム、`currentTime` がGPX配列のどのポイント間に位置するかを特定し、2点間の経過時間の割合から現在地座標（Lat/Lng）を線形補間（Turf.js等を利用）して算出する。
-3. **カメラ制御（視点モード別）**:
-   - **1人称（ドローン）視点**: 
-     - Zoom: 18〜19, Pitch: 70〜75
-     - Bearing: 直近の進行方向（方位角）を計算して向ける。
-     - Center: 補間した現在地座標に追従。
-   - **3人称（俯瞰）視点**: 
-     - Zoom: 15〜16, Pitch: 45〜50
-     - Bearing: 0（北固定）
-     - Center: 補間した現在地座標に追従。
+### 座標補間
+毎フレーム、`currentTime` がGPX配列のどの区間に位置するかを特定し、区間内の経過割合から現在地座標（Lat/Lng）を線形補間する。
+方位角は Turf.js `turf.bearing()` で p0 → p1 の方向を計算する。
 
-## 6. コーディング時の厳守事項
-- **Gitコミットの徹底**: 新機能の実装やコードの大幅な書き換えを行う前は、必ず `git add .` および `git commit` を実行し、現状の動く状態をセーブすること。
+### カメラ制御（視点モード別）
 
-## 7. 開発アシスタント（Claude）への絶対ルール（Git管理）
-コードの変更や新機能の実装を行う際は、以下のGitワークフローを必ず遵守すること。
-1. **作業前のセーブ**: 作業開始前に必ず `git add .` と `git commit -m "変更前の状態"` を実行し、復元ポイントを作成すること。
-2. **作業後のセーブとアップロード**: 実装が完了し、正常な動作が確認できたら `git add .` と `git commit -m "〇〇機能の実装"` を行い、さらに **`git push origin main`** を実行してGitHubのリモートリポジトリに反映させること。
+| | 1人称（ドローン）視点 | 3人称（俯瞰）視点 |
+|---|---|---|
+| Zoom | 18.5 | 15.5 |
+| Pitch | 72° | 47° |
+| Bearing | 進行方向（turf.bearing） | 0（北固定） |
+| Center | 補間した現在地に追従 | 補間した現在地に追従 |
 
-githubのリポジトリ名
-https://github.com/Trilor/omap3d
+## 8. Git ワークフロー
 
-- **コメントアウト**: 数学的処理（時間の補間計算、方位角の計算）やアニメーションループの箇所には、初心者が理解できるよう、処理の意図を1行ずつ日本語で詳細にコメントすること。
-- **既存コードの保護**: 既に動いているKMZの読み込み機能やUIの根幹部分は破壊しないこと。
+### 作業前のセーフティコミット
+```bash
+git add .
+git commit -m "変更前の状態を保存"
+```
+
+### 実装完了後のコミット＆Push
+```bash
+git add .
+git commit -m "〇〇機能の実装"
+git push origin main
+```
+
+リポジトリ: `https://github.com/Trilor/omap3d`
+
+## 9. コーディング規約
+
+- **コメント**: 数学的処理（時間補間・方位角計算）やアニメーションループには、処理の意図を1行ずつ**日本語**で詳細にコメントすること
+- **既存コード保護**: 動作しているKMZ読み込み機能・UIの根幹部分を壊さないこと
+- **UI言語**: UI表示テキストは日本語、コード変数名は英語
