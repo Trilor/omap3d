@@ -967,8 +967,10 @@
        ★ カスタマイズポイント：各種URLと初期パラメータをここで変更します
        ======================================================== */
 
-    // ★ 標高（DEM）タイルのURL（産総研シームレス標高タイル mixed・NumPNG形式）
-    const TERRAIN_URL = 'gsjdem://tiles.gsj.jp/tiles/elev/mixed/{z}/{y}/{x}.png';
+    // ★ 標高（DEM）タイルのURL（Q地図 / 国土地理院測量成果）
+    // Q地図 DEM は GSJ NumPNG と同じ変換式（x=2^16R+2^8G+B、u=0.01）のため
+    // gsjdem カスタムプロトコルで Terrarium 形式に変換してから MapLibre に渡す。
+    const TERRAIN_URL = 'gsjdem://mapdata.qchizu.xyz/03_dem/52_gsi/all_2025/1_02/{z}/{x}/{y}.webp';
 
     // ★ OriLibre（オリエンテーリング風地図）のプロジェクト設定URL
     //   isomizer がこのYAMLを読み込み、ベースマップのベクタースタイルを動的に構築する。
@@ -1109,9 +1111,9 @@
             type: 'raster-dem',
             tiles: [TERRAIN_URL],
             tileSize: 256,
-            maxzoom: 13,
+            maxzoom: 14,
             encoding: 'terrarium',
-            attribution: '<a href="https://tiles.gsj.jp/tiles/elev/tiles.html">産総研シームレス標高タイル</a>',
+            attribution: '<a href="https://qchizu.jp/" target="_blank">Q地図</a>（国土地理院測量成果）',
           }
 
           ,
