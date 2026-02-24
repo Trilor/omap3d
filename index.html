@@ -2460,13 +2460,10 @@
       const newUrl = buildContourTileUrl(interval);
 
       if (newUrl && map.getSource('contour-source')) {
-        const src = map.getSource('contour-source');
-        // setTiles() でソースのURLを更新し、reload() でキャッシュを破棄して全タイルを再フェッチ
-        // triggerRepaint() だけでは「描画の再試行」のみでタイル再取得は行われない
-        src.setTiles([newUrl]);
-        src.reload();  // VectorTileSource.reload() — 現在ビューポート内のタイルを即座に再取得
+        // OriLibre ContourIntervalControl と同じアプローチ: setTiles() のみ
+        // reload() を追加するとzoom16以上のオーバーズーム処理と干渉して即時反映されなくなる
+        map.getSource('contour-source').setTiles([newUrl]);
       }
-    });
 
     // ---- パネル折りたたみ ----
     document.getElementById('ui-panel-header').addEventListener('click', () => {
