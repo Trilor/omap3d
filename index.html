@@ -261,6 +261,7 @@
     .setting-label {
       font-size: 11px;
       color: #333;
+      margin-left: auto; /* チェックボックスは左端、ラベルテキストは右端に寄せる */
       white-space: nowrap;
       flex-shrink: 0;
     }
@@ -1241,25 +1242,19 @@
         });
       }
 
-      // isomizer完了後、contour-sourceを参照するレイヤーをすべて削除して自前レイヤーに統一する
-      // 理由: isomizerが生成するフィルター・スタイルは計曲線の表示に対応していない場合があるため
-      const existingContourLayers = map.getStyle().layers.filter(l => l.source === 'contour-source').map(l => l.id);
-      console.log('等高線レイヤー（isomizer生成、削除対象）:', existingContourLayers);
-      existingContourLayers.forEach(id => {
-        if (map.getLayer(id)) map.removeLayer(id);
-      });
+      // isomizer完了後、contour-sourceを参照するレイヤーIDを収集（表示/非表示制御に使用）
+      contourLayerIds = map.getStyle().layers.filter(l => l.source === 'contour-source').map(l => l.id);
+      console.log('等高線レイヤー（isomizer生成）:', contourLayerIds);
 
-      // contour-sourceが存在する場合、ISOM2017スタイルで等高線レイヤーを追加
-      // 主曲線（細線）+ 計曲線（太線、5本ごと）+ 計曲線ラベル
-      if (map.getSource('contour-source')) {
-        // 主曲線: level !== 1 のフィーチャーすべて（mlcontourはlevelプロパティを必ず付与する）
-        // ISOM2017 主曲線幅 0.14mm 基準 → line-width = 1.0
+      // isomizerが等高線レイヤーを生成しなかった場合のみフォールバックとして明示的に追加
+      // 主曲線（細線）+ 計曲線＝5本ごとの主曲線（太線）+ 計曲線ラベル
+      if (contourLayerIds.length === 0 && map.getSource('contour-source')) {
         map.addLayer({
           id: 'contour-regular',
           type: 'line',
           source: 'contour-source',
           'source-layer': 'contours',
-          filter: ['!=', ['get', 'level'], 1], // level=0が主曲線
+          filter: ['!=', ['get', 'level'], 1], // level=0が主曲線（mlcontourは必ずlevelを付与する）
           paint: {
             'line-color': '#c86400', // ISOM2017 茶色
             'line-width': 1.0,
@@ -1267,22 +1262,19 @@
           },
         });
 
-        // 計曲線: level === 1 のフィーチャー（5本ごと）
-        // ISOM2017 計曲線幅 0.25mm → 主曲線比 25/14 ≈ 1.79
         map.addLayer({
           id: 'contour-index',
           type: 'line',
           source: 'contour-source',
           'source-layer': 'contours',
-          filter: ['==', ['get', 'level'], 1], // level=1が計曲線
+          filter: ['==', ['get', 'level'], 1], // level=1が計曲線（5本ごと）
           paint: {
             'line-color': '#c86400',
-            'line-width': 1.79, // 1.0 × (25/14)
+            'line-width': 1.79, // ISOM2017 主曲線:計曲線 = 14:25 → 1.0 × (25/14)
             'line-opacity': 1.0,
           },
         });
 
-        // 計曲線ラベル（標高数値）
         map.addLayer({
           id: 'contour-label',
           type: 'symbol',
@@ -1304,7 +1296,7 @@
         });
 
         contourLayerIds = ['contour-regular', 'contour-index', 'contour-label'];
-        console.log('等高線レイヤー（自前生成）:', contourLayerIds);
+        console.log('等高線レイヤー（フォールバック生成）:', contourLayerIds);
       }
 
       /*
