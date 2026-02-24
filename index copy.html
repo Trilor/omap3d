@@ -924,8 +924,24 @@
       if (!response.ok) throw new Error(`GSJ DEM fetch failed: ${response.status}`);
 
       const bitmap = await createImageBitmap(await response.blob());
-      const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
-      const ctx = canvas.getContext('2d');
+      let canvas, ctx;
+      if (typeof OffscreenCanvas !== 'undefined') {
+        try {
+          canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+          ctx = canvas.getContext('2d', { willReadFrequently: true });
+        } catch (e) {
+          // Context creation failed (sometimes happens on hidden tabs or specific configs)
+          canvas = document.createElement('canvas');
+          canvas.width = bitmap.width;
+          canvas.height = bitmap.height;
+          ctx = canvas.getContext('2d', { willReadFrequently: true });
+        }
+      } else {
+        canvas = document.createElement('canvas');
+        canvas.width = bitmap.width;
+        canvas.height = bitmap.height;
+        ctx = canvas.getContext('2d', { willReadFrequently: true });
+      }
       ctx.drawImage(bitmap, 0, 0);
 
       const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
@@ -947,7 +963,12 @@
       }
 
       ctx.putImageData(imageData, 0, 0);
-      const blob = await canvas.convertToBlob({ type: 'image/png' });
+      let blob;
+      if (canvas.convertToBlob) {
+        blob = await canvas.convertToBlob({ type: 'image/png' });
+      } else {
+        blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+      }
       return { data: await blob.arrayBuffer() };
     });
 
@@ -1075,6 +1096,7 @@
     const map = new maplibregl.Map({
 
       container: 'map',
+      pixelRatio: Math.min(window.devicePixelRatio, 1.5),
       style: {
         version: 8,
         // OriLibreのisomizerがベクタースタイルを動的に注入するための基本設定
