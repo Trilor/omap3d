@@ -1144,15 +1144,13 @@
     //   level=1 → major（計曲線）: intervalM × 5 ごとに1本
     function buildContourThresholds(intervalM) {
       const major = intervalM * 5;
-      // 間隔が細かいほど高ズームからのみ表示（データ量抑制）
-      let minZoom;
-      if (intervalM >= 10) minZoom = 8;
-      else if (intervalM >= 5) minZoom = 10;
-      else if (intervalM >= 2) minZoom = 12;
-      else minZoom = 13; // 1m
-
-      // [minor, major] の正しい順序で渡す
-      return { [minZoom]: [intervalM, major] };
+      // zoom 0〜15 の全レベルに thresholds を設定する（OriLibre ContourIntervalControl と同じアプローチ）
+      // 一部のzoomにしか設定しないと setTiles() 後もキャッシュが残り即時反映されない
+      const thresholds = {};
+      for (let z = 0; z <= 15; z++) {
+        thresholds[z] = [intervalM, major]; // [minor(主曲線間隔), major(計曲線間隔)]
+      }
+      return thresholds;
     }
 
     // contour-source の tiles URL を生成（demSource は load 内で初期化）
