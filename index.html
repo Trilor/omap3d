@@ -564,11 +564,11 @@
       cursor: default;
     }
 
-    /* 縮尺セレクト（等高線セレクトと同一スタイル） */
-    #sel-scale {
-      flex: 1;
+    /* 縮尺表示（動的テキスト） */
+    #scale-display {
       font-size: 12px;
-      padding: 3px 6px;
+      color: #333;
+      white-space: nowrap;
     }
 
     /* チェックボックスのない行でラベル位置を揃えるスペーサー */
@@ -804,14 +804,7 @@
             <span class="setting-label">縮尺</span>
           </div>
           <div class="setting-right">
-            <select id="sel-scale" class="setting-select">
-              <option value="2500">1 : 2,500</option>
-              <option value="4000">1 : 4,000</option>
-              <option value="5000">1 : 5,000</option>
-              <option value="10000">1 : 10,000</option>
-              <option value="15000" selected>1 : 15,000</option>
-              <option value="25000">1 : 25,000</option>
-            </select>
+            <span id="scale-display">1 : ---</span>
           </div>
         </div>
 
@@ -1239,47 +1232,49 @@
         });
       }
 
-      // isomizer完了後、contour-sourceを参照するレイヤーIDを収集（表示/非表示制御に使用）
-      contourLayerIds = map.getStyle().layers.filter(l => l.source === 'contour-source').map(l => l.id);
-      console.log('等高線レイヤー（isomizer生成）:', contourLayerIds);
+      // isomizer完了後、contour-sourceを参照するレイヤーをすべて削除して自前レイヤーに統一する
+      // 理由: isomizerが生成するフィルター・スタイルは計曲線の表示に対応していない場合があるため
+      const existingContourLayers = map.getStyle().layers.filter(l => l.source === 'contour-source').map(l => l.id);
+      console.log('等高線レイヤー（isomizer生成、削除対象）:', existingContourLayers);
+      existingContourLayers.forEach(id => {
+        if (map.getLayer(id)) map.removeLayer(id);
+      });
 
-      // isomizerが等高線レイヤーを生成しなかった場合、ISOM2017スタイルで明示的に追加
-      // 主曲線（細線）+ 計曲線＝5本ごとの主曲線（太線）+ 計曲線ラベル
-      if (contourLayerIds.length === 0 && map.getSource('contour-source')) {
+      // contour-sourceが存在する場合、ISOM2017スタイルで等高線レイヤーを追加
+      // 主曲線（細線）+ 計曲線（太線、5本ごと）+ 計曲線ラベル
+      if (map.getSource('contour-source')) {
+        // 主曲線: level !== 1 のフィーチャーすべて（mlcontourはlevelプロパティを必ず付与する）
+        // ISOM2017 主曲線幅 0.14mm 基準 → line-width = 1.0
         map.addLayer({
-
           id: 'contour-regular',
           type: 'line',
           source: 'contour-source',
           'source-layer': 'contours',
-          filter: ['all', ['!', ['has', 'level']], ['!=', ['get', 'level'], 1]],
+          filter: ['!=', ['get', 'level'], 1], // level=0が主曲線
           paint: {
             'line-color': '#c86400', // ISOM2017 茶色
-            'line-width': 0.9,
+            'line-width': 1.0,
             'line-opacity': 0.85,
-          }
-
-          ,
+          },
         });
 
+        // 計曲線: level === 1 のフィーチャー（5本ごと）
+        // ISOM2017 計曲線幅 0.25mm → 主曲線比 25/14 ≈ 1.79
         map.addLayer({
-          id: 'contour-index', // 計曲線（5本ごとの主曲線）
-
+          id: 'contour-index',
           type: 'line',
           source: 'contour-source',
           'source-layer': 'contours',
-          filter: ['==', ['get', 'level'], 1],
+          filter: ['==', ['get', 'level'], 1], // level=1が計曲線
           paint: {
             'line-color': '#c86400',
-            'line-width': 2.2,
+            'line-width': 1.79, // 1.0 × (25/14)
             'line-opacity': 1.0,
-          }
-
-          ,
+          },
         });
 
+        // 計曲線ラベル（標高数値）
         map.addLayer({
-
           id: 'contour-label',
           type: 'symbol',
           source: 'contour-source',
@@ -1291,19 +1286,16 @@
             'text-size': 9,
             'text-font': ['Noto Sans Bold'],
             'text-padding': 50,
-          }
-
-          ,
+          },
           paint: {
             'text-color': '#c86400',
             'text-halo-color': 'rgba(255,255,255,0.85)',
             'text-halo-width': 1.5,
-          }
-
-          ,
+          },
         });
+
         contourLayerIds = ['contour-regular', 'contour-index', 'contour-label'];
-        console.log('等高線レイヤー（フォールバック生成）:', contourLayerIds);
+        console.log('等高線レイヤー（自前生成）:', contourLayerIds);
       }
 
       /*
@@ -2460,10 +2452,13 @@
       icon.textContent = isOpen ? '▼' : '▲';
     });
 
-    // ---- 縮尺セレクト ----
+    // ---- 縮尺表示（動的リアルタイム） ----
+    // 画面のDPI（デバイスピクセル比を考慮）
     const SCREEN_DPI = (window.devicePixelRatio || 1) * 96;
 
     // 現在の地図ズーム・中心緯度から縮尺分母を計算する
+    // 計算式: 地上分解能(m/px) = 156543.034 × cos(緯度) / 2^zoom
+    // 縮尺分母 = 地上分解能 × DPI / 1インチ(m換算)
     function calcScaleDenominator() {
       const center = map.getCenter();
       const zoom = map.getZoom();
@@ -2471,35 +2466,18 @@
       return Math.round(groundRes * SCREEN_DPI / 0.0254);
     }
 
-    // 縮尺分母からズームレベルを計算して地図を移動するヘルパー
-    function zoomToScale(targetScale) {
-      if (!targetScale) return;
-      const center = map.getCenter();
-      const targetGroundRes = targetScale * 0.0254 / SCREEN_DPI;
-      const zoom = Math.log2(156543.03392 * Math.cos(center.lat * Math.PI / 180) / targetGroundRes);
-      map.easeTo({ zoom, duration: 600 });
-    }
+    const scaleDisplay = document.getElementById('scale-display');
 
-    const selScale = document.getElementById('sel-scale');
-    const SCALE_PRESETS = [2500, 4000, 5000, 10000, 15000, 25000];
-
-    // 現在の縮尺に最も近いプリセット値をセレクトに反映する
-    function updateScaleSelect() {
+    // 現在の縮尺をそのまま "1 : 〇〇" 形式で表示する（プリセットへのスナップなし）
+    function updateScaleDisplay() {
       const s = calcScaleDenominator();
-      const closest = SCALE_PRESETS.reduce((prev, curr) =>
-        Math.abs(curr - s) < Math.abs(prev - s) ? curr : prev
-      );
-      selScale.value = closest;
+      scaleDisplay.textContent = '1 : ' + s.toLocaleString();
     }
 
-    // 地図の移動・ズームに連動してセレクトを更新
-    map.on('move', updateScaleSelect);
-    map.on('zoom', updateScaleSelect);
-    map.once('idle', updateScaleSelect);
-
-    selScale.addEventListener('change', () => {
-      zoomToScale(parseInt(selScale.value, 10));
-    });
+    // 地図の移動・ズームに連動してリアルタイム更新
+    map.on('move', updateScaleDisplay);
+    map.on('zoom', updateScaleDisplay);
+    map.once('idle', updateScaleDisplay);
 
     // スライダーの初期値をUIに反映（値を設定してからグラデーションを更新する）
     sliderCs.value = CS_INITIAL_OPACITY;
