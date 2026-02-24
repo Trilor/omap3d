@@ -311,6 +311,34 @@
       border-color: #6a8fa0;
     }
 
+    .setting-slider:disabled {
+      opacity: 0.35;
+      cursor: default;
+    }
+
+    /* 表示設定：左ラベル列 / 右コントロール列 */
+    .setting-left {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      flex-shrink: 0;
+      min-width: 70px;
+      padding-right: 8px;
+      border-right: 1px solid #ddd;
+    }
+
+    .setting-right {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      flex: 1;
+      min-width: 0;
+      padding-left: 4px;
+    }
+
+    .setting-label.disabled {
+      color: #aaa;
+    }
 
     /* レイヤー行 */
     .layer-row {
@@ -845,41 +873,54 @@
 
         <!-- 等高線：1行 -->
         <div class="setting-row">
-          <input type="checkbox" id="chk-contour" checked />
-          <label for="chk-contour" class="setting-label">等高線</label>
-          <label for="sel-contour-interval" class="setting-sublabel">間隔：</label>
-          <select id="sel-contour-interval" class="setting-select">
-            <option value="1">1 m</option>
-            <option value="2">2 m</option>
-            <option value="2.5">2.5 m</option>
-            <option value="5" selected>5 m</option>
-            <option value="10">10 m</option>
-          </select>
+          <div class="setting-left">
+            <input type="checkbox" id="chk-contour" checked />
+            <label for="chk-contour" class="setting-label">等高線</label>
+          </div>
+          <div class="setting-right">
+            <select id="sel-contour-interval" class="setting-select">
+              <option value="1">1 m</option>
+              <option value="2">2 m</option>
+              <option value="2.5">2.5 m</option>
+              <option value="5" selected>5 m</option>
+              <option value="10">10 m</option>
+            </select>
+          </div>
         </div>
 
         <!-- 縮尺：1行 -->
         <div class="setting-row">
-          <span class="setting-label">縮尺：1 :</span>
-          <div class="scale-combo-wrap">
-            <input type="number" id="scale-input" placeholder="---" min="100" max="1000000"
-              title="縮尺分母を入力してEnter" />
-            <button id="scale-dropdown-btn" type="button" title="プリセット縮尺を選択">▾</button>
-            <ul id="scale-dropdown" style="display:none">
-              <li data-value="2500">1 : 2,500</li>
-              <li data-value="4000">1 : 4,000</li>
-              <li data-value="5000">1 : 5,000</li>
-              <li data-value="10000">1 : 10,000</li>
-              <li data-value="15000">1 : 15,000</li>
-            </ul>
+          <div class="setting-left">
+            <span class="setting-label">縮尺</span>
+          </div>
+          <div class="setting-right">
+            <span class="setting-label">1 :</span>
+            <div class="scale-combo-wrap">
+              <input type="number" id="scale-input" placeholder="---" min="100" max="1000000"
+                title="縮尺分母を入力してEnter" />
+              <button id="scale-dropdown-btn" type="button" title="プリセット縮尺を選択">▾</button>
+              <ul id="scale-dropdown" style="display:none">
+                <li data-value="2500">1 : 2,500</li>
+                <li data-value="4000">1 : 4,000</li>
+                <li data-value="5000">1 : 5,000</li>
+                <li data-value="10000">1 : 10,000</li>
+                <li data-value="15000">1 : 15,000</li>
+              </ul>
+            </div>
           </div>
         </div>
 
         <!-- 地形誇張：1行 -->
         <div class="setting-row">
-          <span class="setting-label">地形誇張：</span>
-          <input type="range" id="slider-exaggeration" min="0.5" max="3" step="0.1" value="1.0"
-            class="setting-slider" />
-          <span class="opacity-val" id="val-exaggeration">1.0×</span>
+          <div class="setting-left">
+            <input type="checkbox" id="chk-exaggeration" checked />
+            <label for="chk-exaggeration" class="setting-label">地形誇張</label>
+          </div>
+          <div class="setting-right">
+            <input type="range" id="slider-exaggeration" min="0.5" max="3" step="0.1" value="1.0"
+              class="setting-slider" />
+            <span class="opacity-val" id="val-exaggeration">1.0×</span>
+          </div>
         </div>
 
       </details>
@@ -1053,9 +1094,6 @@
       ,
     ];
 
-    // ★ 色別標高図（地理院タイル）
-    const COLOR_ELEV_URL = 'https://cyberjapandata.gsi.go.jp/xyz/relief/{z}/{x}/{y}.png';
-
     // ★ 初期表示: 京都大学吉田キャンパス
     const INITIAL_CENTER = [135.7814,
       35.0261];
@@ -1077,11 +1115,6 @@
 
     // ★ CS立体図の初期不透明度（仕様書: 乗算代替として0.6推奨）
     const CS_INITIAL_OPACITY = 0.6;
-
-    // ★ 色別標高図: チェックON時の不透明度値（デフォルトは非表示）
-    const ELEV_INITIAL_OPACITY = 1.0;
-    const ELEV_DEFAULT_VISIBLE = false; // 起動時 false = 非表示
-
 
     /*
       ========================================================
@@ -1358,36 +1391,9 @@
             KMZ（後から動的追加・常に最上層）
             ↑ 都道府県別CS立体図（0.5m）
             ↑ CS立体図（全国・5m）
-            ↑ 色別標高図
             ↑ OriLibreベクタースタイル群（最下層）
           ========================================================
         */
-
-      // 色別標高図
-      map.addSource('color-elev', {
-        type: 'raster',
-        tiles: [COLOR_ELEV_URL],
-        tileSize: 256,
-        minzoom: 2,
-        maxzoom: 15,
-        attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html">地理院タイル（色別標高図）</a>',
-      });
-
-      map.addLayer({
-
-        id: 'color-elev-layer',
-        type: 'raster',
-        source: 'color-elev',
-        layout: {
-          visibility: ELEV_DEFAULT_VISIBLE ? 'visible' : 'none',
-        },
-        paint: {
-          'raster-opacity': ELEV_INITIAL_OPACITY,
-          'raster-fade-duration': 150,
-        }
-
-        ,
-      });
 
       // CS立体図（全国・5m）
       map.addSource('cs-relief', {
@@ -2474,19 +2480,28 @@
     });
 
 
-    // ---- 地形誇張スライダー ----
+    // ---- 地形誇張 チェックボックス + スライダー ----
+    const chkExaggeration = document.getElementById('chk-exaggeration');
     const sliderExaggeration = document.getElementById('slider-exaggeration');
     const valExaggeration = document.getElementById('val-exaggeration');
     updateSliderGradient(sliderExaggeration, '#6a8fa0');
+
+    // チェックOFF → exaggeration=1.0（等倍）、スライダー無効化
+    chkExaggeration.addEventListener('change', () => {
+      const isOn = chkExaggeration.checked;
+      sliderExaggeration.disabled = !isOn;
+      document.querySelector('label[for="chk-exaggeration"]').classList.toggle('disabled', !isOn);
+      const v = isOn ? parseFloat(sliderExaggeration.value) : 1.0;
+      valExaggeration.textContent = v.toFixed(1) + '×';
+      updateSliderGradient(sliderExaggeration, '#6a8fa0');
+      map.setTerrain({ source: 'terrain-dem', exaggeration: v });
+    });
 
     sliderExaggeration.addEventListener('input', () => {
       const v = parseFloat(sliderExaggeration.value);
       valExaggeration.textContent = v.toFixed(1) + '×';
       updateSliderGradient(sliderExaggeration, '#6a8fa0');
-
-      map.setTerrain({
-        source: 'terrain-dem', exaggeration: v
-      });
+      map.setTerrain({ source: 'terrain-dem', exaggeration: v });
     });
 
     // ---- 等高線 チェックボックス ----
