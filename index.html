@@ -64,6 +64,16 @@
   -->
   <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
 
+  <!--
+    ========================================================
+    TensorFlow.js の読み込み
+    CS立体図をDEMタイルからブラウザ内で動的生成するために使用します。
+    WebGLバックエンドで高速な畳み込み演算（ガウシアン平滑化）を実行します。
+    qchizu-project/qchizu-maps-maplibregljs のアルゴリズムを参考にしています。
+    ========================================================
+  -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4/dist/tf.min.js"></script>
+
   <style>
     /*
       ========================================================
@@ -952,6 +962,202 @@
     });
 
 
+    /*
+      ========================================================
+      CS立体図をDEMタイルからブラウザ内で動的生成するプロトコル
+      qchizu-project/qchizu-maps-maplibregljs を参考に実装
+      https://github.com/qchizu-project/qchizu-maps-maplibregljs/blob/main/src/protocols/dem2CsProtocol.js
+
+      入力: csdem://{z}/{x}/{y}.webp（Q地図 NumPNG DEMタイル）
+      処理: 周辺9タイルを取得 → ガウシアン平滑化 → 傾斜・曲率計算 → 5レイヤー合成
+      出力: CS立体図PNG画像
+      ========================================================
+    */
+    maplibregl.addProtocol('csdem', async (params, abortController) => {
+      const url = params.url.replace('csdem://', 'https://');
+
+      // URLから z/x/y を抽出
+      const m = url.match(/\/(\d+)\/(\d+)\/(\d+)\.(png|webp)$/);
+      if (!m) return { data: null };
+      const zoomLevel = +m[1], tileX = +m[2], tileY = +m[3], ext = m[4];
+      const tileSize = 256;
+
+      // ピクセル解像度（m/pixel）― qchizu-project/protocolUtils calculatePixelResolution より
+      const L = 85.05112878;
+      const py = 256 * tileY + tileSize / 2;
+      const lat = (180 / Math.PI) * Math.asin(
+        Math.tanh((-Math.PI / (1 << (zoomLevel + 7))) * py + Math.atanh(Math.sin(L * Math.PI / 180)))
+      );
+      const pixelLength = 156543.04 * Math.cos(lat * Math.PI / 180) / (1 << zoomLevel);
+
+      // NumPNG → 標高変換（Q地図はGSJ NumPNG形式, u=0.01m）
+      const toHeight = (r, g, b, a) => {
+        const x = r * 65536 + g * 256 + b;
+        if (a === 0 || x === 8388608) return -99999;
+        return x < 8388608 ? x * 0.01 : (x - 16777216) * 0.01;
+      };
+
+      // ガウシアン平滑化パラメータ
+      const sigma = Math.min(Math.max(3 / pixelLength, 1.6), 7);
+      const kernelRadius = Math.ceil(sigma * 3);
+      const buffer = kernelRadius + 1;
+      const mergedSize = tileSize + buffer * 2;
+      const kernelDim = kernelRadius * 2 + 1;
+
+      // 中心タイルを先行取得（存在確認）
+      const centerRes = await fetch(url, { signal: abortController.signal });
+      if (!centerRes.ok) return { data: null };
+
+      // 周辺9タイルURLを生成
+      const base = url.substring(0, url.lastIndexOf(`/${zoomLevel}/`) + 1) + `${zoomLevel}/`;
+      const tileUrls = [
+        base + (tileX - 1) + '/' + (tileY - 1) + '.' + ext, // 0:左上
+        base +  tileX      + '/' + (tileY - 1) + '.' + ext, // 1:上
+        base + (tileX + 1) + '/' + (tileY - 1) + '.' + ext, // 2:右上
+        base + (tileX - 1) + '/' +  tileY      + '.' + ext, // 3:左
+        url,                                                  // 4:中央
+        base + (tileX + 1) + '/' +  tileY      + '.' + ext, // 5:右
+        base + (tileX - 1) + '/' + (tileY + 1) + '.' + ext, // 6:左下
+        base +  tileX      + '/' + (tileY + 1) + '.' + ext, // 7:下
+        base + (tileX + 1) + '/' + (tileY + 1) + '.' + ext, // 8:右下
+      ];
+
+      // 9タイルを並列取得してマージキャンバスに描画
+      const mergedCanvas = new OffscreenCanvas(mergedSize, mergedSize);
+      const mc = mergedCanvas.getContext('2d');
+
+      const images = await Promise.all(tileUrls.map(async (src, idx) => {
+        try {
+          const r = (idx === 4) ? centerRes : await fetch(src, { signal: abortController.signal });
+          if (!r.ok) return null;
+          return { bmp: await createImageBitmap(await r.blob()), idx };
+        } catch (_) { return null; }
+      }));
+
+      images.forEach(item => {
+        if (!item) return;
+        const { bmp, idx } = item;
+        const col = idx % 3, row = Math.floor(idx / 3);
+        let sx, sy, sw, sh, dx, dy;
+        if (idx === 4) {
+          sx = 0; sy = 0; sw = tileSize; sh = tileSize; dx = buffer; dy = buffer;
+        } else {
+          sx = col === 0 ? tileSize - buffer : 0;
+          sw = col === 1 ? tileSize : buffer;
+          dx = col === 2 ? tileSize + buffer : col * buffer;
+          sy = row === 0 ? tileSize - buffer : 0;
+          sh = row === 1 ? tileSize : buffer;
+          dy = row === 2 ? tileSize + buffer : row * buffer;
+        }
+        mc.drawImage(bmp, sx, sy, sw, sh, dx, dy, sw, sh);
+        bmp.close();
+      });
+
+      // マージ画像から標高配列を生成
+      const mergedPx = mc.getImageData(0, 0, mergedSize, mergedSize).data;
+      const mergedHeights = new Float32Array(mergedSize * mergedSize);
+      for (let i = 0; i < mergedHeights.length; i++) {
+        const p = i * 4;
+        mergedHeights[i] = toHeight(mergedPx[p], mergedPx[p + 1], mergedPx[p + 2], mergedPx[p + 3]);
+      }
+
+      // TensorFlow.js でガウシアン平滑化 → 傾斜・曲率計算 → CS立体図合成
+      const csRittaizuTensor = tf.tidy(() => {
+
+        // ガウシアンカーネル作成
+        const [kx, ky] = tf.meshgrid(
+          tf.linspace(-kernelRadius, kernelRadius, kernelDim),
+          tf.linspace(-kernelRadius, kernelRadius, kernelDim)
+        );
+        const kernel = tf.exp(tf.neg(kx.square().add(ky.square()).div(2 * sigma * sigma)));
+
+        // ガウシアン平滑化（無効値をマスクして畳み込み）
+        const hT = tf.tensor2d(mergedHeights, [mergedSize, mergedSize]);
+        const valid = hT.notEqual(-99999);
+        const masked = hT.where(valid, 0);
+        const kExp = kernel.expandDims(2).expandDims(3);
+        const kSum = tf.conv2d(
+          valid.cast('float32').expandDims(2).expandDims(0), kExp, 1, 'valid'
+        ).squeeze([0, 3]);
+        let sH = tf.conv2d(
+          masked.expandDims(2).expandDims(0), kExp, 1, 'valid'
+        ).squeeze([0, 3]).div(kSum);
+        sH = sH.where(valid.slice([buffer, buffer], [tileSize + 2, tileSize + 2]), -99999);
+        const smoothed = sH.dataSync(); // 平滑化標高をJS配列に取り出す
+
+        // 傾斜・曲率計算（JS ループ）
+        const curvatures = new Float32Array(tileSize * tileSize);
+        const slopes = new Float32Array(tileSize * tileSize);
+        const sw2 = tileSize + 2;
+        for (let row = 0; row < tileSize; row++) {
+          for (let col = 0; col < tileSize; col++) {
+            const oi = row * tileSize + col;
+            const mi = (row + buffer) * mergedSize + (col + buffer);
+            const H00 = mergedHeights[mi], H01 = mergedHeights[mi + 1], H10 = mergedHeights[mi + mergedSize];
+            const ddx = H00 - H01, ddy = H00 - H10;
+            slopes[oi] = Math.atan(Math.sqrt(ddx * ddx + ddy * ddy) / pixelLength) * (180 / Math.PI);
+            const si = (row + 1) * sw2 + (col + 1);
+            const z2 = smoothed[si - sw2], z4 = smoothed[si - 1], z5 = smoothed[si],
+                  z6 = smoothed[si + 1],   z8 = smoothed[si + sw2];
+            const cellArea = pixelLength * pixelLength;
+            curvatures[oi] = H00 === -99999 ? -1
+              : -2 * (((z4 + z6) / 2 - z5) / cellArea + ((z2 + z8) / 2 - z5) / cellArea);
+          }
+        }
+
+        // 曲率係数（ズームに応じた色調整）
+        const cc = pixelLength < 68
+          ? Math.max(pixelLength / 2, 1.1)
+          : 0.188 * Math.pow(pixelLength, 1.232);
+
+        // CS立体図 5レイヤーの作成と合成
+        const hCrop = hT.slice([buffer, buffer], [tileSize, tileSize]);
+        const cT = tf.tensor1d(curvatures).reshape([tileSize, tileSize]);
+        const sT = tf.tensor1d(slopes).reshape([tileSize, tileSize]);
+
+        // カラーランプ（2色）
+        const ramp = (min, max, c0, c1, t) => {
+          const n = t.clipByValue(min, max).sub(min).div(max - min);
+          return tf.stack([
+            n.mul(c1.r - c0.r).add(c0.r).round(),
+            n.mul(c1.g - c0.g).add(c0.g).round(),
+            n.mul(c1.b - c0.b).add(c0.b).round(),
+          ], -1);
+        };
+        // カラーランプ（中間色あり）
+        const rampMid = (min, max, c0, c1, c2, t) => {
+          const n = t.clipByValue(min, max).sub(min).div(max - min);
+          const r = tf.where(n.lessEqual(0.5), n.mul(2).mul(c1.r - c0.r).add(c0.r), n.sub(0.5).mul(2).mul(c2.r - c1.r).add(c1.r)).round();
+          const g = tf.where(n.lessEqual(0.5), n.mul(2).mul(c1.g - c0.g).add(c0.g), n.sub(0.5).mul(2).mul(c2.g - c1.g).add(c1.g)).round();
+          const b = tf.where(n.lessEqual(0.5), n.mul(2).mul(c1.b - c0.b).add(c0.b), n.sub(0.5).mul(2).mul(c2.b - c1.b).add(c1.b)).round();
+          return tf.stack([r, g, b], -1);
+        };
+        const blend = (a, b, alpha) => a.mul(1 - alpha).add(b.mul(alpha));
+        const mulBlend = (a, b) => a.mul(b.div(255));
+
+        const L1 = ramp(0, 3000, { r: 100, g: 100, b: 100 }, { r: 255, g: 255, b: 255 }, hCrop);          // 標高レイヤ
+        const L2 = ramp(-0.25 / cc, 0.05 / cc, { r: 42, g: 92, b: 170 }, { r: 255, g: 255, b: 255 }, cT); // 立体図曲率
+        const L3 = ramp(0, 60, { r: 255, g: 255, b: 255 }, { r: 189, g: 74, b: 29 }, sT);                  // 立体図傾斜
+        const L4 = rampMid(-0.2 / cc, 0.2 / cc, { r: 0, g: 0, b: 255 }, { r: 255, g: 255, b: 240 }, { r: 255, g: 0, b: 0 }, cT); // 曲率図曲率
+        const L5 = ramp(0, 90, { r: 255, g: 255, b: 255 }, { r: 0, g: 0, b: 0 }, sT);                      // 曲率図傾斜（乗算）
+
+        // CS立体図 = (標高×曲率×傾斜×曲率図) ×乗算× 傾斜図
+        return mulBlend(blend(blend(blend(L1, L2, 0.5), L3, 0.5), L4, 0.5), L5);
+      });
+
+      // 出力: テンソル → Uint8ClampedArray → OffscreenCanvas → ArrayBuffer
+      const pixels = await tf.browser.toPixels(
+        csRittaizuTensor.reshape([tileSize, tileSize, 3]).div(tf.scalar(255))
+      );
+      csRittaizuTensor.dispose();
+
+      const outCanvas = new OffscreenCanvas(tileSize, tileSize);
+      outCanvas.getContext('2d').putImageData(new ImageData(pixels, tileSize, tileSize), 0, 0);
+      const outBlob = await outCanvas.convertToBlob({ type: 'image/png' });
+      return { data: await outBlob.arrayBuffer() };
+    });
+
+
     /* ========================================================
        ★ カスタマイズポイント：各種URLと初期パラメータをここで変更します
        ======================================================== */
@@ -966,9 +1172,9 @@
     //   Japan版: 国土地理院ベクタータイル + OpenFreeMap + 産総研等高線 + 農林水産省筆ポリゴン
     const ORILIBRE_PROJECT_URL = 'https://cdn.jsdelivr.net/gh/tjmsy/isomizer-projectfiles@0.3/projects/isomized-japan/project-config.yml';
 
-    // ★ CS立体図（地理院タイル・全国）
-    //   1mDEM整備エリアは高精度、未整備は5mDEM由来。
-    const CS_RELIEF_URL = 'https://cyberjapandata.gsi.go.jp/xyz/cs/{z}/{x}/{y}.png';
+    // ★ CS立体図（ブラウザ生成・Q地図DEMから動的生成）
+    //   csdem:// プロトコルでQ地図DEMタイルをリアルタイムにCS立体図へ変換します。
+    const CS_RELIEF_URL = 'csdem://mapdata.qchizu.xyz/03_dem/52_gsi/all_2025/1_02/{z}/{x}/{y}.webp';
 
     // ★ 地域別CS立体図（0.5mDEM由来・高精度）の定義リスト
     //   在る地域では全国地理院CSタイルよりも高解像度なため、上層に重ねて表示する。
@@ -1331,14 +1537,14 @@
           ========================================================
         */
 
-      // CS立体図（全国・5m）
+      // CS立体図（ブラウザ生成・Q地図DEMから動的生成）
       map.addSource('cs-relief', {
         type: 'raster',
         tiles: [CS_RELIEF_URL],
         tileSize: 256,
-        minzoom: 2,
-        maxzoom: 15,
-        attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html">地理院タイル（CS立体図）</a>',
+        minzoom: 8,
+        maxzoom: 14,
+        attribution: '<a href="https://www.geospatial.jp/ckan/dataset/qchizu_94dem_99gsi">Q地図（国土地理院測量成果）</a>',
       });
 
       map.addLayer({
