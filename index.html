@@ -1284,112 +1284,6 @@
       },
     ];
 
-    // ★ 地域別DEM設定（3D地形・等高線の高精度化に使用）
-    //   地図の中心座標がいずれかの範囲内に入ると、terrain-dem と等高線 DEM を切り替える。
-    //   bounds: [minLng, minLat, maxLng, maxLat]（概略値・重複可）
-    const NATIONAL_CONTOUR_DEM_URL = 'https://mapdata.qchizu.xyz/03_dem/52_gsi/all_2025/1_02/{z}/{x}/{y}.webp';
-
-    const REGIONAL_DEM_CONFIGS = [
-      {
-        id: 'kyoto',
-        bounds: [134.94, 34.72, 136.19, 35.86],
-        terrainUrl: 'gsjdem://forestgeo.info/opendata/26_kyoto/dem_2024/{z}/{x}/{y}.png',
-        contourUrl: 'https://forestgeo.info/opendata/26_kyoto/dem_2024/{z}/{x}/{y}.png',
-        maxzoom: 18,
-      },
-      {
-        id: 'shiga',
-        bounds: [135.71, 34.79, 136.31, 35.73],
-        terrainUrl: 'gsjdem://forestgeo.info/opendata/25_shiga/dem_2023/{z}/{x}/{y}.png',
-        contourUrl: 'https://forestgeo.info/opendata/25_shiga/dem_2023/{z}/{x}/{y}.png',
-        maxzoom: 18,
-      },
-      {
-        id: 'hyogo',
-        bounds: [134.27, 34.23, 135.82, 35.65],
-        terrainUrl: 'gsjdem://rinya-hyogo.geospatial.jp/2023/rinya/tile/dem/{z}/{x}/{y}.png',
-        contourUrl: 'https://rinya-hyogo.geospatial.jp/2023/rinya/tile/dem/{z}/{x}/{y}.png',
-        maxzoom: 18,
-      },
-      {
-        id: 'nara',
-        bounds: [135.56, 33.86, 136.29, 34.75],
-        terrainUrl: 'gsjdem://forestgeo.info/opendata/29_nara/dem_2023/{z}/{x}/{y}.png',
-        contourUrl: 'https://forestgeo.info/opendata/29_nara/dem_2023/{z}/{x}/{y}.png',
-        maxzoom: 18,
-      },
-      {
-        id: 'wakayama',
-        bounds: [135.00, 33.44, 136.18, 34.63],
-        terrainUrl: 'gsjdem://forestgeo.info/opendata/30_wakayama/dem_2023/{z}/{x}/{y}.png',
-        contourUrl: 'https://forestgeo.info/opendata/30_wakayama/dem_2023/{z}/{x}/{y}.png',
-        maxzoom: 18,
-      },
-      {
-        id: 'fukui',
-        bounds: [135.55, 35.27, 136.87, 36.29],
-        terrainUrl: 'gsjdem://forestgeo.info/opendata/18_fukui/dem_2023/{z}/{x}/{y}.png',
-        contourUrl: 'https://forestgeo.info/opendata/18_fukui/dem_2023/{z}/{x}/{y}.png',
-        maxzoom: 18,
-      },
-      {
-        id: 'gifu',
-        bounds: [136.22, 35.07, 137.71, 36.60],
-        terrainUrl: 'gsjdem://forestgeo.info/opendata/21_gifu/dem_2023/{z}/{x}/{y}.png',
-        contourUrl: 'https://forestgeo.info/opendata/21_gifu/dem_2023/{z}/{x}/{y}.png',
-        maxzoom: 18,
-      },
-      {
-        id: 'tottori',
-        bounds: [133.16, 35.10, 135.09, 35.73],
-        terrainUrl: 'gsjdem://forestgeo.info/opendata/31_tottori/dem_2023/{z}/{x}/{y}.png',
-        contourUrl: 'https://forestgeo.info/opendata/31_tottori/dem_2023/{z}/{x}/{y}.png',
-        maxzoom: 18,
-      },
-      {
-        id: 'okayama',
-        bounds: [133.19, 34.52, 134.45, 35.42],
-        terrainUrl: 'gsjdem://forestgeo.info/opendata/33_okayama/dem_2024/{z}/{x}/{y}.png',
-        contourUrl: 'https://forestgeo.info/opendata/33_okayama/dem_2024/{z}/{x}/{y}.png',
-        maxzoom: 18,
-      },
-      {
-        id: 'hiroshima',
-        bounds: [131.95, 34.05, 133.80, 35.23],
-        terrainUrl: 'gsjdem://forestgeo.info/opendata/34_hiroshima/dem_2023/{z}/{x}/{y}.png',
-        contourUrl: 'https://forestgeo.info/opendata/34_hiroshima/dem_2023/{z}/{x}/{y}.png',
-        maxzoom: 18,
-      },
-      {
-        id: 'kagawa',
-        bounds: [133.37, 33.88, 134.56, 34.57],
-        terrainUrl: 'gsjdem://forestgeo.info/opendata/37_kagawa/dem_2024/{z}/{x}/{y}.png',
-        contourUrl: 'https://forestgeo.info/opendata/37_kagawa/dem_2024/{z}/{x}/{y}.png',
-        maxzoom: 18,
-      },
-      {
-        id: 'tokushima',
-        bounds: [133.54, 33.54, 134.87, 34.51],
-        terrainUrl: 'gsjdem://forestgeo.info/opendata/36_tokushima/dem_2024/{z}/{x}/{y}.png',
-        contourUrl: 'https://forestgeo.info/opendata/36_tokushima/dem_2024/{z}/{x}/{y}.png',
-        maxzoom: 18,
-      },
-      {
-        id: 'kochi',
-        bounds: [132.50, 32.70, 134.65, 34.07],
-        terrainUrl: 'gsjdem://forestgeo.info/opendata/39_kochi/dem_2024/{z}/{x}/{y}.png',
-        contourUrl: 'https://forestgeo.info/opendata/39_kochi/dem_2024/{z}/{x}/{y}.png',
-        maxzoom: 18,
-      },
-      {
-        id: 'ehime',
-        bounds: [131.88, 32.75, 133.98, 34.25],
-        terrainUrl: 'gsjdem://forestgeo.info/opendata/38_ehime/dem_2019/{z}/{x}/{y}.png',
-        contourUrl: 'https://forestgeo.info/opendata/38_ehime/dem_2019/{z}/{x}/{y}.png',
-        maxzoom: 18,
-      },
-    ];
-
     // ★ 初期表示: 京都大学吉田キャンパス
     const INITIAL_CENTER = [135.7814,
       35.0261];
@@ -1440,7 +1334,7 @@
             type: 'raster-dem',
             tiles: [TERRAIN_URL],
             tileSize: 256,
-            maxzoom: 18,  // 都道府県DEM（maxzoom 18）にも対応するため引き上げ
+            maxzoom: 14,
             encoding: 'terrarium',
             attribution: '<a href="https://qchizu.jp/" target="_blank">Q地図</a>（国土地理院測量成果）',
           }
@@ -1559,8 +1453,6 @@
           timeoutMs: 30_000,
         });
         contourDemSource.setupMaplibre(maplibregl);
-        demSourceCache['national'] = contourDemSource; // 全国DEMをキャッシュ登録
-
         map.addSource('contour-source', {
           type: 'vector',
           tiles: [buildContourTileUrl(1)], // デフォルト1m
@@ -1754,76 +1646,6 @@
       buildRegionalCsUI();
 
       console.log('3D OMap Viewer 初期化完了（OriLibreベースマップ）');
-    });
-
-
-    /* ========================================================
-       地域別DEM自動切り替え（3D地形・等高線）
-       地図の中心が都道府県DEM対応エリアに入ると terrain-dem / contour DEM を
-       高精度の都道府県 DEM に自動切り替えする。
-       ・DemSource は都道府県ごとにキャッシュして再利用
-       ・setTiles() で各ソースを即時更新
-       ======================================================== */
-
-    let currentDemRegionId = 'national'; // 現在使用中のDEM地域ID
-    const demSourceCache = {};           // regionId → mlcontour.DemSource
-
-    /** 中心座標から最適なDEM設定を返す（見つからなければ null） */
-    function findDemRegion(lng, lat) {
-      return REGIONAL_DEM_CONFIGS.find(r =>
-        lng >= r.bounds[0] && lat >= r.bounds[1] &&
-        lng <= r.bounds[2] && lat <= r.bounds[3]
-      ) || null;
-    }
-
-    /** DEM地域が変わったときに terrain-dem / contour-source を切り替える */
-    function updateDemSources(region) {
-      const regionId = region ? region.id : 'national';
-      if (regionId === currentDemRegionId) return;
-      currentDemRegionId = regionId;
-
-      // ── ① 3D地形（terrain-dem）の切り替え ──
-      const terrainUrl = region ? region.terrainUrl : TERRAIN_URL;
-      const terrainSrc = map.getSource('terrain-dem');
-      if (terrainSrc) terrainSrc.setTiles([terrainUrl]);
-
-      // ── ② 等高線 DEM（mlcontour DemSource）の切り替え ──
-      const contourUrl  = region ? region.contourUrl  : NATIONAL_CONTOUR_DEM_URL;
-      const contourMz   = region ? region.maxzoom      : 17;
-
-      // DemSource をキャッシュ（初回のみ生成）
-      if (!demSourceCache[regionId]) {
-        const ds = new mlcontour.DemSource({
-          url: contourUrl,
-          encoding: 'numpng',
-          minzoom: 0,
-          maxzoom: contourMz,
-          worker: true,
-          cacheSize: 100,
-          timeoutMs: 30_000,
-        });
-        ds.setupMaplibre(maplibregl);
-        demSourceCache[regionId] = ds;
-      }
-      contourDemSource = demSourceCache[regionId];
-
-      // contour-source の tiles URL を更新
-      const interval = parseFloat(
-        document.getElementById('sel-contour-interval')?.value || '1'
-      );
-      const newContourUrl = buildContourTileUrl(interval);
-      const contourSrc = map.getSource('contour-source');
-      if (newContourUrl && contourSrc) {
-        contourSrc.setTiles([newContourUrl]);
-      }
-
-      console.log(`DEM切り替え → ${regionId} (terrain: ${terrainUrl.split('/').slice(-5, -3).join('/')})`);
-    }
-
-    // 地図移動のたびに地域DEM判定
-    map.on('moveend', () => {
-      const { lng, lat } = map.getCenter();
-      updateDemSources(findDemRegion(lng, lat));
     });
 
 
