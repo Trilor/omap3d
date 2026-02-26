@@ -1077,8 +1077,10 @@
       container: 'map',
       style: {
         version: 8,
-        // glyphsはOpenMapTiles互換。spriteはisomizerがaddImage()で個別追加するため不要
+        // OriLibreのisomizerがベクタースタイルを動的に注入するための基本設定
+        // glyphs/spriteはOpenMapTiles互換を使用（isomizer内部のシンボルが動作するよう）
         glyphs: 'https://fonts.openmaptiles.org/{fontstack}/{range}.pbf',
+        sprite: 'https://openmaptiles.github.io/osm-bright-gl-style/sprite',
 
         sources: {
 
@@ -1111,9 +1113,6 @@
       pitch: INITIAL_PITCH,
       bearing: INITIAL_BEARING,
       maxPitch: 85,
-      // 日本語等のCJK文字をローカルフォントで描画し、グリフサーバーへの大量リクエストを抑制する
-      // スマホ等の低帯域環境でタイルロードが詰まるのを防ぐためOriLibreと同様に設定する
-      localIdeographFontFamily: 'sans-serif',
     });
 
 

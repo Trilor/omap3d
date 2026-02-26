@@ -861,12 +861,12 @@
         <!-- 地形誇張：1行 -->
         <div class="setting-row">
           <div class="setting-left">
-            <input type="checkbox" id="chk-exaggeration" checked />
-            <label for="chk-exaggeration" class="setting-label">地形誇張</label>
+            <input type="checkbox" id="chk-exaggeration" />
+            <label for="chk-exaggeration" class="setting-label disabled">3D地形</label>
           </div>
           <div class="setting-right">
             <input type="range" id="slider-exaggeration" min="0.5" max="3" step="0.1" value="1.0"
-              class="setting-slider" />
+              class="setting-slider" disabled />
             <span class="opacity-val" id="val-exaggeration">1.0×</span>
           </div>
         </div>
@@ -923,8 +923,29 @@
       const response = await fetch(url, { signal: abortController.signal });
       if (!response.ok) throw new Error(`GSJ DEM fetch failed: ${response.status}`);
 
-      const bitmap = await createImageBitmap(await response.blob());
-      const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+      const blob = await response.blob();
+      // createImageBitmap はiOS 14以下では使えないため Image要素でフォールバック
+      let bitmap;
+      if (typeof createImageBitmap !== 'undefined') {
+        bitmap = await createImageBitmap(blob);
+      } else {
+        bitmap = await new Promise((resolve, reject) => {
+          const img = new Image();
+          img.onload = () => { resolve(img); URL.revokeObjectURL(img.src); };
+          img.onerror = reject;
+          img.src = URL.createObjectURL(blob);
+        });
+      }
+
+      // OffscreenCanvas はiOS 16.3以下では使えないため通常のcanvasでフォールバック
+      let canvas;
+      if (typeof OffscreenCanvas !== 'undefined') {
+        canvas = new OffscreenCanvas(bitmap.width || bitmap.naturalWidth, bitmap.height || bitmap.naturalHeight);
+      } else {
+        canvas = document.createElement('canvas');
+        canvas.width = bitmap.width || bitmap.naturalWidth;
+        canvas.height = bitmap.height || bitmap.naturalHeight;
+      }
       const ctx = canvas.getContext('2d');
       ctx.drawImage(bitmap, 0, 0);
 
@@ -947,8 +968,11 @@
       }
 
       ctx.putImageData(imageData, 0, 0);
-      const blob = await canvas.convertToBlob({ type: 'image/png' });
-      return { data: await blob.arrayBuffer() };
+      // blob変換もOffscreenCanvas vs 通常canvas で異なる
+      const outBlob = canvas instanceof OffscreenCanvas
+        ? await canvas.convertToBlob({ type: 'image/png' })
+        : await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+      return { data: await outBlob.arrayBuffer() };
     });
 
 
@@ -1356,18 +1380,6 @@
         }
 
         ,
-      });
-
-      /*
-          ========================================================
-          ③ 3D Terrain（地形立体化）の有効化
-          OriLibre / ラスターレイヤー追加後にsetTerrainすることで
-          ベクタースタイルとも整合が取れる。
-          ========================================================
-        */
-      map.setTerrain({
-        source: 'terrain-dem',
-        exaggeration: TERRAIN_EXAGGERATION,
       });
 
       // 都道府県別CS立体図（0.5m）のソース・レイヤーを動的追加
@@ -2423,22 +2435,28 @@
     const valExaggeration = document.getElementById('val-exaggeration');
     updateSliderGradient(sliderExaggeration, '#6a8fa0');
 
-    // チェックOFF → exaggeration=1.0（等倍）、スライダー無効化
+    // チェックON → terrain有効化、チェックOFF → terrain無効化
     chkExaggeration.addEventListener('change', () => {
       const isOn = chkExaggeration.checked;
       sliderExaggeration.disabled = !isOn;
       document.querySelector('label[for="chk-exaggeration"]').classList.toggle('disabled', !isOn);
-      const v = isOn ? parseFloat(sliderExaggeration.value) : 1.0;
-      valExaggeration.textContent = v.toFixed(1) + '×';
-      updateSliderGradient(sliderExaggeration, '#6a8fa0');
-      map.setTerrain({ source: 'terrain-dem', exaggeration: v });
+      if (isOn) {
+        const v = parseFloat(sliderExaggeration.value);
+        valExaggeration.textContent = v.toFixed(1) + '×';
+        updateSliderGradient(sliderExaggeration, '#6a8fa0');
+        map.setTerrain({ source: 'terrain-dem', exaggeration: v });
+      } else {
+        map.setTerrain(null);
+      }
     });
 
     sliderExaggeration.addEventListener('input', () => {
       const v = parseFloat(sliderExaggeration.value);
       valExaggeration.textContent = v.toFixed(1) + '×';
       updateSliderGradient(sliderExaggeration, '#6a8fa0');
-      map.setTerrain({ source: 'terrain-dem', exaggeration: v });
+      if (chkExaggeration.checked) {
+        map.setTerrain({ source: 'terrain-dem', exaggeration: v });
+      }
     });
 
     // ---- 等高線 チェックボックス ----
