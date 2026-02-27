@@ -2712,23 +2712,18 @@
     const valExaggeration = document.getElementById('val-exaggeration');
     updateSliderGradient(sliderExaggeration, '#6a8fa0');
 
-    // 3D表示OFF前のpitchを保持しておき、ON時に復元する
-    let _savedPitch = map.getPitch();
-
-    // チェックOFF → pitch=0（平面）、exaggeration=1.0、スライダー無効化
+    // チェックOFF → setTerrain(null) で地形を完全に平坦化（傾けても立体にならない）
+    // チェックON  → setTerrain でスライダー値の誇張率を復元
     chkExaggeration.addEventListener('change', () => {
       const isOn = chkExaggeration.checked;
       sliderExaggeration.disabled = !isOn;
       document.querySelector('label[for="chk-exaggeration"]').classList.toggle('disabled', !isOn);
-      const v = isOn ? parseFloat(sliderExaggeration.value) : 1.0;
-      valExaggeration.textContent = v.toFixed(1) + '×';
+      valExaggeration.textContent = parseFloat(sliderExaggeration.value).toFixed(1) + '×';
       updateSliderGradient(sliderExaggeration, '#6a8fa0');
-      map.setTerrain({ source: 'terrain-dem', exaggeration: v });
       if (isOn) {
-        map.easeTo({ pitch: _savedPitch, duration: 400 });
+        map.setTerrain({ source: 'terrain-dem', exaggeration: parseFloat(sliderExaggeration.value) });
       } else {
-        _savedPitch = map.getPitch();
-        map.easeTo({ pitch: 0, duration: 400 });
+        map.setTerrain(null);
       }
     });
 
