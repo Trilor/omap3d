@@ -875,11 +875,11 @@
           </div>
         </div>
 
-        <!-- 地形誇張：1行 -->
+        <!-- 3D表示：1行 -->
         <div class="setting-row">
           <div class="setting-left">
             <input type="checkbox" id="chk-exaggeration" checked />
-            <label for="chk-exaggeration" class="setting-label">地形誇張</label>
+            <label for="chk-exaggeration" class="setting-label">3D表示</label>
           </div>
           <div class="setting-right">
             <input type="range" id="slider-exaggeration" min="0.5" max="3" step="0.1" value="1.0"
@@ -2712,7 +2712,10 @@
     const valExaggeration = document.getElementById('val-exaggeration');
     updateSliderGradient(sliderExaggeration, '#6a8fa0');
 
-    // チェックOFF → exaggeration=1.0（等倍）、スライダー無効化
+    // 3D表示OFF前のpitchを保持しておき、ON時に復元する
+    let _savedPitch = map.getPitch();
+
+    // チェックOFF → pitch=0（平面）、exaggeration=1.0、スライダー無効化
     chkExaggeration.addEventListener('change', () => {
       const isOn = chkExaggeration.checked;
       sliderExaggeration.disabled = !isOn;
@@ -2721,6 +2724,12 @@
       valExaggeration.textContent = v.toFixed(1) + '×';
       updateSliderGradient(sliderExaggeration, '#6a8fa0');
       map.setTerrain({ source: 'terrain-dem', exaggeration: v });
+      if (isOn) {
+        map.easeTo({ pitch: _savedPitch, duration: 400 });
+      } else {
+        _savedPitch = map.getPitch();
+        map.easeTo({ pitch: 0, duration: 400 });
+      }
     });
 
     sliderExaggeration.addEventListener('input', () => {
@@ -2734,9 +2743,6 @@
     const chkContour = document.getElementById('chk-contour');
     const selContour = document.getElementById('sel-contour-interval');
 
-    // 等高線OFF前のpitchを保持しておき、ON時に復元する
-    let _savedPitch = map.getPitch();
-
     chkContour.addEventListener('change', () => {
       const vis = chkContour.checked ? 'visible' : 'none';
 
@@ -2745,15 +2751,6 @@
       });
       selContour.disabled = !chkContour.checked;
       document.querySelector('label[for="chk-contour"]').classList.toggle('disabled', !chkContour.checked);
-
-      if (chkContour.checked) {
-        // 等高線ON → 保存していたpitchを復元
-        map.easeTo({ pitch: _savedPitch, duration: 400 });
-      } else {
-        // 等高線OFF → 現在のpitchを保存して平面表示
-        _savedPitch = map.getPitch();
-        map.easeTo({ pitch: 0, duration: 400 });
-      }
     });
 
     // ---- 等高線 間隔セレクト ----
