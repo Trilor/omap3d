@@ -1222,15 +1222,15 @@
       // ── 関東 ──────────────────────────────────────────────
       {
         sourceId: 'cs-tochigi', layerId: 'cs-tochigi-layer',
-        tileUrl: 'csdem://tiles.gsj.jp/tiles/elev/tochigi/{z}/{y}/{x}.png',
+        tileUrl: 'https://rinya-tochigi.geospatial.jp/2023/rinya/tile/csmap/{z}/{x}/{y}.png',
         label: 'CS立体図（0.5m）— 栃木県', maxzoom: 18,
-        attribution: '<a href="https://tiles.gsj.jp/tiles/elev/tiles.html" target="_blank">栃木県CS：産総研PNG標高タイルを加工して作成</a>',
+        attribution: '<a href="https://www.geospatial.jp/ckan/dataset/csmap_tochigi" target="_blank">栃木県CS：栃木県</a>',
       },
       {
         sourceId: 'cs-tokyo', layerId: 'cs-tokyo-layer',
-        tileUrl: 'csdem://tiles.gsj.jp/tiles/elev/tokyo/{z}/{y}/{x}.png',
+        tileUrl: 'https://forestgeo.info/opendata/13_tokyo/csmap_2022/{z}/{x}/{y}.webp',
         label: 'CS立体図（0.5m）— 東京都', maxzoom: 18,
-        attribution: '<a href="https://tiles.gsj.jp/tiles/elev/tiles.html" target="_blank">東京都CS：産総研PNG標高タイルを加工して作成</a>',
+        attribution: '<a href="https://www.geospatial.jp/ckan/dataset/rinya-tokyo-maptiles" target="_blank">東京都CS：林野庁加工</a>',
       },
       {
         sourceId: 'cs-kanagawa', layerId: 'cs-kanagawa-layer',
@@ -1280,9 +1280,9 @@
       },
       {
         sourceId: 'cs-shizuoka', layerId: 'cs-shizuoka-layer',
-        tileUrl: 'csdem://tiles.gsj.jp/tiles/elev/shizuoka/{z}/{y}/{x}.png',
+        tileUrl: 'https://forestgeo.info/opendata/22_shizuoka/csmap_2023/{z}/{x}/{y}.webp',
         label: 'CS立体図（0.5m）— 静岡県', maxzoom: 18,
-        attribution: '<a href="https://tiles.gsj.jp/tiles/elev/tiles.html" target="_blank">静岡県CS：産総研PNG標高タイルを加工して作成</a>',
+        attribution: '<a href="https://www.geospatial.jp/ckan/dataset/rinya-shizuoka-maptiles" target="_blank">静岡県CS：林野庁加工</a>',
       },
       // ── 中部（岐阜） ─────────────────────────────────────
       {
@@ -1307,7 +1307,7 @@
       },
       {
         sourceId: 'cs-hiroshima', layerId: 'cs-hiroshima-layer',
-        tileUrl: 'csdem://forestgeo.info/opendata/34_hiroshima/dem_2023/{z}/{x}/{y}.png',
+        tileUrl: 'https://www2.ffpri.go.jp/soilmap/tile/cs_hiroshima/{z}/{x}/{y}.png',
         label: 'CS立体図（0.5m）— 広島県', maxzoom: 18,
         attribution: '<a href="https://www.geospatial.jp/ckan/dataset/rinya-hiroshima-maptiles" target="_blank">林野庁「PNG標高タイル」を加工して作成</a>',
       },
@@ -1320,21 +1320,20 @@
       },
       {
         sourceId: 'cs-kochi', layerId: 'cs-kochi-layer',
-        tileUrl: 'csdem://tiles.gsj.jp/tiles/elev/kochi/{z}/{y}/{x}.png',
+        tileUrl: 'https://www.geospatial.jp/ckan/dataset/csmap_kochi',
         label: 'CS立体図（0.5m）— 高知県', maxzoom: 18,
-        attribution: '<a href="https://tiles.gsj.jp/tiles/elev/tiles.html" target="_blank">高知県CS：産総研PNG標高タイルを加工して作成</a>',
+        attribution: '<a href="https://rinya-kochi.geospatial.jp/2023/rinya/tile/csmap/{z}/{x}/{y}.png" target="_blank">高知県CS：高知県</a>',
       },
       {
         sourceId: 'cs-ehime', layerId: 'cs-ehime-layer',
-        tileUrl: 'csdem://forestgeo.info/opendata/38_ehime/dem_2019/{z}/{x}/{y}.png',
+        tileUrl: 'https://rinya-ehime.geospatial.jp/tile/rinya/2024/csmap_Ehime/{z}/{x}/{-y}.png',
         label: 'CS立体図（0.5m）— 愛媛県', maxzoom: 18,
-        attribution: '<a href="https://www.geospatial.jp/ckan/dataset/rinya-ehime-maptiles" target="_blank">愛媛県CS：林野庁PNG標高タイルを加工して作成</a>',
+        attribution: '<a href="https://www.geospatial.jp/ckan/dataset/csmap_ehime" target="_blank">愛媛県CS：愛媛県</a>',
       },
     ];
 
     // ★ 初期表示: 京都大学吉田キャンパス
-    const INITIAL_CENTER = [135.7814,
-      35.0261];
+    const INITIAL_CENTER = [135.7814,35.0261];
 
     // ★ 初期ズームレベル（キャンパス全体が見える程度）
     const INITIAL_ZOOM = 15;
@@ -1665,7 +1664,7 @@
           type: 'raster',
           tiles: [layer.tileUrl],
           tileSize: 256,
-          minzoom: 2,
+          minzoom: 14,
           maxzoom: layer.maxzoom,
           attribution: layer.attribution,
         }
