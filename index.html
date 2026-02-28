@@ -2752,11 +2752,10 @@ let userMagneticInterval = 250;
 // 各ズームで画面内に約 7〜15 本表示されることを目安に設定。
 // 広域ズーム（z≤4）では間隔を大きくして本数を抑えつつ画面全体をカバーする。
 // ※ nHalf = min(30, ceil(halfExtentKm / intervalKm)) がキャップに当たらないよう調整。
-//   z≤1 ≈ 全球      → 5000km  (nHalf≈3)
-//   z≤2 ≈ 1:100M   → 2000km  (nHalf≈4)
-//   z≤3 ≈ 1:50M    → 1000km  (nHalf≈4)
-//   z≤4 ≈ 1:25M    →  500km  (nHalf≈4)
-//   z≤6 ≈ 1:5M–    →  200km
+//   z≤1 ≈ 全球      → 2000km  (nHalf≈7, 約15本)
+//   z≤2 ≈ 1:100M   → 1000km  (nHalf≈7, 約15本)
+//   z≤3 ≈ 1:50M    →  500km  (nHalf≈7, 約15本)
+//   z≤6 ≈ 1:5M–    →  200km  (z4もここに含む, nHalf≈9, 約19本)
 //   z7  ≈ 1:2.5M   →  100km
 //   z8  ≈ 1:1.2M   →   50km
 //   z9  ≈ 1:600K   →   20km
@@ -2768,10 +2767,9 @@ let userMagneticInterval = 250;
 //   z15+ ≈ 1:8K–   → ユーザー設定（デフォルト 250m）
 function getEffectiveMagneticInterval() {
   const z = map.getZoom();
-  if (z <=  1) return 5000000;
-  if (z <=  2) return 2000000;
-  if (z <=  3) return 1000000;
-  if (z <=  4) return  500000;
+  if (z <=  1) return 2000000;
+  if (z <=  2) return 1000000;
+  if (z <=  3) return  500000;
   if (z <=  6) return  200000;
   if (z <=  7) return  100000;
   if (z <=  8) return   50000;
