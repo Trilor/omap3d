@@ -1555,6 +1555,15 @@ map.on('load', async () => {
     await isomizer(map, ORILIBRE_PROJECT_URL);
     console.log('OriLibre スタイル構築完了');
 
+    // isomizer完了後、ベースマップ（ofm/gsivt）レイヤーの minzoom を 0 に下げる。
+    // OriLibreのスタイルレイヤーには低ズーム非表示のminzoomが設定されているものがあり、
+    // これを解除することで低ズームでも大陸外形・陸地を表示し続けられるようにする。
+    map.getStyle().layers.forEach(layer => {
+      if ((layer.source === 'ofm' || layer.source === 'gsivt') && (layer.minzoom || 0) > 0) {
+        map.setLayerZoomRange(layer.id, 0, layer.maxzoom !== undefined ? layer.maxzoom : 24);
+      }
+    });
+
     // isomizer の project-config.yml が別のcenterを持つ場合があるため、
     // 完了後に京都大学（INITIAL_CENTER）へ強制的に戻す
     map.jumpTo({
@@ -2884,11 +2893,26 @@ function applyContourInterval(intervalM) {
 
 // moveend 時に zoom に応じた間隔へ自動切り替え＆セレクト表示を更新
 function updateContourAutoInterval() {
+  if (!chkContour.checked) return;
+
+  const z = map.getZoom();
+
+  // zoom ≤ 4 では等高線を非表示
+  if (z <= 4) {
+    contourLayerIds.forEach(id => {
+      if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', 'none');
+    });
+    if (optContourCurrent) {
+      optContourCurrent.textContent = '非表示';
+      selContour.selectedIndex = 0;
+    }
+    lastAppliedContourInterval = null; // zoom上昇時に再描画させる
+    return;
+  }
+
   const intervalM = getEffectiveContourInterval();
-  // 表示テキストを先頭オプションに反映
-  const displayText = intervalM >= 100 ? intervalM + ' m' : intervalM + ' m';
   if (optContourCurrent) {
-    optContourCurrent.textContent = displayText;
+    optContourCurrent.textContent = intervalM + ' m';
     selContour.selectedIndex = 0;
   }
   // 前回と同じ間隔なら setTiles は不要
