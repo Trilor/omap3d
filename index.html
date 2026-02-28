@@ -2679,14 +2679,28 @@ function updateSliderGradient(input, color) {
 let userMagneticInterval = 250;
 
 // zoom レベルに応じた有効な磁北線間隔（m）を返す
+// 各ズームで画面内に約 10〜15 本表示されることを目安に設定。
+//   z≤6 ≈ 1:5M–    → 200km
+//   z7  ≈ 1:2.5M   → 100km
+//   z8  ≈ 1:1.2M   → 50km
+//   z9  ≈ 1:600K   → 20km
+//   z10 ≈ 1:300K   → 10km
+//   z11 ≈ 1:150K   → 5km
+//   z12 ≈ 1:75K    → 2km
+//   z13 ≈ 1:35K    → 1km
+//   z14 ≈ 1:17K    → 500m（OL 1:15,000 向け）
+//   z15+ ≈ 1:8K–   → ユーザー設定（デフォルト 250m）
 function getEffectiveMagneticInterval() {
   const z = map.getZoom();
-  if (z <= 7)  return 100000;
-  if (z <= 8)  return 50000;
-  if (z <= 10)  return 20000;
-  if (z <= 11)  return 10000;
-  if (z <= 12)  return 5000;
-  if (z <= 14) return 1000;
+  if (z <=  6) return 200000;
+  if (z <=  7) return 100000;
+  if (z <=  8) return  50000;
+  if (z <=  9) return  20000;
+  if (z <= 10) return  10000;
+  if (z <= 11) return   5000;
+  if (z <= 12) return   2000;
+  if (z <= 13) return   1000;
+  if (z <= 14) return    500;
   return userMagneticInterval;
 }
 
