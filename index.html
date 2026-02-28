@@ -853,7 +853,8 @@ body {
       </div>
       <div class="setting-right">
         <select id="sel-contour-interval" class="setting-select">
-          <option value="1" selected>1 m</option>
+          <option id="opt-contour-current" value="">1 m</option>
+          <option value="1">1 m</option>
           <option value="2">2 m</option>
           <option value="2.5">2.5 m</option>
           <option value="5">5 m</option>
@@ -1733,6 +1734,7 @@ map.on('load', async () => {
   // 都道府県別CS出典の動的更新 — タイル読み込み完了を待たず即時反映するため moveend を使用
   map.on('moveend', updateRegionalAttribution);
   map.on('moveend', updateMagneticNorth);
+  map.on('moveend', updateContourAutoInterval);
 
   console.log('3D OMap Viewer 初期化完了（OriLibreベースマップ）');
 });
@@ -2661,8 +2663,8 @@ let userMagneticInterval = 250;
 // zoom レベルに応じた有効な磁北線間隔（m）を返す
 function getEffectiveMagneticInterval() {
   const z = map.getZoom();
-  if (z <= 7)  return 10000;
-  if (z <= 10) return 1000;
+  if (z <= 8)  return 10000;
+  if (z <= 11) return 1000;
   return userMagneticInterval;
 }
 
@@ -2840,10 +2842,57 @@ sliderExaggeration.addEventListener('input', () => {
 // ---- 等高線 チェックボックス ----
 const chkContour = document.getElementById('chk-contour');
 const selContour = document.getElementById('sel-contour-interval');
+const optContourCurrent = document.getElementById('opt-contour-current');
+
+// ユーザーが手動で選んだ等高線間隔（m）。zoom > 11 のときに使用する。
+let userContourInterval = 1;
+// 最後に適用した間隔（連続 moveend での無駄な setTiles を防ぐ）
+let lastAppliedContourInterval = null;
+
+// zoom レベルに応じた有効な等高線間隔（m）を返す
+function getEffectiveContourInterval() {
+  const z = map.getZoom();
+  if (z <= 7)  return 100;
+  if (z <= 11) return 10;
+  return userContourInterval;
+}
+
+// 等高線タイルを intervalM に切り替える（旧タイルをフラッシュしてから URL を更新）
+function applyContourInterval(intervalM) {
+  const newUrl = buildContourTileUrl(intervalM);
+  if (!newUrl || !map.getSource('contour-source')) return;
+  // MapLibreは高ズーム時に「新タイルが届くまで旧タイルを保持」するため、
+  // 一旦 visibility:none で旧タイルを即座に消去してからURLを切り替える
+  contourLayerIds.forEach(id => {
+    if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', 'none');
+  });
+  map.getSource('contour-source').setTiles([newUrl]);
+  setTimeout(() => {
+    if (!chkContour.checked) return;
+    contourLayerIds.forEach(id => {
+      if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', 'visible');
+    });
+  }, 0);
+  lastAppliedContourInterval = intervalM;
+}
+
+// moveend 時に zoom に応じた間隔へ自動切り替え＆セレクト表示を更新
+function updateContourAutoInterval() {
+  const intervalM = getEffectiveContourInterval();
+  // 表示テキストを先頭オプションに反映
+  const displayText = intervalM >= 100 ? intervalM + ' m' : intervalM + ' m';
+  if (optContourCurrent) {
+    optContourCurrent.textContent = displayText;
+    selContour.selectedIndex = 0;
+  }
+  // 前回と同じ間隔なら setTiles は不要
+  if (intervalM !== lastAppliedContourInterval) {
+    applyContourInterval(intervalM);
+  }
+}
 
 chkContour.addEventListener('change', () => {
   const vis = chkContour.checked ? 'visible' : 'none';
-
   contourLayerIds.forEach(id => {
     if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', vis);
   });
@@ -2853,23 +2902,15 @@ chkContour.addEventListener('change', () => {
 
 // ---- 等高線 間隔セレクト ----
 selContour.addEventListener('change', () => {
-  const interval = parseFloat(selContour.value);
-  const newUrl = buildContourTileUrl(interval);
-
-  if (newUrl && map.getSource('contour-source')) {
-    // MapLibreは高ズーム時に「新タイルが届くまで旧タイルを保持」するため、
-    // 一旦 visibility:none で旧タイルを即座に消去してからURLを切り替え、
-    // setTimeout(0) で次のイベントループで再表示する
-    contourLayerIds.forEach(id => {
-      if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', 'none');
-    });
-    map.getSource('contour-source').setTiles([newUrl]);
-    setTimeout(() => {
-      if (!chkContour.checked) return;
-      contourLayerIds.forEach(id => {
-        if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', 'visible');
-      });
-    }, 0);
+  const val = parseFloat(selContour.value);
+  if (val) {
+    // value='' の先頭オプション（auto表示）以外を選んだ場合はユーザー設定として保存
+    userContourInterval = val;
+    applyContourInterval(val);
+    if (optContourCurrent) {
+      optContourCurrent.textContent = val + ' m';
+      selContour.selectedIndex = 0;
+    }
   }
 });
 
