@@ -2690,8 +2690,9 @@ function getEffectiveMagneticInterval() {
   return userMagneticInterval;
 }
 
-// 磁北線の動的生成
-// WMM（geomag）で磁気偏角を計算し、各線の始終点を turf.destination で直接算出する。
+// 磁北線の動的生成（曲線ポリライン版）
+// 各磁北線を「一定ステップごとに geomag で偏角を再計算しながら進む多角線」として生成する。
+// これにより広域表示時の地域差（偏角の曲がり具合）を正確に表現できる。
 // zoom レベルに応じた自動間隔切り替え＆セレクト表示の同期も行う。
 function updateMagneticNorth() {
   if (!map.getSource('magnetic-north')) return;
@@ -2709,8 +2710,8 @@ function updateMagneticNorth() {
     document.getElementById('sel-magnetic-north-interval').selectedIndex = 0;
   }
 
-  // WMM で磁気偏角（度）を計算
-  const declination = geomag.field(center.lat, center.lng).declination;
+  // 視野中心の磁気偏角（基点の磁東方向配置に使用）
+  const centerDeclination = geomag.field(center.lat, center.lng).declination;
 
   // ビューポートの対角線半分（km）をカバー範囲として使用（1.3倍の余裕）
   const viewWidth  = turf.distance(
@@ -2725,18 +2726,70 @@ function updateMagneticNorth() {
   );
   const halfExtentKm = Math.hypot(viewWidth, viewHeight) / 2 * 1.3;
 
-  // 磁北に対して垂直な方向（磁東）でオフセットし、各線の始終点を直接計算する。
-  // transformRotate（近似回転）を使わず turf.destination（大圏方位）で正確に算出。
-  const perpBearing = declination + 90; // 磁北の右90° = 磁東
-  const nHalf = Math.ceil(halfExtentKm / intervalKm);
-  const centerPt = turf.point([center.lng, center.lat]);
+  // ステップ距離を動的決定：半範囲を15分割を基準に、広域は最大100km・拡大時は最小0.5km
+  // 例）halfExtent=1000km → step=67km（約15分割）、halfExtent=2km → step=0.5km（最小値）
+  const stepKm = Math.min(100, Math.max(0.5, halfExtentKm / 15));
+
+  // フェイルセーフ：1方向あたりの最大ステップ数（無限ループ防止）
+  const MAX_STEPS = 300;
+
+  // 打ち切り境界（Bounds + 1ステップ分バッファ：線を画面端まで確実に伸ばす）
+  const bufDeg = stepKm / 100; // 概算：1km ≈ 0.01°
+  const minLng = bounds.getWest()  - bufDeg;
+  const maxLng = bounds.getEast()  + bufDeg;
+  const minLat = bounds.getSouth() - bufDeg;
+  const maxLat = bounds.getNorth() + bufDeg;
+
+  // 基点を磁東方向に均等配置（視野中心の偏角で近似）
+  // nHalf を最大30本/側に制限してフレームレートを保護する
+  const perpBearing = centerDeclination + 90; // 磁北の右90° = 磁東
+  const nHalf       = Math.min(30, Math.ceil(halfExtentKm / intervalKm));
+  const centerPt    = turf.point([center.lng, center.lat]);
+
+  /**
+   * 基点座標から1方向へ多角線座標を生成する。
+   * 各ステップで現在地点の geomag 偏角を再計算して軌道修正する。
+   * @param {number[]} startCoords [lng, lat]
+   * @param {boolean}  towardNorth true=磁北方向, false=磁南方向
+   * @returns {number[][]} 座標配列（startCoords を先頭に含む）
+   */
+  function walkMagneticLine(startCoords, towardNorth) {
+    const pts = [startCoords];
+    let lng = startCoords[0];
+    let lat = startCoords[1];
+    for (let s = 0; s < MAX_STEPS; s++) {
+      // 現在地点の偏角を WMM で再計算（緯度を ±89.9° にクランプして極付近の発散を防ぐ）
+      const decl    = geomag.field(Math.max(-89.9, Math.min(89.9, lat)), lng).declination;
+      const bearing = towardNorth ? decl : (decl + 180 + 360) % 360;
+      const next    = turf.destination(turf.point([lng, lat]), stepKm, bearing, { units: 'kilometers' });
+      lng = next.geometry.coordinates[0];
+      lat = next.geometry.coordinates[1];
+      pts.push([lng, lat]);
+      // Bounds + バッファを超えたら打ち切り（1点はみ出すことで端まで線を引く）
+      if (lng < minLng || lng > maxLng || lat < minLat || lat > maxLat) break;
+    }
+    return pts;
+  }
 
   const features = [];
   for (let i = -nHalf; i <= nHalf; i++) {
-    const base  = turf.destination(centerPt, intervalKm * i, perpBearing, { units: 'kilometers' });
-    const start = turf.destination(base, -halfExtentKm, declination, { units: 'kilometers' });
-    const end   = turf.destination(base,  halfExtentKm, declination, { units: 'kilometers' });
-    features.push(turf.lineString([start.geometry.coordinates, end.geometry.coordinates]));
+    const base   = turf.destination(centerPt, intervalKm * i, perpBearing, { units: 'kilometers' });
+    const basePt = base.geometry.coordinates;
+
+    // 基点から磁北・磁南それぞれに向かって多角線を生成
+    const northPts = walkMagneticLine(basePt, true);  // [basePt, n1, n2, ...]
+    const southPts = walkMagneticLine(basePt, false); // [basePt, s1, s2, ...]
+
+    // 南端 → 基点 → 北端 の順に結合して1本の LineString にする
+    // southPts.slice(1).reverse() = [sN,...,s1]  |  northPts = [basePt, n1,...,nM]
+    const coords = [
+      ...southPts.slice(1).reverse(),
+      ...northPts,
+    ];
+
+    if (coords.length >= 2) {
+      features.push(turf.lineString(coords));
+    }
   }
 
   map.getSource('magnetic-north').setData(turf.featureCollection(features));
