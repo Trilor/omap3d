@@ -870,12 +870,12 @@ body {
       </div>
       <div class="setting-right">
         <select id="sel-magnetic-north-interval">
+          <option id="opt-magnetic-north-current" value="">250 m</option>
           <option value="120">120 m</option>
           <option value="150">150 m</option>
-          <option value="250" selected>250 m</option>
+          <option value="250">250 m</option>
           <option value="300">300 m</option>
           <option value="500">500 m</option>
-          <option value="1000">1000 m</option>
         </select>
       </div>
     </div>
@@ -2655,16 +2655,35 @@ function updateSliderGradient(input, color) {
   }
 }
 
+// ユーザーが手動で設定した磁北線間隔（m）。zoom > 10 のときに使用する。
+let userMagneticInterval = 250;
+
+// zoom レベルに応じた有効な磁北線間隔（m）を返す
+function getEffectiveMagneticInterval() {
+  const z = map.getZoom();
+  if (z <= 7)  return 10000;
+  if (z <= 10) return 1000;
+  return userMagneticInterval;
+}
+
 // 磁北線の動的生成
-// WMM（geomag）で磁気偏角を計算し、ビューポートをカバーする真北向き縦線を
-// 指定間隔で生成してから declination 分回転させ GeoJSON ソースに反映する。
-// map.on('load') の外で定義することでイベントハンドラーからも呼び出せる。
+// WMM（geomag）で磁気偏角を計算し、各線の始終点を turf.destination で直接算出する。
+// zoom レベルに応じた自動間隔切り替え＆セレクト表示の同期も行う。
 function updateMagneticNorth() {
   if (!map.getSource('magnetic-north')) return;
 
   const center = map.getCenter();
   const bounds = map.getBounds();
-  const intervalKm = parseInt(document.getElementById('sel-magnetic-north-interval').value, 10) / 1000;
+
+  // zoom レベルに応じた有効間隔を取得し、セレクト先頭オプションに反映
+  const intervalM  = getEffectiveMagneticInterval();
+  const intervalKm = intervalM / 1000;
+  const displayText = intervalM >= 1000 ? (intervalM / 1000) + ' km' : intervalM + ' m';
+  const optCurrent = document.getElementById('opt-magnetic-north-current');
+  if (optCurrent) {
+    optCurrent.textContent = displayText;
+    document.getElementById('sel-magnetic-north-interval').selectedIndex = 0;
+  }
 
   // WMM で磁気偏角（度）を計算
   const declination = geomag.field(center.lat, center.lng).declination;
@@ -2868,6 +2887,11 @@ chkMagneticNorth.addEventListener('change', () => {
 });
 
 selMagneticNorth.addEventListener('change', () => {
+  const val = parseInt(selMagneticNorth.value, 10);
+  if (val) {
+    // value='' の先頭オプション（auto表示）以外を選んだ場合はユーザー設定として保存
+    userMagneticInterval = val;
+  }
   updateMagneticNorth();
 });
 
