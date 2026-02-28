@@ -783,18 +783,25 @@ body {
     <p class="privacy-note">※ 読み込んだファイルはブラウザ内でのみ処理されます。サーバーへ送信・保存されることは一切ありません。</p>
   </details>
 
-  <!-- ===== CS立体図（常時表示 + 都道府県別は折りたたみ） ===== -->
+  <!-- ===== CS立体図（全国・地域別を個別チェックボックスで制御） ===== -->
   <details class="panel-section" open>
     <summary>CS立体図</summary>
-    <div class="layer-row" id="row-cs">
+    <div class="layer-row">
       <div class="layer-label-row">
-        <input type="checkbox" id="chk-cs" />
-        <label class="layer-name disabled" for="chk-cs">CS立体図</label>
+        <input type="checkbox" id="chk-cs-national" />
+        <label class="layer-name disabled" for="chk-cs-national">CS立体図（全国・1m）</label>
       </div>
-      <div class="opacity-row">
-        <input type="range" id="slider-cs" min="0" max="1" step="0.05" value="1.0" disabled />
-        <span class="opacity-val" id="val-cs">100%</span>
+    </div>
+    <div class="layer-row">
+      <div class="layer-label-row">
+        <input type="checkbox" id="chk-cs-regional" />
+        <label class="layer-name disabled" for="chk-cs-regional"
+          title="ズーム18以上で表示されます">CS立体図（高精度0.5m・一部地域）</label>
       </div>
+    </div>
+    <div class="opacity-row">
+      <input type="range" id="slider-cs" min="0" max="1" step="0.05" value="1.0" disabled />
+      <span class="opacity-val" id="val-cs">100%</span>
     </div>
   </details>
 
@@ -2747,7 +2754,8 @@ function updateRegionalAttribution() {
     attrEl.id = 'regional-cs-attr';
     attrInner.appendChild(attrEl);
   }
-  if (!document.getElementById('chk-cs')?.checked) {
+  const csRegionalOn = document.getElementById('chk-cs-regional')?.checked;
+  if (!csRegionalOn) {
     attrEl.innerHTML = '';
     return;
   }
@@ -2767,53 +2775,60 @@ function updateRegionalAttribution() {
 }
 
 // ---- CS立体図 チェックボックス（全国 + 都道府県別を一括制御） ----
-const chkCs = document.getElementById('chk-cs');
+// ---- CS立体図 チェックボックス（全国・地域別を個別制御、スライダーは共有） ----
+const chkCsNational = document.getElementById('chk-cs-national');
+const chkCsRegional = document.getElementById('chk-cs-regional');
 
-chkCs.addEventListener('change', () => {
-  const label = document.querySelector('label[for="chk-cs"]');
+// どちらか一方でもONならスライダーを有効化
+function updateCsSliderState() {
   const slider = document.getElementById('slider-cs');
-  label.classList.toggle('disabled', !chkCs.checked);
-  slider.disabled = !chkCs.checked;
+  slider.disabled = !chkCsNational.checked && !chkCsRegional.checked;
+}
 
-  const vis = chkCs.checked ? 'visible' : 'none';
-  const opacity = parseFloat(slider.value);
-
-  // 全国CS
+chkCsNational.addEventListener('change', () => {
+  document.querySelector('label[for="chk-cs-national"]').classList.toggle('disabled', !chkCsNational.checked);
+  const vis = chkCsNational.checked ? 'visible' : 'none';
   if (map.getLayer('cs-relief-layer')) {
     map.setLayoutProperty('cs-relief-layer', 'visibility', vis);
-    if (chkCs.checked) map.setPaintProperty('cs-relief-layer', 'raster-opacity', opacity);
+    if (chkCsNational.checked) {
+      map.setPaintProperty('cs-relief-layer', 'raster-opacity', parseFloat(document.getElementById('slider-cs').value));
+    }
   }
-  // 都道府県別CS（bounds により現在地外のタイルは自動的にリクエストされない）
+  updateCsSliderState();
+});
+
+chkCsRegional.addEventListener('change', () => {
+  document.querySelector('label[for="chk-cs-regional"]').classList.toggle('disabled', !chkCsRegional.checked);
+  const vis = chkCsRegional.checked ? 'visible' : 'none';
   REGIONAL_CS_LAYERS.forEach(layer => {
     if (map.getLayer(layer.layerId)) {
       map.setLayoutProperty(layer.layerId, 'visibility', vis);
-      if (chkCs.checked) map.setPaintProperty(layer.layerId, 'raster-opacity', opacity);
+      if (chkCsRegional.checked) {
+        map.setPaintProperty(layer.layerId, 'raster-opacity', parseFloat(document.getElementById('slider-cs').value));
+      }
     }
   });
-  // チェック状態変化時も attribution を即時更新
+  updateCsSliderState();
   updateRegionalAttribution();
 });
 
-// ---- CS立体図 透明度スライダー ----
+// ---- CS立体図 透明度スライダー（全国・地域別共通） ----
 const sliderCs = document.getElementById('slider-cs');
 const valCs = document.getElementById('val-cs');
 updateSliderGradient(sliderCs, '#4a7c59');
 
 sliderCs.addEventListener('input', () => {
-  valCs.textContent = Math.round(parseFloat(sliderCs.value) * 100) + '%';
+  const v = parseFloat(sliderCs.value);
+  valCs.textContent = Math.round(v * 100) + '%';
   updateSliderGradient(sliderCs, '#4a7c59');
-
-  if (chkCs.checked) {
-    const v = parseFloat(sliderCs.value);
-    if (map.getLayer('cs-relief-layer')) {
-      map.setPaintProperty('cs-relief-layer', 'raster-opacity', v);
-    }
-    REGIONAL_CS_LAYERS.forEach(layer => {
-      if (map.getLayer(layer.layerId)) {
-        map.setPaintProperty(layer.layerId, 'raster-opacity', v);
-      }
-    });
+  if (chkCsNational.checked && map.getLayer('cs-relief-layer')) {
+    map.setPaintProperty('cs-relief-layer', 'raster-opacity', v);
   }
+  REGIONAL_CS_LAYERS.forEach(layer => {
+    if (chkCsRegional.checked && map.getLayer(layer.layerId)) {
+      map.setPaintProperty(layer.layerId, 'raster-opacity', v);
+    }
+  });
 });
 
 
