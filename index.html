@@ -2927,19 +2927,30 @@ const chkContour = document.getElementById('chk-contour');
 const selContour = document.getElementById('sel-contour-interval');
 const optContourCurrent = document.getElementById('opt-contour-current');
 
-// ユーザーが手動で選んだ等高線間隔（m）。zoom > 15 のときに使用する。
+// ユーザーが手動で選んだ等高線間隔（m）。zoom > 15（16以上）のときに使用する。
 let userContourInterval = 1;
 // 最後に適用した間隔（連続 moveend での無駄な setTiles を防ぐ）
 let lastAppliedContourInterval = null;
 
 // zoom レベルに応じた有効な等高線間隔（m）を返す
+// 地理院地形図スケールとの対応：
+//   z8  ≈ 1:1,000,000 → 200m（国スケール・山脈骨格）
+//   z9  ≈ 1:500,000   → 100m
+//   z10 ≈ 1:250,000   → 50m（20万図相当）
+//   z11 ≈ 1:125,000   → 25m（5万図=20m に近似）
+//   z12 ≈ 1:62,500    → 10m（2.5万図の標準 10m）
+//   z13–14 ≈ 1:31,000–15,500 → 5m（OL 1:15,000 標準）
+//   z15 ≈ 1:7,700     → 2.5m（スプリント系大縮尺）
+//   z16+ ≈ 1:4,000–   → ユーザー設定（デフォルト 1m）
 function getEffectiveContourInterval() {
   const z = map.getZoom();
-  if (z <= 7)  return 200;
-  if (z <= 10)  return 100;
-  if (z <= 12)  return 50;
-  if (z <= 14) return 10;
-  if (z <= 15) return 5;
+  if (z <=  8) return 200;
+  if (z <=  9) return 100;
+  if (z <= 10) return  50;
+  if (z <= 11) return  25;
+  if (z <= 12) return  10;
+  if (z <= 14) return   5;
+  if (z <= 15) return   2.5;
   return userContourInterval;
 }
 
