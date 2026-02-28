@@ -809,6 +809,23 @@ body {
   <details class="panel-section" open>
     <summary>表示設定</summary>
 
+    <!-- ベースマップ切替：プルダウンで選択 -->
+    <div class="setting-row">
+      <div class="setting-left">
+        <span class="chk-spacer"></span>
+        <span class="setting-label">ベースマップ</span>
+      </div>
+      <div class="setting-right">
+        <select id="sel-basemap" class="setting-select">
+          <option value="orilibre">OriLibre</option>
+          <option value="gsi-std">地理院 標準地図</option>
+          <option value="gsi-pale">地理院 淡色地図</option>
+          <option value="gsi-photo">地理院 航空写真</option>
+          <option value="osm">OpenStreetMap</option>
+        </select>
+      </div>
+    </div>
+
     <!-- 縮尺：1行（chk-spacer でチェックボックス分の左余白を確保してラベルを等高線と揃える） -->
     <div class="setting-row">
       <div class="setting-left">
@@ -1386,6 +1403,24 @@ const OMAP_INITIAL_OPACITY = 0.7;
 // ★ CS立体図の初期不透明度（仕様書: 乗算代替として0.6推奨）
 const CS_INITIAL_OPACITY = 0.6;
 
+// ベースマップ定義（OriLibre 以外のラスタータイル）
+// setStyle() を使わず visibility 切替で実現するため、load 時に全ソース/レイヤーを追加しておく。
+const RASTER_BASEMAPS = {
+  'gsi-std':   { url: 'https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png',           maxzoom: 18,
+                 attr: '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">地理院タイル</a>' },
+  'gsi-pale':  { url: 'https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png',          maxzoom: 18,
+                 attr: '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">地理院タイル</a>' },
+  'gsi-photo': { url: 'https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg', maxzoom: 18,
+                 attr: '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">地理院タイル</a>' },
+  'osm':       { url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',                     maxzoom: 19,
+                 attr: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors' },
+};
+
+// ベースマップ切替の状態管理
+// oriLibreLayers: isomizer が追加したレイヤーを [{ id, defaultVisibility }] 形式で保持
+let oriLibreLayers = [];
+let currentBasemap = 'orilibre';
+
 /*
   ========================================================
   MapLibre GL JS マップの初期化
@@ -1517,7 +1552,32 @@ map.on('load', async () => {
 
   /*
   ========================================================
-  ① mlcontour DemSource を初期化して等高線ソースを追加
+  ① ラスターベースマップのソースとレイヤーを追加（isomizer より先に配置 → 下層に固定）
+  visibility: 'none' で非表示にしておき、ベースマップ切替時に表示する。
+  setStyle() を使わないことで、後から追加する KMZ / CS立体図 / 等高線 / 磁北線レイヤーが
+  消えないようにしている（visibility 切替方式）。
+  ========================================================
+  */
+  Object.entries(RASTER_BASEMAPS).forEach(([key, cfg]) => {
+    map.addSource(key, {
+      type: 'raster',
+      tiles: [cfg.url],
+      tileSize: 256,
+      maxzoom: cfg.maxzoom,
+      attribution: cfg.attr,
+    });
+    map.addLayer({
+      id: key + '-layer',
+      type: 'raster',
+      source: key,
+      layout: { visibility: 'none' },
+      paint: { 'raster-fade-duration': 0 },
+    });
+  });
+
+  /*
+  ========================================================
+  ② mlcontour DemSource を初期化して等高線ソースを追加
   isomizer より先に contour-source を登録しておくことで、
   isomizer（design-plan.yml）がこのソースを参照してスタイリングできる。
   ========================================================
@@ -1548,10 +1608,13 @@ map.on('load', async () => {
 
   /*
       ========================================================
-      ② OriLibre（isomizer）でベクタースタイルを構築
+      ③ OriLibre（isomizer）でベクタースタイルを構築
       isomizer は contour-source を参照してISOM2017スタイルの等高線レイヤーを生成する。
       ========================================================
     */
+  // isomizer が追加するレイヤーを特定するため、呼び出し前のレイヤーIDをスナップショット
+  const snapshotBeforeIsomizer = new Set(map.getStyle().layers.map(l => l.id));
+
   try {
     const {
       isomizer
@@ -1570,6 +1633,13 @@ map.on('load', async () => {
         map.setLayerZoomRange(layer.id, 0, layer.maxzoom !== undefined ? layer.maxzoom : 24);
       }
     });
+
+    // isomizer が追加したレイヤーを収集（ベースマップ切替で一括 visibility 制御するため）
+    // contour-source のレイヤーは除外（等高線はベースマップ切替の影響を受けない）
+    oriLibreLayers = map.getStyle().layers
+      .filter(l => !snapshotBeforeIsomizer.has(l.id) && l.source !== 'contour-source')
+      .map(l => ({ id: l.id, defaultVisibility: l.layout?.visibility ?? 'visible' }));
+    console.log(`OriLibre レイヤー収集完了: ${oriLibreLayers.length} レイヤー`);
 
     // isomizer の project-config.yml が別のcenterを持つ場合があるため、
     // 完了後に京都大学（INITIAL_CENTER）へ強制的に戻す
@@ -3060,6 +3130,53 @@ selMagneticNorth.addEventListener('change', () => {
     userMagneticInterval = val;
   }
   updateMagneticNorth();
+});
+
+// ---- ベースマップ切替 ----
+/**
+ * ベースマップを切り替える。
+ * setStyle() を使わず visibility の切り替えのみで実現するため、
+ * KMZ / GPX / CS立体図 / 等高線 / 磁北線など後から追加した動的レイヤーには一切影響しない。
+ *
+ * レイヤー構成（下層 → 上層）:
+ *   [ラスターベースマップ群] ← このグループを切り替える
+ *   [OriLibre ベクターレイヤー群（isomizer 生成）]
+ *   [等高線・CS立体図・KMZ・GPX・磁北線 …常時保持]
+ *
+ * @param {string} key - RASTER_BASEMAPS のキー、または 'orilibre'
+ */
+function switchBasemap(key) {
+  currentBasemap = key;
+
+  // ① ラスターベースマップを全て非表示
+  Object.keys(RASTER_BASEMAPS).forEach(k => {
+    if (map.getLayer(k + '-layer')) map.setLayoutProperty(k + '-layer', 'visibility', 'none');
+  });
+
+  if (key === 'orilibre') {
+    // ② OriLibre レイヤーを元の visibility に戻す
+    oriLibreLayers.forEach(({ id, defaultVisibility }) => {
+      if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', defaultVisibility);
+    });
+    // isomizer 失敗時のフォールバックレイヤーも復元
+    if (map.getLayer('basemap-fallback-layer')) {
+      map.setLayoutProperty('basemap-fallback-layer', 'visibility', 'visible');
+    }
+  } else {
+    // ③ OriLibre レイヤーを全て非表示
+    oriLibreLayers.forEach(({ id }) => {
+      if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', 'none');
+    });
+    if (map.getLayer('basemap-fallback-layer')) {
+      map.setLayoutProperty('basemap-fallback-layer', 'visibility', 'none');
+    }
+    // ④ 選択したラスターレイヤーを表示
+    if (map.getLayer(key + '-layer')) map.setLayoutProperty(key + '-layer', 'visibility', 'visible');
+  }
+}
+
+document.getElementById('sel-basemap').addEventListener('change', (e) => {
+  switchBasemap(e.target.value);
 });
 
 // ---- パネル折りたたみ ----
