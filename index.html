@@ -789,14 +789,14 @@ body {
     <div class="layer-row">
       <div class="layer-label-row">
         <input type="checkbox" id="chk-cs-national" />
-        <label class="layer-name disabled" for="chk-cs-national">CS立体図（全国・1m）</label>
+        <label class="layer-name disabled" for="chk-cs-national">CS立体図（1m・全国）</label>
       </div>
     </div>
     <div class="layer-row">
       <div class="layer-label-row">
         <input type="checkbox" id="chk-cs-regional" />
         <label class="layer-name disabled" for="chk-cs-regional"
-          title="ズーム18以上で表示されます">CS立体図（高精度0.5m・一部地域）</label>
+          title="ズーム18以上で表示されます">CS立体図（0.5m・一部地域）</label>
       </div>
     </div>
     <div class="opacity-row">
@@ -2073,7 +2073,7 @@ function renderKmzList() {
         <button class="kmz-del-btn" title="削除" onclick="removeKmzLayer(${entry.id})">✕</button>
       </div>
       <div class="opacity-row">
-        <input type="range" id="slider-kmz-${entry.id}" min="0" max="1" step="0.05" value="${entry.opacity}" ${entry.visible ? '' : 'disabled'} />
+        <input type="range" id="slider-kmz-${entry.id}" min="0" max="100" step="5" value="${pct}" ${entry.visible ? '' : 'disabled'} />
         <span class="opacity-val" id="val-kmz-${entry.id}">${pct}%</span>
       </div>`;
     listEl.appendChild(rowEl);
@@ -2097,8 +2097,8 @@ function renderKmzList() {
     updateSliderGradient(sliderEl, '#4a7c59');
 
     sliderEl.addEventListener('input', () => {
-      entry.opacity = parseFloat(sliderEl.value);
-      valEl.textContent = Math.round(entry.opacity * 100) + '%';
+      entry.opacity = parseInt(sliderEl.value) / 100;
+      valEl.textContent = sliderEl.value + '%';
       updateSliderGradient(sliderEl, '#4a7c59');
 
       if (entry.visible && map.getLayer(entry.layerId)) {
