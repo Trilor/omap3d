@@ -875,6 +875,7 @@ body {
           <option value="250" selected>250 m</option>
           <option value="300">300 m</option>
           <option value="500">500 m</option>
+          <option value="1000">1000 m</option>
         </select>
       </div>
     </div>
@@ -1724,7 +1725,7 @@ map.on('load', async () => {
     paint: {
       'line-color': '#0055cc',
       'line-width': 0.8,
-      'line-opacity': 0.75,
+      'line-opacity': 1.0,
     },
   });
   updateMagneticNorth();
@@ -2663,53 +2664,39 @@ function updateMagneticNorth() {
 
   const center = map.getCenter();
   const bounds = map.getBounds();
-  const interval = parseInt(document.getElementById('sel-magnetic-north-interval').value, 10);
+  const intervalKm = parseInt(document.getElementById('sel-magnetic-north-interval').value, 10) / 1000;
 
   // WMM で磁気偏角（度）を計算
-  const field = geomag.field(center.lat, center.lng);
-  const declination = field.declination;
+  const declination = geomag.field(center.lat, center.lng).declination;
 
-  // ビューポートの幅・高さをメートルで計算
-  const viewWidth = turf.distance(
+  // ビューポートの対角線半分（km）をカバー範囲として使用（1.3倍の余裕）
+  const viewWidth  = turf.distance(
     turf.point([bounds.getWest(), center.lat]),
     turf.point([bounds.getEast(), center.lat]),
-    { units: 'meters' }
+    { units: 'kilometers' }
   );
   const viewHeight = turf.distance(
     turf.point([center.lng, bounds.getSouth()]),
     turf.point([center.lng, bounds.getNorth()]),
-    { units: 'meters' }
+    { units: 'kilometers' }
   );
+  const halfExtentKm = Math.hypot(viewWidth, viewHeight) / 2 * 1.3;
 
-  // 回転後もビューポートをカバーできるよう対角線の長さを余裕として使用
-  const halfExtent = Math.sqrt(viewWidth * viewWidth + viewHeight * viewHeight) / 2 * 1.3;
-
-  // 緯度 1m → 度換算（一定）、経度 1m → 度換算（緯度依存）
-  const mPerDegLat = 111320;
-  const mPerDegLng = 111320 * Math.cos(center.lat * Math.PI / 180);
-
-  const halfLineLat = halfExtent / mPerDegLat;
-  const nLines = Math.ceil(halfExtent / interval) * 2 + 1;
+  // 磁北に対して垂直な方向（磁東）でオフセットし、各線の始終点を直接計算する。
+  // transformRotate（近似回転）を使わず turf.destination（大圏方位）で正確に算出。
+  const perpBearing = declination + 90; // 磁北の右90° = 磁東
+  const nHalf = Math.ceil(halfExtentKm / intervalKm);
+  const centerPt = turf.point([center.lng, center.lat]);
 
   const features = [];
-  const half = Math.floor(nLines / 2);
-  for (let i = -half; i <= half; i++) {
-    const lngOffset = (i * interval) / mPerDegLng;
-    const lng = center.lng + lngOffset;
-    features.push(turf.lineString([
-      [lng, center.lat - halfLineLat],
-      [lng, center.lat + halfLineLat],
-    ]));
+  for (let i = -nHalf; i <= nHalf; i++) {
+    const base  = turf.destination(centerPt, intervalKm * i, perpBearing, { units: 'kilometers' });
+    const start = turf.destination(base, -halfExtentKm, declination, { units: 'kilometers' });
+    const end   = turf.destination(base,  halfExtentKm, declination, { units: 'kilometers' });
+    features.push(turf.lineString([start.geometry.coordinates, end.geometry.coordinates]));
   }
 
-  // 磁気偏角の分だけ中心点を軸に回転
-  const rotated = turf.transformRotate(
-    turf.featureCollection(features),
-    declination,
-    { pivot: [center.lng, center.lat] }
-  );
-
-  map.getSource('magnetic-north').setData(rotated);
+  map.getSource('magnetic-north').setData(turf.featureCollection(features));
 }
 
 // 都道府県別CS出典の動的表示
