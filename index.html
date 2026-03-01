@@ -1936,7 +1936,8 @@ map.on('load', async () => {
         type: 'fill',
         source: 'ofm',
         'source-layer': 'water',
-        paint: { 'fill-color': '#aad3df' },
+        maxzoom: 8,   // z8以上は gsivt/waterarea が正確なので非表示
+        paint: { 'fill-color': '#00ffff' },
       }, firstGsivtLayerId);
       // ベースマップ切替で非表示にできるよう oriLibreLayers に登録
       oriLibreLayers.push({ id: 'water-ocean-fill', defaultVisibility: 'visible' });
