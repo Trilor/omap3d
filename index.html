@@ -3281,7 +3281,7 @@ function updateRegionalAttribution() {
   _lastAttrKey = key;
   const html = REGIONAL_CS_LAYERS
     .filter(l =>
-      z >= l.minzoom &&
+      z >= Math.min(l.minzoom, 17) &&
       b.getWest()  < l.bounds[2] &&
       b.getEast()  > l.bounds[0] &&
       b.getSouth() < l.bounds[3] &&
