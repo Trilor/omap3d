@@ -3357,9 +3357,8 @@ let lastAppliedContourInterval = null;
 //   z10 ≈ 1:250,000   → 50m（20万図相当）
 //   z11 ≈ 1:125,000   → 25m（5万図=20m に近似）
 //   z12 ≈ 1:62,500    → 10m（2.5万図の標準 10m）
-//   z13–14 ≈ 1:31,000–15,500 → 5m（OL 1:15,000 標準）
-//   z15 ≈ 1:7,700     → 2.5m（スプリント系大縮尺）
-//   z16+ ≈ 1:4,000–   → ユーザー設定（デフォルト 1m）
+//   z13 ≈ 1:31,000    → 5m
+//   z14+ ≈ 1:15,500–  → ユーザー設定（デフォルト 1m）
 function getEffectiveContourInterval() {
   const z = map.getZoom();
   if (z <=  8) return 200;
@@ -3367,8 +3366,7 @@ function getEffectiveContourInterval() {
   if (z <= 10) return  50;
   if (z <= 11) return  25;
   if (z <= 12) return  10;
-  if (z <= 14) return   5;
-  if (z <= 15) return   2.5;
+  if (z <= 13) return   5;
   return userContourInterval;
 }
 
