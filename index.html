@@ -1712,15 +1712,16 @@ map.on('load', async () => {
     });
 
     // シームレス標高タイル等高線フォールバック（Q地図カバー外のみ表示）
-    // Q地図と同様に worker: true で SharedWorker 上で並列生成。
-    // gsjseamless:// プロトコルが Q地図カバレッジチェックを行い、
-    // Q地図データがある範囲は空タイルを返してシームレス等高線を抑制する。
+    // gsjseamless:// プロトコルがQ地図カバレッジチェック＋合成を行い、
+    // Q地図タイルが存在する範囲は空タイルを返してシームレス等高線を抑制する。
+    // カスタムプロトコルはメインスレッドのみ利用可能なため worker: false。
+    // Q地図カバー範囲はブラウザキャッシュ済みタイルで即返却のため負荷は軽微。
     seamlessContourDemSource = new mlcontour.DemSource({
       url: 'gsjseamless://{z}/{x}/{y}.png',
       encoding: 'numpng',
       minzoom: 0,
       maxzoom: 14,
-      worker: true,
+      worker: false,
       cacheSize: 100,
       timeoutMs: 30_000,
     });
