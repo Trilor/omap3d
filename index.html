@@ -1008,6 +1008,74 @@ async function fetchCompositeDemBitmap(z, x, y, signal) {
 
 /*
   ========================================================
+  シームレス等高線フォールバック用 fetch インターセプト
+  seamlessContourDemSource は worker:false で動作し、main thread の fetch を使う。
+  MASKED_SEAMLESS_PREFIX への要求を検知して「シームレス − Q地図マスク」を返す。
+  Q地図データが有効なピクセルには nodata を書き込み、Q地図カバー外でのみ
+  等高線が生成されるようにする（2重描画の防止）。
+  ========================================================
+*/
+// 仮想 URL プレフィックス（実際には存在しないオリジン）
+const MASKED_SEAMLESS_PREFIX = 'https://seamless-masked-dem.omap3d.internal/';
+
+// オリジナルの fetch を保持（インターセプト内で本物の HTTP 通信に使用）
+const _origFetch = window.fetch.bind(window);
+
+async function fetchMaskedSeamlessResponse(z, x, y, signal) {
+  const qUrl = `${QCHIZU_DEM_BASE}/${z}/${x}/${y}.webp`;
+  const sUrl = `${SEAMLESS_DEM_BASE}/${z}/${y}/${x}.png`; // y/x はAPI仕様
+
+  async function toImgData(url) {
+    try {
+      const r = await _origFetch(url, { signal });
+      if (!r.ok) return null;
+      const bm = await createImageBitmap(await r.blob());
+      const cv = new OffscreenCanvas(bm.width, bm.height);
+      cv.getContext('2d').drawImage(bm, 0, 0);
+      bm.close();
+      return cv.getContext('2d').getImageData(0, 0, cv.width, cv.height);
+    } catch { return null; }
+  }
+
+  const [qData, sData] = await Promise.all([toImgData(qUrl), toImgData(sUrl)]);
+
+  // シームレスデータなし → 透明タイルを返す（等高線を生成しない）
+  const W = (sData || qData)?.width ?? 256;
+  const H = (sData || qData)?.height ?? 256;
+  if (!sData) {
+    const cv = new OffscreenCanvas(W, H);
+    return new Response(await (await cv.convertToBlob({ type: 'image/png' })).arrayBuffer(),
+      { status: 200, headers: { 'Content-Type': 'image/png' } });
+  }
+
+  const result = new Uint8ClampedArray(sData.data);
+  if (qData) {
+    const d = qData.data;
+    for (let i = 0; i < d.length; i += 4) {
+      // Q地図が有効なピクセルは nodata に上書き → シームレス等高線を非生成化
+      const qValid = !((d[i] === 128 && d[i + 1] === 0 && d[i + 2] === 0) || d[i + 3] !== 255);
+      if (qValid) { result[i] = 128; result[i + 1] = 0; result[i + 2] = 0; result[i + 3] = 255; }
+    }
+  }
+
+  const cv = new OffscreenCanvas(sData.width, sData.height);
+  cv.getContext('2d').putImageData(new ImageData(result, sData.width, sData.height), 0, 0);
+  const blob = await cv.convertToBlob({ type: 'image/png' });
+  return new Response(await blob.arrayBuffer(), { status: 200, headers: { 'Content-Type': 'image/png' } });
+}
+
+// fetch をパッチして仮想 URL を横取りする
+window.fetch = function(input, init) {
+  const url = (typeof input === 'string') ? input : input?.url;
+  if (typeof url === 'string' && url.startsWith(MASKED_SEAMLESS_PREFIX)) {
+    const m = url.match(/\/(\d+)\/(\d+)\/(\d+)\.png$/);
+    if (m) return fetchMaskedSeamlessResponse(m[1], m[2], m[3], init?.signal);
+  }
+  return _origFetch(input, init);
+};
+
+/*
+  ========================================================
   GSJ NumPNG タイルを Terrarium 形式に変換するカスタムプロトコルの登録
   Q地図 DEM を優先し、nodata ピクセルはシームレス標高タイルで補完してから
   MapLibre が理解できる Terrarium 形式に変換して渡します。
@@ -1660,14 +1728,15 @@ map.on('load', async () => {
       attribution: '<a href="https://www.geospatial.jp/ckan/dataset/qchizu_94dem_99gsi">【等高線】Q地図(国土地理院測量成果)数値PNGタイル(1m)を加工して作成</a>',
     });
 
-    // シームレス標高タイル等高線フォールバック（Q地図カバー外を補完）
-    // URL の {z}/{y}/{x} 順は産総研タイルの API 仕様（mlcontour が展開する）
+    // シームレス標高タイル等高線フォールバック（Q地図カバー外のみ等高線を生成）
+    // worker: false で main thread の fetch を使用し、fetchMaskedSeamlessResponse で
+    // Q地図データが存在するピクセルを nodata に置換する → 2重描画防止
     seamlessContourDemSource = new mlcontour.DemSource({
-      url: `${SEAMLESS_DEM_BASE}/{z}/{y}/{x}.png`,
+      url: `${MASKED_SEAMLESS_PREFIX}{z}/{x}/{y}.png`,
       encoding: 'numpng',
       minzoom: 0,
       maxzoom: 15,
-      worker: true,
+      worker: false, // worker:true だと SharedWorker 内の fetch にパッチが効かない
       cacheSize: 100,
       timeoutMs: 30_000,
     });
