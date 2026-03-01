@@ -963,16 +963,18 @@ maplibregl.addProtocol('pmtiles', pmtilesProtocol.tile.bind(pmtilesProtocol));
 
 /*
   ========================================================
-  Q地図 DEM + シームレス標高タイルの合成ユーティリティ
-  Q地図 DEM（1mDEM）が有効なピクセルを優先し、nodata の場合は
-  産総研シームレス標高タイル（陸域統合DEM）で補完する。
-  両タイルとも GSJ NumPNG 形式（R=high, G=mid, B=low, nodata=(128,0,0)）。
-  シームレスのURLは {z}/{y}/{x} の順（y/x 逆転が API 仕様）。
+  DEM 合成ユーティリティ（Q地図 > DEM5A > 湖水深）
+  優先度:
+    1. Q地図 DEM（1m、最高品質）
+    2. 基盤地図情報数値PNGタイル DEM5A（5m、陸域全域）
+    3. 湖水深タイル（湖底地形。深さ値を符号反転して湖底標高として使用）
+  全タイル共通の国土地理院 NumPNG 形式（R=high, G=mid, B=low, nodata=R128,G0,B0）。
   ========================================================
 */
 async function fetchCompositeDemBitmap(z, x, y, signal) {
   const qUrl = `${QCHIZU_DEM_BASE}/${z}/${x}/${y}.webp`;
-  const sUrl = `${SEAMLESS_DEM_BASE}/${z}/${y}/${x}.png`; // y/x の順がAPI仕様
+  const sUrl = `${DEM5A_BASE}/${z}/${x}/${y}.png`;
+  const lUrl = `${LAKEDEPTH_BASE}/${z}/${x}/${y}.png`;
 
   async function toImageData(url) {
     try {
@@ -986,32 +988,63 @@ async function fetchCompositeDemBitmap(z, x, y, signal) {
     } catch { return null; }
   }
 
-  const [qData, sData] = await Promise.all([toImageData(qUrl), toImageData(sUrl)]);
-  if (!qData && !sData) return null;
+  const [qData, sData, lData] = await Promise.all([
+    toImageData(qUrl), toImageData(sUrl), toImageData(lUrl),
+  ]);
+  if (!qData && !sData && !lData) return null;
 
-  let resultData = qData || sData;
-  if (qData && sData) {
-    // ピクセル単位で合成: Q地図が nodata → シームレスで補完
-    const d = qData.data, s = sData.data;
-    for (let i = 0; i < d.length; i += 4) {
-      if ((d[i] === 128 && d[i + 1] === 0 && d[i + 2] === 0) || d[i + 3] !== 255) {
-        d[i] = s[i]; d[i + 1] = s[i + 1]; d[i + 2] = s[i + 2]; d[i + 3] = s[i + 3];
-      }
-    }
-    resultData = qData;
+  function isNodata(d, i) {
+    return (d[i] === 128 && d[i + 1] === 0 && d[i + 2] === 0) || d[i + 3] !== 255;
   }
 
-  const cv = new OffscreenCanvas(resultData.width, resultData.height);
-  cv.getContext('2d').putImageData(resultData, 0, 0);
+  // 合成先を全 nodata で初期化し、低優先度から順に上書き
+  const { width, height: h } = (qData ?? sData ?? lData);
+  const cv = new OffscreenCanvas(width, h);
+  const ctx = cv.getContext('2d');
+  const out = ctx.createImageData(width, h);
+  const o = out.data;
+  for (let i = 0; i < o.length; i += 4) { o[i] = 128; o[i + 3] = 255; } // all nodata
+
+  // 優先度 低: 湖水深（符号反転して湖底標高へ変換）
+  if (lData) {
+    const l = lData.data;
+    for (let i = 0; i < o.length; i += 4) {
+      if (isNodata(l, i)) continue;
+      const depth = (l[i] << 16) | (l[i + 1] << 8) | l[i + 2];
+      const neg = (0x1000000 - depth) & 0xFFFFFF;
+      o[i] = (neg >> 16) & 0xFF; o[i + 1] = (neg >> 8) & 0xFF; o[i + 2] = neg & 0xFF; o[i + 3] = 255;
+    }
+  }
+
+  // 優先度 中: DEM5A
+  if (sData) {
+    const s = sData.data;
+    for (let i = 0; i < o.length; i += 4) {
+      if (isNodata(s, i)) continue;
+      o[i] = s[i]; o[i + 1] = s[i + 1]; o[i + 2] = s[i + 2]; o[i + 3] = 255;
+    }
+  }
+
+  // 優先度 高: Q地図 DEM
+  if (qData) {
+    const q = qData.data;
+    for (let i = 0; i < o.length; i += 4) {
+      if (isNodata(q, i)) continue;
+      o[i] = q[i]; o[i + 1] = q[i + 1]; o[i + 2] = q[i + 2]; o[i + 3] = 255;
+    }
+  }
+
+  ctx.putImageData(out, 0, 0);
   return createImageBitmap(cv);
 }
 
 
 /*
   ========================================================
-  GSJ NumPNG タイルを Terrarium 形式に変換するカスタムプロトコルの登録
-  Q地図 DEM を優先し、nodata ピクセルはシームレス標高タイルで補完してから
-  MapLibre が理解できる Terrarium 形式に変換して渡します。
+  NumPNG → Terrarium 変換プロトコル (gsjdem://)
+  fetchCompositeDemBitmap で Q地図 > DEM5A > 湖水深 の優先順に合成した
+  NumPNG ビットマップを MapLibre が理解できる Terrarium 形式に変換して渡す。
+  CS立体図・3D地形・gsjdem ベースのレイヤーすべてがこのプロトコルを経由する。
   ========================================================
 */
 maplibregl.addProtocol('gsjdem', async (params, abortController) => {
@@ -1055,10 +1088,10 @@ maplibregl.addProtocol('gsjdem', async (params, abortController) => {
 
 /*
   ========================================================
-  シームレスDEM + Q地図カバレッジチェック統合プロトコル (gsjseamless://)
-  Q地図DEMタイルが存在する範囲では all-nodata の空PNGを返し、
-  mlcontour がシームレス等高線を生成しないようにする。
-  Q地図データがない範囲では GSJ シームレスDEMタイルを返す。
+  等高線用 DEM 合成プロトコル (gsjseamless://)
+  Q地図カバー範囲 → all-nodata 空PNGを返しシームレス等高線生成を抑制。
+  Q地図カバー外（陸域）→ DEM5A タイルをそのまま返す。
+  DEM5A もない範囲（湖沼）→ 湖水深タイルを符号反転して湖底等高線を生成。
   ========================================================
 */
 
@@ -1092,11 +1125,33 @@ maplibregl.addProtocol('gsjseamless', async (params, abortController) => {
     if (e.name === 'AbortError') return { data: new ArrayBuffer(0) };
   }
 
-  // Q地図データなし → GSJ シームレスDEMタイルを返す（y/x 逆順が API 仕様）
+  // Q地図データなし → DEM5A タイルを試す
   try {
-    const sr = await fetch(`${SEAMLESS_DEM_BASE}/${z}/${y}/${x}.png`, { signal: abortController.signal });
-    if (!sr.ok) return { data: new ArrayBuffer(0) };
-    return { data: await sr.arrayBuffer() };
+    const sr = await fetch(`${DEM5A_BASE}/${z}/${x}/${y}.png`, { signal: abortController.signal });
+    if (sr.ok) return { data: await sr.arrayBuffer() };
+  } catch (e) {
+    if (e.name === 'AbortError') return { data: new ArrayBuffer(0) };
+  }
+
+  // DEM5A もなし（湖沼・海域）→ 湖水深タイルを符号反転して湖底等高線用に返す
+  try {
+    const lr = await fetch(`${LAKEDEPTH_BASE}/${z}/${x}/${y}.png`, { signal: abortController.signal });
+    if (!lr.ok) return { data: new ArrayBuffer(0) };
+    const bm = await createImageBitmap(await lr.blob());
+    const cv = new OffscreenCanvas(bm.width, bm.height);
+    const ctx = cv.getContext('2d');
+    ctx.drawImage(bm, 0, 0);
+    bm.close();
+    const imgData = ctx.getImageData(0, 0, cv.width, cv.height);
+    const d = imgData.data;
+    for (let i = 0; i < d.length; i += 4) {
+      if ((d[i] === 128 && d[i + 1] === 0 && d[i + 2] === 0) || d[i + 3] !== 255) continue;
+      const depth = (d[i] << 16) | (d[i + 1] << 8) | d[i + 2];
+      const neg = (0x1000000 - depth) & 0xFFFFFF;
+      d[i] = (neg >> 16) & 0xFF; d[i + 1] = (neg >> 8) & 0xFF; d[i + 2] = neg & 0xFF; d[i + 3] = 255;
+    }
+    ctx.putImageData(imgData, 0, 0);
+    return { data: await (await cv.convertToBlob({ type: 'image/png' })).arrayBuffer() };
   } catch {
     return { data: new ArrayBuffer(0) };
   }
@@ -1312,11 +1367,12 @@ maplibregl.addProtocol('csdem', async (params, abortController) => {
     ======================================================== */
 
 // ★ DEM タイルのベース URL
-// Q地図 DEM / シームレス標高タイルは共に GSJ NumPNG 形式（x=2^16R+2^8G+B, u=0.01）
-// gsjdem:// プロトコルが両タイルを合成して Terrarium 形式に変換して MapLibre に渡す。
-// シームレス標高タイルは URL が {z}/{y}/{x} の順（y/x が逆）なので注意。
-const QCHIZU_DEM_BASE   = 'https://mapdata.qchizu.xyz/03_dem/52_gsi/all_2025/1_02';
-const SEAMLESS_DEM_BASE = 'https://tiles.gsj.jp/tiles/elev/land'; // {z}/{y}/{x}.png の順
+// Q地図 DEM / DEM5A / 湖水深タイルは共に国土地理院 NumPNG 形式（x=2^16R+2^8G+B, u=0.01m）
+// gsjdem:// プロトコルが Q地図 > DEM5A > 湖水深 の優先順で合成し Terrarium 形式に変換する。
+// DEM5A・湖水深タイルは標準の {z}/{x}/{y} 順。
+const QCHIZU_DEM_BASE  = 'https://mapdata.qchizu.xyz/03_dem/52_gsi/all_2025/1_02';
+const DEM5A_BASE       = 'https://cyberjapandata.gsi.go.jp/xyz/dem5a_png'; // 基盤地図情報DEM5A {z}/{x}/{y}.png
+const LAKEDEPTH_BASE   = 'https://cyberjapandata.gsi.go.jp/xyz/lakedepth'; // 湖水深タイル {z}/{x}/{y}.png
 
 const TERRAIN_URL = 'gsjdem://mapdata.qchizu.xyz/03_dem/52_gsi/all_2025/1_02/{z}/{x}/{y}.webp';
 
@@ -1711,16 +1767,15 @@ map.on('load', async () => {
       attribution: '<a href="https://www.geospatial.jp/ckan/dataset/qchizu_94dem_99gsi">【等高線】Q地図(国土地理院測量成果)数値PNGタイル(1m)を加工して作成</a>',
     });
 
-    // シームレス標高タイル等高線フォールバック（Q地図カバー外のみ表示）
-    // gsjseamless:// プロトコルがQ地図カバレッジチェック＋合成を行い、
-    // Q地図タイルが存在する範囲は空タイルを返してシームレス等高線を抑制する。
+    // 等高線フォールバック（Q地図 > DEM5A > 湖水深）
+    // gsjseamless:// プロトコルが Q地図カバレッジチェック＋DEM5A/湖水深合成を行う。
     // カスタムプロトコルはメインスレッドのみ利用可能なため worker: false。
-    // Q地図カバー範囲はブラウザキャッシュ済みタイルで即返却のため負荷は軽微。
+    // DEM5A は zoom 15 まで対応。湖沼では符号反転済み湖底標高から等高線を生成。
     seamlessContourDemSource = new mlcontour.DemSource({
       url: 'gsjseamless://{z}/{x}/{y}.png',
       encoding: 'numpng',
       minzoom: 0,
-      maxzoom: 14,
+      maxzoom: 15,
       worker: false,
       cacheSize: 100,
       timeoutMs: 30_000,
@@ -1730,9 +1785,9 @@ map.on('load', async () => {
       type: 'vector',
       tiles: [buildSeamlessContourTileUrl(1)],
       maxzoom: 15,
-      attribution: '<a href="https://gbank.gsj.jp/seamless/elev/" target="_blank">シームレス標高タイル（産業技術総合研究所）を加工して作成</a>',
+      attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">基盤地図情報数値PNGタイル・湖水深タイル（国土地理院）を加工して作成</a>',
     });
-    console.log('等高線ソース登録完了（Q地図 + シームレスフォールバック）');
+    console.log('等高線ソース登録完了（Q地図 + DEM5A + 湖水深フォールバック）');
   }
 
   catch (e) {
