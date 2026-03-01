@@ -3408,12 +3408,15 @@ function applyContourInterval(intervalM) {
   if (newUrlLake && map.getSource('contour-source-lake')) {
     map.getSource('contour-source-lake').setTiles([newUrlLake]);
   }
-  setTimeout(() => {
+  // setTimeout(0) はレンダリングサイクルと無関係なタイミングで発火するため、
+  // requestAnimationFrame に変更してブラウザの描画直前（MapLibre が setTiles を
+  // 処理した後）に visibility を復元する。
+  requestAnimationFrame(() => {
     if (!chkContour.checked) return;
     [...contourLayerIds, ...seamlessContourLayerIds].forEach(id => {
       if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', 'visible');
     });
-  }, 0);
+  });
   lastAppliedContourInterval = intervalM;
 }
 
