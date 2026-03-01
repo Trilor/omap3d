@@ -963,20 +963,70 @@ maplibregl.addProtocol('pmtiles', pmtilesProtocol.tile.bind(pmtilesProtocol));
 
 /*
   ========================================================
+  Q地図 DEM + シームレス標高タイルの合成ユーティリティ
+  Q地図 DEM（1mDEM）が有効なピクセルを優先し、nodata の場合は
+  産総研シームレス標高タイル（陸域統合DEM）で補完する。
+  両タイルとも GSJ NumPNG 形式（R=high, G=mid, B=low, nodata=(128,0,0)）。
+  シームレスのURLは {z}/{y}/{x} の順（y/x 逆転が API 仕様）。
+  ========================================================
+*/
+async function fetchCompositeDemBitmap(z, x, y, signal) {
+  const qUrl = `${QCHIZU_DEM_BASE}/${z}/${x}/${y}.webp`;
+  const sUrl = `${SEAMLESS_DEM_BASE}/${z}/${y}/${x}.png`; // y/x の順がAPI仕様
+
+  async function toImageData(url) {
+    try {
+      const r = await fetch(url, { signal });
+      if (!r.ok) return null;
+      const bm = await createImageBitmap(await r.blob());
+      const cv = new OffscreenCanvas(bm.width, bm.height);
+      cv.getContext('2d').drawImage(bm, 0, 0);
+      bm.close();
+      return cv.getContext('2d').getImageData(0, 0, cv.width, cv.height);
+    } catch { return null; }
+  }
+
+  const [qData, sData] = await Promise.all([toImageData(qUrl), toImageData(sUrl)]);
+  if (!qData && !sData) return null;
+
+  let resultData = qData || sData;
+  if (qData && sData) {
+    // ピクセル単位で合成: Q地図が nodata → シームレスで補完
+    const d = qData.data, s = sData.data;
+    for (let i = 0; i < d.length; i += 4) {
+      if ((d[i] === 128 && d[i + 1] === 0 && d[i + 2] === 0) || d[i + 3] !== 255) {
+        d[i] = s[i]; d[i + 1] = s[i + 1]; d[i + 2] = s[i + 2]; d[i + 3] = s[i + 3];
+      }
+    }
+    resultData = qData;
+  }
+
+  const cv = new OffscreenCanvas(resultData.width, resultData.height);
+  cv.getContext('2d').putImageData(resultData, 0, 0);
+  return createImageBitmap(cv);
+}
+
+/*
+  ========================================================
   GSJ NumPNG タイルを Terrarium 形式に変換するカスタムプロトコルの登録
-  GSJ タイルは符号付き24ビット整数（NumPNG）形式のため、
-  MapLibre が理解できる Terrarium 形式にピクセル単位で変換して渡します。
+  Q地図 DEM を優先し、nodata ピクセルはシームレス標高タイルで補完してから
+  MapLibre が理解できる Terrarium 形式に変換して渡します。
   ========================================================
 */
 maplibregl.addProtocol('gsjdem', async (params, abortController) => {
-  const url = params.url.replace('gsjdem://', 'https://');
-  const response = await fetch(url, { signal: abortController.signal });
-  if (!response.ok) throw new Error(`GSJ DEM fetch failed: ${response.status}`);
+  // MapLibre が {z}/{x}/{y} を展開済みの URL から z/x/y を取り出す
+  const m = params.url.match(/\/(\d+)\/(\d+)\/(\d+)\.\w+$/);
+  if (!m) throw new Error('gsjdem: URL format invalid');
+  const [, z, x, y] = m;
 
-  const bitmap = await createImageBitmap(await response.blob());
+  const bitmap = await fetchCompositeDemBitmap(z, x, y, abortController.signal);
+  if (!bitmap) throw new Error('gsjdem: no DEM data available');
+
+  // NumPNG → Terrarium 変換
   const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
   const ctx = canvas.getContext('2d');
   ctx.drawImage(bitmap, 0, 0);
+  bitmap.close();
 
   const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
   const data = imageData.data;
@@ -1082,26 +1132,17 @@ maplibregl.addProtocol('csdem', async (params, abortController) => {
   const buffer = kernelRadius + 1;
   const mergedSize = tileSize + buffer * 2;
 
-  // ── ① 9タイル全て並列fetch（中央タイルの先行fetchを廃止） ──
-  const base = url.substring(0, url.lastIndexOf(`/${zoomLevel}/`) + 1) + `${zoomLevel}/`;
-  const tileUrls = [
-    base + (tileX - 1) + '/' + (tileY - 1) + '.' + ext, // 0:左上
-    base +  tileX      + '/' + (tileY - 1) + '.' + ext, // 1:上
-    base + (tileX + 1) + '/' + (tileY - 1) + '.' + ext, // 2:右上
-    base + (tileX - 1) + '/' +  tileY      + '.' + ext, // 3:左
-    url,                                                  // 4:中央
-    base + (tileX + 1) + '/' +  tileY      + '.' + ext, // 5:右
-    base + (tileX - 1) + '/' + (tileY + 1) + '.' + ext, // 6:左下
-    base +  tileX      + '/' + (tileY + 1) + '.' + ext, // 7:下
-    base + (tileX + 1) + '/' + (tileY + 1) + '.' + ext, // 8:右下
+  // ── ① 9タイル全て並列fetch（Q地図 → シームレス補完付き） ──
+  // 各タイルを fetchCompositeDemBitmap で取得（Q地図優先・nodata はシームレスで補完）
+  const neighborOffsets = [
+    [-1, -1], [0, -1], [1, -1], // 0:左上 1:上 2:右上
+    [-1,  0], [0,  0], [1,  0], // 3:左   4:中央 5:右
+    [-1,  1], [0,  1], [1,  1], // 6:左下 7:下   8:右下
   ];
 
-  const bitmaps = await Promise.all(tileUrls.map(async (src) => {
-    try {
-      const r = await fetch(src, { signal: abortController.signal });
-      return r.ok ? createImageBitmap(await r.blob()) : null;
-    } catch (_) { return null; }
-  }));
+  const bitmaps = await Promise.all(neighborOffsets.map(([dx, dy]) =>
+    fetchCompositeDemBitmap(zoomLevel, tileX + dx, tileY + dy, abortController.signal)
+  ));
   if (!bitmaps[4]) return { data: null }; // 中央タイルが取得できなければ終了
 
   // ── ② マージキャンバスに描画 ──
@@ -1219,9 +1260,13 @@ maplibregl.addProtocol('csdem', async (params, abortController) => {
     ★ カスタマイズポイント：各種URLと初期パラメータをここで変更します
     ======================================================== */
 
-// ★ 標高（DEM）タイルのURL（Q地図 / 国土地理院測量成果）
-// Q地図 DEM は GSJ NumPNG と同じ変換式（x=2^16R+2^8G+B、u=0.01）のため
-// gsjdem カスタムプロトコルで Terrarium 形式に変換してから MapLibre に渡す。
+// ★ DEM タイルのベース URL
+// Q地図 DEM / シームレス標高タイルは共に GSJ NumPNG 形式（x=2^16R+2^8G+B, u=0.01）
+// gsjdem:// プロトコルが両タイルを合成して Terrarium 形式に変換して MapLibre に渡す。
+// シームレス標高タイルは URL が {z}/{y}/{x} の順（y/x が逆）なので注意。
+const QCHIZU_DEM_BASE   = 'https://mapdata.qchizu.xyz/03_dem/52_gsi/all_2025/1_02';
+const SEAMLESS_DEM_BASE = 'https://tiles.gsj.jp/tiles/elev/land'; // {z}/{y}/{x}.png の順
+
 const TERRAIN_URL = 'gsjdem://mapdata.qchizu.xyz/03_dem/52_gsi/all_2025/1_02/{z}/{x}/{y}.webp';
 
 // ★ OriLibre（オリエンテーリング風地図）のプロジェクト設定URL
@@ -1517,6 +1562,8 @@ map.addControl(new maplibregl.GeolocateControl({
 */
 // 等高線レイヤーIDリスト（isomizer完了後に収集）
 let contourLayerIds = [];
+// シームレス標高タイル等高線レイヤーIDリスト（フォールバック用）
+let seamlessContourLayerIds = [];
 
 // 等高線間隔ごとのzoom threshold設定を生成
 // mlcontourの仕様: thresholds の値は [minor, major] の順（小さい間隔が先）
@@ -1535,10 +1582,23 @@ function buildContourThresholds(intervalM) {
 
 // contour-source の tiles URL を生成（demSource は load 内で初期化）
 let contourDemSource = null;
+let seamlessContourDemSource = null; // シームレス標高タイル等高線フォールバック用
 
 function buildContourTileUrl(intervalM) {
   if (!contourDemSource) return null;
   return contourDemSource.contourProtocolUrl({
+    thresholds: buildContourThresholds(intervalM),
+    contourLayer: 'contours',
+    elevationKey: 'ele',
+    levelKey: 'level',
+    extent: 4096,
+    buffer: 1,
+  });
+}
+
+function buildSeamlessContourTileUrl(intervalM) {
+  if (!seamlessContourDemSource) return null;
+  return seamlessContourDemSource.contourProtocolUrl({
     thresholds: buildContourThresholds(intervalM),
     contourLayer: 'contours',
     elevationKey: 'ele',
@@ -1599,7 +1659,26 @@ map.on('load', async () => {
       maxzoom: 15,
       attribution: '<a href="https://www.geospatial.jp/ckan/dataset/qchizu_94dem_99gsi">【等高線】Q地図(国土地理院測量成果)数値PNGタイル(1m)を加工して作成</a>',
     });
-    console.log('等高線ソース登録完了');
+
+    // シームレス標高タイル等高線フォールバック（Q地図カバー外を補完）
+    // URL の {z}/{y}/{x} 順は産総研タイルの API 仕様（mlcontour が展開する）
+    seamlessContourDemSource = new mlcontour.DemSource({
+      url: `${SEAMLESS_DEM_BASE}/{z}/{y}/{x}.png`,
+      encoding: 'numpng',
+      minzoom: 0,
+      maxzoom: 15,
+      worker: true,
+      cacheSize: 100,
+      timeoutMs: 30_000,
+    });
+    seamlessContourDemSource.setupMaplibre(maplibregl);
+    map.addSource('contour-source-seamless', {
+      type: 'vector',
+      tiles: [buildSeamlessContourTileUrl(1)],
+      maxzoom: 15,
+      attribution: '<a href="https://gbank.gsj.jp/seamless/elev/" target="_blank">シームレス標高タイル（産業技術総合研究所）を加工して作成</a>',
+    });
+    console.log('等高線ソース登録完了（Q地図 + シームレスフォールバック）');
   }
 
   catch (e) {
@@ -1718,6 +1797,38 @@ map.on('load', async () => {
 
     contourLayerIds = ['contour-regular', 'contour-index', 'contour-label'];
     console.log('等高線レイヤー（フォールバック生成）:', contourLayerIds);
+  }
+
+  // シームレス標高タイル等高線レイヤー（Q地図等高線の下に挿入してフォールバック用途に）
+  // Q地図カバー範囲ではQ地図レイヤーが上に重なるため、シームレスはカバー外のみ実質表示される。
+  if (map.getSource('contour-source-seamless') && contourLayerIds.length > 0) {
+    const firstQchizuId = contourLayerIds[0]; // Q地図等高線レイヤーの直下に挿入
+    map.addLayer({
+      id: 'contour-regular-seamless',
+      type: 'line',
+      source: 'contour-source-seamless',
+      'source-layer': 'contours',
+      filter: ['==', ['get', 'level'], 0],
+      paint: {
+        'line-color': '#c86400',
+        'line-width': 1.0,
+        'line-opacity': 0.85,
+      },
+    }, firstQchizuId);
+    map.addLayer({
+      id: 'contour-index-seamless',
+      type: 'line',
+      source: 'contour-source-seamless',
+      'source-layer': 'contours',
+      filter: ['==', ['get', 'level'], 1],
+      paint: {
+        'line-color': '#c86400',
+        'line-width': 1.79,
+        'line-opacity': 1.0,
+      },
+    }, firstQchizuId);
+    seamlessContourLayerIds = ['contour-regular-seamless', 'contour-index-seamless'];
+    console.log('シームレス等高線レイヤー追加完了');
   }
 
   /*
@@ -1843,9 +1954,9 @@ let kmzCounter = 0;
 // MapLibre の 3D 地形（terrain draping）モードでは、ラスターレイヤーを
 // WebGL フレームバッファに合成する際にアルファがリニア空間で処理されるため、
 // raster-opacity が視覚的に非線形に見える（0.5 → ほぼ不透明）。
-// 地形 ON 時はガンマ補正の逆変換（^2.2）を適用し、知覚的に正しい透明感を再現する。
+// 地形 ON 時はガンマ補正の逆変換（^2.5）を適用し、知覚的に正しい透明感を再現する。
 function toRasterOpacity(opacity) {
-  return map.getTerrain() ? Math.pow(opacity, 2.2) : opacity;
+  return map.getTerrain() ? Math.pow(opacity, 3) : opacity;
 }
 
 /* ========================================================
@@ -3069,18 +3180,23 @@ function getEffectiveContourInterval() {
 }
 
 // 等高線タイルを intervalM に切り替える（旧タイルをフラッシュしてから URL を更新）
+// Q地図 + シームレスフォールバックの両ソースを同時に更新する。
 function applyContourInterval(intervalM) {
   const newUrl = buildContourTileUrl(intervalM);
+  const newUrlSeamless = buildSeamlessContourTileUrl(intervalM);
   if (!newUrl || !map.getSource('contour-source')) return;
   // MapLibreは高ズーム時に「新タイルが届くまで旧タイルを保持」するため、
   // 一旦 visibility:none で旧タイルを即座に消去してからURLを切り替える
-  contourLayerIds.forEach(id => {
+  [...contourLayerIds, ...seamlessContourLayerIds].forEach(id => {
     if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', 'none');
   });
   map.getSource('contour-source').setTiles([newUrl]);
+  if (newUrlSeamless && map.getSource('contour-source-seamless')) {
+    map.getSource('contour-source-seamless').setTiles([newUrlSeamless]);
+  }
   setTimeout(() => {
     if (!chkContour.checked) return;
-    contourLayerIds.forEach(id => {
+    [...contourLayerIds, ...seamlessContourLayerIds].forEach(id => {
       if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', 'visible');
     });
   }, 0);
@@ -3093,9 +3209,9 @@ function updateContourAutoInterval() {
 
   const z = map.getZoom();
 
-  // zoom ≤ 7 では等高線を非表示
+  // zoom ≤ 7 では等高線を非表示（Q地図 + シームレス両方）
   if (z <= 7) {
-    contourLayerIds.forEach(id => {
+    [...contourLayerIds, ...seamlessContourLayerIds].forEach(id => {
       if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', 'none');
     });
     if (optContourCurrent) {
@@ -3119,7 +3235,7 @@ function updateContourAutoInterval() {
 
 chkContour.addEventListener('change', () => {
   const vis = chkContour.checked ? 'visible' : 'none';
-  contourLayerIds.forEach(id => {
+  [...contourLayerIds, ...seamlessContourLayerIds].forEach(id => {
     if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', vis);
   });
   selContour.disabled = !chkContour.checked;
