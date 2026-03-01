@@ -3346,7 +3346,7 @@ const selContour = document.getElementById('sel-contour-interval');
 const optContourCurrent = document.getElementById('opt-contour-current');
 
 // ユーザーが手動で選んだ等高線間隔（m）。zoom > 15（16以上）のときに使用する。
-let userContourInterval = 1;
+let userContourInterval = 5;
 // 最後に適用した間隔（連続 moveend での無駄な setTiles を防ぐ）
 let lastAppliedContourInterval = null;
 
