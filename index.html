@@ -1917,6 +1917,12 @@ map.on('load', async () => {
       .map(l => ({ id: l.id, defaultVisibility: l.layout?.visibility ?? 'visible' }));
     console.log(`OriLibre レイヤー収集完了: ${oriLibreLayers.length} レイヤー`);
 
+    // 低ズームで陸地が緑一色になるのを防ぐため、background レイヤーを白に変更する。
+    // OriLibre は background = 緑（全域森林の基色）として描画するため、
+    // 白に上書きすることで大陸輪郭が判別しやすくなる。
+    const bgLayer = map.getStyle().layers.find(l => l.type === 'background');
+    if (bgLayer) map.setPaintProperty(bgLayer.id, 'background-color', '#ffffff');
+
     // isomizer の project-config.yml が別のcenterを持つ場合があるため、
     // 完了後に京都大学（INITIAL_CENTER）へ強制的に戻す
     map.jumpTo({
