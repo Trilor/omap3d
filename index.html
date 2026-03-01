@@ -234,8 +234,9 @@ body {
 }
 .setting-row:last-child { border-bottom: none; }
 
-/* パネル内のすべてのチェックボックスを同一サイズに統一 */
-#ui-panel input[type="checkbox"] {
+/* パネル内のすべてのチェックボックス・ラジオボタンを同一サイズに統一 */
+#ui-panel input[type="checkbox"],
+#ui-panel input[type="radio"] {
   width: 13px;
   height: 13px;
   flex-shrink: 0;
@@ -783,20 +784,26 @@ body {
     <p class="privacy-note">※ 読み込んだファイルはブラウザ内でのみ処理されます。サーバーへ送信・保存されることは一切ありません。</p>
   </details>
 
-  <!-- ===== CS立体図（全国・地域別を個別チェックボックスで制御） ===== -->
+  <!-- ===== CS立体図（ラジオボタンで排他選択） ===== -->
   <details class="panel-section" open>
     <summary>CS立体図</summary>
     <div class="layer-row">
       <div class="layer-label-row">
-        <input type="checkbox" id="chk-cs-national" />
-        <label class="layer-name disabled" for="chk-cs-national">CS立体図（1m・全国）</label>
+        <input type="radio" name="cs-mode" id="rad-cs-none" value="none" checked />
+        <label class="layer-name" for="rad-cs-none">非表示</label>
       </div>
     </div>
     <div class="layer-row">
       <div class="layer-label-row">
-        <input type="checkbox" id="chk-cs-regional" />
-        <label class="layer-name disabled" for="chk-cs-regional"
-          title="ズーム18以上で表示されます">CS立体図（0.5m・一部地域）</label>
+        <input type="radio" name="cs-mode" id="rad-cs-1m" value="1m" />
+        <label class="layer-name" for="rad-cs-1m">CS立体図（1m・全国）</label>
+      </div>
+    </div>
+    <div class="layer-row">
+      <div class="layer-label-row">
+        <input type="radio" name="cs-mode" id="rad-cs-05m" value="0.5m" />
+        <label class="layer-name" for="rad-cs-05m"
+          title="ズーム17以上で0.5m地域DEMを表示。未対応地域またはズーム17未満は1mに切替">CS立体図（0.5m・一部地域）</label>
       </div>
     </div>
     <div class="opacity-row">
@@ -2082,10 +2089,10 @@ map.on('load', async () => {
     layout: { visibility: 'none' },
     paint: {
       'raster-opacity': CS_INITIAL_OPACITY,
-      // 乗算（Multiply）の代替：白浮きを防ぎコントラストを強調する
-      'raster-contrast': 0.2,
-      'raster-brightness-max': 0.8,
-      'raster-fade-duration': 150,
+      // // 乗算（Multiply）の代替：白浮きを防ぎコントラストを強調する
+      // 'raster-contrast': 0.2,
+      // 'raster-brightness-max': 0.8,
+      // 'raster-fade-duration': 150,
     }
 
     ,
@@ -3267,7 +3274,8 @@ function updateRegionalAttribution() {
     attrEl.id = 'regional-cs-attr';
     attrInner.appendChild(attrEl);
   }
-  const csRegionalOn = document.getElementById('chk-cs-regional')?.checked;
+  const csRegionalOn = document.querySelector('input[name="cs-mode"]:checked')?.value === '0.5m'
+    && map.getZoom() >= 17;
   if (!csRegionalOn) {
     attrEl.innerHTML = '';
     _lastAttrKey = null;
@@ -3292,43 +3300,34 @@ function updateRegionalAttribution() {
   attrEl.innerHTML = html ? ' | ' + html : '';
 }
 
-// ---- CS立体図 チェックボックス（全国 + 都道府県別を一括制御） ----
-// ---- CS立体図 チェックボックス（全国・地域別を個別制御、スライダーは共有） ----
-const chkCsNational = document.getElementById('chk-cs-national');
-const chkCsRegional = document.getElementById('chk-cs-regional');
+// ---- CS立体図 ラジオボタン制御 ----
+// モード: none / 1m（全国） / 0.5m（地域DEM優先）
+// 0.5m モードはズーム17以上で地域CSを表示し、ズーム17未満は1mに自動フォールバック
+function updateCsVisibility() {
+  const mode = document.querySelector('input[name="cs-mode"]:checked')?.value ?? 'none';
+  const z = map.getZoom();
+  const show1m  = (mode === '1m') || (mode === '0.5m' && z < 17);
+  const show05m = (mode === '0.5m') && z >= 17;
 
-// どちらか一方でもONならスライダーを有効化
-function updateCsSliderState() {
-  const slider = document.getElementById('slider-cs');
-  slider.disabled = !chkCsNational.checked && !chkCsRegional.checked;
-}
-
-chkCsNational.addEventListener('change', () => {
-  document.querySelector('label[for="chk-cs-national"]').classList.toggle('disabled', !chkCsNational.checked);
-  const vis = chkCsNational.checked ? 'visible' : 'none';
   if (map.getLayer('cs-relief-layer')) {
-    map.setLayoutProperty('cs-relief-layer', 'visibility', vis);
-    if (chkCsNational.checked) {
-      map.setPaintProperty('cs-relief-layer', 'raster-opacity', parseFloat(document.getElementById('slider-cs').value));
-    }
+    map.setLayoutProperty('cs-relief-layer', 'visibility', show1m ? 'visible' : 'none');
   }
-  updateCsSliderState();
-});
-
-chkCsRegional.addEventListener('change', () => {
-  document.querySelector('label[for="chk-cs-regional"]').classList.toggle('disabled', !chkCsRegional.checked);
-  const vis = chkCsRegional.checked ? 'visible' : 'none';
   REGIONAL_CS_LAYERS.forEach(layer => {
     if (map.getLayer(layer.layerId)) {
-      map.setLayoutProperty(layer.layerId, 'visibility', vis);
-      if (chkCsRegional.checked) {
-        map.setPaintProperty(layer.layerId, 'raster-opacity', parseFloat(document.getElementById('slider-cs').value));
-      }
+      map.setLayoutProperty(layer.layerId, 'visibility', show05m ? 'visible' : 'none');
     }
   });
-  updateCsSliderState();
+
+  document.getElementById('slider-cs').disabled = (mode === 'none');
   updateRegionalAttribution();
+}
+
+document.querySelectorAll('input[name="cs-mode"]').forEach(radio => {
+  radio.addEventListener('change', updateCsVisibility);
 });
+
+// ズーム17の境界を跨いだとき 0.5m ↔ 1m を自動切替
+map.on('zoomend', updateCsVisibility);
 
 // ---- CS立体図 透明度スライダー（全国・地域別共通） ----
 const sliderCs = document.getElementById('slider-cs');
@@ -3339,11 +3338,11 @@ sliderCs.addEventListener('input', () => {
   const v = parseFloat(sliderCs.value);
   valCs.textContent = Math.round(v * 100) + '%';
   updateSliderGradient(sliderCs, '#4a7c59');
-  if (chkCsNational.checked && map.getLayer('cs-relief-layer')) {
+  if (map.getLayer('cs-relief-layer')) {
     map.setPaintProperty('cs-relief-layer', 'raster-opacity', v);
   }
   REGIONAL_CS_LAYERS.forEach(layer => {
-    if (chkCsRegional.checked && map.getLayer(layer.layerId)) {
+    if (map.getLayer(layer.layerId)) {
       map.setPaintProperty(layer.layerId, 'raster-opacity', v);
     }
   });
