@@ -1872,16 +1872,24 @@ map.on('load', async () => {
   // Q地図カバー範囲ではQ地図レイヤーが上に重なるため、シームレスはカバー外のみ実質表示される。
   if (map.getSource('contour-source-seamless') && contourLayerIds.length > 0) {
     const firstQchizuId = contourLayerIds[0]; // Q地図等高線レイヤーの直下に挿入
+    // シームレスDEMは5mメッシュのため、Q地図(1m)より等高線が角ばって見える。
+    // line-join/line-cap: round でコーナーを丸め、line-blur で微小なぼかしを加えることで
+    // 視覚的な粗さを軽減する。
     map.addLayer({
       id: 'contour-regular-seamless',
       type: 'line',
       source: 'contour-source-seamless',
       'source-layer': 'contours',
       filter: ['==', ['get', 'level'], 0],
+      layout: {
+        'line-join': 'round',
+        'line-cap': 'round',
+      },
       paint: {
         'line-color': '#c86400',
         'line-width': 1.0,
         'line-opacity': 0.85,
+        'line-blur': 0.5,
       },
     }, firstQchizuId);
     map.addLayer({
@@ -1890,10 +1898,15 @@ map.on('load', async () => {
       source: 'contour-source-seamless',
       'source-layer': 'contours',
       filter: ['==', ['get', 'level'], 1],
+      layout: {
+        'line-join': 'round',
+        'line-cap': 'round',
+      },
       paint: {
         'line-color': '#c86400',
         'line-width': 1.79,
         'line-opacity': 1.0,
+        'line-blur': 0.5,
       },
     }, firstQchizuId);
     seamlessContourLayerIds = ['contour-regular-seamless', 'contour-index-seamless'];
