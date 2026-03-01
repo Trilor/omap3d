@@ -972,9 +972,10 @@ maplibregl.addProtocol('pmtiles', pmtilesProtocol.tile.bind(pmtilesProtocol));
   ========================================================
 */
 async function fetchCompositeDemBitmap(z, x, y, signal) {
-  const qUrl = `${QCHIZU_DEM_BASE}/${z}/${x}/${y}.webp`;
-  const sUrl = `${DEM5A_BASE}/${z}/${x}/${y}.png`;
-  const lUrl = `${LAKEDEPTH_BASE}/${z}/${x}/${y}.png`;
+  const qUrl  = `${QCHIZU_DEM_BASE}/${z}/${x}/${y}.webp`;
+  const sUrl  = `${DEM5A_BASE}/${z}/${x}/${y}.png`;
+  const lUrl  = `${LAKEDEPTH_BASE}/${z}/${x}/${y}.png`;
+  const lsUrl = `${LAKEDEPTH_STANDARD_BASE}/${z}/${x}/${y}.png`;
 
   async function toImageData(url) {
     try {
@@ -988,8 +989,8 @@ async function fetchCompositeDemBitmap(z, x, y, signal) {
     } catch { return null; }
   }
 
-  const [qData, sData, lData] = await Promise.all([
-    toImageData(qUrl), toImageData(sUrl), toImageData(lUrl),
+  const [qData, sData, lData, lsData] = await Promise.all([
+    toImageData(qUrl), toImageData(sUrl), toImageData(lUrl), toImageData(lsUrl),
   ]);
   if (!qData && !sData && !lData) return null;
 
@@ -1005,14 +1006,20 @@ async function fetchCompositeDemBitmap(z, x, y, signal) {
   const o = out.data;
   for (let i = 0; i < o.length; i += 4) { o[i] = 128; o[i + 3] = 255; } // all nodata
 
-  // 優先度 低: 湖水深（符号反転して湖底標高へ変換）
-  if (lData) {
-    const l = lData.data;
+  // 優先度 低: 湖水深（基準水面標高 - 湖水深 → 実際の湖底標高へ変換）
+  // 湖底標高(m) = 基準水面標高(m) - 湖水深(m)
+  // NumPNG単位(0.01m): actual_int = stdSigned - depth
+  if (lData && lsData) {
+    const l = lData.data, ls = lsData.data;
     for (let i = 0; i < o.length; i += 4) {
-      if (isNodata(l, i)) continue;
-      const depth = (l[i] << 16) | (l[i + 1] << 8) | l[i + 2];
-      const neg = (0x1000000 - depth) & 0xFFFFFF;
-      o[i] = (neg >> 16) & 0xFF; o[i + 1] = (neg >> 8) & 0xFF; o[i + 2] = neg & 0xFF; o[i + 3] = 255;
+      if (isNodata(l, i) || isNodata(ls, i)) continue;
+      const depth     = (l[i]  << 16) | (l[i + 1]  << 8) | l[i + 2];  // 湖水深 (正値, 0.01m単位)
+      const stdRaw    = (ls[i] << 16) | (ls[i + 1] << 8) | ls[i + 2]; // 基準水面標高 (24bit符号なし)
+      const stdSigned = stdRaw >= 0x800000 ? stdRaw - 0x1000000 : stdRaw; // 符号付きに変換
+      let actual = stdSigned - depth;                                    // 湖底標高 (0.01m単位)
+      if (actual < 0) actual += 0x1000000;
+      actual &= 0xFFFFFF;
+      o[i] = (actual >> 16) & 0xFF; o[i + 1] = (actual >> 8) & 0xFF; o[i + 2] = actual & 0xFF; o[i + 3] = 255;
     }
   }
 
@@ -1302,7 +1309,8 @@ maplibregl.addProtocol('csdem', async (params, abortController) => {
 // DEM5A・湖水深タイルは標準の {z}/{x}/{y} 順。
 const QCHIZU_DEM_BASE  = 'https://mapdata.qchizu.xyz/03_dem/52_gsi/all_2025/1_02';
 const DEM5A_BASE       = 'https://cyberjapandata.gsi.go.jp/xyz/dem5a_png'; // 基盤地図情報DEM5A {z}/{x}/{y}.png
-const LAKEDEPTH_BASE   = 'https://cyberjapandata.gsi.go.jp/xyz/lakedepth'; // 湖水深タイル {z}/{x}/{y}.png
+const LAKEDEPTH_BASE          = 'https://cyberjapandata.gsi.go.jp/xyz/lakedepth';          // 湖水深タイル {z}/{x}/{y}.png
+const LAKEDEPTH_STANDARD_BASE = 'https://cyberjapandata.gsi.go.jp/xyz/lakedepth_standard'; // 基準水面標高タイル {z}/{x}/{y}.png
 
 const TERRAIN_URL = 'gsjdem://mapdata.qchizu.xyz/03_dem/52_gsi/all_2025/1_02/{z}/{x}/{y}.webp';
 
@@ -1645,6 +1653,76 @@ function buildSeamlessContourTileUrl(intervalM) {
   });
 }
 
+/*
+  ========================================================
+  湖水深等高線用: 実際の湖底標高タイル合成
+  mlcontour の DemSource は maplibregl.addProtocol を経由せず自前の fetch() を使うため、
+  window.fetch をオーバーライドし LAKE_ELEV_PREFIX へのリクエストをインターセプトして
+  「基準水面標高 - 湖水深」を計算した合成 NumPNG を返す。
+  lakeContourDemSource は worker: false（メインスレッド）で動かすことで
+  このオーバーライドされた fetch() が呼ばれるようにする。
+  ========================================================
+*/
+const LAKE_ELEV_PREFIX = 'https://lake-elevation.internal/tiles/';
+const _origFetch = window.fetch.bind(window);
+
+async function synthesizeLakeElevationTile(url) {
+  const m = url.match(/\/(\d+)\/(\d+)\/(\d+)\.png$/);
+  if (!m) return new Response(null, { status: 404 });
+  const [, z, x, y] = m;
+
+  async function fetchNumPngData(src) {
+    try {
+      const r = await _origFetch(src);
+      if (!r.ok) return null;
+      const bm = await createImageBitmap(await r.blob());
+      const cv = new OffscreenCanvas(bm.width, bm.height);
+      cv.getContext('2d').drawImage(bm, 0, 0);
+      bm.close();
+      return cv.getContext('2d').getImageData(0, 0, cv.width, cv.height);
+    } catch { return null; }
+  }
+
+  const [lData, lsData] = await Promise.all([
+    fetchNumPngData(`${LAKEDEPTH_BASE}/${z}/${x}/${y}.png`),
+    fetchNumPngData(`${LAKEDEPTH_STANDARD_BASE}/${z}/${x}/${y}.png`),
+  ]);
+  if (!lData || !lsData) return new Response(null, { status: 404 });
+
+  const { width, height } = lData;
+  const cv = new OffscreenCanvas(width, height);
+  const ctx = cv.getContext('2d');
+  const out = ctx.createImageData(width, height);
+  const o = out.data;
+  const l = lData.data, ls = lsData.data;
+
+  for (let i = 0; i < o.length; i += 4) {
+    const lNodata  = (l[i]  === 128 && l[i+1]  === 0 && l[i+2]  === 0) || l[i+3]  !== 255;
+    const lsNodata = (ls[i] === 128 && ls[i+1] === 0 && ls[i+2] === 0) || ls[i+3] !== 255;
+    if (lNodata || lsNodata) {
+      o[i] = 128; o[i+1] = 0; o[i+2] = 0; o[i+3] = 255; // nodata
+      continue;
+    }
+    const depth     = (l[i]  << 16) | (l[i+1]  << 8) | l[i+2];  // 湖水深 (正値, 0.01m単位)
+    const stdRaw    = (ls[i] << 16) | (ls[i+1] << 8) | ls[i+2]; // 基準水面標高 (24bit符号なし)
+    const stdSigned = stdRaw >= 0x800000 ? stdRaw - 0x1000000 : stdRaw; // 符号付きに変換
+    let actual = stdSigned - depth;                                      // 湖底実際の標高 (0.01m単位)
+    if (actual < 0) actual += 0x1000000;
+    actual &= 0xFFFFFF;
+    o[i] = (actual >> 16) & 0xFF; o[i+1] = (actual >> 8) & 0xFF; o[i+2] = actual & 0xFF; o[i+3] = 255;
+  }
+
+  ctx.putImageData(out, 0, 0);
+  const blob = await cv.convertToBlob({ type: 'image/png' });
+  return new Response(blob, { headers: { 'Content-Type': 'image/png' } });
+}
+
+window.fetch = async function(input, init) {
+  const url = typeof input === 'string' ? input : (input instanceof Request ? input.url : String(input));
+  if (url && url.startsWith(LAKE_ELEV_PREFIX)) return synthesizeLakeElevationTile(url);
+  return _origFetch(input, init);
+};
+
 let lakeContourDemSource = null;
 function buildLakeContourTileUrl(intervalM) {
   if (!lakeContourDemSource) return null;
@@ -1730,13 +1808,15 @@ map.on('load', async () => {
       attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">基盤地図情報数値PNGタイル（国土地理院）を加工して作成</a>',
     });
 
-    // 湖水深等高線（湖沼の湖底地形）
+    // 湖水深等高線（湖底実際の標高 = 基準水面標高 - 湖水深）
+    // worker: false でメインスレッドで動かし、window.fetch オーバーライドで
+    // LAKE_ELEV_PREFIX への合成タイルを取得する。
     lakeContourDemSource = new mlcontour.DemSource({
-      url: `${LAKEDEPTH_BASE}/{z}/{x}/{y}.png`,
+      url: `${LAKE_ELEV_PREFIX}{z}/{x}/{y}.png`,
       encoding: 'numpng',
       minzoom: 1,
       maxzoom: 14,
-      worker: true,
+      worker: false,
       cacheSize: 100,
       timeoutMs: 30_000,
     });
