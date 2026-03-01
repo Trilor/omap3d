@@ -972,11 +972,14 @@ maplibregl.addProtocol('pmtiles', pmtilesProtocol.tile.bind(pmtilesProtocol));
   ========================================================
 */
 
-async function fetchCompositeDemBitmap(z, x, y, signal) {
+// regionalDemBase: 地域DEMのベースURL（csdem://地域層の場合のみ指定）
+// regionalDemExt : 地域DEMの拡張子（'png' または 'webp'）
+async function fetchCompositeDemBitmap(z, x, y, signal, regionalDemBase = null, regionalDemExt = 'png') {
   const qUrl  = `${QCHIZU_DEM_BASE}/${z}/${x}/${y}.webp`;
   const sUrl  = `${DEM5A_BASE}/${z}/${x}/${y}.png`;
   const lUrl  = `${LAKEDEPTH_BASE}/${z}/${x}/${y}.png`;
   const lsUrl = `${LAKEDEPTH_STANDARD_BASE}/${z}/${x}/${y}.png`;
+  const rUrl  = regionalDemBase ? `${regionalDemBase}/${z}/${x}/${y}.${regionalDemExt}` : null;
 
   async function toImageData(url) {
     try {
@@ -990,17 +993,18 @@ async function fetchCompositeDemBitmap(z, x, y, signal) {
     } catch { return null; }
   }
 
-  const [qData, sData, lData, lsData] = await Promise.all([
+  const [qData, sData, lData, lsData, rData] = await Promise.all([
     toImageData(qUrl), toImageData(sUrl), toImageData(lUrl), toImageData(lsUrl),
+    rUrl ? toImageData(rUrl) : Promise.resolve(null),
   ]);
-  if (!qData && !sData && !lData) return null;
+  if (!qData && !sData && !lData && !rData) return null;
 
   function isNodata(d, i) {
     return (d[i] === 128 && d[i + 1] === 0 && d[i + 2] === 0) || d[i + 3] !== 255;
   }
 
   // 合成先を全 nodata で初期化し、低優先度から順に上書き
-  const { width, height: h } = (qData ?? sData ?? lData);
+  const { width, height: h } = (qData ?? sData ?? lData ?? rData);
   const cv  = new OffscreenCanvas(width, h);
   const ctx = cv.getContext('2d');
   const out = ctx.createImageData(width, h);
@@ -1039,6 +1043,15 @@ async function fetchCompositeDemBitmap(z, x, y, signal) {
     for (let i = 0; i < o.length; i += 4) {
       if (isNodata(q, i)) continue;
       o[i] = q[i]; o[i + 1] = q[i + 1]; o[i + 2] = q[i + 2]; o[i + 3] = 255;
+    }
+  }
+
+  // 優先度 最高: 地域DEM（0.5m）― csdem://地域層からのみ利用
+  if (rData) {
+    const r = rData.data;
+    for (let i = 0; i < o.length; i += 4) {
+      if (isNodata(r, i)) continue;
+      o[i] = r[i]; o[i + 1] = r[i + 1]; o[i + 2] = r[i + 2]; o[i + 3] = 255;
     }
   }
 
@@ -1155,6 +1168,12 @@ maplibregl.addProtocol('csdem', async (params, abortController) => {
   const zoomLevel = +m[1], tileX = +m[2], tileY = +m[3], ext = m[4];
   const tileSize = 256;
 
+  // 地域DEM ベースURL の抽出（z/x/y より前のパス部分）
+  // 全国CS（QCHIZU_DEM_BASE）か地域DEMかを判定し、地域DEMの場合は優先ソースとして渡す
+  const baseUrl = url.replace(/\/\d+\/\d+\/\d+\.\w+$/, '');
+  const regionalDemBase = (baseUrl === QCHIZU_DEM_BASE) ? null : baseUrl;
+  const regionalDemExt  = regionalDemBase ? ext : null;
+
   // ピクセル解像度（m/pixel）― qchizu-project/protocolUtils.calculatePixelResolution
   const L = 85.05112878;
   const py = 256 * tileY + tileSize / 2;
@@ -1176,8 +1195,8 @@ maplibregl.addProtocol('csdem', async (params, abortController) => {
   const buffer = kernelRadius + 1;
   const mergedSize = tileSize + buffer * 2;
 
-  // ── ① 9タイル全て並列fetch（Q地図 → シームレス補完付き） ──
-  // 各タイルを fetchCompositeDemBitmap で取得（Q地図優先・nodata はシームレスで補完）
+  // ── ① 9タイル全て並列fetch（地域DEM優先 → Q地図 → DEM5A の順で補完） ──
+  // 各タイルを fetchCompositeDemBitmap で取得（地域DEM/Q地図優先・nodata はシームレスで補完）
   const neighborOffsets = [
     [-1, -1], [0, -1], [1, -1], // 0:左上 1:上 2:右上
     [-1,  0], [0,  0], [1,  0], // 3:左   4:中央 5:右
@@ -1185,7 +1204,7 @@ maplibregl.addProtocol('csdem', async (params, abortController) => {
   ];
 
   const bitmaps = await Promise.all(neighborOffsets.map(([dx, dy]) =>
-    fetchCompositeDemBitmap(zoomLevel, tileX + dx, tileY + dy, abortController.signal)
+    fetchCompositeDemBitmap(zoomLevel, tileX + dx, tileY + dy, abortController.signal, regionalDemBase, regionalDemExt)
   ));
   if (!bitmaps[4]) return { data: null }; // 中央タイルが取得できなければ終了
 
@@ -2085,12 +2104,14 @@ map.on('load', async () => {
   });
 
   // 都道府県別CS立体図（0.5m）のソース・レイヤーを動的追加
+  // ソースの minzoom を 17 に下げることで、ズーム17でも表示可能にする
+  // （z=17 では地域DEMが無い場合でも Q地図 DEM にフォールバックして描画）
   REGIONAL_CS_LAYERS.forEach(layer => {
     const srcCfg = {
       type: 'raster',
       tiles: [layer.tileUrl],
       tileSize: 256,
-      minzoom: layer.minzoom,
+      minzoom: Math.min(layer.minzoom, 17),
       maxzoom: layer.maxzoom,
       bounds: layer.bounds,
       attribution: '', // 動的表示に切り替えるため MapLibre の自動収集は無効化
