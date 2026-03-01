@@ -1615,12 +1615,23 @@ let seamlessContourLayerIds = [];
 //   level=0 → minor（主曲線）: intervalM ごとに1本
 //   level=1 → major（計曲線）: intervalM × 5 ごとに1本
 function buildContourThresholds(intervalM) {
-  const major = intervalM * 5;
   // zoom 0〜15 の全レベルに thresholds を設定する（OriLibre ContourIntervalControl と同じアプローチ）
   // 一部のzoomにしか設定しないと setTiles() 後もキャッシュが残り即時反映されない
+  //
+  // z0〜13 は getEffectiveContourInterval() の自動間隔に合わせた固定値を設定することで、
+  // 低ズームで細かい等高線タイルを生成する無駄を防ぐ。
+  // z14 以上はユーザー設定間隔（intervalM）を使用する。
+  const fixedByZoom = [
+  //  z0    z1    z2    z3    z4    z5    z6    z7    z8   z9   z10  z11  z12  z13
+    200,  200,  200,  200,  200,  200,  200,  200,  200, 100,   50,  25,  10,   5,
+  ];
   const thresholds = {};
-  for (let z = 0; z <= 15; z++) {
-    thresholds[z] = [intervalM, major]; // [minor(主曲線間隔), major(計曲線間隔)]
+  for (let z = 0; z < fixedByZoom.length; z++) {
+    const iv = fixedByZoom[z];
+    thresholds[z] = [iv, iv * 5];
+  }
+  for (let z = fixedByZoom.length; z <= 15; z++) {
+    thresholds[z] = [intervalM, intervalM * 5];
   }
   return thresholds;
 }
