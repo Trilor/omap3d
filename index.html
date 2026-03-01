@@ -1910,18 +1910,29 @@ map.on('load', async () => {
       }
     });
 
-    // isomizer が追加したレイヤーを収集（ベースマップ切替で一括 visibility 制御するため）
+    // 低ズームで海が緑一色になるのを防ぐため、水域フィルを最下位（isomizer最初のレイヤーの下）に追加。
+    // OriLibre の water レイヤーは高ズーム時のみ描画されるため、低ズームでは背景の緑が海に透けて見える。
+    // ofm ソースの water ソースレイヤーは z0 から海洋ポリゴン（Natural Earth由来）を保持しているため、
+    // 全ズームで水色を保証できる。このレイヤーは oriLibreLayers に含めることで
+    // ベースマップ切替時にも正しく表示/非表示が制御される。
+    const firstIsomizerLayerId = map.getStyle().layers
+      .find(l => !snapshotBeforeIsomizer.has(l.id))?.id;
+    if (firstIsomizerLayerId) {
+      map.addLayer({
+        id: 'water-lowzoom-fill',
+        type: 'fill',
+        source: 'ofm',
+        'source-layer': 'water',
+        paint: { 'fill-color': '#aad3df' },
+      }, firstIsomizerLayerId);
+    }
+
+    // isomizer が追加したレイヤーを収集（water-lowzoom-fill を含む）
     // contour-source のレイヤーは除外（等高線はベースマップ切替の影響を受けない）
     oriLibreLayers = map.getStyle().layers
       .filter(l => !snapshotBeforeIsomizer.has(l.id) && l.source !== 'contour-source')
       .map(l => ({ id: l.id, defaultVisibility: l.layout?.visibility ?? 'visible' }));
     console.log(`OriLibre レイヤー収集完了: ${oriLibreLayers.length} レイヤー`);
-
-    // 低ズームで陸地が緑一色になるのを防ぐため、background レイヤーを白に変更する。
-    // OriLibre は background = 緑（全域森林の基色）として描画するため、
-    // 白に上書きすることで大陸輪郭が判別しやすくなる。
-    const bgLayer = map.getStyle().layers.find(l => l.type === 'background');
-    if (bgLayer) map.setPaintProperty(bgLayer.id, 'background-color', '#ffffff');
 
     // isomizer の project-config.yml が別のcenterを持つ場合があるため、
     // 完了後に京都大学（INITIAL_CENTER）へ強制的に戻す
