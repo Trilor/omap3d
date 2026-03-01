@@ -1840,6 +1840,14 @@ map.on('load', async () => {
 const kmzLayers = [];
 let kmzCounter = 0;
 
+// MapLibre の 3D 地形（terrain draping）モードでは、ラスターレイヤーを
+// WebGL フレームバッファに合成する際にアルファがリニア空間で処理されるため、
+// raster-opacity が視覚的に非線形に見える（0.5 → ほぼ不透明）。
+// 地形 ON 時はガンマ補正の逆変換（^2.2）を適用し、知覚的に正しい透明感を再現する。
+function toRasterOpacity(opacity) {
+  return map.getTerrain() ? Math.pow(opacity, 2.2) : opacity;
+}
+
 /* ========================================================
     GPX リプレイ機能：状態管理変数
     ======================================================== */
@@ -2057,7 +2065,7 @@ async function loadKmz(file) {
       minzoom: 0,
       maxzoom: 24,
       paint: {
-        'raster-opacity': OMAP_INITIAL_OPACITY,
+        'raster-opacity': toRasterOpacity(OMAP_INITIAL_OPACITY),
         'raster-fade-duration': 0,
         'raster-resampling': 'linear',
       },
@@ -2180,7 +2188,7 @@ function renderKmzList() {
       updateSliderGradient(sliderEl, '#4a7c59');
 
       if (entry.visible && map.getLayer(entry.layerId)) {
-        map.setPaintProperty(entry.layerId, 'raster-opacity', entry.opacity);
+        map.setPaintProperty(entry.layerId, 'raster-opacity', toRasterOpacity(entry.opacity));
       }
     });
   });
@@ -3004,6 +3012,12 @@ chkExaggeration.addEventListener('change', () => {
   } else {
     map.setTerrain(null);
   }
+  // 地形 ON/OFF で raster-opacity の補正有無が変わるため、全KMZレイヤーを再適用する
+  kmzLayers.forEach(entry => {
+    if (map.getLayer(entry.layerId)) {
+      map.setPaintProperty(entry.layerId, 'raster-opacity', toRasterOpacity(entry.opacity));
+    }
+  });
 });
 
 sliderExaggeration.addEventListener('input', () => {
