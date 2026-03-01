@@ -1922,15 +1922,12 @@ map.on('load', async () => {
     // 外洋（太平洋・日本海等）は gsivt の対象外であり、低ズームでは
     // ofm/landcover（植生フィル）が全域を緑で塗るため、外洋が緑に見える。
     //
-    // 対策 ①: background レイヤーを海色に変更（外洋 = background 色が残るよう）
-    // 対策 ②: ofm/water フィルを gsivt レイヤー群の直前（ofm/landcover の上）に挿入
-    //          → ofm が ocean ポリゴンを持つズームではより正確に水色を保証
+    // 対策: ofm/water フィルを gsivt レイヤー群の直前（ofm/landcover の上）に挿入
+    //       → ofm が水域ポリゴンを持つズームで、海を水色で上書き
     //
-    // 結果:  外洋 → background（海色）または ofm/water フィル（海色）
-    //        陸地 → ofm/landcover（緑）が上書き → 高ズームは OriLibre 通常表示
-    const bgLayer = map.getStyle().layers.find(l => l.type === 'background');
-    if (bgLayer) map.setPaintProperty(bgLayer.id, 'background-color', '#aad3df');
-
+    // background は OriLibre デフォルトの緑のまま維持（陸地の下地色として利用）
+    // 結果:  外洋 → ofm/water フィル（水色）が landcover を上書き
+    //        陸地 → ofm/landcover（緑）→ OriLibre 通常表示
     const firstGsivtLayerId = map.getStyle().layers
       .find(l => !snapshotBeforeIsomizer.has(l.id) && l.source === 'gsivt')?.id;
     if (firstGsivtLayerId) {
