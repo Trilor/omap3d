@@ -4265,17 +4265,14 @@ function toggleSimMode() {
 function startSimMode() {
   simActive = true;
 
-  // ① 通常の地図操作を全て無効化
+  // ① 通常の地図操作を全て無効化（スクロールズームは許可）
   map.dragPan.disable();
   map.dragRotate.disable();
-  map.scrollZoom.disable();
   map.doubleClickZoom.disable();
   map.touchZoomRotate.disable();
   map.keyboard.disable();
 
-  // ② ズームをロック + カメラをシム視点へ（完了後にミニマップを初期化）
-  map.setMinZoom(SIM_ZOOM);
-  map.setMaxZoom(SIM_ZOOM);
+  // ② カメラをシム視点へ（完了後にミニマップを初期化）
   map.easeTo({ zoom: SIM_ZOOM, pitch: SIM_PITCH, duration: 800 });
 
   // ④ UIを切り替え
@@ -4322,12 +4319,9 @@ function stopSimMode() {
   // 地図操作を復元
   map.dragPan.enable();
   map.dragRotate.enable();
-  map.scrollZoom.enable();
   map.doubleClickZoom.enable();
   map.touchZoomRotate.enable();
   map.keyboard.enable();
-  map.setMinZoom(undefined);
-  map.setMaxZoom(undefined);
 
   // ピッチを戻す
   map.easeTo({ pitch: INITIAL_PITCH, duration: 600 });
@@ -4568,17 +4562,14 @@ document.addEventListener('pointerlockchange', () => {
 function onPcSimLocked() {
   pcSimActive = true;
 
-  // ① 地図操作を全て無効化
+  // ① 地図操作を全て無効化（スクロールズームは許可）
   map.dragPan.disable();
   map.dragRotate.disable();
-  map.scrollZoom.disable();
   map.doubleClickZoom.disable();
   map.touchZoomRotate.disable();
   map.keyboard.disable();
 
-  // ② ズームをロック + カメラをシム視点へ
-  map.setMinZoom(SIM_ZOOM);
-  map.setMaxZoom(SIM_ZOOM);
+  // ② カメラをシム視点へ
   map.easeTo({ zoom: SIM_ZOOM, pitch: SIM_PITCH, duration: 800 });
 
   // ③ UIを更新
@@ -4627,12 +4618,9 @@ function stopPcSim() {
   // 地図操作を復元
   map.dragPan.enable();
   map.dragRotate.enable();
-  map.scrollZoom.enable();
   map.doubleClickZoom.enable();
   map.touchZoomRotate.enable();
   map.keyboard.enable();
-  map.setMinZoom(undefined);
-  map.setMaxZoom(undefined);
   map.easeTo({ pitch: INITIAL_PITCH, duration: 600 });
 
   // イベントリスナー解除
