@@ -590,16 +590,22 @@ label.setting-label {
 #place-search-wrap {
   padding: 8px 10px;
   border-bottom: 1px solid #d8d8d8;
-  position: relative; /* 検索結果ドロップダウンの基準 */
 }
 #place-search-row {
-  display: flex;
-  gap: 5px;
+  position: relative;
+}
+.search-icon {
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: #888;
 }
 #place-search-input {
-  flex: 1;
-  min-width: 0;
-  padding: 5px 8px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 5px 26px 5px 28px;
   border: 1px solid #b0b8b0;
   border-radius: 4px;
   font-size: 12px;
@@ -611,24 +617,23 @@ label.setting-label {
   border-color: #4a7c59;
   background: #fff;
 }
-#place-search-btn {
-  padding: 5px 10px;
-  background: #4a7c59;
-  color: #fff;
+#place-search-clear {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
   border: none;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: bold;
+  padding: 2px;
   cursor: pointer;
-  flex-shrink: 0;
-  transition: background 0.15s;
+  color: #aaa;
+  line-height: 0;
+  border-radius: 50%;
+  transition: color 0.15s, background 0.15s;
 }
-#place-search-btn:hover {
-  background: #3a6248;
-}
-#place-search-btn:disabled {
-  background: #aaa;
-  cursor: default;
+#place-search-clear:hover {
+  color: #555;
+  background: #e8e8e8;
 }
 #place-search-msg {
   font-size: 10px;
@@ -636,18 +641,12 @@ label.setting-label {
   margin-top: 3px;
 }
 #place-search-results {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  width: 100%;
-  z-index: 100;
+  margin-top: 4px;
   border: 1px solid #c8c8c8;
-  border-top: none;
-  border-radius: 0 0 4px 4px;
+  border-radius: 4px;
   overflow-y: auto;
   max-height: 200px;
   background: #fff;
-  box-shadow: 0 4px 8px rgba(0,0,0,0.12);
 }
 .place-result-item {
   display: flex;
@@ -1321,11 +1320,10 @@ label.setting-label {
     max-height: calc(50dvh - 36px);
   }
 
-  /* 検索入力・ボタンを大きめに */
-  #place-search-input,
-  #place-search-btn {
+  /* 検索入力を大きめに */
+  #place-search-input {
     font-size: 14px;
-    padding: 7px 10px;
+    padding: 7px 10px 7px 32px;
   }
 
   /* シミュレーターボタン（PCシム）はスマホで非表示 → JS でも制御 */
@@ -1345,8 +1343,17 @@ label.setting-label {
   <!-- ===== 地名検索 ===== -->
   <div id="place-search-wrap">
     <div id="place-search-row">
+      <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none" width="14" height="14" aria-hidden="true">
+        <circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" stroke-width="1.5"/>
+        <line x1="10" y1="10" x2="14.5" y2="14.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
       <input type="text" id="place-search-input" placeholder="地名・住所を検索" />
-      <button id="place-search-btn">検索</button>
+      <button id="place-search-clear" aria-label="入力をクリア" style="display:none">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none" width="12" height="12" aria-hidden="true">
+          <line x1="3" y1="3" x2="13" y2="13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          <line x1="13" y1="3" x2="3" y2="13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      </button>
     </div>
     <div id="place-search-msg"></div>
     <div id="place-search-results"></div>
@@ -3735,14 +3742,23 @@ function parseResultMeta(item) {
 let _searchTimer = null; // デバウンス用タイマー
 let _searchAbort  = null; // 進行中リクエストのキャンセル用
 
-function closeSearchResults() {
+function updateClearBtn() {
+  const hasValue = document.getElementById('place-search-input').value.length > 0;
+  document.getElementById('place-search-clear').style.display = hasValue ? 'block' : 'none';
+}
+
+function clearSearch() {
+  const input = document.getElementById('place-search-input');
+  input.value = '';
+  document.getElementById('place-search-msg').textContent = '';
   document.getElementById('place-search-results').innerHTML = '';
+  updateClearBtn();
+  input.focus();
 }
 
 function searchPlace() {
   const query   = document.getElementById('place-search-input').value.trim();
   const msg     = document.getElementById('place-search-msg');
-  const btn     = document.getElementById('place-search-btn');
   const results = document.getElementById('place-search-results');
 
   if (!query) {
@@ -3758,7 +3774,6 @@ function searchPlace() {
   msg.textContent = '検索中…';
   msg.style.color = '#888';
   results.innerHTML = '';
-  btn.disabled = true;
 
   fetch(
     `https://msearch.gsi.go.jp/address-search/AddressSearch?q=${encodeURIComponent(query)}`,
@@ -3766,7 +3781,6 @@ function searchPlace() {
   )
     .then(r => r.json())
     .then(data => {
-      btn.disabled = false;
       if (!data || data.length === 0) {
         msg.textContent = '見つかりませんでした';
         msg.style.color = '#c00';
@@ -3798,13 +3812,12 @@ function searchPlace() {
         }
         el.appendChild(metaEl);
 
-        // 結果選択：flyTo してドロップダウンを閉じ、入力欄に地名を反映
-        el.addEventListener('mousedown', e => e.preventDefault()); // blur を防ぐ
+        // 結果選択：flyTo して入力欄に地名を反映（結果は表示し続ける）
         el.addEventListener('click', () => {
           map.flyTo({ center: [lng, lat], zoom: 15, duration: 1500 });
           document.getElementById('place-search-input').value = item.properties.title;
           msg.textContent = '';
-          closeSearchResults();
+          updateClearBtn();
         });
         results.appendChild(el);
       });
@@ -3812,32 +3825,31 @@ function searchPlace() {
     .catch(e => {
       if (e.name === 'AbortError') return; // キャンセルは無視
       console.error('地名検索エラー:', e);
-      btn.disabled = false;
       msg.textContent = '検索エラー';
       msg.style.color = '#c00';
     });
 }
 
-// ボタン押下 / Enter キー
-document.getElementById('place-search-btn').addEventListener('click', searchPlace);
+// Enter キー
 document.getElementById('place-search-input').addEventListener('keydown', e => {
   if (e.key === 'Enter') { clearTimeout(_searchTimer); searchPlace(); }
-  if (e.key === 'Escape') closeSearchResults();
 });
 
-// 入力中のライブ検索（350ms デバウンス）
+// 入力中のライブ検索（350ms デバウンス）+ クリアボタン表示制御
 document.getElementById('place-search-input').addEventListener('input', () => {
+  updateClearBtn();
   clearTimeout(_searchTimer);
   const q = document.getElementById('place-search-input').value.trim();
-  if (!q) { closeSearchResults(); document.getElementById('place-search-msg').textContent = ''; return; }
+  if (!q) {
+    document.getElementById('place-search-results').innerHTML = '';
+    document.getElementById('place-search-msg').textContent = '';
+    return;
+  }
   _searchTimer = setTimeout(searchPlace, 350);
 });
 
-// フォーカスが外れたら候補を閉じる
-document.getElementById('place-search-input').addEventListener('blur', () => {
-  // mousedown で preventDefault しているので click が先に発火する
-  setTimeout(closeSearchResults, 150);
-});
+// クリアボタン
+document.getElementById('place-search-clear').addEventListener('click', clearSearch);
 
 /* ========================================================
     ファイル選択ボタンの制御
