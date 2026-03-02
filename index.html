@@ -1592,38 +1592,15 @@ const map = new maplibregl.Map({
   maxPitch: 85,
 });
 
-// MapLibre 標準の compact 出典コントロールを追加（UI はそのまま利用）
-map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right');
-
-// ---- 出典表示管理 -------------------------------------------------------
-const _ATTR_BASE =
-  '<a href="https://www.geospatial.jp/ckan/dataset/qchizu_94dem_99gsi" target="_blank">Q地図 1mDEM</a>' +
-  ' | <a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">国土地理院 基盤地図情報・湖水深</a>' +
-  ' | <a href="https://www.ngdc.noaa.gov/geomag/WMM/" target="_blank">WMM/NOAA</a>';
-
-const _ATTR_ORILIBRE_SOURCES =
-  '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">国土地理院ベクトルタイル</a>' +
-  ' | <a href="https://open.fude.mlit.go.jp/" target="_blank">筆ポリゴン(農林水産省)</a>' +
-  ' | <a href="https://openfreemap.org/" target="_blank">OpenFreeMap</a>' +
-  ' \u00a9 <a href="https://openmaptiles.org/" target="_blank">OpenMapTiles</a>' +
-  ' Data from <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>';
-
-/** MapLibre の .maplibregl-ctrl-attrib-inner に出典 HTML を注入する */
-function updateMainAttribution() {
-  const inner = document.querySelector('.maplibregl-ctrl-attrib-inner');
-  if (!inner) return;
-  let html;
-  if (currentBasemap === 'orilibre') {
-    html = '<a href="https://github.com/tjmsy/maplibre-gl-isomizer" target="_blank">OriLibre</a>' +
-      ' | (' + _ATTR_ORILIBRE_SOURCES + ' | ' + _ATTR_BASE + ') を加工して作成';
-  } else {
-    const rasterAttr = RASTER_BASEMAPS[currentBasemap]?.attr ?? '';
-    html = (rasterAttr ? rasterAttr + ' | ' : '') + '(' + _ATTR_BASE + ') を加工して作成';
-  }
-  inner.innerHTML = html + '<span id="regional-cs-attr"></span>';
-  _lastAttrKey = null;
-  updateRegionalAttribution();
-}
+// 出典表示（customAttribution で固定表示、都道府県別CS出典は updateRegionalAttribution で追記）
+map.addControl(new maplibregl.AttributionControl({
+  compact: true,
+  customAttribution:
+    '(<a href="https://www.geospatial.jp/ckan/dataset/qchizu_94dem_99gsi" target="_blank">Q地図 1mDEM</a>' +
+    ' | <a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">国土地理院 基盤地図情報・湖水深</a>' +
+    ' | <a href="https://www.ngdc.noaa.gov/geomag/WMM/" target="_blank">WMM/NOAA</a>)' +
+    ' を加工して作成',
+}), 'bottom-right');
 
 
 /*
@@ -1978,8 +1955,6 @@ map.on('load', async () => {
       oriLibreLayers.push({ id: 'water-ocean-fill', defaultVisibility: 'visible' });
     }
 
-    // idle のたびに再注入（moveend 等で MapLibre が attrib-inner を上書きするため）
-    map.on('idle', updateMainAttribution);
 
     // isomizer の project-config.yml が別のcenterを持つ場合があるため、
     // 完了後に京都大学（INITIAL_CENTER）へ強制的に戻す
@@ -3331,8 +3306,14 @@ function updateMagneticNorth() {
 // map.on('load') の外で定義することで chkCs ハンドラーからも呼び出せる。
 let _lastAttrKey = null; // bounds+zoom のキャッシュ（変化がなければ更新をスキップ）
 function updateRegionalAttribution() {
-  const attrEl = document.getElementById('regional-cs-attr');
-  if (!attrEl) return; // updateMainAttribution() 呼び出し前は何もしない
+  let attrEl = document.getElementById('regional-cs-attr');
+  if (!attrEl) {
+    const attrInner = document.querySelector('.maplibregl-ctrl-attrib-inner');
+    if (!attrInner) return;
+    attrEl = document.createElement('span');
+    attrEl.id = 'regional-cs-attr';
+    attrInner.appendChild(attrEl);
+  }
   const csRegionalOn = document.querySelector('input[name="cs-mode"]:checked')?.value === '0.5m'
     && map.getZoom() >= 17;
   if (!csRegionalOn) {
@@ -3628,7 +3609,6 @@ function switchBasemap(key) {
     if (map.getLayer(key + '-layer')) map.setLayoutProperty(key + '-layer', 'visibility', 'visible');
   }
 
-  updateMainAttribution();
 }
 
 document.getElementById('sel-basemap').addEventListener('change', (e) => {
