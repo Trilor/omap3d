@@ -991,29 +991,27 @@ label.setting-label {
    ================================================================ */
 
 /* トグルボタン（右下固定） */
+/* モバイルシムボタン：PCシムと同じインパネルスタイル */
 #sim-toggle-btn {
-  position: absolute;
-  bottom: 16px;
-  right: 16px;
-  z-index: 20;
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid #c8c8c8;
-  border-radius: 20px;
-  padding: 7px 18px;
-  font-size: 12px;
-  font-weight: bold;
-  color: #333;
-  cursor: pointer;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
-  white-space: nowrap;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
-}
-#sim-toggle-btn:hover { background: rgba(240,240,240,0.96); }
-#sim-toggle-btn.sim-active {
-  background: #c0392b;
+  display: block;
+  width: calc(100% - 20px);
+  margin: 6px 10px 8px;
+  padding: 7px 12px;
+  background: #4a7c59;
   color: #fff;
-  border-color: #c0392b;
+  border: none;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  text-align: center;
+  transition: background 0.15s;
 }
+#sim-toggle-btn:hover { background: #3a6449; }
+#sim-toggle-btn.sim-active { background: #b33a2a; }
+#sim-toggle-btn.sim-active:hover { background: #962d20; }
 
 /* フルスクリーン透明オーバーレイ（入力ハンドリング用） */
 #sim-overlay {
@@ -1551,7 +1549,8 @@ label.setting-label {
       </div>
     </div>
 
-    <!-- PC シミュレーター開始/終了ボタン -->
+    <!-- シミュレーター開始/終了ボタン（デバイスに応じて一方を表示） -->
+    <button id="sim-toggle-btn">シミュレーター開始</button>
     <button id="pc-sim-toggle-btn">PC シミュレーター開始</button>
 
   </details>
@@ -1595,8 +1594,6 @@ label.setting-label {
   </div>
 </div>
 
-<!-- O-シミュレーター：トグルボタン -->
-<button id="sim-toggle-btn">🎮 シミュレーター開始</button>
 
 <!-- O-シミュレーター：オーバーレイUI（シム中のみ表示） -->
 <div id="sim-overlay">
@@ -4565,7 +4562,7 @@ function stopSimMode() {
   // UIを元に戻す
   document.getElementById('sim-overlay').style.display = 'none';
   const btn = document.getElementById('sim-toggle-btn');
-  btn.textContent = '🎮 シミュレーター開始';
+  btn.textContent = 'シミュレーター開始';
   btn.classList.remove('sim-active');
 
   // 地図操作を復元
@@ -5284,14 +5281,17 @@ document.getElementById('pc-sim-toggle-btn').addEventListener('click', startPcSi
   const isNarrow = window.innerWidth < 768;
   const isMobileEnv = isTouch || isNarrow;
 
+  const mobileBtn = document.getElementById('sim-toggle-btn');
+  const pcBtn     = document.getElementById('pc-sim-toggle-btn');
+
   if (isMobileEnv) {
-    // スマホ：パネル内PCシムボタンを非表示
-    const pcBtn = document.getElementById('pc-sim-toggle-btn');
-    if (pcBtn) pcBtn.style.display = 'none';
+    // スマホ/タブレット：モバイルシムボタンを表示、PCシムボタンを非表示
+    if (pcBtn)     pcBtn.style.display     = 'none';
+    if (mobileBtn) mobileBtn.style.display = 'block';
   } else {
-    // PC：右下のモバイルシムボタンを非表示
-    const mobileBtn = document.getElementById('sim-toggle-btn');
+    // PC：PCシムボタンを表示、モバイルシムボタンを非表示
     if (mobileBtn) mobileBtn.style.display = 'none';
+    if (pcBtn)     pcBtn.style.display     = 'block';
   }
 })();
 
