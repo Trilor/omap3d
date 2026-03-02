@@ -974,6 +974,36 @@ body {
   /* デバッグ用: background: rgba(255,0,0,0.05); */
 }
 
+/* ズームスライダー（左上） */
+#sim-zoom-ctrl {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(0,0,0,0.45);
+  padding: 5px 10px;
+  border-radius: 20px;
+  pointer-events: auto;
+}
+#sim-zoom-ctrl label {
+  color: #fff;
+  font-size: 11px;
+  opacity: 0.85;
+  white-space: nowrap;
+}
+#sim-zoom-slider {
+  width: 90px;
+  accent-color: #ff6b35;
+}
+#sim-zoom-val {
+  color: #fff;
+  font-size: 11px;
+  min-width: 28px;
+  text-align: right;
+}
+
 /* ================================================================
    PC O-シミュレーターモード
    ================================================================ */
@@ -1347,7 +1377,7 @@ body {
 <!-- PC O-シミュレーター：トグルボタン -->
 <button id="pc-sim-toggle-btn">💻 PCシミュレーター開始</button>
 <!-- PC O-シミュレーター：ヒントバー＆十字照準 -->
-<div id="pc-sim-hint">WASD 移動 ｜ マウス 視点 ｜ ↑↓←→ 視点（代替） ｜ Space / 右クリック 読図 ｜ Esc 終了</div>
+<div id="pc-sim-hint">WASD 移動 ｜ マウス 視点 ｜ ↑↓←→ 視点（代替） ｜ = / - ズーム ｜ Space / 右クリック 読図 ｜ Esc 終了</div>
 <div id="pc-sim-crosshair"></div>
 <!-- PC O-シミュレーター：読図マップオーバーレイ -->
 <div id="pc-sim-readmap-overlay">
@@ -1380,6 +1410,12 @@ body {
   <div id="sim-joystick-zone"></div>
   <!-- 視点操作ゾーン（右半分スワイプでbearing/pitch） -->
   <div id="sim-look-zone"></div>
+  <!-- ズームスライダー（左上） -->
+  <div id="sim-zoom-ctrl">
+    <label for="sim-zoom-slider">zoom</label>
+    <input type="range" id="sim-zoom-slider" min="16" max="24" step="0.5" value="22" />
+    <span id="sim-zoom-val">22</span>
+  </div>
 </div>
 <!-- 操作ヒント表示（出典表示と被るため非表示）
 <div id="hint">右クリック+ドラッグ または Ctrl+ドラッグ で3D視点を変更できます</div>
@@ -4273,9 +4309,7 @@ function startSimMode() {
   map.touchZoomRotate.disable();
   map.keyboard.disable();
 
-  // ② ズームをロック + カメラをシム視点へ（完了後にミニマップを初期化）
-  map.setMinZoom(SIM_ZOOM);
-  map.setMaxZoom(SIM_ZOOM);
+  // ② カメラをシム視点へ（完了後にミニマップを初期化）
   map.easeTo({ zoom: SIM_ZOOM, pitch: SIM_PITCH, duration: 800 });
 
   // ④ UIを切り替え
@@ -4283,6 +4317,11 @@ function startSimMode() {
   const btn = document.getElementById('sim-toggle-btn');
   btn.textContent = '⏹ シミュレーター終了';
   btn.classList.add('sim-active');
+
+  // ズームスライダーを現在のズームに同期
+  const zSlider = document.getElementById('sim-zoom-slider');
+  zSlider.value = SIM_ZOOM;
+  document.getElementById('sim-zoom-val').textContent = SIM_ZOOM;
 
   // ⑤ ミニマップを初期化（easeTo完了後に生成して描画崩れを防ぐ）
   setTimeout(initSimMinimap, 850);
@@ -4326,8 +4365,6 @@ function stopSimMode() {
   map.doubleClickZoom.enable();
   map.touchZoomRotate.enable();
   map.keyboard.enable();
-  map.setMinZoom(undefined);
-  map.setMaxZoom(undefined);
 
   // ピッチを戻す
   map.easeTo({ pitch: INITIAL_PITCH, duration: 600 });
@@ -4576,9 +4613,7 @@ function onPcSimLocked() {
   map.touchZoomRotate.disable();
   map.keyboard.disable();
 
-  // ② ズームをロック + カメラをシム視点へ
-  map.setMinZoom(SIM_ZOOM);
-  map.setMaxZoom(SIM_ZOOM);
+  // ② カメラをシム視点へ
   map.easeTo({ zoom: SIM_ZOOM, pitch: SIM_PITCH, duration: 800 });
 
   // ③ UIを更新
@@ -4631,8 +4666,6 @@ function stopPcSim() {
   map.doubleClickZoom.enable();
   map.touchZoomRotate.enable();
   map.keyboard.enable();
-  map.setMinZoom(undefined);
-  map.setMaxZoom(undefined);
   map.easeTo({ pitch: INITIAL_PITCH, duration: 600 });
 
   // イベントリスナー解除
@@ -4777,6 +4810,19 @@ document.addEventListener('keydown', (e) => {
     e.preventDefault();
     openPcReadMap();
   }
+  // = キーでズームイン、- キーでズームアウト（PC シム中のみ）
+  if (pcSimActive && (e.code === 'Equal' || e.code === 'Minus')) {
+    e.preventDefault();
+    const delta = e.code === 'Equal' ? 1 : -1;
+    map.setZoom(Math.max(16, Math.min(24, map.getZoom() + delta)));
+  }
+});
+
+// モバイルシム：ズームスライダー操作
+document.getElementById('sim-zoom-slider').addEventListener('input', function () {
+  const z = parseFloat(this.value);
+  map.setZoom(z);
+  document.getElementById('sim-zoom-val').textContent = z.toFixed(1);
 });
 
 document.addEventListener('keyup', (e) => {
