@@ -1292,14 +1292,20 @@ label.setting-label {
   body { height: 100dvh; }
 }
 
-/* MapLibre 出典テキスト: 長い文字列を折り返して全文表示 */
+/* MapLibre 出典テキスト: 全幅まで使ってから折り返し、左余白なし */
+.maplibregl-ctrl-attrib-button {
+  display: none !important; /* 折りたたみトグルボタン非表示（左余白の原因） */
+}
 .maplibregl-ctrl-attrib-inner {
   white-space: normal !important;
-  max-width: 80vw;
+  max-width: calc(100vw - 10px);
   text-align: right;
+  padding: 0 !important;
+  margin: 0 !important;
 }
 .maplibregl-ctrl-attrib {
-  max-width: 85vw;
+  max-width: calc(100vw - 10px);
+  padding: 2px 5px !important;
 }
 
 /* スマホ向けパネル最適化 */
