@@ -1550,6 +1550,7 @@ let currentBasemap = 'orilibre';
 const map = new maplibregl.Map({
 
   container: 'map',
+  attributionControl: false,
   style: {
     version: 8,
     // OriLibreのisomizerがベクタースタイルを動的に注入するための基本設定
@@ -1569,7 +1570,7 @@ const map = new maplibregl.Map({
         tileSize: 256,
         maxzoom: 15,
         encoding: 'terrarium',
-        attribution: '<a href="https://www.geospatial.jp/ckan/dataset/qchizu_94dem_99gsi" target="_blank">【3D地形】Q地図(国土地理院測量成果)数値PNGタイル(1m)を加工して作成</a>',
+        attribution: '',
       }
 
       ,
@@ -1589,6 +1590,16 @@ const map = new maplibregl.Map({
   bearing: INITIAL_BEARING,
   maxPitch: 85,
 });
+
+// カスタム出典表示：全国共通の加工データをまとめて1行で表示
+// 都道府県別CS出典は updateRegionalAttribution() が動的に .maplibregl-ctrl-attrib-inner へ追記
+map.addControl(new maplibregl.AttributionControl({
+  compact: true,
+  customAttribution:
+    '(<a href="https://www.geospatial.jp/ckan/dataset/qchizu_94dem_99gsi" target="_blank">Q地図 1mDEM</a>' +
+    ' | <a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">国土地理院 基盤地図情報・湖水深</a>)' +
+    ' を加工して作成',
+}), 'bottom-right');
 
 
 /*
@@ -1833,7 +1844,7 @@ map.on('load', async () => {
       type: 'vector',
       tiles: [buildContourTileUrl(1)], // デフォルト1m
       maxzoom: 15,
-      attribution: '<a href="https://www.geospatial.jp/ckan/dataset/qchizu_94dem_99gsi">【等高線】Q地図(国土地理院測量成果)数値PNGタイル(1m)を加工して作成</a>',
+      attribution: '',
     });
 
     // DEM5A 等高線フォールバック（Q地図カバー外の陸域）
@@ -1853,7 +1864,7 @@ map.on('load', async () => {
       type: 'vector',
       tiles: [buildSeamlessContourTileUrl(1)],
       maxzoom: 15,
-      attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">基盤地図情報数値PNGタイル（国土地理院）を加工して作成</a>',
+      attribution: '',
     });
 
     // 湖水深等高線（湖底実際の標高 = 基準水面標高 - 湖水深）
@@ -1873,7 +1884,7 @@ map.on('load', async () => {
       type: 'vector',
       tiles: [buildLakeContourTileUrl(1)],
       maxzoom: 15,
-      attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">湖水深タイル（国土地理院）を加工して作成</a>',
+      attribution: '',
     });
     console.log('等高線ソース登録完了（Q地図 + DEM5A + 湖水深）');
   }
@@ -2105,7 +2116,7 @@ map.on('load', async () => {
     tileSize: 256,
     minzoom: 0,
     maxzoom: 17,
-    attribution: '<a href="https://www.geospatial.jp/ckan/dataset/qchizu_94dem_99gsi">【CS立体図】Q地図(国土地理院測量成果)数値PNGタイル(1m)を加工して作成</a>',
+    attribution: '',
   });
 
   map.addLayer({
