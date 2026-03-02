@@ -319,9 +319,16 @@ body {
   align-items: center;
   gap: 4px;
   flex-shrink: 0;
-  min-width: 70px;
+  width: 72px;
   padding-right: 8px;
   border-right: 1px solid #ddd;
+}
+/* 区切り線なし・フル幅行（読図地図に現在地を表示など） */
+.setting-row.no-divider .setting-left {
+  width: auto;
+  flex: 1;
+  border-right: none;
+  padding-right: 0;
 }
 
 .setting-right {
@@ -1305,7 +1312,6 @@ label.setting-label {
     <!-- ベースマップ切替：プルダウンで選択 -->
     <div class="setting-row">
       <div class="setting-left">
-        <span class="chk-spacer"></span>
         <span class="setting-label">ベースマップ</span>
       </div>
       <div class="setting-right">
@@ -1431,7 +1437,6 @@ label.setting-label {
     <!-- 移動速度 -->
     <div class="setting-row">
       <div class="setting-left">
-        <span class="chk-spacer"></span>
         <span class="setting-label">移動速度</span>
       </div>
       <div class="setting-right">
@@ -1442,18 +1447,10 @@ label.setting-label {
     </div>
 
     <!-- 読図マップ 現在位置ドット表示 -->
-    <div class="setting-row">
+    <div class="setting-row no-divider">
       <div class="setting-left">
         <input type="checkbox" id="chk-readmap-dot" checked />
-        <label for="chk-readmap-dot" class="setting-label">読図に現在位置</label>
-      </div>
-    </div>
-
-    <!-- 3D地形 現在位置マーカー -->
-    <div class="setting-row">
-      <div class="setting-left">
-        <input type="checkbox" id="chk-sim-pos-3d" />
-        <label for="chk-sim-pos-3d" class="setting-label">3Dに現在位置</label>
+        <label for="chk-readmap-dot" class="setting-label">読図地図に現在地を表示</label>
       </div>
     </div>
 
@@ -4445,8 +4442,8 @@ function startSimMode() {
   // ⑦ 視点操作ゾーン初期化
   initSimLookZone();
 
-  // ⑧ 3D現在位置マーカーを追加（チェックボックスON時）
-  if (document.getElementById('chk-sim-pos-3d').checked) addSimPosMarker();
+  // ⑧ 3D現在位置マーカーを追加（常時ON）
+  addSimPosMarker();
 
   // ⑨ アニメーションループ開始
   simLoop();
@@ -4709,11 +4706,6 @@ document.getElementById('chk-readmap-dot').addEventListener('change', e => {
   document.getElementById('pc-sim-readmap-arrow').style.display = d;
 });
 
-// 3D 現在位置マーカーのオン/オフ（シム中に切り替えた場合も即反映）
-document.getElementById('chk-sim-pos-3d').addEventListener('change', e => {
-  if (e.target.checked && (simActive || pcSimActive)) addSimPosMarker();
-  else removeSimPosMarker();
-});
 
 /* ================================================================
    PC O-シミュレーターモード
@@ -4810,7 +4802,7 @@ function onPcSimLocked() {
 
   // ⑤ 読図マップを初期化
   setTimeout(initPcReadMap, 100);
-  if (document.getElementById('chk-sim-pos-3d').checked) addSimPosMarker();
+  addSimPosMarker(); // 3D現在位置マーカーは常時ON
 
   // ⑤ イベントリスナー登録
   document.addEventListener('mousemove',    onPcSimMouseMove);
