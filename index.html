@@ -1978,8 +1978,8 @@ map.on('load', async () => {
       oriLibreLayers.push({ id: 'water-ocean-fill', defaultVisibility: 'visible' });
     }
 
-    // ソース追加が落ち着いた後（idle）に出典を注入することで MapLibre の上書きを回避
-    map.once('idle', updateMainAttribution);
+    // idle のたびに再注入（moveend 等で MapLibre が attrib-inner を上書きするため）
+    map.on('idle', updateMainAttribution);
 
     // isomizer の project-config.yml が別のcenterを持つ場合があるため、
     // 完了後に京都大学（INITIAL_CENTER）へ強制的に戻す
