@@ -3732,17 +3732,38 @@ function parseResultMeta(item) {
   return { pref, city };
 }
 
+let _searchTimer = null; // デバウンス用タイマー
+let _searchAbort  = null; // 進行中リクエストのキャンセル用
+
+function closeSearchResults() {
+  document.getElementById('place-search-results').innerHTML = '';
+}
+
 function searchPlace() {
-  const query = document.getElementById('place-search-input').value.trim();
-  if (!query) return;
+  const query   = document.getElementById('place-search-input').value.trim();
   const msg     = document.getElementById('place-search-msg');
   const btn     = document.getElementById('place-search-btn');
   const results = document.getElementById('place-search-results');
+
+  if (!query) {
+    results.innerHTML = '';
+    msg.textContent   = '';
+    return;
+  }
+
+  // 前のリクエストをキャンセル
+  if (_searchAbort) { _searchAbort.abort(); }
+  _searchAbort = new AbortController();
+
   msg.textContent = '検索中…';
   msg.style.color = '#888';
   results.innerHTML = '';
   btn.disabled = true;
-  fetch(`https://msearch.gsi.go.jp/address-search/AddressSearch?q=${encodeURIComponent(query)}`)
+
+  fetch(
+    `https://msearch.gsi.go.jp/address-search/AddressSearch?q=${encodeURIComponent(query)}`,
+    { signal: _searchAbort.signal }
+  )
     .then(r => r.json())
     .then(data => {
       btn.disabled = false;
@@ -3752,9 +3773,7 @@ function searchPlace() {
         return;
       }
       msg.textContent = '';
-      // 候補をリスト表示。タップで flyTo してリストを閉じる
       data.forEach(item => {
-        // geometry が null の結果はスキップ（APIが返す場合がある）
         if (!item?.geometry?.coordinates || !item?.properties) return;
         const [lng, lat] = item.geometry.coordinates;
         const { pref, city } = parseResultMeta(item);
@@ -3762,13 +3781,11 @@ function searchPlace() {
         const el = document.createElement('div');
         el.className = 'place-result-item';
 
-        // 左: 地名
         const nameEl = document.createElement('span');
         nameEl.className = 'place-result-name';
         nameEl.textContent = item.properties.title;
         el.appendChild(nameEl);
 
-        // 右: 都道府県（上段）・市区町村（下段）
         const metaEl = document.createElement('div');
         metaEl.className = 'place-result-meta';
         const prefEl = document.createElement('span');
@@ -3781,13 +3798,19 @@ function searchPlace() {
         }
         el.appendChild(metaEl);
 
+        // 結果選択：flyTo してドロップダウンを閉じ、入力欄に地名を反映
+        el.addEventListener('mousedown', e => e.preventDefault()); // blur を防ぐ
         el.addEventListener('click', () => {
           map.flyTo({ center: [lng, lat], zoom: 15, duration: 1500 });
+          document.getElementById('place-search-input').value = item.properties.title;
+          msg.textContent = '';
+          closeSearchResults();
         });
         results.appendChild(el);
       });
     })
     .catch(e => {
+      if (e.name === 'AbortError') return; // キャンセルは無視
       console.error('地名検索エラー:', e);
       btn.disabled = false;
       msg.textContent = '検索エラー';
@@ -3795,9 +3818,25 @@ function searchPlace() {
     });
 }
 
+// ボタン押下 / Enter キー
 document.getElementById('place-search-btn').addEventListener('click', searchPlace);
 document.getElementById('place-search-input').addEventListener('keydown', e => {
-  if (e.key === 'Enter') searchPlace();
+  if (e.key === 'Enter') { clearTimeout(_searchTimer); searchPlace(); }
+  if (e.key === 'Escape') closeSearchResults();
+});
+
+// 入力中のライブ検索（350ms デバウンス）
+document.getElementById('place-search-input').addEventListener('input', () => {
+  clearTimeout(_searchTimer);
+  const q = document.getElementById('place-search-input').value.trim();
+  if (!q) { closeSearchResults(); document.getElementById('place-search-msg').textContent = ''; return; }
+  _searchTimer = setTimeout(searchPlace, 350);
+});
+
+// フォーカスが外れたら候補を閉じる
+document.getElementById('place-search-input').addEventListener('blur', () => {
+  // mousedown で preventDefault しているので click が先に発火する
+  setTimeout(closeSearchResults, 150);
 });
 
 /* ========================================================
