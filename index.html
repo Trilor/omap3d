@@ -4273,7 +4273,9 @@ function startSimMode() {
   map.touchZoomRotate.disable();
   map.keyboard.disable();
 
-  // ② カメラをシム視点へ（完了後にミニマップを初期化）
+  // ② ズームをロック + カメラをシム視点へ（完了後にミニマップを初期化）
+  map.setMinZoom(SIM_ZOOM);
+  map.setMaxZoom(SIM_ZOOM);
   map.easeTo({ zoom: SIM_ZOOM, pitch: SIM_PITCH, duration: 800 });
 
   // ④ UIを切り替え
@@ -4324,6 +4326,8 @@ function stopSimMode() {
   map.doubleClickZoom.enable();
   map.touchZoomRotate.enable();
   map.keyboard.enable();
+  map.setMinZoom(undefined);
+  map.setMaxZoom(undefined);
 
   // ピッチを戻す
   map.easeTo({ pitch: INITIAL_PITCH, duration: 600 });
@@ -4484,9 +4488,6 @@ function simLoop() {
       `rotate(${-b}deg)`;
   }
 
-  // ── 地形フロア適用 ──────────────────────────────────────────────
-  enforceTerrainFloor();
-
   simAnimFrame = requestAnimationFrame(simLoop);
 }
 
@@ -4575,7 +4576,9 @@ function onPcSimLocked() {
   map.touchZoomRotate.disable();
   map.keyboard.disable();
 
-  // ② カメラをシム視点へ
+  // ② ズームをロック + カメラをシム視点へ
+  map.setMinZoom(SIM_ZOOM);
+  map.setMaxZoom(SIM_ZOOM);
   map.easeTo({ zoom: SIM_ZOOM, pitch: SIM_PITCH, duration: 800 });
 
   // ③ UIを更新
@@ -4628,6 +4631,8 @@ function stopPcSim() {
   map.doubleClickZoom.enable();
   map.touchZoomRotate.enable();
   map.keyboard.enable();
+  map.setMinZoom(undefined);
+  map.setMaxZoom(undefined);
   map.easeTo({ pitch: INITIAL_PITCH, duration: 600 });
 
   // イベントリスナー解除
@@ -4727,9 +4732,6 @@ function pcSimLoop(timestamp) {
     document.getElementById('pc-sim-readmap-inner').style.transform =
       `rotate(${-map.getBearing()}deg)`;
   }
-
-  // ── 地形フロア適用 ──────────────────────────────────────────────
-  enforceTerrainFloor();
 
   pcSimAnimFrame = requestAnimationFrame(pcSimLoop);
 }
