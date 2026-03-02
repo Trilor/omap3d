@@ -454,6 +454,56 @@ body {
   color: #fff;
 }
 
+/* 地名検索 */
+#place-search-wrap {
+  padding: 7px 10px;
+  border-bottom: 1px solid #d8d8d8;
+}
+#place-search-row {
+  display: flex;
+  gap: 5px;
+}
+#place-search-input {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 7px;
+  border: 1px solid #b0b8b0;
+  border-radius: 3px;
+  font-size: 11px;
+  color: #333;
+  background: #f9f9f9;
+  outline: none;
+}
+#place-search-input:focus {
+  border-color: #4a7c59;
+  background: #fff;
+}
+#place-search-btn {
+  padding: 4px 8px;
+  background: #4a7c59;
+  color: #fff;
+  border: none;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: bold;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+#place-search-btn:hover {
+  background: #3a6248;
+}
+#place-search-btn:disabled {
+  background: #aaa;
+  cursor: default;
+}
+#place-search-msg {
+  font-size: 10px;
+  color: #888;
+  margin-top: 3px;
+  min-height: 14px;
+}
+
 /* 地形誇張スライダー行 */
 .terrain-row {
   padding: 5px 10px 5px;
@@ -768,6 +818,15 @@ body {
 <div id="ui-panel">
 <div id="ui-panel-header">OMAP 3D <span id="panel-toggle-icon">▲</span></div>
 <div id="ui-panel-body">
+
+  <!-- ===== 地名検索 ===== -->
+  <div id="place-search-wrap">
+    <div id="place-search-row">
+      <input type="text" id="place-search-input" placeholder="地名・住所を検索" />
+      <button id="place-search-btn">検索</button>
+    </div>
+    <div id="place-search-msg"></div>
+  </div>
 
   <!-- ===== OMAP / KMZ（デフォルト open） ===== -->
   <details class="panel-section" open>
@@ -3033,6 +3092,44 @@ function toggleViewMode() {
     btn.classList.remove('active-first');
   }
 }
+
+/* ========================================================
+    地名検索（国土地理院 地名検索API）
+    Enter またはボタンで第1候補へ flyTo。
+    ======================================================== */
+
+function searchPlace() {
+  const query = document.getElementById('place-search-input').value.trim();
+  if (!query) return;
+  const msg = document.getElementById('place-search-msg');
+  const btn = document.getElementById('place-search-btn');
+  msg.textContent = '検索中…';
+  msg.style.color = '#888';
+  btn.disabled = true;
+  fetch(`https://msearch.gsi.go.jp/address-search/AddressSearch?q=${encodeURIComponent(query)}`)
+    .then(r => r.json())
+    .then(data => {
+      btn.disabled = false;
+      if (!data || data.length === 0) {
+        msg.textContent = '見つかりませんでした';
+        msg.style.color = '#c00';
+        return;
+      }
+      msg.textContent = '';
+      const [lng, lat] = data[0].geometry.coordinates;
+      map.flyTo({ center: [lng, lat], zoom: 14, duration: 1500 });
+    })
+    .catch(() => {
+      btn.disabled = false;
+      msg.textContent = '検索エラー';
+      msg.style.color = '#c00';
+    });
+}
+
+document.getElementById('place-search-btn').addEventListener('click', searchPlace);
+document.getElementById('place-search-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') searchPlace();
+});
 
 /* ========================================================
     ファイル選択ボタンの制御
