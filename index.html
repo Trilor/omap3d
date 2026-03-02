@@ -3215,7 +3215,6 @@ function searchPlace() {
 
         el.addEventListener('click', () => {
           map.flyTo({ center: [lng, lat], zoom: 14, duration: 1500 });
-          results.innerHTML = '';
         });
         results.appendChild(el);
       });
