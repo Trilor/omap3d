@@ -107,6 +107,22 @@ body {
   height: 100%;
 }
 
+#map-attribution {
+  position: absolute;
+  bottom: 6px;
+  right: 6px;
+  z-index: 10;
+  background: rgba(255,255,255,0.7);
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  line-height: 1.5;
+  max-width: 70vw;
+  text-align: right;
+  pointer-events: auto;
+}
+#map-attribution a { color: #333; }
+
 /* ---- UIパネル（地理院地図/Q地図スタイル） ---- */
 #ui-panel {
   position: absolute;
@@ -763,6 +779,7 @@ body {
 <body>
 <!-- 地図を描画するコンテナ要素 -->
 <div id="map"></div>
+<div id="map-attribution"></div>
 <!-- UIパネル（地理院地図スタイル） -->
 <div id="ui-panel">
 <div id="ui-panel-header">OMAP 3D <span id="panel-toggle-icon">▲</span></div>
@@ -1591,16 +1608,35 @@ const map = new maplibregl.Map({
   maxPitch: 85,
 });
 
-// カスタム出典表示：全国共通の加工データをまとめて1行で表示
-// 都道府県別CS出典は updateRegionalAttribution() が動的に .maplibregl-ctrl-attrib-inner へ追記
-map.addControl(new maplibregl.AttributionControl({
-  compact: true,
-  customAttribution:
-    '(<a href="https://www.geospatial.jp/ckan/dataset/qchizu_94dem_99gsi" target="_blank">Q地図 1mDEM</a>' +
-    ' | <a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">国土地理院 基盤地図情報・湖水深</a>' +
-    ' | <a href="https://www.ngdc.noaa.gov/geomag/WMM/" target="_blank">WMM/NOAA</a>)' +
-    ' を加工して作成',
-}), 'bottom-right');
+// ---- 出典表示管理 -------------------------------------------------------
+const _ATTR_BASE =
+  '<a href="https://www.geospatial.jp/ckan/dataset/qchizu_94dem_99gsi" target="_blank">Q地図 1mDEM</a>' +
+  ' | <a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">国土地理院 基盤地図情報・湖水深</a>' +
+  ' | <a href="https://www.ngdc.noaa.gov/geomag/WMM/" target="_blank">WMM/NOAA</a>';
+
+const _ATTR_ORILIBRE_SOURCES =
+  '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">国土地理院ベクトルタイル</a>' +
+  ' | <a href="https://open.fude.mlit.go.jp/" target="_blank">筆ポリゴン(農林水産省)</a>' +
+  ' | <a href="https://openfreemap.org/" target="_blank">OpenFreeMap</a>' +
+  ' \u00a9 <a href="https://openmaptiles.org/" target="_blank">OpenMapTiles</a>' +
+  ' Data from <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>';
+
+/** #map-attribution の本文（都道府県別CS出典の前まで）を更新する */
+function updateMainAttribution() {
+  const el = document.getElementById('map-attribution');
+  if (!el) return;
+  let html;
+  if (currentBasemap === 'orilibre') {
+    html = '<a href="https://github.com/tjmsy/maplibre-gl-isomizer" target="_blank">OriLibre</a>' +
+      ' | (' + _ATTR_ORILIBRE_SOURCES + ' | ' + _ATTR_BASE + ') を加工して作成';
+  } else {
+    const rasterAttr = RASTER_BASEMAPS[currentBasemap]?.attr ?? '';
+    html = (rasterAttr ? rasterAttr + ' | ' : '') + '(' + _ATTR_BASE + ') を加工して作成';
+  }
+  el.innerHTML = html + '<span id="regional-cs-attr"></span>';
+  _lastAttrKey = null; // 都道府県別CS出典を必ず再描画
+  updateRegionalAttribution();
+}
 
 
 /*
@@ -1954,6 +1990,8 @@ map.on('load', async () => {
       // ベースマップ切替で非表示にできるよう oriLibreLayers に登録
       oriLibreLayers.push({ id: 'water-ocean-fill', defaultVisibility: 'visible' });
     }
+
+    updateMainAttribution();
 
     // isomizer の project-config.yml が別のcenterを持つ場合があるため、
     // 完了後に京都大学（INITIAL_CENTER）へ強制的に戻す
@@ -3305,14 +3343,8 @@ function updateMagneticNorth() {
 // map.on('load') の外で定義することで chkCs ハンドラーからも呼び出せる。
 let _lastAttrKey = null; // bounds+zoom のキャッシュ（変化がなければ更新をスキップ）
 function updateRegionalAttribution() {
-  let attrEl = document.getElementById('regional-cs-attr');
-  if (!attrEl) {
-    const attrInner = document.querySelector('.maplibregl-ctrl-attrib-inner');
-    if (!attrInner) return; // 出典エリアがまだ存在しない場合は何もしない
-    attrEl = document.createElement('span');
-    attrEl.id = 'regional-cs-attr';
-    attrInner.appendChild(attrEl);
-  }
+  const attrEl = document.getElementById('regional-cs-attr');
+  if (!attrEl) return; // updateMainAttribution() 呼び出し前は何もしない
   const csRegionalOn = document.querySelector('input[name="cs-mode"]:checked')?.value === '0.5m'
     && map.getZoom() >= 17;
   if (!csRegionalOn) {
@@ -3607,6 +3639,8 @@ function switchBasemap(key) {
     // ④ 選択したラスターレイヤーを表示
     if (map.getLayer(key + '-layer')) map.setLayoutProperty(key + '-layer', 'visibility', 'visible');
   }
+
+  updateMainAttribution();
 }
 
 document.getElementById('sel-basemap').addEventListener('change', (e) => {
