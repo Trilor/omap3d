@@ -973,6 +973,157 @@ body {
   touch-action: none;
   /* デバッグ用: background: rgba(255,0,0,0.05); */
 }
+
+/* ================================================================
+   PC O-シミュレーターモード
+   ================================================================ */
+
+/* PCシムトグルボタン（モバイル版の真上に配置） */
+#pc-sim-toggle-btn {
+  position: absolute;
+  bottom: 54px;
+  right: 16px;
+  z-index: 20;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid #c8c8c8;
+  border-radius: 20px;
+  padding: 7px 18px;
+  font-size: 12px;
+  font-weight: bold;
+  color: #333;
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+#pc-sim-toggle-btn:hover { background: rgba(240,240,240,0.96); }
+#pc-sim-toggle-btn.pc-sim-active {
+  background: #1a6aab;
+  color: #fff;
+  border-color: #1a6aab;
+}
+
+/* 操作ヒントバー（画面上部中央・Pointer Lock 中に表示） */
+#pc-sim-hint {
+  display: none;
+  position: fixed;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 25;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  font-size: 11px;
+  padding: 5px 16px;
+  border-radius: 16px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* 十字照準（Pointer Lock 中に画面中央に表示） */
+#pc-sim-crosshair {
+  display: none;
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 25;
+  pointer-events: none;
+  width: 16px;
+  height: 16px;
+}
+#pc-sim-crosshair::before,
+#pc-sim-crosshair::after {
+  content: '';
+  position: absolute;
+  background: rgba(255, 255, 255, 0.85);
+}
+#pc-sim-crosshair::before { /* 横線 */
+  width: 16px; height: 2px;
+  top: 7px; left: 0;
+}
+#pc-sim-crosshair::after { /* 縦線 */
+  width: 2px; height: 16px;
+  top: 0; left: 7px;
+}
+
+/* 読図アクション オーバーレイ */
+#pc-sim-readmap-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  background: rgba(0, 0, 0, 0.55);
+  align-items: center;
+  justify-content: center;
+}
+#pc-sim-readmap-overlay.visible { display: flex; }
+
+#pc-sim-readmap-wrapper {
+  position: relative;
+  width: min(80vmin, 640px);
+  height: min(80vmin, 640px);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.65);
+  border: 2px solid rgba(255, 255, 255, 0.25);
+}
+#pc-sim-readmap-inner {
+  width: 100%;
+  height: 100%;
+  transform-origin: center center;
+  transition: transform 0.08s linear;
+}
+#pc-sim-readmap-map {
+  width: 100%;
+  height: 100%;
+}
+/* 読図マップ中心の現在位置ドット */
+#pc-sim-readmap-dot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 10px;
+  height: 10px;
+  background: #ff3300;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 0 6px rgba(0,0,0,0.6);
+  pointer-events: none;
+  z-index: 2;
+}
+/* 読図マップの進行方向マーカー（常に上 = 進行方向） */
+#pc-sim-readmap-arrow {
+  position: absolute;
+  top: calc(50% - 20px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-bottom: 12px solid #ff3300;
+  filter: drop-shadow(0 0 2px #fff);
+  pointer-events: none;
+  z-index: 2;
+}
+/* 読図ラベル */
+#pc-sim-readmap-label {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,0.55);
+  color: #fff;
+  font-size: 11px;
+  font-weight: bold;
+  padding: 2px 10px;
+  border-radius: 10px;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 3;
+}
 </style>
 </head>
 
@@ -1154,6 +1305,19 @@ body {
       </div>
     </div>
 
+    <!-- PCシム移動速度：1行 -->
+    <div class="setting-row">
+      <div class="setting-left">
+        <span class="chk-spacer"></span>
+        <span class="setting-label">シム速度</span>
+      </div>
+      <div class="setting-right">
+        <input type="range" id="pc-sim-speed" min="10" max="120" step="5" value="50"
+          class="setting-slider" />
+        <span class="opacity-val" id="pc-sim-speed-val">50km/h</span>
+      </div>
+    </div>
+
   </details>
 
 
@@ -1179,6 +1343,23 @@ body {
 </div>
 <!-- ドラッグ&ドロップ時に表示されるオーバーレイ -->
 <div id="drop-overlay">KMZ / GPX ファイルをドロップ</div>
+
+<!-- PC O-シミュレーター：トグルボタン -->
+<button id="pc-sim-toggle-btn">💻 PCシミュレーター開始</button>
+<!-- PC O-シミュレーター：ヒントバー＆十字照準 -->
+<div id="pc-sim-hint">WASD 移動 ｜ マウス 視点 ｜ ↑↓←→ 視点（代替） ｜ Space / 右クリック 読図 ｜ Esc 終了</div>
+<div id="pc-sim-crosshair"></div>
+<!-- PC O-シミュレーター：読図マップオーバーレイ -->
+<div id="pc-sim-readmap-overlay">
+  <div id="pc-sim-readmap-wrapper">
+    <div id="pc-sim-readmap-inner">
+      <div id="pc-sim-readmap-map"></div>
+    </div>
+    <div id="pc-sim-readmap-dot"></div>
+    <div id="pc-sim-readmap-arrow"></div>
+    <div id="pc-sim-readmap-label">📖 読図モード（離すと閉じます）</div>
+  </div>
+</div>
 
 <!-- O-シミュレーター：トグルボタン -->
 <button id="sim-toggle-btn">🎮 シミュレーター開始</button>
@@ -4330,6 +4511,323 @@ function focusMinimapOnSegment(pointA, pointB) {
 
 // ---- トグルボタンのイベント ----
 document.getElementById('sim-toggle-btn').addEventListener('click', toggleSimMode);
+
+
+/* ================================================================
+   PC O-シミュレーターモード
+   Pointer Lock API + WASD + マウス視点 + Space/右クリック読図
+   ================================================================ */
+
+// ---- 状態変数 ----
+let pcSimActive   = false;
+let pcSimAnimFrame = null;
+let pcSimLastTime  = null;
+let pcSimReadMap   = null;  // 読図用 MapLibre インスタンス
+let pcSimReadOpen  = false; // 読図マップ表示中か
+
+// キー押下状態（Pointer Lock 有無に関わらず追跡）
+const pcSimKeys = {
+  KeyW: false, KeyA: false, KeyS: false, KeyD: false,
+  ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false,
+};
+
+// ---- 速度スライダー ----
+const pcSimSpeedSlider = document.getElementById('pc-sim-speed');
+const pcSimSpeedValEl  = document.getElementById('pc-sim-speed-val');
+
+pcSimSpeedSlider.addEventListener('input', () => {
+  pcSimSpeedValEl.textContent = pcSimSpeedSlider.value + 'km/h';
+  updateSliderGradient(pcSimSpeedSlider, '#1a6aab');
+});
+// 初期グラデーション反映
+updateSliderGradient(pcSimSpeedSlider, '#1a6aab');
+
+function getPcSimSpeedKmh() {
+  return parseFloat(pcSimSpeedSlider.value) || 50;
+}
+
+/* ----------------------------------------------------------------
+   PCシム開始: Pointer Lock をリクエストし、ロック成功後にループ起動
+   ---------------------------------------------------------------- */
+function startPcSim() {
+  // #map 要素に対してカーソルロックを要求
+  document.getElementById('map').requestPointerLock();
+}
+
+/* ----------------------------------------------------------------
+   Pointer Lock の変化を監視 → ロック成功時に onPcSimLocked を呼ぶ
+   ---------------------------------------------------------------- */
+document.addEventListener('pointerlockchange', () => {
+  if (document.pointerLockElement === document.getElementById('map')) {
+    if (!pcSimActive) onPcSimLocked();
+  } else {
+    if (pcSimActive) stopPcSim();
+  }
+});
+
+/* ----------------------------------------------------------------
+   onPcSimLocked: Pointer Lock 成功後の初期化処理
+   ---------------------------------------------------------------- */
+function onPcSimLocked() {
+  pcSimActive = true;
+
+  // ① 地図操作を全て無効化
+  map.dragPan.disable();
+  map.dragRotate.disable();
+  map.scrollZoom.disable();
+  map.doubleClickZoom.disable();
+  map.touchZoomRotate.disable();
+  map.keyboard.disable();
+
+  // ② ズームをロック
+  map.setMinZoom(SIM_ZOOM);
+  map.setMaxZoom(SIM_ZOOM);
+  map.easeTo({ zoom: SIM_ZOOM, pitch: SIM_PITCH, duration: 800 });
+
+  // ③ UIを更新
+  const btn = document.getElementById('pc-sim-toggle-btn');
+  btn.textContent = '⏹ PCシミュ終了';
+  btn.classList.add('pc-sim-active');
+  document.getElementById('pc-sim-hint').style.display = 'block';
+  document.getElementById('pc-sim-crosshair').style.display = 'block';
+
+  // ④ 読図マップを初期化（カメラ遷移後）
+  setTimeout(initPcReadMap, 900);
+
+  // ⑤ イベントリスナー登録
+  document.addEventListener('mousemove',    onPcSimMouseMove);
+  document.addEventListener('mousedown',    onPcSimMouseDown);
+  document.addEventListener('mouseup',      onPcSimMouseUp);
+  document.addEventListener('contextmenu',  onPcSimContextMenu);
+
+  // ⑥ ループ開始
+  pcSimLastTime  = null;
+  pcSimAnimFrame = requestAnimationFrame(pcSimLoop);
+}
+
+/* ----------------------------------------------------------------
+   stopPcSim: モード終了 & 全リソースを解放
+   ---------------------------------------------------------------- */
+function stopPcSim() {
+  pcSimActive = false;
+
+  if (pcSimAnimFrame) { cancelAnimationFrame(pcSimAnimFrame); pcSimAnimFrame = null; }
+
+  // 読図マップを閉じて破棄
+  closePcReadMap();
+  if (pcSimReadMap) { pcSimReadMap.remove(); pcSimReadMap = null; }
+
+  // キー状態リセット
+  Object.keys(pcSimKeys).forEach(k => { pcSimKeys[k] = false; });
+
+  // UI 復元
+  const btn = document.getElementById('pc-sim-toggle-btn');
+  btn.textContent = '💻 PCシミュレーター開始';
+  btn.classList.remove('pc-sim-active');
+  document.getElementById('pc-sim-hint').style.display = 'none';
+  document.getElementById('pc-sim-crosshair').style.display = 'none';
+
+  // 地図操作を復元
+  map.dragPan.enable();
+  map.dragRotate.enable();
+  map.scrollZoom.enable();
+  map.doubleClickZoom.enable();
+  map.touchZoomRotate.enable();
+  map.keyboard.enable();
+  map.setMinZoom(undefined);
+  map.setMaxZoom(undefined);
+  map.easeTo({ pitch: INITIAL_PITCH, duration: 600 });
+
+  // イベントリスナー解除
+  document.removeEventListener('mousemove',   onPcSimMouseMove);
+  document.removeEventListener('mousedown',   onPcSimMouseDown);
+  document.removeEventListener('mouseup',     onPcSimMouseUp);
+  document.removeEventListener('contextmenu', onPcSimContextMenu);
+}
+
+/* ----------------------------------------------------------------
+   pcSimLoop: rAF アニメーションループ
+   ① deltaTime を使った正確な WASD 移動
+   ② 矢印キーによる滑らかな bearing / pitch 変更
+   ③ 読図マップ open 中はセンターと回転を更新
+   ---------------------------------------------------------------- */
+function pcSimLoop(timestamp) {
+  if (!pcSimActive) return;
+
+  // --- deltaTime（秒）を計算 ---
+  const dt = pcSimLastTime ? Math.min((timestamp - pcSimLastTime) / 1000, 0.1) : 0.016;
+  pcSimLastTime = timestamp;
+
+  // ── WASD 移動 ──────────────────────────────────────────────────
+  const fwd   = (pcSimKeys.KeyW ? 1 : 0) - (pcSimKeys.KeyS ? 1 : 0);
+  const right = (pcSimKeys.KeyD ? 1 : 0) - (pcSimKeys.KeyA ? 1 : 0);
+
+  if (fwd !== 0 || right !== 0) {
+    // 斜め移動でも速度が √2 倍にならないようベクトルを正規化
+    const len = Math.sqrt(fwd * fwd + right * right);
+    const nx  = right / len; // 正規化された右成分
+    const ny  = fwd   / len; // 正規化された前進成分
+
+    // 速度から距離を計算: km/h → km/frame
+    const distKm = (getPcSimSpeedKmh() / 3600) * dt;
+
+    // atan2(nx, ny): ny軸=北(0°) に対して nx 方向の角度 → カメラ bearing からのオフセット
+    const moveBearing = map.getBearing() + Math.atan2(nx, ny) * (180 / Math.PI);
+
+    const c    = map.getCenter();
+    const dest = turf.destination([c.lng, c.lat], distKm, moveBearing);
+    map.setCenter(dest.geometry.coordinates);
+  }
+
+  // ── 矢印キー視点（ノートPC向け救済） ──────────────────────────
+  const ARROW_BEARING_RATE = 90;  // deg/s
+  const ARROW_PITCH_RATE   = 60;  // deg/s
+
+  let bDelta = 0, pDelta = 0;
+  if (pcSimKeys.ArrowLeft)  bDelta -= ARROW_BEARING_RATE * dt;
+  if (pcSimKeys.ArrowRight) bDelta += ARROW_BEARING_RATE * dt;
+  if (pcSimKeys.ArrowUp)    pDelta += ARROW_PITCH_RATE   * dt; // より水平に
+  if (pcSimKeys.ArrowDown)  pDelta -= ARROW_PITCH_RATE   * dt; // より俯瞰に
+
+  if (bDelta !== 0) map.setBearing(map.getBearing() + bDelta);
+  if (pDelta !== 0) map.setPitch(Math.max(0, Math.min(85, map.getPitch() + pDelta)));
+
+  // ── 読図マップ同期 ──────────────────────────────────────────────
+  if (pcSimReadOpen && pcSimReadMap) {
+    pcSimReadMap.setCenter(map.getCenter());
+    document.getElementById('pc-sim-readmap-inner').style.transform =
+      `rotate(${-map.getBearing()}deg)`;
+  }
+
+  pcSimAnimFrame = requestAnimationFrame(pcSimLoop);
+}
+
+/* ----------------------------------------------------------------
+   マウスイベントハンドラ
+   ---------------------------------------------------------------- */
+function onPcSimMouseMove(e) {
+  if (!pcSimActive || !document.pointerLockElement) return;
+
+  const MOUSE_BEARING_SENS = 0.15; // deg/px
+  const MOUSE_PITCH_SENS   = 0.10; // deg/px
+
+  map.setBearing(map.getBearing() + e.movementX * MOUSE_BEARING_SENS);
+  // movementY < 0（上移動）→ pitch 増加（より水平視点）
+  map.setPitch(Math.max(0, Math.min(85, map.getPitch() - e.movementY * MOUSE_PITCH_SENS)));
+}
+
+function onPcSimMouseDown(e) {
+  if (!pcSimActive) return;
+  if (e.button === 2) openPcReadMap(); // 右クリック → 読図
+}
+
+function onPcSimMouseUp(e) {
+  if (!pcSimActive) return;
+  if (e.button === 2) closePcReadMap();
+}
+
+function onPcSimContextMenu(e) {
+  if (pcSimActive) e.preventDefault(); // 右クリックメニューを抑止
+}
+
+/* ----------------------------------------------------------------
+   キーボードイベントハンドラ（グローバル）
+   WASD / 矢印 の押下状態を管理し、Space で読図を開閉する
+   ---------------------------------------------------------------- */
+document.addEventListener('keydown', (e) => {
+  if (e.code in pcSimKeys) {
+    pcSimKeys[e.code] = true;
+    if (pcSimActive) e.preventDefault();
+  }
+  if (pcSimActive && e.code === 'Space') {
+    e.preventDefault();
+    openPcReadMap();
+  }
+});
+
+document.addEventListener('keyup', (e) => {
+  if (e.code in pcSimKeys) pcSimKeys[e.code] = false;
+  if (pcSimActive && e.code === 'Space') closePcReadMap();
+});
+
+/* ----------------------------------------------------------------
+   initPcReadMap: 読図用 MapLibre インスタンスを生成
+   地理院タイル背景 + 現在の KMZ レイヤーを全て複製
+   ---------------------------------------------------------------- */
+function initPcReadMap() {
+  if (pcSimReadMap) return;
+
+  pcSimReadMap = new maplibregl.Map({
+    container: 'pc-sim-readmap-map',
+    style: {
+      version: 8,
+      sources: {
+        'pc-read-base': {
+          type: 'raster',
+          tiles: ['https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png'],
+          tileSize: 256,
+          attribution: '',
+          maxzoom: 18,
+        },
+      },
+      layers: [{ id: 'pc-read-base', type: 'raster', source: 'pc-read-base' }],
+    },
+    center:      map.getCenter(),
+    zoom:        16,
+    bearing:     0, // 常に北上（回転は CSS 側で担当）
+    pitch:       0,
+    interactive: false,
+    attributionControl: false,
+  });
+
+  pcSimReadMap.on('load', syncKmzToPcReadMap);
+}
+
+/* ----------------------------------------------------------------
+   syncKmzToPcReadMap: kmzLayers を読図マップに複製
+   ---------------------------------------------------------------- */
+function syncKmzToPcReadMap() {
+  if (!pcSimReadMap || !pcSimReadMap.isStyleLoaded()) return;
+  kmzLayers.forEach(entry => {
+    if (pcSimReadMap.getSource(entry.sourceId)) return;
+    const spec = map.getStyle()?.sources?.[entry.sourceId];
+    if (!spec) return;
+    pcSimReadMap.addSource(entry.sourceId, spec);
+    pcSimReadMap.addLayer({
+      id:    entry.layerId + '-pcread',
+      type:  'raster',
+      source: entry.sourceId,
+      paint: { 'raster-opacity': 0.92, 'raster-fade-duration': 0 },
+    });
+  });
+}
+
+/* ----------------------------------------------------------------
+   openPcReadMap / closePcReadMap: 読図マップの表示・非表示
+   ---------------------------------------------------------------- */
+function openPcReadMap() {
+  if (pcSimReadOpen) return;
+  pcSimReadOpen = true;
+
+  const overlay = document.getElementById('pc-sim-readmap-overlay');
+  overlay.classList.add('visible');
+
+  if (pcSimReadMap) {
+    pcSimReadMap.setCenter(map.getCenter());
+    document.getElementById('pc-sim-readmap-inner').style.transform =
+      `rotate(${-map.getBearing()}deg)`;
+    pcSimReadMap.resize(); // hidden 後の初回表示でサイズ再計算
+  }
+}
+
+function closePcReadMap() {
+  if (!pcSimReadOpen) return;
+  pcSimReadOpen = false;
+  document.getElementById('pc-sim-readmap-overlay').classList.remove('visible');
+}
+
+// ---- PCシムボタンのイベント ----
+document.getElementById('pc-sim-toggle-btn').addEventListener('click', startPcSim);
 
 </script>
 </body>
