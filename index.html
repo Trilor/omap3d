@@ -1311,7 +1311,7 @@ body {
       </div>
       <div class="setting-right">
         <select id="sel-magnetic-north-interval">
-          <option id="opt-magnetic-north-current" value="">250 m</option>
+          <option id="opt-magnetic-north-current" value="">300 m</option>
           <option disabled>──────</option>
           <option value="120">120 m</option>
           <option value="150">150 m</option>
@@ -1980,7 +1980,7 @@ const INITIAL_BEARING = 0;
 const TERRAIN_EXAGGERATION = 1.0;
 
 // ★ KMZオーバーレイの初期不透明度
-const OMAP_INITIAL_OPACITY = 0.7;
+const OMAP_INITIAL_OPACITY = 1.0;
 
 // ★ CS立体図の初期不透明度（仕様書: 乗算代替として0.6推奨）
 const CS_INITIAL_OPACITY = 0.6;
@@ -3725,7 +3725,7 @@ function updateSliderGradient(input, color) {
 }
 
 // ユーザーが手動で設定した磁北線間隔（m）。zoom > 10 のときに使用する。
-let userMagneticInterval = 250;
+let userMagneticInterval = 300;
 
 // zoom レベルに応じた有効な磁北線間隔（m）を返す
 // 各ズームで画面内に約 7〜15 本表示されることを目安に設定。
