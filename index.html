@@ -3153,9 +3153,9 @@ const PREF_NAMES = {
 
 // addressCode の上位2桁で都道府県を、title の先頭から市区町村を抽出
 function parseResultMeta(item) {
-  const prefCode = (item.properties.addressCode || '').slice(0, 2);
+  const prefCode = (item.properties?.addressCode || '').slice(0, 2);
   const pref = PREF_NAMES[prefCode] || '';
-  const title = item.properties.title || '';
+  const title = item.properties?.title || '';
   let city = '';
   if (pref && title.startsWith(pref)) {
     const rest = title.slice(pref.length);
@@ -3188,6 +3188,8 @@ function searchPlace() {
       msg.textContent = '';
       // 候補をリスト表示。タップで flyTo してリストを閉じる
       data.forEach(item => {
+        // geometry が null の結果はスキップ（APIが返す場合がある）
+        if (!item?.geometry?.coordinates || !item?.properties) return;
         const [lng, lat] = item.geometry.coordinates;
         const { pref, city } = parseResultMeta(item);
 
@@ -3219,7 +3221,8 @@ function searchPlace() {
         results.appendChild(el);
       });
     })
-    .catch(() => {
+    .catch(e => {
+      console.error('地名検索エラー:', e);
       btn.disabled = false;
       msg.textContent = '検索エラー';
       msg.style.color = '#c00';
