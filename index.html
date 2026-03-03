@@ -3175,6 +3175,10 @@ map.on('load', async () => {
 
   // isomizer完了後、contour-sourceを参照するレイヤーIDを収集（表示/非表示制御に使用）
   contourLayerIds = map.getStyle().layers.filter(l => l.source === 'contour-source').map(l => l.id);
+  // symbol型（数値ラベル）は常に非表示にする
+  map.getStyle().layers
+    .filter(l => l.source === 'contour-source' && l.type === 'symbol')
+    .forEach(l => map.setLayoutProperty(l.id, 'visibility', 'none'));
   console.log('等高線レイヤー（isomizer生成）:', contourLayerIds);
 
   // isomizerが等高線レイヤーを生成しなかった場合のみフォールバックとして明示的に追加
@@ -3213,6 +3217,7 @@ map.on('load', async () => {
       'source-layer': 'contours',
       filter: ['==', ['get', 'level'], 1],
       layout: {
+        'visibility': 'none',
         'symbol-placement': 'line',
         'text-field': ['concat', ['to-string', ['get', 'ele']], 'm'],
         'text-size': 9,
