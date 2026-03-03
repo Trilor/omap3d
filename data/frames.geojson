@@ -7,9 +7,8 @@
       "properties": {
         "terrain_name": "吉田キャンパス",
         "event_name": "2024年度 新人戦",
-        "year": 2024,
-        "map_type": "Sprint",
-        "is_indoor": false,
+        "map_type": "sprint",
+        "map_subtype": "campus",
         "contour_interval": 2.5,
         "event_date": "2024-04-21",
         "description": "北側エリアを広く使用"
@@ -31,9 +30,8 @@
       "properties": {
         "terrain_name": "吉田キャンパス",
         "event_name": "2025年度 公認大会",
-        "year": 2025,
-        "map_type": "Sprint",
-        "is_indoor": false,
+        "map_type": "sprint",
+        "map_subtype": "campus",
         "contour_interval": 2.5,
         "event_date": "2025-05-11",
         "description": "南側スタジアム周辺に限定"
@@ -55,9 +53,8 @@
       "properties": {
         "terrain_name": "吉田キャンパス",
         "event_name": "2025年度 館内OL",
-        "year": 2025,
-        "map_type": "Sprint",
-        "is_indoor": true,
+        "map_type": "sprint",
+        "map_subtype": "stadium",
         "contour_interval": null,
         "event_date": "2025-01-19",
         "description": "総合体育館1・2F"
@@ -79,9 +76,8 @@
       "properties": {
         "terrain_name": "宝ヶ池",
         "event_name": "2023年度 春合宿",
-        "year": 2023,
-        "map_type": "Forest",
-        "is_indoor": false,
+        "map_type": "forest",
+        "map_subtype": "park",
         "contour_interval": 5.0,
         "event_date": "2023-03-25",
         "description": "公園南エリア中心"
@@ -103,9 +99,8 @@
       "properties": {
         "terrain_name": "宝ヶ池",
         "event_name": "2025年度 秋季大会",
-        "year": 2025,
-        "map_type": "Forest",
-        "is_indoor": false,
+        "map_type": "forest",
+        "map_subtype": "park",
         "contour_interval": 5.0,
         "event_date": "2025-10-19",
         "description": "公園全域"
@@ -127,9 +122,8 @@
       "properties": {
         "terrain_name": "大文字山",
         "event_name": "2022年度 山岳OL",
-        "year": 2022,
-        "map_type": "Forest",
-        "is_indoor": false,
+        "map_type": "forest",
+        "map_subtype": null,
         "contour_interval": 5.0,
         "event_date": "2022-11-03",
         "description": "火床周辺の急斜面エリア"
@@ -151,9 +145,8 @@
       "properties": {
         "terrain_name": "大文字山",
         "event_name": "2024年度 秋季大会",
-        "year": 2024,
-        "map_type": "Forest",
-        "is_indoor": false,
+        "map_type": "forest",
+        "map_subtype": null,
         "contour_interval": 5.0,
         "event_date": "2024-11-10",
         "description": "稜線・北側斜面を中心"

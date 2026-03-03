@@ -711,12 +711,10 @@ label.setting-label {
   padding: 1px 5px;
   border-radius: 3px;
   flex-shrink: 0;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
 }
-.frame-badge.sprint  { background: #fff3e0; color: #c77700; border: 1px solid #f0c060; }
-.frame-badge.forest  { background: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
-.frame-badge.indoor  { background: #ede7f6; color: #5e35b1; border: 1px solid #b39ddb; }
+.frame-badge.sprint   { background: #fff3e0; color: #c77700; border: 1px solid #f0c060; }
+.frame-badge.forest   { background: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
+.frame-badge.subtype  { background: #f5f5f5; color: #666;    border: 1px solid #ddd; }
 
 /* 画像ピッカーボタン（小） */
 .frame-img-pick-btn {
@@ -3437,6 +3435,10 @@ function toRasterOpacity(opacity) {
   return map.getTerrain() ? Math.pow(opacity, 3) : opacity;
 }
 
+// 地図種別・サブタイプの日本語表示マップ
+const MAP_TYPE_JA    = { sprint: 'スプリント', forest: 'フォレスト' };
+const MAP_SUBTYPE_JA = { stadium: 'スタジアム', school: '学校', park: '公園', urban: '市街地', campus: 'キャンパス' };
+
 // HTML 特殊文字をエスケープしてインジェクションを防ぐ
 function escHtml(str) {
   return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -4165,8 +4167,10 @@ function buildFrameEntryEl(frame) {
   const p         = frame.properties;
   const hasImages = frame.images.length > 0;
   const pct       = Math.round(frame.opacity * 100);
-  const badgeType = p.is_indoor ? 'indoor' : (p.map_type ?? 'sprint').toLowerCase();
-  const badgeLabel = p.is_indoor ? 'Indoor' : (p.map_type ?? '');
+  const typeKey     = p.map_type ?? '';
+  const subtypeKey  = p.map_subtype ?? '';
+  const typeBadge   = typeKey    ? `<span class="frame-badge ${typeKey}">${escHtml(MAP_TYPE_JA[typeKey] ?? typeKey)}</span>` : '';
+  const subtypeBadge = subtypeKey ? `<span class="frame-badge subtype">${escHtml(MAP_SUBTYPE_JA[subtypeKey] ?? subtypeKey)}</span>` : '';
 
   const div = document.createElement('div');
   div.className = 'frame-entry';
@@ -4179,7 +4183,7 @@ function buildFrameEntryEl(frame) {
     <input type="checkbox" class="frame-vis-chk" ${hasImages ? 'checked' : ''} title="画像レイヤーの表示/非表示" />
     <span class="frame-status-dot ${hasImages ? 'has-image' : ''}"></span>
     <span class="frame-event-name" title="${escHtml(p.event_name ?? '')}">${escHtml(p.event_name ?? '（名称なし）')}</span>
-    ${badgeLabel ? `<span class="frame-badge ${badgeType}">${escHtml(badgeLabel)}</span>` : ''}
+    ${typeBadge}${subtypeBadge}
     <button class="frame-img-pick-btn" title="画像を割り当て" onclick="openFrameImgPicker('${frame.id}')">📷</button>
   `;
   div.appendChild(header);
@@ -4326,7 +4330,7 @@ function showFrameClickPopup(lngLat, frameIds) {
         return `<li class="frame-overlap-item" onclick="_selectOverlapFrame('${fid}')" data-fid="${fid}">
           <span style="color:${f?.images.length > 0 ? '#4a7c59' : '#bbb'}">${dot}</span>
           <span>${escHtml(p.event_name ?? fid)}</span>
-          <span class="frame-badge ${p.is_indoor ? 'indoor' : (p.map_type ?? '').toLowerCase()}" style="font-size:9px">${p.is_indoor ? 'Indoor' : (p.map_type ?? '')}</span>
+          ${p.map_type ? `<span class="frame-badge ${p.map_type}" style="font-size:9px">${escHtml(MAP_TYPE_JA[p.map_type] ?? p.map_type)}</span>` : ''}
         </li>`;
       }).join('') +
       `</ul></div>`;
@@ -4344,12 +4348,13 @@ function buildFramePopupHtml(frameId) {
   if (!frame) return '';
   const p         = frame.properties;
   const hasImages = frame.images.length > 0;
-  const badgeType = p.is_indoor ? 'indoor' : (p.map_type ?? 'sprint').toLowerCase();
+  const popupTypeBadge    = p.map_type    ? `<span class="frame-badge ${p.map_type}">${escHtml(MAP_TYPE_JA[p.map_type] ?? p.map_type)}</span>` : '';
+  const popupSubtypeBadge = p.map_subtype ? `<span class="frame-badge subtype">${escHtml(MAP_SUBTYPE_JA[p.map_subtype] ?? p.map_subtype)}</span>` : '';
 
   return `<div class="frame-popup">
     <div class="frame-popup-title">
       ${escHtml(p.event_name ?? '（名称なし）')}
-      <span class="frame-badge ${badgeType}">${p.is_indoor ? 'Indoor' : (p.map_type ?? '')}</span>
+      ${popupTypeBadge}${popupSubtypeBadge}
     </div>
     <div class="frame-popup-meta">
       📍 ${escHtml(p.terrain_name ?? '')}
