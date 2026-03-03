@@ -1315,13 +1315,19 @@ label.setting-label {
 .maplibregl-ctrl-attrib {
   max-width: calc(100vw - 10px);
 }
-/* 展開時: (i)ボタンを右下に固定（複数行でも開閉で位置が変わらないように） */
-.maplibregl-ctrl-attrib.maplibregl-compact-show .maplibregl-ctrl-attrib-button {
-  top: auto;
-  bottom: 0;
-}
+/* 展開時: Flexboxで(i)をテキスト最終行の右端に表示（空白行なし・開閉で位置固定） */
 .maplibregl-ctrl-attrib.maplibregl-compact-show {
-  padding: 2px 8px 26px 8px; /* 下に(i)ボタン24px+2px分のスペース */
+  display: flex;
+  align-items: flex-end;
+  padding: 2px 8px;
+}
+.maplibregl-ctrl-attrib.maplibregl-compact-show .maplibregl-ctrl-attrib-inner {
+  flex: 1;
+}
+.maplibregl-ctrl-attrib.maplibregl-compact-show .maplibregl-ctrl-attrib-button {
+  position: static; /* absolute を解除してフロー内に配置 */
+  flex-shrink: 0;
+  align-self: flex-end;
 }
 
 /* スマホ向けパネル最適化 */
