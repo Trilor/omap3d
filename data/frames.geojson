@@ -9,7 +9,6 @@
         "map_type":         "sprint",
         "map_subtype":      "campus",
         "event_name":       "2024年度 新人戦",
-        "contour_interval": 2.5,
         "event_date":       "2024-04-21",
         "description":      "北側エリアを広く使用"
       },
@@ -32,7 +31,6 @@
         "map_type":         "sprint",
         "map_subtype":      "campus",
         "event_name":       "2025年度 公認大会",
-        "contour_interval": 2.5,
         "event_date":       "2025-05-11",
         "description":      "南側スタジアム周辺に限定"
       },
@@ -55,7 +53,6 @@
         "map_type":         "sprint",
         "map_subtype":      "stadium",
         "event_name":       "2025年度 館内OL",
-        "contour_interval": null,
         "event_date":       "2025-01-19",
         "description":      "総合体育館1・2F"
       },
@@ -78,7 +75,6 @@
         "map_type":         "forest",
         "map_subtype":      "park",
         "event_name":       "2023年度 春合宿",
-        "contour_interval": 5.0,
         "event_date":       "2023-03-25",
         "description":      "公園南エリア中心"
       },
@@ -101,7 +97,6 @@
         "map_type":         "forest",
         "map_subtype":      "park",
         "event_name":       "2025年度 秋季大会",
-        "contour_interval": 5.0,
         "event_date":       "2025-10-19",
         "description":      "公園全域"
       },
@@ -124,7 +119,6 @@
         "map_type":         "forest",
         "map_subtype":      null,
         "event_name":       "2022年度 山岳OL",
-        "contour_interval": 5.0,
         "event_date":       "2022-11-03",
         "description":      "火床周辺の急斜面エリア"
       },
@@ -147,7 +141,6 @@
         "map_type":         "forest",
         "map_subtype":      null,
         "event_name":       "2024年度 秋季大会",
-        "contour_interval": 5.0,
         "event_date":       "2024-11-10",
         "description":      "稜線・北側斜面を中心"
       },

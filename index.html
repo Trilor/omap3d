@@ -4374,7 +4374,6 @@ function buildFramePopupHtml(frameId) {
     <div class="frame-popup-meta">
       📍 ${escHtml(p.terrain_name ?? '')} ${typeBadgeH}${subtypeBadgeH}
       ${p.event_date ? ` ／ 📅 ${escHtml(p.event_date)}` : ''}
-      ${p.contour_interval ? `<br>等高線: ${p.contour_interval}m` : ''}
       ${p.description ? `<br><span style="color:#999">${escHtml(p.description)}</span>` : ''}
     </div>
     ${hasImages ? `
