@@ -4005,8 +4005,8 @@ function addImageLayerToMap(sourceId, layerId, imageUrl, coordinates, opacity) {
   // GPX 軌跡レイヤーの下・枠レイヤーの上に配置する
   if (map.getLayer('gpx-track-outline')) {
     map.moveLayer(layerId, 'gpx-track-outline');
-  } else if (map.getLayer('frames-outline-empty')) {
-    map.moveLayer(layerId, 'frames-outline-empty');
+  } else if (map.getLayer('frames-outline')) {
+    map.moveLayer(layerId, 'frames-outline');
   } else {
     map.moveLayer(layerId);
   }
@@ -4075,28 +4075,25 @@ function updateFrameGeoJsonSource() {
   // 初回追加: ソースとレイヤーを作成する
   map.addSource('frames-src', { type: 'geojson', data: fc });
 
+  // map_subtype/map_type に基づく色: stadium=紫 / forest=黄 / sprint=オレンジ / 不明=グレー
+  const FRAME_COLOR_EXPR = [
+    'case',
+    ['==', ['get', 'map_subtype'], 'stadium'], '#7c3fff',
+    ['==', ['get', 'map_type'],    'forest'],  '#c8a000',
+    ['==', ['get', 'map_type'],    'sprint'],  '#ff7700',
+    '#888888',
+  ];
+
   // 塗り潰しレイヤー（クリック判定用 + 薄い面表示）
   map.addLayer({
     id: 'frames-fill', type: 'fill', source: 'frames-src',
-    paint: { 'fill-color': '#4a7c59', 'fill-opacity': 0.12 },
+    paint: { 'fill-color': FRAME_COLOR_EXPR, 'fill-opacity': 0.12 },
   });
 
-  // 画像なし枠: グレーの実線
-  // ※ line-dasharray はデータドリブン式非対応のため filter で2レイヤーに分ける
+  // 枠線: map_type/map_subtype で色分け（実線）
   map.addLayer({
-    id: 'frames-outline-empty', type: 'line', source: 'frames-src',
-    filter: ['!=', ['get', '_hasImage'], true],
-    paint: {
-      'line-color': '#888888',
-      'line-width': 2.5,
-    },
-  });
-
-  // 画像あり枠: 緑の実線（太め）
-  map.addLayer({
-    id: 'frames-outline-filled', type: 'line', source: 'frames-src',
-    filter: ['==', ['get', '_hasImage'], true],
-    paint: { 'line-color': '#4a7c59', 'line-width': 3.0 },
+    id: 'frames-outline', type: 'line', source: 'frames-src',
+    paint: { 'line-color': FRAME_COLOR_EXPR, 'line-width': 2.5 },
   });
 
   // ホバーハイライト: feature-state で opacity を切り替える
