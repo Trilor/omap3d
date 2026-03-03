@@ -3969,6 +3969,15 @@ async function executeImgwPlace() {
 /* ====================================================================
    フレームベース 地図カタログ システム
    mapFrames: GeoJSON から読み込んだフレーム（枠）を管理する配列
+
+// map_subtype/map_type に基づくカラー式（frames-src・terrain-boundary-src 共用）
+const FRAME_COLOR_EXPR = [
+  'case',
+  ['==', ['get', 'map_subtype'], 'stadium'], '#7c3fff',
+  ['==', ['get', 'map_type'],    'forest'],  '#c8a000',
+  ['==', ['get', 'map_type'],    'sprint'],  '#ff7700',
+  '#888888',
+];
    各エントリ構造:
    · id            — GeoJSON feature.id（文字列）
    · properties    — GeoJSON の properties オブジェクト
@@ -4047,6 +4056,7 @@ function loadFramesGeojson(geojson) {
 
   // MapLibre GeoJSON ソースを更新（既存は置き換え）
   updateFrameGeoJsonSource();
+  updateTerrainBoundarySource();
   renderFrameList();
   console.log(`フレーム読み込み完了: ${added} 件`);
 }
@@ -4075,15 +4085,6 @@ function updateFrameGeoJsonSource() {
   // 初回追加: ソースとレイヤーを作成する
   map.addSource('frames-src', { type: 'geojson', data: fc });
 
-  // map_subtype/map_type に基づく色: stadium=紫 / forest=黄 / sprint=オレンジ / 不明=グレー
-  const FRAME_COLOR_EXPR = [
-    'case',
-    ['==', ['get', 'map_subtype'], 'stadium'], '#7c3fff',
-    ['==', ['get', 'map_type'],    'forest'],  '#c8a000',
-    ['==', ['get', 'map_type'],    'sprint'],  '#ff7700',
-    '#888888',
-  ];
-
   // 塗り潰しレイヤー（クリック判定用 + 薄い面表示）
   map.addLayer({
     id: 'frames-fill', type: 'fill', source: 'frames-src',
@@ -4105,6 +4106,59 @@ function updateFrameGeoJsonSource() {
       'line-opacity': ['case', ['boolean', ['feature-state', 'hovered'], false], 1, 0],
     },
   });
+}
+
+// ---- テレイン境界 GeoJSON ソース / レイヤーを作成または更新する ----
+// terrain_polygon プロパティ（[[lng,lat],...]）を持つフレームから
+// terrain_name ごとにユニーク化したテレイン境界を描画する。
+function updateTerrainBoundarySource() {
+  const seen = new Set();
+  const features = [];
+  for (const f of mapFrames) {
+    const poly = f.properties.terrain_polygon;
+    if (!Array.isArray(poly) || poly.length < 3) continue;
+    const tn = f.properties.terrain_name ?? '';
+    if (seen.has(tn)) continue;
+    seen.add(tn);
+    features.push({
+      type: 'Feature',
+      properties: {
+        terrain_name: tn,
+        map_type:     f.properties.map_type    ?? '',
+        map_subtype:  f.properties.map_subtype ?? '',
+      },
+      geometry: {
+        type: 'Polygon',
+        coordinates: [[ ...poly, poly[0] ]],
+      },
+    });
+  }
+
+  const fc = { type: 'FeatureCollection', features };
+
+  if (map.getSource('terrain-boundary-src')) {
+    map.getSource('terrain-boundary-src').setData(fc);
+    return;
+  }
+  if (features.length === 0) return;
+
+  map.addSource('terrain-boundary-src', { type: 'geojson', data: fc });
+
+  // テレイン境界: 薄い塗り（frames-fill より下層に挿入）
+  map.addLayer({
+    id: 'terrain-boundary-fill', type: 'fill', source: 'terrain-boundary-src',
+    paint: { 'fill-color': FRAME_COLOR_EXPR, 'fill-opacity': 0.06 },
+  }, 'frames-fill');
+
+  // テレイン境界: 破線アウトライン（frames-fill より下層）
+  map.addLayer({
+    id: 'terrain-boundary-outline', type: 'line', source: 'terrain-boundary-src',
+    paint: {
+      'line-color': FRAME_COLOR_EXPR,
+      'line-width': 1.5,
+      'line-dasharray': [5, 4],
+    },
+  }, 'frames-fill');
 }
 
 // ---- フレーム feature-state を更新する ----
