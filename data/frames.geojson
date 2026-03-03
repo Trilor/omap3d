@@ -1,17 +1,20 @@
 {
   "type": "FeatureCollection",
+  "terrains": {
+    "yoshida":     { "terrain_name": "吉田キャンパス", "map_type": "sprint", "map_subtype": "campus" },
+    "takaragaike": { "terrain_name": "宝ヶ池",         "map_type": "forest", "map_subtype": "park"   },
+    "daimonji":    { "terrain_name": "大文字山",        "map_type": "forest", "map_subtype": null     }
+  },
   "features": [
     {
       "type": "Feature",
       "id": "yoshida_2024_shinjin",
       "properties": {
-        "terrain_name": "吉田キャンパス",
-        "event_name": "2024年度 新人戦",
-        "map_type": "sprint",
-        "map_subtype": "campus",
+        "terrain_id":       "yoshida",
+        "event_name":       "2024年度 新人戦",
         "contour_interval": 2.5,
-        "event_date": "2024-04-21",
-        "description": "北側エリアを広く使用"
+        "event_date":       "2024-04-21",
+        "description":      "北側エリアを広く使用"
       },
       "geometry": {
         "type": "Polygon",
@@ -28,13 +31,11 @@
       "type": "Feature",
       "id": "yoshida_2025_kounin",
       "properties": {
-        "terrain_name": "吉田キャンパス",
-        "event_name": "2025年度 公認大会",
-        "map_type": "sprint",
-        "map_subtype": "campus",
+        "terrain_id":       "yoshida",
+        "event_name":       "2025年度 公認大会",
         "contour_interval": 2.5,
-        "event_date": "2025-05-11",
-        "description": "南側スタジアム周辺に限定"
+        "event_date":       "2025-05-11",
+        "description":      "南側スタジアム周辺に限定"
       },
       "geometry": {
         "type": "Polygon",
@@ -51,13 +52,11 @@
       "type": "Feature",
       "id": "yoshida_2025_indoor",
       "properties": {
-        "terrain_name": "吉田キャンパス",
-        "event_name": "2025年度 館内OL",
-        "map_type": "sprint",
-        "map_subtype": "stadium",
+        "terrain_id":       "yoshida",
+        "event_name":       "2025年度 館内OL",
         "contour_interval": null,
-        "event_date": "2025-01-19",
-        "description": "総合体育館1・2F"
+        "event_date":       "2025-01-19",
+        "description":      "総合体育館1・2F"
       },
       "geometry": {
         "type": "Polygon",
@@ -74,13 +73,11 @@
       "type": "Feature",
       "id": "takaragaike_2023_haru",
       "properties": {
-        "terrain_name": "宝ヶ池",
-        "event_name": "2023年度 春合宿",
-        "map_type": "forest",
-        "map_subtype": "park",
+        "terrain_id":       "takaragaike",
+        "event_name":       "2023年度 春合宿",
         "contour_interval": 5.0,
-        "event_date": "2023-03-25",
-        "description": "公園南エリア中心"
+        "event_date":       "2023-03-25",
+        "description":      "公園南エリア中心"
       },
       "geometry": {
         "type": "Polygon",
@@ -97,13 +94,11 @@
       "type": "Feature",
       "id": "takaragaike_2025_shuuki",
       "properties": {
-        "terrain_name": "宝ヶ池",
-        "event_name": "2025年度 秋季大会",
-        "map_type": "forest",
-        "map_subtype": "park",
+        "terrain_id":       "takaragaike",
+        "event_name":       "2025年度 秋季大会",
         "contour_interval": 5.0,
-        "event_date": "2025-10-19",
-        "description": "公園全域"
+        "event_date":       "2025-10-19",
+        "description":      "公園全域"
       },
       "geometry": {
         "type": "Polygon",
@@ -120,13 +115,11 @@
       "type": "Feature",
       "id": "daimonji_2022_forest",
       "properties": {
-        "terrain_name": "大文字山",
-        "event_name": "2022年度 山岳OL",
-        "map_type": "forest",
-        "map_subtype": null,
+        "terrain_id":       "daimonji",
+        "event_name":       "2022年度 山岳OL",
         "contour_interval": 5.0,
-        "event_date": "2022-11-03",
-        "description": "火床周辺の急斜面エリア"
+        "event_date":       "2022-11-03",
+        "description":      "火床周辺の急斜面エリア"
       },
       "geometry": {
         "type": "Polygon",
@@ -143,13 +136,11 @@
       "type": "Feature",
       "id": "daimonji_2024_forest",
       "properties": {
-        "terrain_name": "大文字山",
-        "event_name": "2024年度 秋季大会",
-        "map_type": "forest",
-        "map_subtype": null,
+        "terrain_id":       "daimonji",
+        "event_name":       "2024年度 秋季大会",
         "contour_interval": 5.0,
-        "event_date": "2024-11-10",
-        "description": "稜線・北側斜面を中心"
+        "event_date":       "2024-11-10",
+        "description":      "稜線・北側斜面を中心"
       },
       "geometry": {
         "type": "Polygon",

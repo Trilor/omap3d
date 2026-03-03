@@ -3964,6 +3964,7 @@ async function executeImgwPlace() {
    · layerId       — MapLibre raster layer ID（null = 未割当）
    ==================================================================== */
 const mapFrames = [];
+let   terrainMap         = {};   // terrain_id → { terrain_name, map_type, map_subtype }
 let   frameImgCounter    = 0;   // 画像ごとのユニーク ID カウンター
 let   currentFramePicker = null; // 現在画像ピッカーを開いているフレーム ID
 let   frameHoverPopup    = null; // ホバー用ポップアップ（単一共有）
@@ -4017,6 +4018,9 @@ function featureToFrameEntry(feature) {
 // ---- GeoJSON を読み込んで mapFrames に追加し枠を描画する ----
 function loadFramesGeojson(geojson) {
   if (!geojson?.features) { alert('GeoJSONの形式が正しくありません。'); return; }
+
+  // テレインメタデータをマージ（terrain_id → {terrain_name, map_type, map_subtype}）
+  if (geojson.terrains) Object.assign(terrainMap, geojson.terrains);
 
   let added = 0;
   for (const feature of geojson.features) {
@@ -4114,12 +4118,12 @@ function renderFrameList(query) {
 
   const q = (query ?? '').trim().toLowerCase();
 
-  // フレームを terrain_name でグループ化し、event_date で降順ソートする
-  const groups = new Map(); // terrain_name → frame[]
+  // フレームを terrain_id でグループ化し、event_date で降順ソートする
+  const groups = new Map(); // terrain_id → frame[]
   for (const f of mapFrames) {
-    const t = f.properties.terrain_name ?? '（未分類）';
-    if (!groups.has(t)) groups.set(t, []);
-    groups.get(t).push(f);
+    const tid = f.properties.terrain_id ?? '（未分類）';
+    if (!groups.has(tid)) groups.set(tid, []);
+    groups.get(tid).push(f);
   }
   // 各グループ内を event_date 降順でソートする
   for (const arr of groups.values()) {
@@ -4128,12 +4132,15 @@ function renderFrameList(query) {
 
   listEl.innerHTML = '';
 
-  for (const [terrain, frames] of groups) {
+  for (const [tid, frames] of groups) {
+    const terrain = terrainMap[tid] ?? {};
+    const terrainName = terrain.terrain_name ?? tid;
+
     // 検索フィルター
     const matched = frames.filter(f => {
       if (!q) return true;
       const en = (f.properties.event_name ?? '').toLowerCase();
-      const tn = terrain.toLowerCase();
+      const tn = terrainName.toLowerCase();
       return en.includes(q) || tn.includes(q);
     });
     if (matched.length === 0) continue;
@@ -4144,8 +4151,12 @@ function renderFrameList(query) {
 
     const summary = document.createElement('summary');
     const loadedCount = matched.filter(f => f.images.length > 0).length;
+    const typeKey    = terrain.map_type    ?? '';
+    const subtypeKey = terrain.map_subtype ?? '';
+    const typeBadgeH    = typeKey    ? `<span class="frame-badge ${typeKey}">${escHtml(MAP_TYPE_JA[typeKey] ?? typeKey)}</span>` : '';
+    const subtypeBadgeH = subtypeKey ? `<span class="frame-badge subtype">${escHtml(MAP_SUBTYPE_JA[subtypeKey] ?? subtypeKey)}</span>` : '';
     summary.innerHTML =
-      `${escHtml(terrain)}<span class="terrain-group-count">${loadedCount}/${matched.length}</span>`;
+      `${escHtml(terrainName)}${typeBadgeH}${subtypeBadgeH}<span class="terrain-group-count">${loadedCount}/${matched.length}</span>`;
     details.appendChild(summary);
 
     for (const frame of matched) {
@@ -4167,11 +4178,6 @@ function buildFrameEntryEl(frame) {
   const p         = frame.properties;
   const hasImages = frame.images.length > 0;
   const pct       = Math.round(frame.opacity * 100);
-  const typeKey     = p.map_type ?? '';
-  const subtypeKey  = p.map_subtype ?? '';
-  const typeBadge   = typeKey    ? `<span class="frame-badge ${typeKey}">${escHtml(MAP_TYPE_JA[typeKey] ?? typeKey)}</span>` : '';
-  const subtypeBadge = subtypeKey ? `<span class="frame-badge subtype">${escHtml(MAP_SUBTYPE_JA[subtypeKey] ?? subtypeKey)}</span>` : '';
-
   const div = document.createElement('div');
   div.className = 'frame-entry';
   div.dataset.frameId = frame.id;
@@ -4183,7 +4189,6 @@ function buildFrameEntryEl(frame) {
     <input type="checkbox" class="frame-vis-chk" ${hasImages ? 'checked' : ''} title="画像レイヤーの表示/非表示" />
     <span class="frame-status-dot ${hasImages ? 'has-image' : ''}"></span>
     <span class="frame-event-name" title="${escHtml(p.event_name ?? '')}">${escHtml(p.event_name ?? '（名称なし）')}</span>
-    ${typeBadge}${subtypeBadge}
     <button class="frame-img-pick-btn" title="画像を割り当て" onclick="openFrameImgPicker('${frame.id}')">📷</button>
   `;
   div.appendChild(header);
@@ -4348,16 +4353,19 @@ function buildFramePopupHtml(frameId) {
   if (!frame) return '';
   const p         = frame.properties;
   const hasImages = frame.images.length > 0;
-  const popupTypeBadge    = p.map_type    ? `<span class="frame-badge ${p.map_type}">${escHtml(MAP_TYPE_JA[p.map_type] ?? p.map_type)}</span>` : '';
-  const popupSubtypeBadge = p.map_subtype ? `<span class="frame-badge subtype">${escHtml(MAP_SUBTYPE_JA[p.map_subtype] ?? p.map_subtype)}</span>` : '';
+  const terrain   = terrainMap[p.terrain_id] ?? {};
+  const terrainName = terrain.terrain_name ?? p.terrain_id ?? '';
+  const typeKey    = terrain.map_type    ?? '';
+  const subtypeKey = terrain.map_subtype ?? '';
+  const typeBadgeH    = typeKey    ? `<span class="frame-badge ${typeKey}">${escHtml(MAP_TYPE_JA[typeKey] ?? typeKey)}</span>` : '';
+  const subtypeBadgeH = subtypeKey ? `<span class="frame-badge subtype">${escHtml(MAP_SUBTYPE_JA[subtypeKey] ?? subtypeKey)}</span>` : '';
 
   return `<div class="frame-popup">
     <div class="frame-popup-title">
       ${escHtml(p.event_name ?? '（名称なし）')}
-      ${popupTypeBadge}${popupSubtypeBadge}
     </div>
     <div class="frame-popup-meta">
-      📍 ${escHtml(p.terrain_name ?? '')}
+      📍 ${escHtml(terrainName)} ${typeBadgeH}${subtypeBadgeH}
       ${p.event_date ? ` ／ 📅 ${escHtml(p.event_date)}` : ''}
       ${p.contour_interval ? `<br>等高線: ${p.contour_interval}m` : ''}
       ${p.description ? `<br><span style="color:#999">${escHtml(p.description)}</span>` : ''}
