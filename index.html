@@ -3987,8 +3987,8 @@ function addImageLayerToMap(sourceId, layerId, imageUrl, coordinates, opacity) {
   // GPX 軌跡レイヤーの下・枠レイヤーの上に配置する
   if (map.getLayer('gpx-track-outline')) {
     map.moveLayer(layerId, 'gpx-track-outline');
-  } else if (map.getLayer('frames-outline')) {
-    map.moveLayer(layerId, 'frames-outline');
+  } else if (map.getLayer('frames-outline-empty')) {
+    map.moveLayer(layerId, 'frames-outline-empty');
   } else {
     map.moveLayer(layerId);
   }
@@ -4057,39 +4057,38 @@ function updateFrameGeoJsonSource() {
   // 初回追加: ソースとレイヤーを作成する
   map.addSource('frames-src', { type: 'geojson', data: fc });
 
-  // 塗り潰しレイヤー（半透明・クリック判定用）
+  // 塗り潰しレイヤー（クリック判定用・ほぼ透明）
   map.addLayer({
     id: 'frames-fill', type: 'fill', source: 'frames-src',
+    paint: { 'fill-color': '#4a7c59', 'fill-opacity': 0.04 },
+  });
+
+  // 画像なし枠: 灰色の破線
+  // ※ line-dasharray はデータドリブン式非対応のため filter で2レイヤーに分ける
+  map.addLayer({
+    id: 'frames-outline-empty', type: 'line', source: 'frames-src',
+    filter: ['!=', ['get', '_hasImage'], true],
     paint: {
-      'fill-color': [
-        'case',
-        ['==', ['get', '_hasImage'], true], '#4a7c59', '#888888',
-      ],
-      'fill-opacity': 0.06,
+      'line-color': '#999999',
+      'line-width': 1.5,
+      'line-dasharray': [4, 3],
     },
   });
 
-  // 枠線レイヤー — 画像なし: 灰色細線、画像あり: 緑太線
+  // 画像あり枠: 緑の実線
   map.addLayer({
-    id: 'frames-outline', type: 'line', source: 'frames-src',
+    id: 'frames-outline-filled', type: 'line', source: 'frames-src',
+    filter: ['==', ['get', '_hasImage'], true],
+    paint: { 'line-color': '#4a7c59', 'line-width': 2.5 },
+  });
+
+  // ホバーハイライト: feature-state で opacity を切り替える
+  map.addLayer({
+    id: 'frames-hover', type: 'line', source: 'frames-src',
     paint: {
-      'line-color': [
-        'case',
-        ['boolean', ['feature-state', 'hovered'], false], '#ff9900',
-        ['==', ['get', '_hasImage'], true],               '#4a7c59',
-        '#888888',
-      ],
-      'line-width': [
-        'case',
-        ['boolean', ['feature-state', 'hovered'], false], 2.5,
-        ['==', ['get', '_hasImage'], true],               2.0,
-        1.0,
-      ],
-      'line-dasharray': [
-        'step', ['zoom'],
-        ['literal', [3, 2]], 0,   // 低ズームは常に破線（画像なしの判別が難しいため）
-        ['literal', [1, 0]], 20,  // 高ズームでは実線（ダッシュ非対応なので zoom step で代用）
-      ],
+      'line-color': '#ff9900',
+      'line-width': 3.5,
+      'line-opacity': ['case', ['boolean', ['feature-state', 'hovered'], false], 1, 0],
     },
   });
 }
@@ -4177,7 +4176,7 @@ function buildFrameEntryEl(frame) {
   const header = document.createElement('div');
   header.className = 'frame-entry-header';
   header.innerHTML = `
-    <input type="checkbox" class="frame-vis-chk" ${hasImages && frame.opacity > 0 ? 'checked' : ''} ${!hasImages ? 'disabled' : ''} title="表示/非表示" />
+    <input type="checkbox" class="frame-vis-chk" ${hasImages ? 'checked' : ''} title="画像レイヤーの表示/非表示" />
     <span class="frame-status-dot ${hasImages ? 'has-image' : ''}"></span>
     <span class="frame-event-name" title="${escHtml(p.event_name ?? '')}">${escHtml(p.event_name ?? '（名称なし）')}</span>
     ${badgeLabel ? `<span class="frame-badge ${badgeType}">${escHtml(badgeLabel)}</span>` : ''}
