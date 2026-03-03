@@ -1,0 +1,173 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "yoshida_2024_shinjin",
+      "properties": {
+        "terrain_name": "吉田キャンパス",
+        "event_name": "2024年度 新人戦",
+        "year": 2024,
+        "map_type": "Sprint",
+        "is_indoor": false,
+        "contour_interval": 2.5,
+        "event_date": "2024-04-21",
+        "description": "北側エリアを広く使用"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [135.7793, 35.0278],
+          [135.7868, 35.0278],
+          [135.7868, 35.0220],
+          [135.7793, 35.0220],
+          [135.7793, 35.0278]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "yoshida_2025_kounin",
+      "properties": {
+        "terrain_name": "吉田キャンパス",
+        "event_name": "2025年度 公認大会",
+        "year": 2025,
+        "map_type": "Sprint",
+        "is_indoor": false,
+        "contour_interval": 2.5,
+        "event_date": "2025-05-11",
+        "description": "南側スタジアム周辺に限定"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [135.7810, 35.0260],
+          [135.7870, 35.0260],
+          [135.7870, 35.0225],
+          [135.7810, 35.0225],
+          [135.7810, 35.0260]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "yoshida_2025_indoor",
+      "properties": {
+        "terrain_name": "吉田キャンパス",
+        "event_name": "2025年度 館内OL",
+        "year": 2025,
+        "map_type": "Sprint",
+        "is_indoor": true,
+        "contour_interval": null,
+        "event_date": "2025-01-19",
+        "description": "総合体育館1・2F"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [135.7818, 35.0242],
+          [135.7836, 35.0242],
+          [135.7836, 35.0233],
+          [135.7818, 35.0233],
+          [135.7818, 35.0242]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "takaragaike_2023_haru",
+      "properties": {
+        "terrain_name": "宝ヶ池",
+        "event_name": "2023年度 春合宿",
+        "year": 2023,
+        "map_type": "Forest",
+        "is_indoor": false,
+        "contour_interval": 5.0,
+        "event_date": "2023-03-25",
+        "description": "公園南エリア中心"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [135.7790, 35.0740],
+          [135.7870, 35.0740],
+          [135.7870, 35.0660],
+          [135.7790, 35.0660],
+          [135.7790, 35.0740]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "takaragaike_2025_shuuki",
+      "properties": {
+        "terrain_name": "宝ヶ池",
+        "event_name": "2025年度 秋季大会",
+        "year": 2025,
+        "map_type": "Forest",
+        "is_indoor": false,
+        "contour_interval": 5.0,
+        "event_date": "2025-10-19",
+        "description": "公園全域"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [135.7775, 35.0760],
+          [135.7890, 35.0760],
+          [135.7890, 35.0650],
+          [135.7775, 35.0650],
+          [135.7775, 35.0760]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "daimonji_2022_forest",
+      "properties": {
+        "terrain_name": "大文字山",
+        "event_name": "2022年度 山岳OL",
+        "year": 2022,
+        "map_type": "Forest",
+        "is_indoor": false,
+        "contour_interval": 5.0,
+        "event_date": "2022-11-03",
+        "description": "火床周辺の急斜面エリア"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [135.8100, 35.0140],
+          [135.8240, 35.0140],
+          [135.8240, 35.0020],
+          [135.8100, 35.0020],
+          [135.8100, 35.0140]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "daimonji_2024_forest",
+      "properties": {
+        "terrain_name": "大文字山",
+        "event_name": "2024年度 秋季大会",
+        "year": 2024,
+        "map_type": "Forest",
+        "is_indoor": false,
+        "contour_interval": 5.0,
+        "event_date": "2024-11-10",
+        "description": "稜線・北側斜面を中心"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [135.8080, 35.0160],
+          [135.8230, 35.0160],
+          [135.8230, 35.0040],
+          [135.8080, 35.0040],
+          [135.8080, 35.0160]
+        ]]
+      }
+    }
+  ]
+}

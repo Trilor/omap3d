@@ -603,6 +603,209 @@ label.setting-label {
   color: #fff;
 }
 
+/* ===== 地図カタログ ===== */
+
+/* 検索バー */
+.catalog-search-wrap {
+  padding: 6px 10px 4px;
+}
+.catalog-search-wrap input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 5px 8px;
+  border: 1px solid #b0b8b0;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #333;
+  background: #f9f9f9;
+  outline: none;
+}
+.catalog-search-wrap input:focus {
+  border-color: #4a7c59;
+  background: #fff;
+}
+
+/* テレイングループ（<details>） */
+.terrain-group {
+  margin: 0;
+  border-bottom: 1px solid #e4e4e4;
+}
+.terrain-group > summary {
+  padding: 5px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #444;
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  user-select: none;
+  background: #f8f8f8;
+}
+.terrain-group > summary::-webkit-details-marker { display: none; }
+.terrain-group > summary::before {
+  content: '▶';
+  font-size: 9px;
+  color: #aaa;
+  transition: transform 0.15s;
+  flex-shrink: 0;
+}
+.terrain-group[open] > summary::before { transform: rotate(90deg); }
+.terrain-group-count {
+  margin-left: auto;
+  font-size: 10px;
+  color: #aaa;
+  font-weight: 400;
+}
+
+/* フレームエントリ行 */
+.frame-entry {
+  padding: 5px 10px 5px;
+  border-bottom: 1px solid #f0f0f0;
+}
+.frame-entry:last-child { border-bottom: none; }
+
+/* ヘッダー行: 状態ドット + 大会名 + バッジ + 画像ボタン */
+.frame-entry-header {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+/* 可視チェックボックス */
+.frame-vis-chk { flex-shrink: 0; }
+
+/* 状態ドット（緑=画像あり、灰=なし） */
+.frame-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: #ccc;
+  border: 1.5px solid #bbb;
+}
+.frame-status-dot.has-image {
+  background: #4a7c59;
+  border-color: #3a6449;
+}
+
+/* 大会名テキスト */
+.frame-event-name {
+  font-size: 11px;
+  color: #333;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.frame-event-name.disabled { color: #aaa; }
+
+/* バッジ（種別タグ） */
+.frame-badge {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.frame-badge.sprint  { background: #fff3e0; color: #c77700; border: 1px solid #f0c060; }
+.frame-badge.forest  { background: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
+.frame-badge.indoor  { background: #ede7f6; color: #5e35b1; border: 1px solid #b39ddb; }
+
+/* 画像ピッカーボタン（小） */
+.frame-img-pick-btn {
+  flex-shrink: 0;
+  background: none;
+  border: 1px solid #c8c8c8;
+  border-radius: 3px;
+  padding: 2px 5px;
+  font-size: 11px;
+  cursor: pointer;
+  color: #666;
+  line-height: 1.2;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.frame-img-pick-btn:hover {
+  background: #4a7c59;
+  color: #fff;
+  border-color: #4a7c59;
+}
+
+/* フレームコントロール（プルダウン＋スライダー）— 画像ありの時のみ表示 */
+.frame-controls {
+  margin-top: 4px;
+}
+.frame-img-select {
+  width: 100%;
+  padding: 3px 5px;
+  border: 1px solid #c8c8c8;
+  border-radius: 3px;
+  font-size: 11px;
+  color: #333;
+  background: #fff;
+  margin-bottom: 3px;
+}
+
+/* MapLibreポップアップ内のカスタムスタイル */
+.frame-popup { font-size: 12px; min-width: 200px; }
+.frame-popup-title {
+  font-weight: 700;
+  font-size: 13px;
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.frame-popup-meta {
+  color: #666;
+  font-size: 11px;
+  margin-bottom: 6px;
+  line-height: 1.5;
+}
+.frame-popup-select {
+  width: 100%;
+  padding: 4px 6px;
+  border: 1px solid #c8c8c8;
+  border-radius: 3px;
+  font-size: 11px;
+  margin-bottom: 6px;
+}
+.frame-popup-upload {
+  display: block;
+  width: 100%;
+  padding: 6px 10px;
+  background: #4a7c59;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+}
+.frame-popup-upload:hover { background: #3a6449; }
+
+/* 重なり時の選択メニュー */
+.frame-overlap-list { list-style: none; margin: 0; padding: 0; }
+.frame-overlap-item {
+  padding: 5px 8px;
+  cursor: pointer;
+  border-bottom: 1px solid #f0f0f0;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.frame-overlap-item:hover { background: #f0f8f3; }
+.frame-overlap-item:last-child { border-bottom: none; }
+
 /* 画像+JGW モーダル起動ボタン（KMZボタンと同スタイル） */
 #imgw-modal-open-btn {
   display: block;
@@ -1536,9 +1739,23 @@ label.setting-label {
     <div id="place-search-results"></div>
   </div>
 
-  <!-- ===== OMAP（KMZ・画像+JGW）===== -->
-  <details class="panel-section" open>
-    <summary>OMAP</summary>
+  <!-- ===== 地図カタログ（フレームベース） ===== -->
+  <details class="panel-section" id="catalog-section" open>
+    <summary>地図カタログ</summary>
+    <!-- 検索バー -->
+    <div class="catalog-search-wrap">
+      <input id="catalog-search" type="text" placeholder="テレイン・大会名で検索…" autocomplete="off" />
+    </div>
+    <!-- テレイングループ一覧（JS生成） -->
+    <div id="catalog-frame-list"></div>
+    <!-- GeoJSON 読み込みボタン -->
+    <input type="file" id="geojson-file-input" accept=".geojson,.json" style="display:none" />
+    <button id="geojson-load-btn" class="panel-btn-outline" style="margin-top:6px">GeoJSONを読み込む</button>
+  </details>
+
+  <!-- ===== OMAP（KMZ・画像+JGW / 後方互換）===== -->
+  <details class="panel-section">
+    <summary>OMAP（KMZ・JGW）</summary>
     <div id="kmz-list"></div>
     <input type="file" id="kmz-file-input" accept=".kmz" multiple style="display:none" />
     <button id="kmz-upload-btn">＋ KMZ を追加</button>
@@ -1781,6 +1998,9 @@ label.setting-label {
 </select>
 </div>
 <!-- ドラッグ&ドロップ時に表示されるオーバーレイ -->
+<!-- フレームへの画像割り当て用（全フレームで共有する隠し input） -->
+<input type="file" id="frame-img-input" accept=".jpg,.jpeg,.png" multiple style="display:none" />
+
 <div id="drop-overlay">KMZ・画像+JGW・GPX をドロップ</div>
 
 <!-- ===== 画像+JGW 追加モーダル ===== -->
@@ -3188,8 +3408,10 @@ map.on('load', async () => {
 
   // ④ Globe投影（ズーム7以下で地球が球体に見える広域表示）
   // MapLibre v5 以降で利用可能。高ズームではメルカトルに自動移行する。
-  // 球体表示を有効にする場合は下行のコメントを外す:
-  // map.setProjection({ type: 'globe' });
+  map.setProjection({ type: 'globe' });
+
+  // ⑤ フレームベース 地図カタログを自動読み込みする
+  autoLoadFrames();
 
   console.log('3D OMap Viewer 初期化完了（OriLibreベースマップ）');
 });
@@ -3717,6 +3939,441 @@ async function executeImgwPlace() {
     alert(`読み込みエラー: ${err.message}`);
     placeBtn.disabled = false;
     placeBtn.textContent = '地図に配置';
+  }
+}
+
+
+/* ====================================================================
+   フレームベース 地図カタログ システム
+   mapFrames: GeoJSON から読み込んだフレーム（枠）を管理する配列
+   各エントリ構造:
+   · id            — GeoJSON feature.id（文字列）
+   · properties    — GeoJSON の properties オブジェクト
+   · coordinates   — 4隅 [[lng,lat],...] (TL→TR→BR→BL)
+   · opacity       — 透過率 0–1（画像切り替え時も維持）
+   · images        — [{ id, name, url }] 割り当て済み画像
+   · activeImageId — 表示中の画像 id（null = 未割当）
+   · sourceId      — MapLibre image source ID（null = 未割当）
+   · layerId       — MapLibre raster layer ID（null = 未割当）
+   ==================================================================== */
+const mapFrames = [];
+let   frameImgCounter    = 0;   // 画像ごとのユニーク ID カウンター
+let   currentFramePicker = null; // 現在画像ピッカーを開いているフレーム ID
+let   frameHoverPopup    = null; // ホバー用ポップアップ（単一共有）
+let   frameClickPopup    = null; // クリック用ポップアップ（単一共有）
+
+// ---- 汎用：MapLibre に image ソース + raster レイヤーを追加・更新する ----
+function addImageLayerToMap(sourceId, layerId, imageUrl, coordinates, opacity) {
+  if (map.getSource(sourceId)) {
+    // ソースが既存 → 座標は変えず画像だけ差し替える
+    map.getSource(sourceId).updateImage({ url: imageUrl });
+    return;
+  }
+  map.addSource(sourceId, { type: 'image', url: imageUrl, coordinates });
+  map.addLayer({
+    id: layerId, type: 'raster', source: sourceId,
+    minzoom: 0, maxzoom: 24,
+    paint: {
+      'raster-opacity':       toRasterOpacity(opacity),
+      'raster-fade-duration': 0,
+      'raster-resampling':    'linear',
+    },
+  });
+  // GPX 軌跡レイヤーの下・枠レイヤーの上に配置する
+  if (map.getLayer('gpx-track-outline')) {
+    map.moveLayer(layerId, 'gpx-track-outline');
+  } else if (map.getLayer('frames-outline')) {
+    map.moveLayer(layerId, 'frames-outline');
+  } else {
+    map.moveLayer(layerId);
+  }
+}
+
+// ---- GeoJSON 解析: Feature → mapFrames エントリに変換 ----
+function featureToFrameEntry(feature) {
+  const ring = feature.geometry?.coordinates?.[0];
+  if (!ring || ring.length < 4) return null;
+  // GeoJSON は [lng,lat] 順。ポリゴン頂点 0–3 を TL,TR,BR,BL として取得する
+  const coordinates = [ring[0], ring[1], ring[2], ring[3]];
+  return {
+    id:           String(feature.id ?? feature.properties?.event_name ?? Math.random()),
+    properties:   { ...feature.properties },
+    coordinates,
+    opacity:      0.8,
+    images:       [],
+    activeImageId: null,
+    sourceId:     null,
+    layerId:      null,
+  };
+}
+
+// ---- GeoJSON を読み込んで mapFrames に追加し枠を描画する ----
+function loadFramesGeojson(geojson) {
+  if (!geojson?.features) { alert('GeoJSONの形式が正しくありません。'); return; }
+
+  let added = 0;
+  for (const feature of geojson.features) {
+    if (feature.geometry?.type !== 'Polygon') continue;
+    const entry = featureToFrameEntry(feature);
+    if (!entry) continue;
+    // 既に同じ ID があればスキップ
+    if (mapFrames.find(f => f.id === entry.id)) continue;
+    mapFrames.push(entry);
+    added++;
+  }
+
+  // MapLibre GeoJSON ソースを更新（既存は置き換え）
+  updateFrameGeoJsonSource();
+  renderFrameList();
+  console.log(`フレーム読み込み完了: ${added} 件`);
+}
+
+// ---- frames-src GeoJSON ソース / レイヤーを作成または更新する ----
+function updateFrameGeoJsonSource() {
+  // 現在の mapFrames 全件を含む FeatureCollection を生成する
+  const fc = {
+    type: 'FeatureCollection',
+    features: mapFrames.map(f => ({
+      type: 'Feature',
+      id:   f.id,
+      properties: { ...f.properties, _hasImage: f.images.length > 0 },
+      geometry: {
+        type: 'Polygon',
+        coordinates: [[ ...f.coordinates, f.coordinates[0] ]],
+      },
+    })),
+  };
+
+  if (map.getSource('frames-src')) {
+    map.getSource('frames-src').setData(fc);
+    return;
+  }
+
+  // 初回追加: ソースとレイヤーを作成する
+  map.addSource('frames-src', { type: 'geojson', data: fc });
+
+  // 塗り潰しレイヤー（半透明・クリック判定用）
+  map.addLayer({
+    id: 'frames-fill', type: 'fill', source: 'frames-src',
+    paint: {
+      'fill-color': [
+        'case',
+        ['==', ['get', '_hasImage'], true], '#4a7c59', '#888888',
+      ],
+      'fill-opacity': 0.06,
+    },
+  });
+
+  // 枠線レイヤー — 画像なし: 灰色細線、画像あり: 緑太線
+  map.addLayer({
+    id: 'frames-outline', type: 'line', source: 'frames-src',
+    paint: {
+      'line-color': [
+        'case',
+        ['boolean', ['feature-state', 'hovered'], false], '#ff9900',
+        ['==', ['get', '_hasImage'], true],               '#4a7c59',
+        '#888888',
+      ],
+      'line-width': [
+        'case',
+        ['boolean', ['feature-state', 'hovered'], false], 2.5,
+        ['==', ['get', '_hasImage'], true],               2.0,
+        1.0,
+      ],
+      'line-dasharray': [
+        'step', ['zoom'],
+        ['literal', [3, 2]], 0,   // 低ズームは常に破線（画像なしの判別が難しいため）
+        ['literal', [1, 0]], 20,  // 高ズームでは実線（ダッシュ非対応なので zoom step で代用）
+      ],
+    },
+  });
+}
+
+// ---- フレーム feature-state を更新する ----
+function updateFrameFeatureState(frameId) {
+  const frame = mapFrames.find(f => f.id === frameId);
+  if (!frame) return;
+  map.setFeatureState(
+    { source: 'frames-src', id: frameId },
+    { hasImage: frame.images.length > 0 }
+  );
+  // ソースデータも更新して _hasImage プロパティを同期する
+  updateFrameGeoJsonSource();
+}
+
+// ---- サイドパネル: フレーム一覧を描画する ----
+function renderFrameList(query) {
+  const listEl = document.getElementById('catalog-frame-list');
+  if (!listEl) return;
+
+  const q = (query ?? '').trim().toLowerCase();
+
+  // フレームを terrain_name でグループ化し、event_date で降順ソートする
+  const groups = new Map(); // terrain_name → frame[]
+  for (const f of mapFrames) {
+    const t = f.properties.terrain_name ?? '（未分類）';
+    if (!groups.has(t)) groups.set(t, []);
+    groups.get(t).push(f);
+  }
+  // 各グループ内を event_date 降順でソートする
+  for (const arr of groups.values()) {
+    arr.sort((a, b) => (b.properties.event_date ?? '').localeCompare(a.properties.event_date ?? ''));
+  }
+
+  listEl.innerHTML = '';
+
+  for (const [terrain, frames] of groups) {
+    // 検索フィルター
+    const matched = frames.filter(f => {
+      if (!q) return true;
+      const en = (f.properties.event_name ?? '').toLowerCase();
+      const tn = terrain.toLowerCase();
+      return en.includes(q) || tn.includes(q);
+    });
+    if (matched.length === 0) continue;
+
+    const details = document.createElement('details');
+    details.className = 'terrain-group';
+    details.open = true;
+
+    const summary = document.createElement('summary');
+    const loadedCount = matched.filter(f => f.images.length > 0).length;
+    summary.innerHTML =
+      `${escHtml(terrain)}<span class="terrain-group-count">${loadedCount}/${matched.length}</span>`;
+    details.appendChild(summary);
+
+    for (const frame of matched) {
+      details.appendChild(buildFrameEntryEl(frame));
+    }
+    listEl.appendChild(details);
+  }
+
+  if (listEl.innerHTML === '' && mapFrames.length > 0) {
+    listEl.innerHTML = '<p style="padding:8px 10px;font-size:11px;color:#aaa">検索結果なし</p>';
+  }
+  if (mapFrames.length === 0) {
+    listEl.innerHTML = '<p style="padding:8px 10px;font-size:11px;color:#aaa">GeoJSONを読み込んでください</p>';
+  }
+}
+
+// ---- フレームエントリの DOM 要素を構築する ----
+function buildFrameEntryEl(frame) {
+  const p         = frame.properties;
+  const hasImages = frame.images.length > 0;
+  const pct       = Math.round(frame.opacity * 100);
+  const badgeType = p.is_indoor ? 'indoor' : (p.map_type ?? 'sprint').toLowerCase();
+  const badgeLabel = p.is_indoor ? 'Indoor' : (p.map_type ?? '');
+
+  const div = document.createElement('div');
+  div.className = 'frame-entry';
+  div.dataset.frameId = frame.id;
+
+  // --- ヘッダー行 ---
+  const header = document.createElement('div');
+  header.className = 'frame-entry-header';
+  header.innerHTML = `
+    <input type="checkbox" class="frame-vis-chk" ${hasImages && frame.opacity > 0 ? 'checked' : ''} ${!hasImages ? 'disabled' : ''} title="表示/非表示" />
+    <span class="frame-status-dot ${hasImages ? 'has-image' : ''}"></span>
+    <span class="frame-event-name" title="${escHtml(p.event_name ?? '')}">${escHtml(p.event_name ?? '（名称なし）')}</span>
+    ${badgeLabel ? `<span class="frame-badge ${badgeType}">${escHtml(badgeLabel)}</span>` : ''}
+    <button class="frame-img-pick-btn" title="画像を割り当て" onclick="openFrameImgPicker('${frame.id}')">📷</button>
+  `;
+  div.appendChild(header);
+
+  // --- 画像コントロール（画像ありの場合のみ表示）---
+  if (hasImages) {
+    const ctrl = document.createElement('div');
+    ctrl.className = 'frame-controls';
+    ctrl.innerHTML = `
+      <select class="frame-img-select" title="表示する画像を選択">
+        ${frame.images.map(img =>
+          `<option value="${img.id}" ${img.id === frame.activeImageId ? 'selected' : ''}>${escHtml(img.name)}</option>`
+        ).join('')}
+      </select>
+      <div class="opacity-row">
+        <input type="range" id="fslider-${frame.id}" min="0" max="100" step="5" value="${pct}" />
+        <span class="opacity-val" id="fval-${frame.id}">${pct}%</span>
+      </div>`;
+    div.appendChild(ctrl);
+
+    // プルダウン変更
+    ctrl.querySelector('.frame-img-select').addEventListener('change', (e) => {
+      switchFrameImage(frame.id, e.target.value);
+    });
+    // スライダー
+    const sliderEl = ctrl.querySelector(`#fslider-${frame.id}`);
+    const valEl    = ctrl.querySelector(`#fval-${frame.id}`);
+    updateSliderGradient(sliderEl, '#4a7c59');
+    sliderEl.addEventListener('input', () => {
+      frame.opacity = parseInt(sliderEl.value) / 100;
+      valEl.textContent = sliderEl.value + '%';
+      updateSliderGradient(sliderEl, '#4a7c59');
+      if (frame.layerId && map.getLayer(frame.layerId)) {
+        map.setPaintProperty(frame.layerId, 'raster-opacity', toRasterOpacity(frame.opacity));
+      }
+    });
+  }
+
+  // チェックボックス（表示/非表示）
+  const chk = header.querySelector('.frame-vis-chk');
+  chk.addEventListener('change', (e) => {
+    if (!frame.layerId) return;
+    map.setLayoutProperty(frame.layerId, 'visibility', e.target.checked ? 'visible' : 'none');
+  });
+
+  // エントリクリックで地図をフレームにジャンプ
+  header.querySelector('.frame-event-name').addEventListener('click', () => {
+    const lngs = frame.coordinates.map(c => c[0]);
+    const lats  = frame.coordinates.map(c => c[1]);
+    map.fitBounds(
+      [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
+      { padding: 60, duration: 600 }
+    );
+  });
+
+  return div;
+}
+
+// ---- 画像ピッカーを開く（全フレームで共有する hidden input を使用）----
+function openFrameImgPicker(frameId, fromPopup = false) {
+  currentFramePicker = { frameId, fromPopup };
+  document.getElementById('frame-img-input').click();
+}
+
+// ---- 選択した画像ファイルをフレームに割り当てる ----
+async function addImagesToFrame(frameId, files) {
+  const frame = mapFrames.find(f => f.id === frameId);
+  if (!frame) return;
+
+  for (const file of files) {
+    const imgId = frameImgCounter++;
+    const url   = URL.createObjectURL(file);
+    frame.images.push({ id: imgId, name: file.name, url });
+
+    // 最初の画像のとき MapLibre ソース＋レイヤーを新規作成する
+    if (frame.sourceId === null) {
+      const n       = kmzCounter++;
+      frame.sourceId = `kmz-source-${n}`;
+      frame.layerId  = `kmz-layer-${n}`;
+      frame.activeImageId = imgId;
+    }
+    // 最初の画像のみ自動で表示する（追加画像はプルダウンで手動切替）
+    if (frame.activeImageId === imgId) {
+      addImageLayerToMap(frame.sourceId, frame.layerId, url, frame.coordinates, frame.opacity);
+    }
+  }
+
+  // フレーム枠のスタイルと一覧を更新する
+  updateFrameFeatureState(frameId);
+  renderFrameList(document.getElementById('catalog-search')?.value);
+
+  // 最初に読み込んだ時だけ地図をフレームにフィットさせる
+  if (frame.images.length <= files.length) {
+    const panelWidth = document.getElementById('ui-panel')?.offsetWidth ?? 280;
+    const lngs = frame.coordinates.map(c => c[0]);
+    const lats  = frame.coordinates.map(c => c[1]);
+    map.fitBounds(
+      [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
+      { padding: { top: 60, bottom: 60, left: panelWidth + 30, right: 60 },
+        pitch: INITIAL_PITCH, duration: 600, maxZoom: 19 }
+    );
+  }
+}
+
+// ---- フレームの表示画像を切り替える ----
+function switchFrameImage(frameId, imageIdRaw) {
+  const frame = mapFrames.find(f => f.id === frameId);
+  if (!frame || !frame.sourceId) return;
+  const imageId = parseInt(imageIdRaw, 10);
+  const img     = frame.images.find(i => i.id === imageId);
+  if (!img) return;
+  // 座標はそのまま、画像 URL のみ差し替える
+  map.getSource(frame.sourceId).updateImage({ url: img.url });
+  frame.activeImageId = imageId;
+}
+
+// 重複リストからひとつを選んで単一フレームポップアップに切り替える
+function _selectOverlapFrame(frameId) {
+  if (frameClickPopup) {
+    const lngLat = frameClickPopup.getLngLat();
+    frameClickPopup.remove();
+    frameClickPopup = null;
+    showFrameClickPopup(lngLat, [frameId]);
+  }
+}
+
+// ---- 地図クリック時: フレームポップアップを表示する ----
+function showFrameClickPopup(lngLat, frameIds) {
+  if (frameClickPopup) { frameClickPopup.remove(); frameClickPopup = null; }
+  if (!frameIds || frameIds.length === 0) return;
+
+  let html;
+  if (frameIds.length === 1) {
+    html = buildFramePopupHtml(frameIds[0]);
+  } else {
+    // 複数フレーム重複時: 選択メニューを表示する
+    html = `<div class="frame-popup">
+      <div style="font-size:11px;color:#666;margin-bottom:6px;">この地点に複数の枠があります:</div>
+      <ul class="frame-overlap-list">` +
+      frameIds.map(fid => {
+        const f = mapFrames.find(x => x.id === fid);
+        const p = f?.properties ?? {};
+        const dot = f?.images.length > 0 ? '●' : '○';
+        return `<li class="frame-overlap-item" onclick="_selectOverlapFrame('${fid}')" data-fid="${fid}">
+          <span style="color:${f?.images.length > 0 ? '#4a7c59' : '#bbb'}">${dot}</span>
+          <span>${escHtml(p.event_name ?? fid)}</span>
+          <span class="frame-badge ${p.is_indoor ? 'indoor' : (p.map_type ?? '').toLowerCase()}" style="font-size:9px">${p.is_indoor ? 'Indoor' : (p.map_type ?? '')}</span>
+        </li>`;
+      }).join('') +
+      `</ul></div>`;
+  }
+
+  frameClickPopup = new maplibregl.Popup({ maxWidth: '280px', closeButton: true })
+    .setLngLat(lngLat)
+    .setHTML(html)
+    .addTo(map);
+}
+
+// ---- フレームポップアップ HTML を組み立てる ----
+function buildFramePopupHtml(frameId) {
+  const frame = mapFrames.find(f => f.id === frameId);
+  if (!frame) return '';
+  const p         = frame.properties;
+  const hasImages = frame.images.length > 0;
+  const badgeType = p.is_indoor ? 'indoor' : (p.map_type ?? 'sprint').toLowerCase();
+
+  return `<div class="frame-popup">
+    <div class="frame-popup-title">
+      ${escHtml(p.event_name ?? '（名称なし）')}
+      <span class="frame-badge ${badgeType}">${p.is_indoor ? 'Indoor' : (p.map_type ?? '')}</span>
+    </div>
+    <div class="frame-popup-meta">
+      📍 ${escHtml(p.terrain_name ?? '')}
+      ${p.event_date ? ` ／ 📅 ${escHtml(p.event_date)}` : ''}
+      ${p.contour_interval ? `<br>等高線: ${p.contour_interval}m` : ''}
+      ${p.description ? `<br><span style="color:#999">${escHtml(p.description)}</span>` : ''}
+    </div>
+    ${hasImages ? `
+    <select class="frame-popup-select" onchange="switchFrameImage('${frameId}', this.value)">
+      ${frame.images.map(img =>
+        `<option value="${img.id}" ${img.id === frame.activeImageId ? 'selected' : ''}>${escHtml(img.name)}</option>`
+      ).join('')}
+    </select>` : ''}
+    <button class="frame-popup-upload" onclick="openFrameImgPicker('${frameId}', true)">
+      ${hasImages ? '＋ 画像を追加' : '📷 画像を選択'}
+    </button>
+  </div>`;
+}
+
+// ---- 起動時に data/frames.geojson を自動読み込みする ----
+async function autoLoadFrames() {
+  try {
+    const res = await fetch('./data/frames.geojson');
+    if (!res.ok) return; // ファイルが無ければ静かにスキップする
+    const geojson = await res.json();
+    loadFramesGeojson(geojson);
+  } catch (_) {
+    // ローカルファイルシステムでは fetch が失敗する場合があるため無視する
   }
 }
 
@@ -4462,6 +5119,82 @@ imgwJgwInput.addEventListener('change', (e) => {
 
 // 「地図に配置」ボタン
 document.getElementById('imgw-place-btn').addEventListener('click', executeImgwPlace);
+
+// ---- 地図カタログ: GeoJSON 読み込み ----
+const geojsonFileInput = document.getElementById('geojson-file-input');
+document.getElementById('geojson-load-btn').addEventListener('click', () => geojsonFileInput.click());
+geojsonFileInput.addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  try {
+    const text   = await file.text();
+    const geojson = JSON.parse(text);
+    loadFramesGeojson(geojson);
+  } catch (err) {
+    alert(`GeoJSON の読み込みに失敗しました:\n${err.message}`);
+  }
+  e.target.value = '';
+});
+
+// ---- 地図カタログ: フレーム画像ピッカー（全フレームで共有）----
+document.getElementById('frame-img-input').addEventListener('change', async (e) => {
+  if (currentFramePicker && e.target.files.length > 0) {
+    await addImagesToFrame(currentFramePicker.frameId, Array.from(e.target.files));
+    // ポップアップが開いている場合は内容を更新する
+    if (currentFramePicker.fromPopup && frameClickPopup) {
+      const lngLat = frameClickPopup.getLngLat();
+      frameClickPopup.remove();
+      frameClickPopup = null;
+      showFrameClickPopup(lngLat, [currentFramePicker.frameId]);
+    }
+  }
+  currentFramePicker = null;
+  e.target.value = '';
+});
+
+// ---- 地図カタログ: 検索バー ----
+document.getElementById('catalog-search').addEventListener('input', (e) => {
+  renderFrameList(e.target.value);
+});
+
+// ---- 地図カタログ: 地図クリックでフレームポップアップ ----
+map.on('click', (e) => {
+  if (!map.getLayer('frames-fill')) return;
+  const features = map.queryRenderedFeatures(e.point, { layers: ['frames-fill'] });
+  if (features.length === 0) return;
+  showFrameClickPopup(e.lngLat, features.map(f => String(f.id)));
+});
+
+// ---- 地図カタログ: ホバーで枠をハイライト ----
+let _hoveredFrameId = null;
+map.on('mousemove', (e) => {
+  if (!map.getLayer('frames-fill')) return;
+  const features = map.queryRenderedFeatures(e.point, { layers: ['frames-fill'] });
+  if (features.length > 0) {
+    const fid = String(features[0].id);
+    if (_hoveredFrameId !== fid) {
+      if (_hoveredFrameId) {
+        map.setFeatureState({ source: 'frames-src', id: _hoveredFrameId }, { hovered: false });
+      }
+      _hoveredFrameId = fid;
+      map.setFeatureState({ source: 'frames-src', id: fid }, { hovered: true });
+    }
+    map.getCanvas().style.cursor = 'pointer';
+  } else {
+    if (_hoveredFrameId) {
+      map.setFeatureState({ source: 'frames-src', id: _hoveredFrameId }, { hovered: false });
+      _hoveredFrameId = null;
+    }
+    map.getCanvas().style.cursor = '';
+  }
+});
+map.on('mouseleave', () => {
+  if (_hoveredFrameId) {
+    map.setFeatureState({ source: 'frames-src', id: _hoveredFrameId }, { hovered: false });
+    _hoveredFrameId = null;
+    map.getCanvas().style.cursor = '';
+  }
+});
 
 
 /* ========================================================
