@@ -1323,11 +1323,13 @@ label.setting-label {
 }
 .maplibregl-ctrl-attrib.maplibregl-compact-show .maplibregl-ctrl-attrib-inner {
   flex: 1;
+  order: 1; /* DOM順はボタンが先だが、視覚的にテキストを左へ */
 }
 .maplibregl-ctrl-attrib.maplibregl-compact-show .maplibregl-ctrl-attrib-button {
   position: static; /* absolute を解除してフロー内に配置 */
   flex-shrink: 0;
   align-self: flex-end;
+  order: 2; /* テキストの後ろ＝右端に表示 */
 }
 
 /* スマホ向けパネル最適化 */
