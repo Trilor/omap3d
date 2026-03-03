@@ -4144,13 +4144,15 @@ function updateTerrainBoundarySource() {
 
   map.addSource('terrain-boundary-src', { type: 'geojson', data: fc });
 
-  // テレイン境界: 薄い塗り（frames-fill より下層に挿入）
+  // テレイン境界: 薄い塗り（frames-outline の上・frames-hover の下）
+  // タップ非対応: クリック/ホバーハンドラーは frames-fill のみ対象のため自動的に無効
+  const beforeHover = map.getLayer('frames-hover') ? 'frames-hover' : undefined;
   map.addLayer({
     id: 'terrain-boundary-fill', type: 'fill', source: 'terrain-boundary-src',
     paint: { 'fill-color': FRAME_COLOR_EXPR, 'fill-opacity': 0.06 },
-  }, 'frames-fill');
+  }, beforeHover);
 
-  // テレイン境界: 破線アウトライン（frames-fill より下層）
+  // テレイン境界: 破線アウトライン
   map.addLayer({
     id: 'terrain-boundary-outline', type: 'line', source: 'terrain-boundary-src',
     paint: {
@@ -4158,7 +4160,7 @@ function updateTerrainBoundarySource() {
       'line-width': 1.5,
       'line-dasharray': [5, 4],
     },
-  }, 'frames-fill');
+  }, beforeHover);
 }
 
 // ---- フレーム feature-state を更新する ----

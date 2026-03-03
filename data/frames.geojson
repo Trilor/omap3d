@@ -63,12 +63,18 @@
       "type": "Feature",
       "id": "yoshida_2025_indoor",
       "properties": {
-        "terrain_name":  "吉田スタジアム",
-        "map_type":      "sprint",
-        "map_subtype":   "stadium",
-        "event_name":    "2025年度 館内OL",
-        "event_date":    "2025-01-19",
-        "description":   "総合体育館1・2F"
+        "terrain_name":    "吉田スタジアム",
+        "map_type":        "sprint",
+        "map_subtype":     "stadium",
+        "event_name":      "2025年度 館内OL",
+        "event_date":      "2025-01-19",
+        "description":     "総合体育館1・2F",
+        "terrain_polygon": [
+          [135.7814, 35.0245],
+          [135.7840, 35.0246],
+          [135.7842, 35.0230],
+          [135.7816, 35.0229]
+        ]
       },
       "geometry": {
         "type": "Polygon",
