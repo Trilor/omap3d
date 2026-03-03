@@ -1308,14 +1308,20 @@ label.setting-label {
 }
 
 /* MapLibre 出典テキスト: 全幅まで使ってから折り返し */
-/* (i)ボタンはMapLibre v4では右端に絶対配置されるため、右側にスペースを確保する */
 .maplibregl-ctrl-attrib-inner {
   white-space: normal !important;
-  max-width: calc(100vw - 40px); /* 右の(i)ボタン幅分を引く */
+  max-width: calc(100vw - 26px);
 }
 .maplibregl-ctrl-attrib {
   max-width: calc(100vw - 10px);
-  /* padding !important を外してMapLibreの展開時パディング(右28px)を維持する */
+}
+/* 展開時: (i)ボタンを右下に固定（複数行でも開閉で位置が変わらないように） */
+.maplibregl-ctrl-attrib.maplibregl-compact-show .maplibregl-ctrl-attrib-button {
+  top: auto;
+  bottom: 0;
+}
+.maplibregl-ctrl-attrib.maplibregl-compact-show {
+  padding: 2px 8px 26px 8px; /* 下に(i)ボタン24px+2px分のスペース */
 }
 
 /* スマホ向けパネル最適化 */
