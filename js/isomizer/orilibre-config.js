@@ -123,10 +123,16 @@ export const DESIGN_PLAN = {
     },
     {
       symbol_id: ["501-paved-area"],
-      links: [{
-        source: "ofm", "source-layer": "landuse",
-        filter: ["in", "class", "pitch", "track", "playground"],
-      }],
+      links: [
+        {
+          source: "ofm", "source-layer": "landuse",
+          filter: ["in", "class", "pitch", "track", "playground"],
+        },
+        {
+          source: "ofm", "source-layer": "transportation",
+          filter: ["==", ["geometry-type"], "Polygon"],
+        },
+      ],
     },
     {
       symbol_id: ["502-1-aeroway-taxiway-center", "502-2-aeroway-taxiway-outline"],
@@ -538,7 +544,7 @@ export const SYMBOL_PALETTE = {
       symbol_id: "532-1-stairway-center", type: "line",
       layout: { "line-join": "miter", "line-cap": "butt" },
       paint: {},
-      property: { "color-key": "upper.white_stairway", "line-width(mm)": 0.15, "line-dasharray(mm)": [0.20, 0.08] },
+      property: { "color-key": "upper.white_stairway", "line-width(mm)": 0.25, "line-dasharray(mm)": [0.20, 0.08] },
     },
     {
       symbol_id: "532-2-stairway-outline", type: "line",
