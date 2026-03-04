@@ -3558,7 +3558,7 @@ function toRasterOpacity(opacity) {
 // 地図種別・サブタイプの日本語表示マップ
 const MAP_TYPE_JA    = { sprint: 'スプリント', forest: 'フォレスト' };
 const MAP_SUBTYPE_JA = { stadium: 'スタジアム', school: '学校', park: '公園', urban: '市街地', campus: 'キャンパス' };
-const SUBTYPE_EMOJI  = { stadium: '🏟️', school: '🏫', park: '🌳', urban: '🏙️', campus: '🎓' };
+
 
 // HTML 特殊文字をエスケープしてインジェクションを防ぐ
 function escHtml(str) {
@@ -4365,7 +4365,7 @@ function renderFrameList(query) {
       const typeBadgeH = terrainType
         ? `<span class="frame-badge ${terrainType}">${escHtml(MAP_TYPE_JA[terrainType] ?? terrainType)}</span>` : '';
       const subtypeBadgeH = terrainSubtype
-        ? `<span class="frame-badge subtype">${escHtml((SUBTYPE_EMOJI[terrainSubtype] ?? '') + ' ' + (MAP_SUBTYPE_JA[terrainSubtype] ?? terrainSubtype))}</span>` : '';
+        ? `<span class="frame-badge subtype">${escHtml(MAP_SUBTYPE_JA[terrainSubtype] ?? terrainSubtype)}</span>` : '';
       const loadedCount = frames.filter(f => f.images.length > 0).length;
 
       const summary = document.createElement('summary');
@@ -4574,7 +4574,7 @@ function buildFramePopupHtml(frameId) {
   const subtypeKey = t.terrain_subtype ?? '';
   const terrainName = t.name ?? p.terrain_id ?? '';
   const typeBadgeH    = typeKey    ? `<span class="frame-badge ${typeKey}">${escHtml(MAP_TYPE_JA[typeKey] ?? typeKey)}</span>` : '';
-  const subtypeBadgeH = subtypeKey ? `<span class="frame-badge subtype">${escHtml((SUBTYPE_EMOJI[subtypeKey] ?? '') + ' ' + (MAP_SUBTYPE_JA[subtypeKey] ?? subtypeKey))}</span>` : '';
+  const subtypeBadgeH = subtypeKey ? `<span class="frame-badge subtype">${escHtml(MAP_SUBTYPE_JA[subtypeKey] ?? subtypeKey)}</span>` : '';
 
   return `<div class="frame-popup">
     <div class="frame-popup-title">
