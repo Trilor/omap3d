@@ -6730,57 +6730,37 @@ const SIM_LOOKAHEAD_KM   = 0.03; // center 前方ルックアヘッド距離（3
 
 /* ----------------------------------------------------------------
    setCameraFromPlayer: PCシム用フォローカメラ
-   数学的根拠:
-     カメラ位置 = (center_x - cameraAlt*tan(P), 0, cameraAlt)、
-     center を player から d [m] 前方にシフトすると
-     player (0, 0, h) がカメラ→center 光線上に乗る条件は d = h * tan(P)。
-   地形高度 h ≤ pcCamDistM: effectivePitch そのまま、cameraAlt = h + pcCamDistM
-   地形高度 h > pcCamDistM: pitch を pcCamDistM/h 倍に縮小（より上方視点に）して
-                             d = h * tan(reducedPitch) で center 前方シフト → 常に画面中央に現在位置
+   center = プレイヤー位置（MapLibre は terrain 有効時に center 座標の地形面を
+   自動的に画面中央へ投影するため、前方シフトは不要）。
+   cameraAlt = h + pcCamDistM * cos(pitch) で zoom を計算。
    ---------------------------------------------------------------- */
 function setCameraFromPlayer() {
   if (pcPlayerLng === null) return;
 
-  // ── 地形標高取得 ─────────────────────────────────────────────────
+  // 地形標高取得（ズーム計算用）
   const h = map.queryTerrainElevation(
     { lng: pcPlayerLng, lat: pcPlayerLat }, { exaggerated: false }
   ) ?? 0;
 
-  const H        = map.getCanvas().height || 600;
-  const fov_rad  = 0.6435; // MapLibre デフォルト垂直FOV ≈ 36.87°
-  const R        = 6371008.8;
-  const lat_rad  = pcPlayerLat * Math.PI / 180;
-  const bear_rad = pcBearing   * Math.PI / 180;
+  const H       = map.getCanvas().height || 600;
+  const fov_rad = 0.6435; // MapLibre デフォルト垂直FOV ≈ 36.87°
+  const R       = 6371008.8;
+  const lat_rad = pcPlayerLat * Math.PI / 180;
 
-  // ── ピッチ計算 ───────────────────────────────────────────────────
-  // pcPitch + smoothedSlopeAdj（地形傾斜補正）を合成
   let effectivePitch = Math.max(0, Math.min(map.getMaxPitch(), pcPitch + smoothedSlopeAdj));
 
-  // 地形高度がカメラ設定高度を超える場合: ピッチを縮小して上方視点に近づける
-  // （大きな前方シフトによる視点ズレを防止し、現在位置を画面中央に維持）
-  if (h > pcCamDistM) {
-    effectivePitch = Math.max(5, effectivePitch * (pcCamDistM / h));
-  }
+  // カメラ高度（海抜）= 地形標高 + カメラ距離の垂直成分
+  // MapLibre は center 座標の地形面を自動的に画面中央に投影するため、
+  // center = プレイヤー位置そのまま（前方シフト不要）
+  const cameraAlt = h + Math.max(1, pcCamDistM * Math.cos(effectivePitch * Math.PI / 180));
 
-  // ── カメラ高度 = 地形標高 + 設定距離（常に地形の上に確保）────────
-  const cameraAlt = h + pcCamDistM;
-
-  // zoom = log2(H * 2π*R*cos(lat) / (1024 * tan(fov/2) * cameraAlt))
   const targetZoom = Math.log2(
     H * 2 * Math.PI * R * Math.cos(lat_rad) /
-    (1024 * Math.tan(fov_rad / 2) * cameraAlt)
+    (1024 * Math.tan(fov_rad / 2) * Math.max(1, cameraAlt))
   );
 
-  // ── 中心点を前方シフト（地形標高による画面中央ズレを補正）─────────
-  // d = h * tan(effectivePitch) [m] だけ進行方向へ center をずらすと
-  // 地形面上のプレイヤー (lng, lat, h) がカメラ→center 光線上に投影される
-  const d_m   = h * Math.tan(effectivePitch * Math.PI / 180);
-  const d_deg = (d_m / R) * (180 / Math.PI);
-  const shiftedLng = pcPlayerLng + (d_deg / Math.cos(lat_rad)) * Math.sin(bear_rad);
-  const shiftedLat = pcPlayerLat + d_deg * Math.cos(bear_rad);
-
   map.jumpTo({
-    center:  [shiftedLng, shiftedLat],
+    center:  [pcPlayerLng, pcPlayerLat],
     bearing: pcBearing,
     pitch:   effectivePitch,
     zoom:    Math.max(12, Math.min(22, targetZoom))
