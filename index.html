@@ -2958,6 +2958,7 @@ const RASTER_BASEMAPS = {
 // oriLibreLayers: isomizer が追加したレイヤーを [{ id, defaultVisibility }] 形式で保持
 let oriLibreLayers = [];
 let currentBasemap = 'orilibre';
+let oriLibreCachedStyle = null; // isomizer構築完了後のスタイルをキャッシュ（読図マップ用）
 
 /*
   ========================================================
@@ -3349,6 +3350,9 @@ map.on('load', async () => {
       .filter(l => !snapshotBeforeIsomizer.has(l.id) && l.source !== 'contour-source')
       .map(l => ({ id: l.id, defaultVisibility: l.layout?.visibility ?? 'visible' }));
     console.log(`OriLibre レイヤー収集完了: ${oriLibreLayers.length} レイヤー`);
+
+    // 読図マップ用にOriLibreスタイルをキャッシュ（ベースマップ切替後も正しく参照できるよう）
+    oriLibreCachedStyle = map.getStyle();
 
     // ── 低ズームで外洋が緑一色になる問題を修正 ──────────────────────────────
     // OriLibre の海記号は gsivt/waterarea（国土地理院ベクタータイル、日本域のみ）を使用。
@@ -7087,10 +7091,10 @@ document.addEventListener('keyup', (e) => {
    getReadmapBaseStyle: 選択された背景キーに対応する MapLibre style を返す
    ---------------------------------------------------------------- */
 function getReadmapBaseStyle(bgKey) {
-  // OriLibre はメインマップのisomizer構築済みスタイルをそのまま渡す
-  // （カスタムプロトコル gsjdem:// 等は maplibregl にグローバル登録済みのため新インスタンスでも動作）
+  // OriLibre はisomizer構築完了時のキャッシュを使用
+  // （map.getStyle()はベースマップ切替後に別スタイルを返すため、キャッシュが必要）
   if (bgKey === 'orilibre') {
-    return map.getStyle();
+    return oriLibreCachedStyle ?? map.getStyle();
   }
   // KMZ選択時 → 地理院淡色を薄い下地として使用
   const tileKey = bgKey.startsWith('kmz-')
