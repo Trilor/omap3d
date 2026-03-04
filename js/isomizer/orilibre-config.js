@@ -533,7 +533,7 @@ export const SYMBOL_PALETTE = {
       symbol_id: "522-2-canopy-outline", type: "line",
       minzoom: 14,
       layout: { "line-join": "miter", "line-cap": "butt" },
-      paint: { "line-width": ["interpolate", ["exponential", 1.2], ["zoom"], 14, 0.5, 20, 0.75] },
+      paint: { "line-width": ["interpolate", ["exponential", 1.2], ["zoom"], 14, 0.25, 20, 0.375] },
       property: { "color-key": "upper.black" },
     },
     {
