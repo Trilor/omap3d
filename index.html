@@ -6683,9 +6683,8 @@ function onPcSimLocked() {
   document.getElementById('pc-sim-hint').style.display = 'block';
   document.getElementById('pc-sim-crosshair').style.display = 'block';
 
-  // ⑤ 読図マップを初期化
-  setTimeout(initPcReadMap, 100);
   addSimPosMarker(); // 3D現在位置マーカーは常時ON
+  // 読図マップは初回 openPcReadMap() 時に遅延初期化（非表示コンテナでのWebGL失敗を防ぐ）
 
   // ⑤ イベントリスナー登録
   document.addEventListener('mousemove',    onPcSimMouseMove);
@@ -7033,16 +7032,20 @@ function initPcReadMap() {
   pcSimReadMap = new maplibregl.Map({
     container: 'pc-sim-readmap-map',
     style:       getReadmapBaseStyle(bgKey),
-    center:      map.getCenter(),
+    center:      [pcPlayerLng ?? map.getCenter().lng, pcPlayerLat ?? map.getCenter().lat],
     zoom:        16,
-    bearing:     0, // 常に北上（回転は CSS 側で担当）
+    bearing:     0,
     pitch:       0,
     interactive: false,
     attributionControl: false,
   });
 
-  // ロード完了後に KMZ レイヤーを複製（bgKey を閉じ込めてモードを引き渡す）
-  pcSimReadMap.on('load', () => syncKmzToPcReadMap(bgKey));
+  pcSimReadMap.on('load', () => {
+    syncKmzToPcReadMap(bgKey);
+    // ロード完了後に rotation・resize を適用（遅延初期化の場合に必要）
+    document.getElementById('pc-sim-readmap-inner').style.transform = `rotate(${-pcBearing}deg)`;
+    pcSimReadMap.resize();
+  });
 }
 
 /* ----------------------------------------------------------------
@@ -7124,12 +7127,15 @@ function openPcReadMap() {
   const overlay = document.getElementById('pc-sim-readmap-overlay');
   overlay.classList.add('visible');
 
-  if (pcSimReadMap) {
-    pcSimReadMap.setCenter([pcPlayerLng ?? map.getCenter().lng, pcPlayerLat ?? map.getCenter().lat]);
-    document.getElementById('pc-sim-readmap-inner').style.transform =
-      `rotate(${-pcBearing}deg)`;
-    pcSimReadMap.resize(); // hidden 後の初回表示でサイズ再計算
+  if (!pcSimReadMap) {
+    // 初回: オーバーレイが visible になってから初期化（WebGL コンテキストを正常サイズで生成）
+    initPcReadMap();
+    return;
   }
+
+  pcSimReadMap.setCenter([pcPlayerLng ?? map.getCenter().lng, pcPlayerLat ?? map.getCenter().lat]);
+  document.getElementById('pc-sim-readmap-inner').style.transform = `rotate(${-pcBearing}deg)`;
+  pcSimReadMap.resize();
 }
 
 function closePcReadMap() {
@@ -7146,11 +7152,10 @@ document.getElementById('pc-sim-toggle-btn').addEventListener('click', startPcSi
 // PC シム起動中に変更した場合は読図マップを即座に再構築する。
 document.getElementById('sel-readmap-bg').addEventListener('change', () => {
   if (pcSimReadMap && pcSimActive) {
-    // 一旦閉じてから破棄し、新設定で再生成
     closePcReadMap();
     pcSimReadMap.remove();
     pcSimReadMap = null;
-    setTimeout(initPcReadMap, 50);
+    // 次回 openPcReadMap() 時に新設定で再初期化
   }
 });
 
