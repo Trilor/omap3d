@@ -2886,7 +2886,8 @@ map.addControl(new maplibregl.AttributionControl({
   customAttribution:
     '(<a href="https://www.geospatial.jp/ckan/dataset/qchizu_94dem_99gsi" target="_blank">Q地図1mDEM</a>' +
     ' | <a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">地理院タイル[PNG標高DEM5A/湖水深/基準水面標高]</a>' +
-    ' | <a href="https://www.ngdc.noaa.gov/geomag/WMM/" target="_blank">WMM/NOAA</a>)' +
+    ' | <a href="https://www.ngdc.noaa.gov/geomag/WMM/" target="_blank">WMM/NOAA</a>' +
+    ' | <a href="https://www.geospatial.jp/ckan/dataset/plateau-tokyo23ku" target="_blank">国土交通省3D都市モデルPLATEAU</a>)' +
     ' を加工して作成',
 }), 'bottom-right');
 
@@ -3240,29 +3241,28 @@ map.on('load', async () => {
       oriLibreLayers.push({ id: 'water-ocean-fill', defaultVisibility: 'visible' });
     }
 
-    // ── 3D建物レイヤー（OpenFreeMap の building ソースレイヤーを使用）──────────────
-    // ofm ソースは isomizer が追加済み。等高線 moveLayer で等高線が上になるため、
-    // 建物はここで追加し、その後の moveLayer で自動的に等高線の下に位置する。
-    if (map.getSource('ofm')) {
-      map.addLayer({
-        id: 'building-3d',
-        type: 'fill-extrusion',
-        source: 'ofm',
-        'source-layer': 'building',
-        minzoom: 14, // ズーム14以上でのみ表示（広域表示時に負荷をかけない）
-        paint: {
-          // 建物の高さ: render_height プロパティ、なければ 3m 固定
-          'fill-extrusion-height': ['coalesce', ['get', 'render_height'], 3],
-          // 建物の底辺の高さ（階段状の建物に対応）
-          'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], 0],
-          // 半透明のグレーで下の地図が透けて見えるようにする
-          'fill-extrusion-color': 'rgb(150, 150, 150)',
-          'fill-extrusion-opacity': 0.7,
-        },
-      });
-      // ベースマップ切替で非表示にできるよう oriLibreLayers に登録
-      oriLibreLayers.push({ id: 'building-3d', defaultVisibility: 'visible' });
-    }
+    // ── 3D建物レイヤー（国土交通省 Project PLATEAU 東京23区 LOD2）──────────────
+    // 3D地形 ON/OFF（chk-exaggeration）で表示制御する。ベースマップ切替では変化しない。
+    map.addSource('plateau-bldg', {
+      type: 'vector',
+      tiles: ['https://indigo-lab.github.io/plateau-lod2-mvt/{z}/{x}/{y}.pbf'],
+      minzoom: 10,
+      maxzoom: 16,
+    });
+    map.addLayer({
+      id: 'building-3d',
+      type: 'fill-extrusion',
+      source: 'plateau-bldg',
+      'source-layer': 'bldg',
+      minzoom: 14,
+      paint: {
+        // PLATEAUの実測高さ（measuredHeight）を使用、なければ 3m 固定
+        'fill-extrusion-height': ['coalesce', ['get', 'measuredHeight'], 3],
+        'fill-extrusion-base': 0,
+        'fill-extrusion-color': 'rgb(150, 150, 150)',
+        'fill-extrusion-opacity': 0.7,
+      },
+    });
 
     // isomizer の project-config.yml が別のcenterを持つ場合があるため、
     // 完了後に京都大学（INITIAL_CENTER）へ強制的に戻す
@@ -6047,7 +6047,6 @@ function switchBasemap(key) {
   } else if (key.startsWith('cs-')) {
     // CS立体図をベースマップとして使用: OriLibre・ラスターを全て非表示にして CS のみ表示
     oriLibreLayers.forEach(({ id }) => {
-      if (id === 'building-3d') return;
       if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', 'none');
     });
     if (map.getLayer('basemap-fallback-layer')) {
@@ -6055,9 +6054,8 @@ function switchBasemap(key) {
     }
     // CS レイヤーの表示は updateCsVisibility に委譲
   } else {
-    // ③ OriLibre レイヤーを全て非表示（building-3d は全ベースマップで表示するため除外）
+    // ③ OriLibre レイヤーを全て非表示
     oriLibreLayers.forEach(({ id }) => {
-      if (id === 'building-3d') return;
       if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', 'none');
     });
     if (map.getLayer('basemap-fallback-layer')) {
