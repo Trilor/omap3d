@@ -2217,7 +2217,7 @@ label.setting-label {
 </div><!-- /imgw-modal -->
 
 <!-- PC O-シミュレーター：ヒントバー＆十字照準 -->
-<div id="pc-sim-hint">WASD 移動 ｜ マウス / タッチパッド / ↑↓←→ 視点移動 ｜ I / O カメラ距離 ｜ Space / 右クリック 読図 ｜ Esc 終了</div>
+<div id="pc-sim-hint">WASD 移動 ｜ マウス / タッチパッド / ↑↓←→ 視点移動 ｜ + / - カメラ距離 ｜ Space / 右クリック 読図 ｜ Esc 終了</div>
 <div id="pc-sim-crosshair"></div>
 <!-- PC O-シミュレーター：読図マップオーバーレイ -->
 <div id="pc-sim-readmap-overlay">
@@ -6941,11 +6941,11 @@ document.addEventListener('keydown', (e) => {
     e.preventDefault();
     openPcReadMap();
   }
-  // I キーで距離を縮める（近づく）、O キーで距離を伸ばす（遠ざかる）（PCシム中のみ）
-  if (pcSimActive && (e.code === 'KeyI' || e.code === 'KeyO')) {
+  // + キーで距離を縮める（ズームイン）、- キーで距離を伸ばす（ズームアウト）（PCシム中のみ）
+  if (pcSimActive && (e.code === 'Equal' || e.code === 'NumpadAdd' || e.code === 'Minus' || e.code === 'NumpadSubtract')) {
     e.preventDefault();
-    if (e.code === 'KeyI') pcCamDistM = Math.max(PC_CAM_DIST_MIN, pcCamDistM * 0.7);
-    else                   pcCamDistM = Math.min(PC_CAM_DIST_MAX, pcCamDistM * 1.4);
+    if (e.code === 'Equal' || e.code === 'NumpadAdd') pcCamDistM = Math.max(PC_CAM_DIST_MIN, pcCamDistM * 0.7);
+    else                                              pcCamDistM = Math.min(PC_CAM_DIST_MAX, pcCamDistM * 1.4);
   }
 });
 
