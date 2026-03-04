@@ -5885,10 +5885,12 @@ function initAttributionObserver() {
     // 監視を一時停止してDOM操作し、無限ループを防ぐ
     _attrObserver.disconnect();
     updateBasemapAttribution();
+    updatePlateauAttribution();
     _attrObserver.observe(attrInner, { childList: true, subtree: true });
   });
   _attrObserver.observe(attrInner, { childList: true, subtree: true });
   updateBasemapAttribution();
+  updatePlateauAttribution();
   return true;
 }
 
