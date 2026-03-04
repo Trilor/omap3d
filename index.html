@@ -6367,6 +6367,8 @@ function startSimMode() {
 
   // ④ UIを切り替え
   document.getElementById('ui-panel').style.display = 'none';
+  document.getElementById('scale-ctrl-container').style.display = 'none';
+  document.querySelector('.maplibregl-ctrl-top-right').style.display = 'none';
   document.getElementById('sim-overlay').style.display = 'flex';
   const btn = document.getElementById('sim-toggle-btn');
   btn.textContent = 'モバイルシミュレーター終了';
@@ -6411,6 +6413,8 @@ function stopSimMode() {
 
   // UIを元に戻す
   document.getElementById('ui-panel').style.display = '';
+  document.getElementById('scale-ctrl-container').style.display = '';
+  document.querySelector('.maplibregl-ctrl-top-right').style.display = '';
   document.getElementById('sim-overlay').style.display = 'none';
   const btn = document.getElementById('sim-toggle-btn');
   btn.textContent = 'モバイルシミュレーター開始';
@@ -6757,6 +6761,8 @@ function onPcSimLocked() {
 
   // ④ UIを更新
   document.getElementById('ui-panel').style.display = 'none';
+  document.getElementById('scale-ctrl-container').style.display = 'none';
+  document.querySelector('.maplibregl-ctrl-top-right').style.display = 'none';
   const btn = document.getElementById('pc-sim-toggle-btn');
   btn.textContent = '[Esc]でシミュレーター終了';
   btn.classList.add('pc-sim-active');
@@ -6798,6 +6804,8 @@ function stopPcSim() {
 
   // UI 復元
   document.getElementById('ui-panel').style.display = '';
+  document.getElementById('scale-ctrl-container').style.display = '';
+  document.querySelector('.maplibregl-ctrl-top-right').style.display = '';
   const btn = document.getElementById('pc-sim-toggle-btn');
   btn.textContent = 'PC シミュレーター開始';
   btn.classList.remove('pc-sim-active');
