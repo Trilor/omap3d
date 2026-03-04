@@ -1972,7 +1972,7 @@ label.setting-label {
   <!-- ===== タブバー ===== -->
   <div class="tab-bar">
     <button class="tab-btn active" data-tab="sim">シミュレーター</button>
-    <button class="tab-btn" data-tab="map">地図</button>
+    <button class="tab-btn" data-tab="map">地図をインポート</button>
   </div>
 
   <!-- ===== シミュレータータブ ===== -->
@@ -2020,7 +2020,7 @@ label.setting-label {
     <!-- 読図マップ 現在位置ドット表示 -->
     <div class="setting-row no-divider">
       <div class="setting-left">
-        <label for="chk-readmap-dot" class="setting-label">現在地を地図に表示</label>
+        <label for="chk-readmap-dot" class="setting-label">読図モードで現在位置を表示</label>
         <label class="toggle-switch">
           <input type="checkbox" id="chk-readmap-dot" checked />
           <span class="toggle-slider"></span>
@@ -2031,7 +2031,7 @@ label.setting-label {
     <!-- 操作バー表示 -->
     <div class="setting-row no-divider">
       <div class="setting-left">
-        <label for="chk-sim-hint" class="setting-label">操作バーを表示</label>
+        <label for="chk-sim-hint" class="setting-label">画面に操作のヒントを表示</label>
         <label class="toggle-switch">
           <input type="checkbox" id="chk-sim-hint" checked />
           <span class="toggle-slider"></span>
@@ -2041,9 +2041,9 @@ label.setting-label {
 
   </details>
 
-  <!-- 2D設定（ベースマップ・オーバーレイ・等高線・磁北線） -->
+  <!-- マップ設定（ベースマップ・オーバーレイ・等高線・磁北線） -->
   <details class="panel-section layer-section" open>
-    <summary>2D設定</summary>
+    <summary>マップ設定</summary>
 
     <!-- ベースマップ -->
     <div class="setting-row ctrl-right">
@@ -3018,6 +3018,7 @@ const map = new maplibregl.Map({
   zoom: INITIAL_ZOOM,
   pitch: INITIAL_PITCH,
   bearing: INITIAL_BEARING,
+  minZoom: 0,
   maxPitch: 85,
   minZoom: 0,
 });
