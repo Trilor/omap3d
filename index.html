@@ -791,17 +791,17 @@ label.setting-label {
   top: 12px;
   left: 12px;
   z-index: 1200;
-  padding: 8px 14px;
-  background: rgba(30, 30, 30, 0.82);
+  padding: 5px 16px;
+  background: rgba(0, 0, 0, 0.65);
   color: #fff;
   border: none;
-  border-radius: 6px;
-  font-size: 13px;
+  border-radius: 16px;
+  font-size: 11px;
   cursor: pointer;
-  backdrop-filter: blur(4px);
-  letter-spacing: 0.02em;
+  pointer-events: auto;
+  white-space: nowrap;
 }
-#sim-esc-btn:hover { background: rgba(50, 50, 50, 0.9); }
+#sim-esc-btn:hover { background: rgba(0, 0, 0, 0.82); }
 
 /* 都道府県グループ（3段ツリーの最上位） */
 .pref-group {
@@ -2115,7 +2115,7 @@ label.setting-label {
 </div>
 </div>
 <!-- シミュレーター中のEscボタン -->
-<button id="sim-esc-btn" style="display:none">⬛ Esc でシミュレーター終了</button>
+<button id="sim-esc-btn" style="display:none">Esc でシミュレーター終了</button>
 <!-- 視点切り替えトグルボタン（GPX読み込み後に表示） -->
 <button id="view-toggle-btn">🗺 3人称視点</button>
 <!-- タイムライン・コントロールパネル（画面下部、GPX読み込み後に表示） -->
@@ -2227,7 +2227,7 @@ label.setting-label {
     </div>
     <div id="pc-sim-readmap-dot"></div>
     <div id="pc-sim-readmap-arrow"></div>
-    <div id="pc-sim-readmap-label">読図モード（Space を離して閉じる）</div>
+    <div id="pc-sim-readmap-label">読図モード（Space/右クリック を離して閉じる）</div>
   </div>
 </div>
 
