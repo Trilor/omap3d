@@ -2026,7 +2026,7 @@ label.setting-label {
     <div class="setting-row overlay-stacked">
       <div class="setting-left">
         <div class="overlay-left-top">
-          <span class="setting-label">オーバーレイ</span>
+          <label for="chk-overlay" class="setting-label">オーバーレイ</label>
         </div>
         <div class="overlay-left-bottom">
           <label class="toggle-switch">
@@ -6686,7 +6686,6 @@ const PC_CAM_DIST_MIN = 5;
 const PC_CAM_DIST_MAX = 500;
 let smoothedSlopeAdj  = 0;  // 地形傾斜による自動ピッチ補正（deg、ローパスフィルタ済み）
 let _cachedTerrainH   = 0;  // queryTerrainElevation が null のときに使うキャッシュ値
-let _smoothedCamZoom  = 17; // ズームのローパスフィルタ済み値（急激な変化を抑制）
 
 // キー押下状態（Pointer Lock 有無に関わらず追跡）
 const pcSimKeys = {
@@ -6764,7 +6763,6 @@ function onPcSimLocked() {
 
   // キャッシュ・ズームスムージングを現在値で初期化
   _cachedTerrainH  = map.queryTerrainElevation({ lng: pcPlayerLng, lat: pcPlayerLat }, { exaggerated: false }) ?? 0;
-  _smoothedCamZoom = map.getZoom();
 
   // ③ カメラをプレイヤー視点へ即配置
   setCameraFromPlayer();
@@ -6877,14 +6875,11 @@ function setCameraFromPlayer() {
     (1024 * Math.tan(fov_rad / 2) * Math.max(1, cameraAlt))
   )));
 
-  // ズームをスムージング（急な地形変化でのカメラ飛びを抑制）
-  _smoothedCamZoom += (targetZoom - _smoothedCamZoom) * 0.15;
-
   map.jumpTo({
     center:  [pcPlayerLng, pcPlayerLat],
     bearing: pcBearing,
     pitch:   effectivePitch,
-    zoom:    _smoothedCamZoom
+    zoom:    targetZoom
   });
 }
 
