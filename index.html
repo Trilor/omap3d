@@ -2112,14 +2112,16 @@ label.setting-label {
     </div>
 
     <!-- 3D建物 -->
-    <div class="setting-row ctrl-right">
+    <div class="setting-row toggle-left">
       <div class="setting-left">
-        <span class="chk-spacer"></span>
-        <span class="setting-label">3D建物</span>
+        <label for="chk-building" class="setting-label">3D建物</label>
+        <label class="toggle-switch">
+          <input type="checkbox" id="chk-building" checked />
+          <span class="toggle-slider"></span>
+        </label>
       </div>
       <div class="setting-right">
         <select id="sel-building" class="setting-select">
-          <option value="none">非表示</option>
           <option value="plateau" selected>PLATEAU</option>
           <option value="ofm">OpenFreeMap</option>
         </select>
@@ -5979,13 +5981,14 @@ const BUILDING_CFG = {
 };
 
 function updateBuildingLayer() {
-  const mode  = document.getElementById('sel-building')?.value ?? 'plateau';
-  const is3dOn = document.getElementById('chk-exaggeration')?.checked ?? true;
+  const mode       = document.getElementById('sel-building')?.value ?? 'plateau';
+  const buildingOn = document.getElementById('chk-building')?.checked ?? true;
+  const is3dOn     = document.getElementById('chk-exaggeration')?.checked ?? true;
 
   // 既存レイヤーを一旦削除
   if (map.getLayer('building-3d')) map.removeLayer('building-3d');
 
-  if (mode === 'none' || !is3dOn) return;
+  if (!buildingOn || !is3dOn) return;
 
   const cfg = BUILDING_CFG[mode];
   if (!cfg || !map.getSource(cfg.source)) return; // ソース未追加なら無視
@@ -6006,6 +6009,7 @@ function updateBuildingLayer() {
 }
 
 document.getElementById('sel-building').addEventListener('change', updateBuildingLayer);
+document.getElementById('chk-building').addEventListener('change', updateBuildingLayer);
 
 // ---- 地形誇張 チェックボックス + スライダー ----
 const chkExaggeration = document.getElementById('chk-exaggeration');
