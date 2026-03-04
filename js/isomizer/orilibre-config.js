@@ -123,10 +123,16 @@ export const DESIGN_PLAN = {
     },
     {
       symbol_id: ["501-paved-area"],
-      links: [{
-        source: "ofm", "source-layer": "landuse",
-        filter: ["in", "class", "pitch", "track", "playground"],
-      }],
+      links: [
+        {
+          source: "ofm", "source-layer": "landuse",
+          filter: ["in", "class", "pitch", "track", "playground"],
+        },
+        {
+          source: "gsivt", "source-layer": "road",
+          filter: ["==", ["geometry-type"], "Polygon"],
+        },
+      ],
     },
     {
       symbol_id: ["502-1-aeroway-taxiway-center", "502-2-aeroway-taxiway-outline"],
