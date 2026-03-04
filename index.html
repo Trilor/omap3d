@@ -6319,23 +6319,21 @@ selScale.addEventListener('change', () => {
   if (val) zoomToScale(val);
 });
 
-// 縮尺コントロールを左下に配置し、出典と重なる場合は出典の上に移動する
+// 縮尺コントロールを出典と同じ高さに配置し、重なる場合は出典の上に移動する
 function updateScalePosition() {
   const attrib = document.querySelector('.maplibregl-ctrl-attrib');
   const scaleEl = document.getElementById('scale-ctrl-container');
   if (!attrib || !scaleEl) return;
 
-  // CSSデフォルト（bottom: 24px）にリセット
-  scaleEl.style.bottom = '';
-
-  // リセット後の矩形を取得（getBoundingClientRect はレイアウト同期済み）
   const ar = attrib.getBoundingClientRect();
-  const sr = scaleEl.getBoundingClientRect();
 
-  // 水平・垂直の両方で重なる場合のみ出典の上に移動
+  // 基本位置: 出典の下端に揃える
+  scaleEl.style.bottom = (window.innerHeight - ar.bottom) + 'px';
+
+  // 水平方向に重なる場合は出典の上に移動
+  const sr = scaleEl.getBoundingClientRect();
   const hOverlap = ar.left < sr.right + 4 && ar.right > sr.left - 4;
-  const vOverlap = ar.top  < sr.bottom + 4 && ar.bottom > sr.top - 4;
-  if (hOverlap && vOverlap) {
+  if (hOverlap) {
     scaleEl.style.bottom = (window.innerHeight - ar.top + 4) + 'px';
   }
 }
