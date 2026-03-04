@@ -6876,8 +6876,21 @@ function setCameraFromPlayer() {
   const lat_rad = pcPlayerLat * Math.PI / 180;
 
   let effectivePitch = Math.max(0, Math.min(map.getMaxPitch(), pcPitch + smoothedSlopeAdj));
+  const pitchRad = effectivePitch * Math.PI / 180;
 
-  const cameraAlt = h + Math.max(1, pcCamDistM * Math.cos(effectivePitch * Math.PI / 180));
+  // カメラの後方地上点の地形高度を取得し、カメラが後方地形にめり込まないよう保証する。
+  // （pitch=80°では水平98m後方・垂直17mにカメラが位置するため、後方が上り坂だと地形貫通しやすい）
+  const backDistKm = pcCamDistM * Math.sin(pitchRad) / 1000;
+  const backPt = turf.destination([pcPlayerLng, pcPlayerLat], backDistKm, (pcBearing + 180) % 360);
+  const backH = map.queryTerrainElevation(
+    { lng: backPt.geometry.coordinates[0], lat: backPt.geometry.coordinates[1] },
+    { exaggerated: false }
+  ) ?? h;
+
+  const cameraAlt = Math.max(
+    h + Math.max(1, pcCamDistM * Math.cos(pitchRad)),
+    backH + 8   // カメラが後方地形より必ず8m上に位置するよう保証
+  );
 
   const targetZoom = Math.max(12, Math.min(22, Math.log2(
     H * 2 * Math.PI * R * Math.cos(lat_rad) /
