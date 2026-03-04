@@ -6028,8 +6028,9 @@ function switchBasemap(key) {
       map.setLayoutProperty('basemap-fallback-layer', 'visibility', 'visible');
     }
   } else {
-    // ③ OriLibre レイヤーを全て非表示
+    // ③ OriLibre レイヤーを全て非表示（building-3d は全ベースマップで表示するため除外）
     oriLibreLayers.forEach(({ id }) => {
+      if (id === 'building-3d') return;
       if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', 'none');
     });
     if (map.getLayer('basemap-fallback-layer')) {
