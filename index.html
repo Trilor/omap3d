@@ -750,16 +750,20 @@ label.setting-label {
   padding: 8px 0;
   font-size: 12px;
   font-weight: 600;
-  color: #666;
+  color: #888;
   background: none;
   border: none;
   border-bottom: 2px solid transparent;
   cursor: pointer;
-  transition: color 0.15s, border-color 0.15s;
+  transition: color 0.15s, background 0.15s;
   letter-spacing: 0.02em;
 }
 .tab-btn:hover { color: #333; }
-.tab-btn.active { color: #4a7c59; border-bottom-color: #4a7c59; }
+.tab-btn.active {
+  color: #333;
+  background: #fff;
+  border-bottom-color: #4a7c59;
+}
 .tab-panel { display: none; }
 .tab-panel.active { display: block; }
 
