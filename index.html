@@ -1824,6 +1824,25 @@ label.setting-label {
 <div id="ui-panel-header">OMAP 3D <span id="panel-toggle-icon">▲</span></div>
 <div id="ui-panel-body">
 
+  <!-- ===== 地名検索（タブ外・常時表示） ===== -->
+  <div id="place-search-wrap">
+    <div id="place-search-row">
+      <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none" width="14" height="14" aria-hidden="true">
+        <circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" stroke-width="1.5"/>
+        <line x1="10" y1="10" x2="14.5" y2="14.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+      <input type="text" id="place-search-input" placeholder="地名・住所を検索" />
+      <button id="place-search-clear" aria-label="入力をクリア" style="display:none">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none" width="12" height="12" aria-hidden="true">
+          <line x1="3" y1="3" x2="13" y2="13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          <line x1="13" y1="3" x2="3" y2="13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      </button>
+    </div>
+    <div id="place-search-msg"></div>
+    <div id="place-search-results"></div>
+  </div>
+
   <!-- ===== タブバー ===== -->
   <div class="tab-bar">
     <button class="tab-btn active" data-tab="sim">シミュレーター</button>
@@ -2052,25 +2071,6 @@ label.setting-label {
 
   <!-- ===== 地図タブ ===== -->
   <div class="tab-panel" id="tab-map">
-
-  <!-- ===== 地名検索 ===== -->
-  <div id="place-search-wrap">
-    <div id="place-search-row">
-      <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none" width="14" height="14" aria-hidden="true">
-        <circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" stroke-width="1.5"/>
-        <line x1="10" y1="10" x2="14.5" y2="14.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-      </svg>
-      <input type="text" id="place-search-input" placeholder="地名・住所を検索" />
-      <button id="place-search-clear" aria-label="入力をクリア" style="display:none">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none" width="12" height="12" aria-hidden="true">
-          <line x1="3" y1="3" x2="13" y2="13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-          <line x1="13" y1="3" x2="3" y2="13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-        </svg>
-      </button>
-    </div>
-    <div id="place-search-msg"></div>
-    <div id="place-search-results"></div>
-  </div>
 
   <!-- ===== 地図カタログ（フレームベース） ===== -->
   <details class="panel-section" id="catalog-section" open>
