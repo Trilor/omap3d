@@ -1641,10 +1641,46 @@ label.setting-label {
   background: rgba(0, 0, 0, 0.65);
   color: #fff;
   font-size: 11px;
-  padding: 5px 16px;
+  padding: 5px 14px;
   border-radius: 16px;
   white-space: nowrap;
   pointer-events: none;
+  align-items: center;
+  gap: 0;
+}
+#pc-sim-hint .hint-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+#pc-sim-hint .hint-action {
+  color: rgba(255,255,255,0.7);
+  margin-left: 2px;
+}
+#pc-sim-hint .hint-sep {
+  display: inline-block;
+  width: 1px;
+  height: 11px;
+  background: rgba(255,255,255,0.25);
+  margin: 0 10px;
+  vertical-align: middle;
+}
+#pc-sim-hint kbd {
+  display: inline-block;
+  background: rgba(255,255,255,0.15);
+  border: 1px solid rgba(255,255,255,0.35);
+  border-bottom-width: 2px;
+  border-radius: 3px;
+  padding: 0 5px;
+  font-family: inherit;
+  font-size: 10px;
+  line-height: 1.6;
+  vertical-align: middle;
+}
+#pc-sim-hint .hint-or {
+  color: rgba(255,255,255,0.45);
+  font-size: 10px;
+  margin: 0 1px;
 }
 
 /* 十字照準（Pointer Lock 中に画面中央に表示） */
@@ -1934,7 +1970,6 @@ label.setting-label {
       <div class="setting-right">
         <select id="sel-overlay" class="setting-select">
           <option value="none">なし</option>
-          <option disabled>──────</option>
           <option value="cs-1m">CS立体図 1m（全国）</option>
           <option value="cs-0.5m" title="ズーム17以上で0.5mを表示">CS立体図 0.5m（一部地域）</option>
         </select>
@@ -2217,7 +2252,17 @@ label.setting-label {
 </div><!-- /imgw-modal -->
 
 <!-- PC O-シミュレーター：ヒントバー＆十字照準 -->
-<div id="pc-sim-hint">WASD 移動 ｜ マウス / タッチパッド / ↑↓←→ 視点移動 ｜ + / - カメラ距離 ｜ Space / 右クリック 読図 ｜ Esc 終了</div>
+<div id="pc-sim-hint">
+  <span class="hint-group"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd><span class="hint-action">移動</span></span>
+  <span class="hint-sep"></span>
+  <span class="hint-group">マウス<span class="hint-or">/</span>タッチパッド<span class="hint-or">/</span><kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd><span class="hint-action">視点</span></span>
+  <span class="hint-sep"></span>
+  <span class="hint-group"><kbd>+</kbd><span class="hint-or">/</span><kbd>-</kbd><span class="hint-action">ズーム</span></span>
+  <span class="hint-sep"></span>
+  <span class="hint-group"><kbd>Space</kbd><span class="hint-or">/</span>右クリック<span class="hint-action">読図</span></span>
+  <span class="hint-sep"></span>
+  <span class="hint-group"><kbd>Esc</kbd><span class="hint-action">終了</span></span>
+</div>
 <div id="pc-sim-crosshair"></div>
 <!-- PC O-シミュレーター：読図マップオーバーレイ -->
 <div id="pc-sim-readmap-overlay">
@@ -2227,7 +2272,7 @@ label.setting-label {
     </div>
     <div id="pc-sim-readmap-dot"></div>
     <div id="pc-sim-readmap-arrow"></div>
-    <div id="pc-sim-readmap-label">読図モード（Space/右クリック を離して閉じる）</div>
+    <div id="pc-sim-readmap-label">読図モード（スペースキー/右クリックを離して閉じる）</div>
   </div>
 </div>
 
