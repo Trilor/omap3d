@@ -6862,11 +6862,12 @@ const SIM_LOOKAHEAD_KM   = 0.03; // center 前方ルックアヘッド距離（3
 function setCameraFromPlayer() {
   if (pcPlayerLng === null) return;
 
-  // 地形標高取得 — null（タイル未読み込み）の場合は前回キャッシュ値を使用
+  // 地形標高取得 — null（タイル未読み込み）の場合はキャッシュ維持。
+  // 急降下時にカメラが後方地形にめり込まないよう、高さをスムージング更新する。
   const rawH = map.queryTerrainElevation(
     { lng: pcPlayerLng, lat: pcPlayerLat }, { exaggerated: false }
   );
-  if (rawH !== null) _cachedTerrainH = rawH;
+  if (rawH !== null) _cachedTerrainH += (rawH - _cachedTerrainH) * 0.25;
   const h = _cachedTerrainH;
 
   const H       = map.getCanvas().height || 600;
