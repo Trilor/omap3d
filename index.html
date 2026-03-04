@@ -3031,7 +3031,7 @@ map.addControl(new maplibregl.AttributionControl({
   右クリックドラッグ / Ctrl+ドラッグ で Pitch / Bearing を操作できます（MapLibre標準動作）。
   ========================================================
 */
-map.addControl(new maplibregl.FullscreenControl(), 'top-right');
+map.addControl(new maplibregl.FullscreenControl({ container: document.body }), 'top-right');
 
 map.addControl(new maplibregl.NavigationControl({
   visualizePitch: true
