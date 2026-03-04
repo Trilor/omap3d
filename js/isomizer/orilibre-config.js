@@ -203,14 +203,14 @@ export const DESIGN_PLAN = {
       }],
     },
     {
-      symbol_id: ["521-building"],
+      symbol_id: ["521-building", "521-2-building-outline"],
       links: [{
         source: "gsivt", "source-layer": "building",
         filter: ["in", "ftCode", 3101, 3102, 3103],
       }],
     },
     {
-      symbol_id: ["522-canopy"],
+      symbol_id: ["522-canopy", "522-2-canopy-outline"],
       links: [{
         source: "gsivt", "source-layer": "building",
         filter: ["in", "ftCode", 3111, 3112],
@@ -518,9 +518,21 @@ export const SYMBOL_PALETTE = {
       property: { "color-key": "upper.black_65%" },
     },
     {
+      symbol_id: "521-2-building-outline", type: "line",
+      layout: { "line-join": "miter", "line-cap": "butt" },
+      paint: {},
+      property: { "color-key": "upper.black_building_outline", "line-width(mm)": 0.8 },
+    },
+    {
       symbol_id: "522-canopy", type: "fill",
       paint: {},
       property: { "color-key": "upper.black_20%" },
+    },
+    {
+      symbol_id: "522-2-canopy-outline", type: "line",
+      layout: { "line-join": "miter", "line-cap": "butt" },
+      paint: {},
+      property: { "color-key": "upper.black", "line-width(mm)": 0.4 },
     },
     {
       symbol_id: "532-1-stairway-center", type: "line",
@@ -578,8 +590,9 @@ export const COLOR_PALETTE = {
         { black:                { hex: "#000000" } },
         { black_stairway:       { hex: "#595959" } },
         { white_stairway:       { hex: "#FFFFFF" } },
-        { "black_65%":          { hex: "#595959" } },
-        { white:                { hex: "#FFFFFF" } },
+        { "black_65%":              { hex: "#595959" } },
+        { white:                    { hex: "#FFFFFF" } },
+        { black_building_outline:   { hex: "#000000" } },
       ],
     },
     {
