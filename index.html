@@ -3030,7 +3030,18 @@ const map = new maplibregl.Map({
   bearing: INITIAL_BEARING,
   minZoom: 0,
   maxPitch: 85,
-  minZoom: 0,
+  locale: {
+    'NavigationControl.ZoomIn':           'ズームイン',
+    'NavigationControl.ZoomOut':          'ズームアウト',
+    'NavigationControl.ResetBearing':     '北を上にリセット',
+    'FullscreenControl.Enter':            'フルスクリーン',
+    'FullscreenControl.Exit':             'フルスクリーン終了',
+    'GeolocateControl.FindMyLocation':    '現在地を表示',
+    'GeolocateControl.LocationNotAvailable': '現在地を取得できません',
+    'AttributionControl.ToggleAttribution': '出典を表示',
+    'AttributionControl.MapFeedback':     'マップのフィードバック',
+    'LogoControl.Title':                  'MapLibre',
+  },
 });
 
 // 出典表示（customAttribution で固定表示、都道府県別CS出典は updateRegionalAttribution で追記）
