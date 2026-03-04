@@ -488,10 +488,24 @@ label.setting-label {
   cursor: default;
 }
 
+/* ---- シミュレーターボタングループ（タブ最上部） ---- */
+.sim-btn-group {
+  padding: 10px 10px 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
 /* ---- シミュレーター設定セクションヘッダ ---- */
 .panel-section.sim-section > summary {
   background: #eaf0ec;
   color: #3a6449;
+}
+
+/* ---- 3D地形表示セクションヘッダ ---- */
+.panel-section.terrain-display-section > summary {
+  background: #e8eef4;
+  color: #2a5070;
 }
 
 /* 透明度スライダー行 */
@@ -1448,9 +1462,9 @@ label.setting-label {
    ================================================================ */
 
 /* トグルボタン（右下固定） */
-/* モバイルシムボタン：PCシムと同じインパネルスタイル */
+/* モバイルシムボタン：PC シムの下にサブボタンとして配置 */
 #sim-toggle-btn {
-  display: none; /* モバイルシミュレーターは非表示 */
+  display: block;
   width: calc(100% - 20px);
   margin: 6px 10px 8px;
   padding: 7px 12px;
@@ -1812,12 +1826,218 @@ label.setting-label {
 
   <!-- ===== タブバー ===== -->
   <div class="tab-bar">
-    <button class="tab-btn active" data-tab="map">地図</button>
-    <button class="tab-btn" data-tab="settings">設定</button>
+    <button class="tab-btn active" data-tab="sim">シミュレーター</button>
+    <button class="tab-btn" data-tab="map">地図</button>
   </div>
 
+  <!-- ===== シミュレータータブ ===== -->
+  <div class="tab-panel active" id="tab-sim">
+
+  <!-- シミュレーターボタン（最上部） -->
+  <div class="sim-btn-group">
+    <button id="pc-sim-toggle-btn">PC シミュレーター開始</button>
+    <button id="sim-toggle-btn">モバイルシミュレーター開始</button>
+  </div>
+
+  <!-- シミュレーター設定 -->
+  <details class="panel-section sim-section" open>
+    <summary>シミュレーター設定</summary>
+
+    <!-- 移動速度 -->
+    <div class="setting-row ctrl-right">
+      <div class="setting-left">
+        <span class="setting-label">移動速度</span>
+      </div>
+      <div class="setting-right">
+        <input type="range" id="pc-sim-speed" min="10" max="120" step="5" value="50"
+          class="setting-slider" />
+        <span class="opacity-val" id="pc-sim-speed-val">50km/h</span>
+      </div>
+    </div>
+
+    <!-- 読図地図の背景選択（KMZ が先頭・ベースマップは後半） -->
+    <div class="setting-row label-right">
+      <div class="setting-left">
+        <label for="sel-readmap-bg" class="setting-label">読図地図</label>
+      </div>
+      <div class="setting-right">
+        <select id="sel-readmap-bg" class="setting-select">
+          <!-- KMZオプションはJSで動的に先頭へ挿入 -->
+          <option value="orilibre" selected>OriLibre</option>
+          <option value="gsi-std">地理院 標準地図</option>
+          <option value="gsi-pale">地理院 淡色地図</option>
+          <option value="gsi-photo">地理院 航空写真</option>
+          <option value="osm">OpenStreetMap</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- 読図マップ 現在位置ドット表示 -->
+    <div class="setting-row no-divider">
+      <div class="setting-left">
+        <label for="chk-readmap-dot" class="setting-label">現在地を地図に表示</label>
+        <label class="toggle-switch">
+          <input type="checkbox" id="chk-readmap-dot" checked />
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+    </div>
+
+  </details>
+
+  <!-- 3D地形表示（ベースマップ・CS立体図・等高線・磁北線・誇張） -->
+  <details class="panel-section terrain-display-section" open>
+    <summary>3D地形表示</summary>
+
+    <!-- ベースマップ -->
+    <div class="setting-row ctrl-right">
+      <div class="setting-left">
+        <span class="setting-label">ベースマップ</span>
+      </div>
+      <div class="setting-right">
+        <select id="sel-basemap" class="setting-select">
+          <option value="orilibre">OriLibre</option>
+          <option value="gsi-std">地理院 標準地図</option>
+          <option value="gsi-pale">地理院 淡色地図</option>
+          <option value="gsi-photo">地理院 航空写真</option>
+          <option value="osm">OpenStreetMap</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- CS立体図 -->
+    <div class="layer-row">
+      <div class="layer-label-row">
+        <input type="radio" name="cs-mode" id="rad-cs-none" value="none" checked />
+        <label class="layer-name" for="rad-cs-none">CS立体図なし</label>
+      </div>
+    </div>
+    <div class="layer-row">
+      <div class="layer-label-row">
+        <input type="radio" name="cs-mode" id="rad-cs-1m" value="1m" />
+        <label class="layer-name" for="rad-cs-1m">CS立体図（1m・全国）</label>
+      </div>
+    </div>
+    <div class="layer-row">
+      <div class="layer-label-row">
+        <input type="radio" name="cs-mode" id="rad-cs-05m" value="0.5m" />
+        <label class="layer-name" for="rad-cs-05m"
+          title="ズーム17以上で0.5mを表示。読み込みに時間がかかります。">CS立体図（0.5m・一部地域）</label>
+      </div>
+    </div>
+    <div class="opacity-row">
+      <input type="range" id="slider-cs" min="0" max="1" step="0.05" value="1.0" disabled />
+      <span class="opacity-val" id="val-cs">100%</span>
+    </div>
+
+    <!-- 等高線 -->
+    <div class="setting-row toggle-left">
+      <div class="setting-left">
+        <label for="chk-contour" class="setting-label">等高線</label>
+        <label class="toggle-switch">
+          <input type="checkbox" id="chk-contour" checked />
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <div class="setting-right">
+        <select id="sel-contour-interval" class="setting-select">
+          <option id="opt-contour-current" value="">1 m</option>
+          <option disabled>──────</option>
+          <option value="1">1 m</option>
+          <option value="2">2 m</option>
+          <option value="2.5">2.5 m</option>
+          <option value="5">5 m</option>
+          <option value="10">10 m</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- 磁北線 -->
+    <div class="setting-row toggle-left">
+      <div class="setting-left">
+        <label for="chk-magnetic-north" class="setting-label">磁北線</label>
+        <label class="toggle-switch">
+          <input type="checkbox" id="chk-magnetic-north" checked />
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <div class="setting-right">
+        <select id="sel-magnetic-north-interval" class="setting-select">
+          <option id="opt-magnetic-north-current" value="">300 m</option>
+          <option disabled>──────</option>
+          <option value="120">120 m</option>
+          <option value="150">150 m</option>
+          <option value="250">250 m</option>
+          <option value="300">300 m</option>
+          <option value="500">500 m</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- 3D表示（地形誇張） -->
+    <div class="setting-row toggle-left">
+      <div class="setting-left">
+        <label for="chk-exaggeration" class="setting-label">3D誇張</label>
+        <label class="toggle-switch">
+          <input type="checkbox" id="chk-exaggeration" checked />
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <div class="setting-right">
+        <input type="range" id="slider-exaggeration" min="0.5" max="3" step="0.1" value="1.0"
+          class="setting-slider" />
+        <span class="opacity-val" id="val-exaggeration">1.0×</span>
+      </div>
+    </div>
+
+    <!-- 縮尺 -->
+    <div class="setting-row ctrl-right">
+      <div class="setting-left">
+        <span class="chk-spacer"></span>
+        <span class="setting-label">縮尺</span>
+      </div>
+      <div class="setting-right">
+        <select id="sel-scale" class="setting-select">
+          <option value="" id="opt-current-scale">1 : ---</option>
+          <option disabled>──────</option>
+          <option value="2500">1 : 2,500</option>
+          <option value="4000">1 : 4,000</option>
+          <option value="5000">1 : 5,000</option>
+          <option value="10000">1 : 10,000</option>
+          <option value="15000">1 : 15,000</option>
+          <option value="25000">1 : 25,000</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- ズームレベル -->
+    <div class="setting-row ctrl-right">
+      <div class="setting-left">
+        <span class="chk-spacer"></span>
+        <span class="setting-label">ズーム</span>
+      </div>
+      <div class="setting-right">
+        <select id="sel-zoom" class="setting-select">
+          <option value="" id="opt-current-zoom">z --.-</option>
+          <option disabled>──────</option>
+          <option value="10">z 10</option>
+          <option value="12">z 12</option>
+          <option value="13">z 13</option>
+          <option value="14">z 14</option>
+          <option value="15">z 15</option>
+          <option value="16">z 16</option>
+          <option value="17">z 17</option>
+          <option value="18">z 18</option>
+        </select>
+      </div>
+    </div>
+
+  </details>
+
+  </div><!-- /tab-sim -->
+
   <!-- ===== 地図タブ ===== -->
-  <div class="tab-panel active" id="tab-map">
+  <div class="tab-panel" id="tab-map">
 
   <!-- ===== 地名検索 ===== -->
   <div id="place-search-wrap">
@@ -1878,215 +2098,6 @@ label.setting-label {
 
   </div><!-- /tab-map -->
 
-  <!-- ===== 設定タブ ===== -->
-  <div class="tab-panel" id="tab-settings">
-
-  <!-- ===== CS立体図（ラジオボタンで排他選択） ===== -->
-  <details class="panel-section">
-    <summary>CS立体図</summary>
-    <div class="layer-row">
-      <div class="layer-label-row">
-        <input type="radio" name="cs-mode" id="rad-cs-none" value="none" checked />
-        <label class="layer-name" for="rad-cs-none">非表示</label>
-      </div>
-    </div>
-    <div class="layer-row">
-      <div class="layer-label-row">
-        <input type="radio" name="cs-mode" id="rad-cs-1m" value="1m" />
-        <label class="layer-name" for="rad-cs-1m">CS立体図（1m・全国）</label>
-      </div>
-    </div>
-    <div class="layer-row">
-      <div class="layer-label-row">
-        <input type="radio" name="cs-mode" id="rad-cs-05m" value="0.5m" />
-        <label class="layer-name" for="rad-cs-05m"
-          title="ズーム17以上で0.5mを表示。読み込みに時間がかかります。">CS立体図（0.5m・一部地域）</label>
-      </div>
-    </div>
-    <div class="opacity-row">
-      <input type="range" id="slider-cs" min="0" max="1" step="0.05" value="1.0" disabled />
-      <span class="opacity-val" id="val-cs">100%</span>
-    </div>
-  </details>
-
-  <!-- ===== 表示設定（縮尺 / 等高線 / 地形誇張） ===== -->
-  <details class="panel-section" open>
-    <summary>表示設定</summary>
-
-    <!-- ベースマップ切替：プルダウンで選択 -->
-    <div class="setting-row ctrl-right">
-      <div class="setting-left">
-        <span class="setting-label">ベースマップ</span>
-      </div>
-      <div class="setting-right">
-        <select id="sel-basemap" class="setting-select">
-          <option value="orilibre">OriLibre</option>
-          <option value="gsi-std">地理院 標準地図</option>
-          <option value="gsi-pale">地理院 淡色地図</option>
-          <option value="gsi-photo">地理院 航空写真</option>
-          <option value="osm">OpenStreetMap</option>
-        </select>
-      </div>
-    </div>
-
-    <!-- 縮尺：1行（chk-spacer でチェックボックス分の左余白を確保してラベルを等高線と揃える） -->
-    <div class="setting-row ctrl-right">
-      <div class="setting-left">
-        <span class="chk-spacer"></span>
-        <span class="setting-label">縮尺</span>
-      </div>
-      <div class="setting-right">
-        <select id="sel-scale" class="setting-select">
-          <option value="" id="opt-current-scale">1 : ---</option>
-          <option disabled>──────</option>
-          <option value="2500">1 : 2,500</option>
-          <option value="4000">1 : 4,000</option>
-          <option value="5000">1 : 5,000</option>
-          <option value="10000">1 : 10,000</option>
-          <option value="15000">1 : 15,000</option>
-          <option value="25000">1 : 25,000</option>
-        </select>
-      </div>
-    </div>
-
-    <!-- ズームレベル：縮尺と同一デザイン -->
-    <div class="setting-row ctrl-right">
-      <div class="setting-left">
-        <span class="chk-spacer"></span>
-        <span class="setting-label">ズーム</span>
-      </div>
-      <div class="setting-right">
-        <select id="sel-zoom" class="setting-select">
-          <option value="" id="opt-current-zoom">z --.-</option>
-          <option disabled>──────</option>
-          <option value="10">z 10</option>
-          <option value="12">z 12</option>
-          <option value="13">z 13</option>
-          <option value="14">z 14</option>
-          <option value="15">z 15</option>
-          <option value="16">z 16</option>
-          <option value="17">z 17</option>
-          <option value="18">z 18</option>
-        </select>
-      </div>
-    </div>
-
-
-    <!-- 等高線：[ラベル][トグル] | [プルダウン] -->
-    <div class="setting-row toggle-left">
-      <div class="setting-left">
-        <label for="chk-contour" class="setting-label">等高線</label>
-        <label class="toggle-switch">
-          <input type="checkbox" id="chk-contour" checked />
-          <span class="toggle-slider"></span>
-        </label>
-      </div>
-      <div class="setting-right">
-        <select id="sel-contour-interval" class="setting-select">
-          <option id="opt-contour-current" value="">1 m</option>
-          <option disabled>──────</option>
-          <option value="1">1 m</option>
-          <option value="2">2 m</option>
-          <option value="2.5">2.5 m</option>
-          <option value="5">5 m</option>
-          <option value="10">10 m</option>
-        </select>
-      </div>
-    </div>
-
-    <!-- 磁北線：[ラベル][トグル] | [プルダウン] -->
-    <div class="setting-row toggle-left">
-      <div class="setting-left">
-        <label for="chk-magnetic-north" class="setting-label">磁北線</label>
-        <label class="toggle-switch">
-          <input type="checkbox" id="chk-magnetic-north" checked />
-          <span class="toggle-slider"></span>
-        </label>
-      </div>
-      <div class="setting-right">
-        <select id="sel-magnetic-north-interval" class="setting-select">
-          <option id="opt-magnetic-north-current" value="">300 m</option>
-          <option disabled>──────</option>
-          <option value="120">120 m</option>
-          <option value="150">150 m</option>
-          <option value="250">250 m</option>
-          <option value="300">300 m</option>
-          <option value="500">500 m</option>
-        </select>
-      </div>
-    </div>
-
-    <!-- 3D表示：[ラベル][トグル] | [スライダー] -->
-    <div class="setting-row toggle-left">
-      <div class="setting-left">
-        <label for="chk-exaggeration" class="setting-label">3D表示</label>
-        <label class="toggle-switch">
-          <input type="checkbox" id="chk-exaggeration" checked />
-          <span class="toggle-slider"></span>
-        </label>
-      </div>
-      <div class="setting-right">
-        <input type="range" id="slider-exaggeration" min="0.5" max="3" step="0.1" value="1.0"
-          class="setting-slider" />
-        <span class="opacity-val" id="val-exaggeration">1.0×</span>
-      </div>
-    </div>
-
-  </details>
-
-  <!-- ===== シミュレーター設定 ===== -->
-  <details class="panel-section sim-section">
-    <summary>シミュレーター設定</summary>
-
-    <!-- 移動速度 -->
-    <div class="setting-row ctrl-right">
-      <div class="setting-left">
-        <span class="setting-label">移動速度</span>
-      </div>
-      <div class="setting-right">
-        <input type="range" id="pc-sim-speed" min="10" max="120" step="5" value="50"
-          class="setting-slider" />
-        <span class="opacity-val" id="pc-sim-speed-val">50km/h</span>
-      </div>
-    </div>
-
-    <!-- 読図地図の背景選択（ベースマップと同じか個別指定。KMZ選択時はそのファイルが前面に出る） -->
-    <div class="setting-row label-right">
-      <div class="setting-left">
-        <label for="sel-readmap-bg" class="setting-label">読図地図</label>
-      </div>
-      <div class="setting-right">
-        <select id="sel-readmap-bg" class="setting-select">
-          <option value="same">ベースマップと同じ</option>
-          <option disabled>──────</option>
-          <option value="orilibre">OriLibre</option>
-          <option value="gsi-std">地理院 標準地図</option>
-          <option value="gsi-pale">地理院 淡色地図</option>
-          <option value="gsi-photo">地理院 航空写真</option>
-          <option value="osm">OpenStreetMap</option>
-          <!-- KMZオプションはJSで動的に追加 -->
-        </select>
-      </div>
-    </div>
-
-    <!-- 読図マップ 現在位置ドット表示：[ラベル][トグル] 左揃え -->
-    <div class="setting-row no-divider">
-      <div class="setting-left">
-        <label for="chk-readmap-dot" class="setting-label">読図地図に現在地を表示</label>
-        <label class="toggle-switch">
-          <input type="checkbox" id="chk-readmap-dot" checked />
-          <span class="toggle-slider"></span>
-        </label>
-      </div>
-    </div>
-
-    <!-- PCシム・モバイルシム 両方を常時表示（PC優先で上に配置） -->
-    <button id="pc-sim-toggle-btn">PC シミュレーター開始</button>
-    <button id="sim-toggle-btn">モバイルシミュレーター開始</button>
-
-  </details>
-
-  </div><!-- /tab-settings -->
 
 </div>
 </div>
@@ -6143,7 +6154,7 @@ updateSliderGradient(sliderExaggeration, '#6a8fa0'); // 値変更後に再計算
 // ---- 定数 ----
 const SIM_ZOOM  = 22;
 const SIM_PITCH    = 80; // モバイルシム用ピッチ（低空ドローン視点）
-const PC_SIM_PITCH = 55; // PCシム用ピッチ（斜め上後方視点：鉛直から55°= 地平線より35°上）
+const PC_SIM_PITCH = 80; // PCシム用ピッチ（水平に近い視点：鉛直から80°= 地平線より10°上）
 // キロ5分 = 時速12km = 秒速3.333m
 const SIM_MAX_SPEED_MPS = 12000 / 3600;
 const SIM_MINIMAP_ZOOM  = 16;
@@ -6902,13 +6913,10 @@ document.addEventListener('keyup', (e) => {
    ---------------------------------------------------------------- */
 function getReadmapBaseStyle(bgKey) {
   // KMZ選択時 → 地理院淡色を薄い下地として使用（KMZ自体が主役）
+  // OriLibre はラスタータイルで代替（isomizer を再実行できないため gsi-std を使用）
   const tileKey = bgKey.startsWith('kmz-')
     ? 'gsi-pale'
-    : (() => {
-        const k = bgKey === 'same' ? currentBasemap : bgKey;
-        // OriLibre はラスタータイルで代替（isomizer を再実行できないため）
-        return (k === 'orilibre' || !RASTER_BASEMAPS[k]) ? 'gsi-std' : k;
-      })();
+    : (bgKey === 'orilibre' || !RASTER_BASEMAPS[bgKey]) ? 'gsi-std' : bgKey;
 
   const bm = RASTER_BASEMAPS[tileKey];
   return {
@@ -6996,27 +7004,28 @@ function updateReadmapBgKmzOptions() {
   [...sel.options].filter(o => o.dataset.kmz).forEach(o => o.remove());
 
   if (kmzLayers.length > 0) {
-    // 区切り線
+    // KMZ ファイルを先頭（index=0）から順に挿入（読み込んだ地図が最上部に来るよう）
+    // 区切り線（KMZ の後に配置）
     const sep = new Option('──────');
     sep.disabled = true;
     sep.dataset.kmz = '1';
-    sel.appendChild(sep);
+    sel.insertBefore(sep, sel.options[0]);
 
-    // KMZ ファイルを1件ずつ追加（拡張子なし表示）
-    kmzLayers.forEach(entry => {
+    // KMZ ファイルを逆順で index=0 に挿入することで先頭に降順追加
+    [...kmzLayers].reverse().forEach(entry => {
       const shortName = entry.name.replace(/\.kmz$/i, '');
       const opt = new Option(`🗺 ${shortName}`, `kmz-${entry.id}`);
       opt.dataset.kmz = '1';
-      sel.appendChild(opt);
+      sel.insertBefore(opt, sel.options[0]);
     });
   }
 
-  // 選択値を維持。削除されたKMZが選択されていた場合は 'same' に戻す。
+  // 選択値を維持。削除されたKMZが選択されていた場合は 'orilibre' に戻す。
   const validVals = new Set([
-    'same', 'orilibre', 'gsi-std', 'gsi-pale', 'gsi-photo', 'osm',
+    'orilibre', 'gsi-std', 'gsi-pale', 'gsi-photo', 'osm',
     ...kmzLayers.map(e => `kmz-${e.id}`),
   ]);
-  sel.value = validVals.has(currentVal) ? currentVal : 'same';
+  sel.value = validVals.has(currentVal) ? currentVal : 'orilibre';
 }
 
 /* ----------------------------------------------------------------
@@ -7064,12 +7073,7 @@ document.getElementById('sel-readmap-bg').addEventListener('change', () => {
   }
 });
 
-/* ----------------------------------------------------------------
-   シミュレーターボタン：スマホ・PC 両方を常時表示
-   ---------------------------------------------------------------- */
-// モバイルシミュレーターは非表示のまま維持（CSS の display:none を上書きしない）
-// document.getElementById('sim-toggle-btn').style.display    = 'block';
-document.getElementById('pc-sim-toggle-btn').style.display = 'block';
+// シミュレーターボタンは CSS で display:block 設定済み。JSによる上書き不要。
 
 </script>
 </body>
