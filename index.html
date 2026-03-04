@@ -514,8 +514,22 @@ label.setting-label {
   padding: 0 12px; /* 左右は他の行と同じ12px、上下は子行が担当 */
 }
 .setting-row.overlay-stacked .setting-left {
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  width: 80px;
+}
+.overlay-left-top {
+  display: flex;
   align-items: center;
   justify-content: flex-end;
+  flex: 1;
+}
+.overlay-left-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex: 1;
 }
 .overlay-controls {
   flex: 1;
@@ -535,11 +549,8 @@ label.setting-label {
   align-items: center;
   gap: 5px;
   padding: 3px 0 4px 4px;
-  border-top: 1px solid #f0f0f0;
 }
-.overlay-ctrl-bottom input[type="range"] {
-  max-width: 64px; /* スライダーを短く */
-}
+
 
 /* 透明度スライダー行 */
 .opacity-row {
@@ -559,6 +570,7 @@ label.setting-label {
 .opacity-row input[type="range"],
 .overlay-ctrl-bottom input[type="range"] {
   flex: 1;
+  min-width: 0;
   height: 3px;
   cursor: pointer;
   -webkit-appearance: none;
@@ -1951,9 +1963,9 @@ label.setting-label {
         <span class="setting-label">移動速度</span>
       </div>
       <div class="setting-right">
-        <input type="range" id="pc-sim-speed" min="10" max="200" step="5" value="50"
+        <input type="range" id="pc-sim-speed" min="10" max="200" step="5" value="100"
           class="setting-slider" />
-        <span class="opacity-val" id="pc-sim-speed-val">50km/h</span>
+        <span class="opacity-val" id="pc-sim-speed-val">100km/h</span>
       </div>
     </div>
 
@@ -2013,12 +2025,19 @@ label.setting-label {
     <!-- オーバーレイ（2段組み） -->
     <div class="setting-row overlay-stacked">
       <div class="setting-left">
-        <span class="setting-label">オーバーレイ</span>
+        <div class="overlay-left-top">
+          <span class="setting-label">オーバーレイ</span>
+        </div>
+        <div class="overlay-left-bottom">
+          <label class="toggle-switch">
+            <input type="checkbox" id="chk-overlay" />
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
       </div>
       <div class="overlay-controls">
         <div class="overlay-ctrl-top">
           <select id="sel-overlay" class="setting-select">
-            <option value="none">なし</option>
             <option value="cs-1m">CS立体図 1m（全国）</option>
             <option value="cs-0.5m" title="ズーム17以上で0.5mを表示">CS立体図 0.5m（一部地域）</option>
           </select>
@@ -5848,7 +5867,8 @@ function updateRegionalAttribution() {
     attrEl.id = 'regional-cs-attr';
     attrInner.appendChild(attrEl);
   }
-  const _csOverlay  = document.getElementById('sel-overlay')?.value;
+  const _overlayOn  = document.getElementById('chk-overlay')?.checked;
+  const _csOverlay  = _overlayOn ? document.getElementById('sel-overlay')?.value : 'none';
   const _csBasemap  = document.getElementById('sel-basemap')?.value;
   const _csKey      = _csOverlay !== 'none' ? _csOverlay : _csBasemap;
   const csRegionalOn = _csKey === 'cs-0.5m' && map.getZoom() >= 17;
@@ -5880,8 +5900,9 @@ function updateRegionalAttribution() {
 // モード: none / 1m（全国） / 0.5m（地域DEM優先）
 // 0.5m モードはズーム17以上で地域CSを表示し、ズーム17未満は1mに自動フォールバック
 function updateCsVisibility() {
-  const basemap = document.getElementById('sel-basemap').value;   // 'cs-1m' | 'cs-0.5m' | others
-  const overlay = document.getElementById('sel-overlay').value;   // 'cs-1m' | 'cs-0.5m' | 'none'
+  const basemap    = document.getElementById('sel-basemap').value;   // 'cs-1m' | 'cs-0.5m' | others
+  const overlayOn  = document.getElementById('chk-overlay').checked;
+  const overlay    = overlayOn ? document.getElementById('sel-overlay').value : 'none';
 
   // オーバーレイ優先、なければベースマップ選択を参照
   const csKey = overlay !== 'none' ? overlay
@@ -5902,11 +5923,12 @@ function updateCsVisibility() {
     }
   });
 
-  document.getElementById('slider-cs').disabled = !csKey;
+  document.getElementById('slider-cs').disabled = !overlayOn;
   updateRegionalAttribution();
 }
 
 document.getElementById('sel-overlay').addEventListener('change', updateCsVisibility);
+document.getElementById('chk-overlay').addEventListener('change', updateCsVisibility);
 
 // ズーム17の境界を跨いだとき 0.5m ↔ 1m を自動切替
 map.on('zoomend', updateCsVisibility);
