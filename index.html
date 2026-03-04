@@ -2324,7 +2324,7 @@ label.setting-label {
   <span class="hint-sep"></span>
   <span class="hint-group"><kbd>マウス</kbd><span class="hint-or">/</span><kbd>タッチパッド</kbd><span class="hint-or">/</span><kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd><span class="hint-action">視点移動</span></span>
   <span class="hint-sep"></span>
-  <span class="hint-group"><kbd>+</kbd><span class="hint-or"><kbd>–</kbd><span class="hint-action">ズームイン / アウト</span></span>
+  <span class="hint-group"><kbd>I</kbd><span class="hint-or">/</span><kbd>O</kbd><span class="hint-action">ズームイン / アウト</span></span>
   <span class="hint-sep"></span>
   <span class="hint-group"><kbd>Space</kbd><span class="hint-or">/</span><kbd>右クリック</kbd><span class="hint-action">読図</span></span>
   <span class="hint-sep"></span>
@@ -7097,11 +7097,11 @@ document.addEventListener('keydown', (e) => {
     e.preventDefault();
     openPcReadMap();
   }
-  // + キーで距離を縮める（ズームイン）、- キーで距離を伸ばす（ズームアウト）（PCシム中のみ）
-  if (pcSimActive && (e.code === 'Semicolon' || e.code === 'NumpadAdd' || e.code === 'Minus' || e.code === 'NumpadSubtract')) {
+  // I キーで距離を縮める（ズームイン）、O キーで距離を伸ばす（ズームアウト）（PCシム中のみ）
+  if (pcSimActive && (e.code === 'KeyI' || e.code === 'KeyO')) {
     e.preventDefault();
-    if (e.code === 'Semicolon' || e.code === 'NumpadAdd') pcCamDistM = Math.max(PC_CAM_DIST_MIN, pcCamDistM * 0.7);
-    else                                                  pcCamDistM = Math.min(PC_CAM_DIST_MAX, pcCamDistM * 1.4);
+    if (e.code === 'KeyI') pcCamDistM = Math.max(PC_CAM_DIST_MIN, pcCamDistM * 0.7);
+    else                   pcCamDistM = Math.min(PC_CAM_DIST_MAX, pcCamDistM * 1.4);
   }
 });
 
