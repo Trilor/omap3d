@@ -785,23 +785,6 @@ label.setting-label {
 .type-chip.active { background: #4a7c59; color: #fff; border-color: #4a7c59; }
 .type-chip:hover:not(.active) { background: #e8f0ea; border-color: #4a7c59; color: #4a7c59; }
 
-/* ===== シミュレーター中 Esc ボタン ===== */
-#sim-esc-btn {
-  position: fixed;
-  top: 12px;
-  left: 12px;
-  z-index: 1200;
-  padding: 5px 16px;
-  background: rgba(0, 0, 0, 0.65);
-  color: #fff;
-  border: none;
-  border-radius: 16px;
-  font-size: 11px;
-  cursor: pointer;
-  pointer-events: auto;
-  white-space: nowrap;
-}
-#sim-esc-btn:hover { background: rgba(0, 0, 0, 0.82); }
 
 /* 都道府県グループ（3段ツリーの最上位） */
 .pref-group {
@@ -2149,8 +2132,6 @@ label.setting-label {
 
 </div>
 </div>
-<!-- シミュレーター中のEscボタン -->
-<button id="sim-esc-btn" style="display:none">Esc でシミュレーター終了</button>
 <!-- 視点切り替えトグルボタン（GPX読み込み後に表示） -->
 <button id="view-toggle-btn">🗺 3人称視点</button>
 <!-- タイムライン・コントロールパネル（画面下部、GPX読み込み後に表示） -->
@@ -2257,7 +2238,7 @@ label.setting-label {
   <span class="hint-sep"></span>
   <span class="hint-group">マウス<span class="hint-or">/</span>タッチパッド<span class="hint-or">/</span><kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd><span class="hint-action">視点</span></span>
   <span class="hint-sep"></span>
-  <span class="hint-group"><kbd>+</kbd><span class="hint-or">/</span><kbd>-</kbd><span class="hint-action">ズーム</span></span>
+  <span class="hint-group"><kbd>+</kbd><span class="hint-or"><kbd>-</kbd><span class="hint-action">ズーム</span></span>
   <span class="hint-sep"></span>
   <span class="hint-group"><kbd>Space</kbd><span class="hint-or">/</span>右クリック<span class="hint-action">読図</span></span>
   <span class="hint-sep"></span>
@@ -6305,7 +6286,6 @@ function startSimMode() {
 
   // ④ UIを切り替え
   document.getElementById('ui-panel').style.display = 'none';
-  document.getElementById('sim-esc-btn').style.display = 'block';
   document.getElementById('sim-overlay').style.display = 'flex';
   const btn = document.getElementById('sim-toggle-btn');
   btn.textContent = 'モバイルシミュレーター終了';
@@ -6350,7 +6330,6 @@ function stopSimMode() {
 
   // UIを元に戻す
   document.getElementById('ui-panel').style.display = '';
-  document.getElementById('sim-esc-btn').style.display = 'none';
   document.getElementById('sim-overlay').style.display = 'none';
   const btn = document.getElementById('sim-toggle-btn');
   btn.textContent = 'モバイルシミュレーター開始';
@@ -6693,7 +6672,6 @@ function onPcSimLocked() {
 
   // ④ UIを更新
   document.getElementById('ui-panel').style.display = 'none';
-  document.getElementById('sim-esc-btn').style.display = 'block';
   const btn = document.getElementById('pc-sim-toggle-btn');
   btn.textContent = '[Esc]でシミュレーター終了';
   btn.classList.add('pc-sim-active');
@@ -6736,7 +6714,6 @@ function stopPcSim() {
 
   // UI 復元
   document.getElementById('ui-panel').style.display = '';
-  document.getElementById('sim-esc-btn').style.display = 'none';
   const btn = document.getElementById('pc-sim-toggle-btn');
   btn.textContent = 'PC シミュレーター開始';
   btn.classList.remove('pc-sim-active');
@@ -7155,11 +7132,6 @@ function closePcReadMap() {
 // ---- PCシムボタンのイベント ----
 document.getElementById('pc-sim-toggle-btn').addEventListener('click', startPcSim);
 
-// ---- シミュレーター中の Esc ボタン ----
-document.getElementById('sim-esc-btn').addEventListener('click', () => {
-  if (pcSimActive)  stopPcSim();
-  if (simActive)    stopSimMode();
-});
 
 // ---- 読図地図セレクト変更 ----
 // PC シム起動中に変更した場合は読図マップを即座に再構築する。
