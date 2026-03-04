@@ -2062,7 +2062,7 @@ label.setting-label {
       </div>
       <div class="setting-right">
         <select id="sel-contour-interval" class="setting-select">
-          <option id="opt-contour-current" value="">1 m</option>
+          <option id="opt-contour-current" value="">5 m</option>
           <option disabled>──────</option>
           <option value="1">1 m</option>
           <option value="2">2 m</option>
@@ -6073,7 +6073,7 @@ let contourHiddenByLowZoom = false;
 //   z11 ≈ 1:125,000   → 25m（5万図=20m に近似）
 //   z12 ≈ 1:62,500    → 10m（2.5万図の標準 10m）
 //   z13 ≈ 1:31,000    → 5m
-//   z14+ ≈ 1:15,500–  → ユーザー設定（デフォルト 1m）
+//   z14+ ≈ 1:15,500–  → ユーザー設定（デフォルト 5m）
 function getEffectiveContourInterval() {
   const z = map.getZoom();
   if (z <=  8) return 200;
