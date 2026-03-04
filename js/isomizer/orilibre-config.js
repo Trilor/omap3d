@@ -521,7 +521,7 @@ export const SYMBOL_PALETTE = {
       symbol_id: "521-2-building-outline", type: "line",
       layout: { "line-join": "miter", "line-cap": "butt" },
       paint: {},
-      property: { "color-key": "upper.black_building_outline", "line-width(mm)": 0.5 },
+      property: { "color-key": "upper.black_building_outline", "line-width(mm)": 0.3 },
     },
     {
       symbol_id: "522-canopy", type: "fill",
@@ -538,7 +538,7 @@ export const SYMBOL_PALETTE = {
       symbol_id: "532-1-stairway-center", type: "line",
       layout: { "line-join": "miter", "line-cap": "butt" },
       paint: {},
-      property: { "color-key": "upper.white_stairway", "line-width(mm)": 0.25, "line-dasharray(mm)": [0.20, 0.08] },
+      property: { "color-key": "upper.white_stairway", "line-width(mm)": 0.15, "line-dasharray(mm)": [0.20, 0.08] },
     },
     {
       symbol_id: "532-2-stairway-outline", type: "line",
