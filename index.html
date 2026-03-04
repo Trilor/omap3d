@@ -3658,8 +3658,6 @@ map.on('load', async () => {
     _magnNorthTimer = setTimeout(updateMagneticNorth, 200);
   });
   map.on('moveend', updateContourAutoInterval);
-  // ズームが0未満になった場合は強制的に0に戻す
-  map.on('moveend', () => { if (map.getZoom() < 0) map.jumpTo({ zoom: 0 }); });
 
   // 初期ベースマップ（OriLibre）の出典を表示
   // MapLibreはsource追加のたびに .maplibregl-ctrl-attrib-inner を書き換えるため
