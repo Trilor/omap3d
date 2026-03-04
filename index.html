@@ -1901,26 +1901,28 @@ label.setting-label {
           <option value="gsi-pale">地理院 淡色地図</option>
           <option value="gsi-photo">地理院 航空写真</option>
           <option value="osm">OpenStreetMap</option>
+          <option disabled>──────</option>
+          <option value="cs-1m">CS立体図 1m（全国）</option>
+          <option value="cs-0.5m" title="ズーム17以上で0.5mを表示">CS立体図 0.5m（一部地域）</option>
         </select>
       </div>
     </div>
 
-    <!-- CS立体図：等高線と同じ toggle-left レイアウト -->
-    <div class="setting-row toggle-left">
+    <!-- オーバーレイ -->
+    <div class="setting-row ctrl-right">
       <div class="setting-left">
-        <label for="chk-cs" class="setting-label">CS立体図</label>
-        <label class="toggle-switch">
-          <input type="checkbox" id="chk-cs" />
-          <span class="toggle-slider"></span>
-        </label>
+        <span class="setting-label">オーバーレイ</span>
       </div>
       <div class="setting-right">
-        <select id="sel-cs-res" class="setting-select">
-          <option value="1m">1m（全国）</option>
-          <option value="0.5m" title="ズーム17以上で0.5mを表示。読み込みに時間がかかります。">0.5m（一部地域）</option>
+        <select id="sel-overlay" class="setting-select">
+          <option value="none">なし</option>
+          <option disabled>──────</option>
+          <option value="cs-1m">CS立体図 1m（全国）</option>
+          <option value="cs-0.5m" title="ズーム17以上で0.5mを表示">CS立体図 0.5m（一部地域）</option>
         </select>
       </div>
     </div>
+    <!-- CS立体図 透明度（ベースマップ・オーバーレイ共通） -->
     <div class="opacity-row">
       <input type="range" id="slider-cs" min="0" max="1" step="0.05" value="1.0" disabled />
       <span class="opacity-val" id="val-cs">100%</span>
@@ -5747,9 +5749,10 @@ function updateRegionalAttribution() {
     attrEl.id = 'regional-cs-attr';
     attrInner.appendChild(attrEl);
   }
-  const csRegionalOn = document.getElementById('chk-cs')?.checked
-    && document.getElementById('sel-cs-res')?.value === '0.5m'
-    && map.getZoom() >= 17;
+  const _csOverlay  = document.getElementById('sel-overlay')?.value;
+  const _csBasemap  = document.getElementById('sel-basemap')?.value;
+  const _csKey      = _csOverlay !== 'none' ? _csOverlay : _csBasemap;
+  const csRegionalOn = _csKey === 'cs-0.5m' && map.getZoom() >= 17;
   if (!csRegionalOn) {
     attrEl.innerHTML = '';
     _lastAttrKey = null;
@@ -5778,12 +5781,18 @@ function updateRegionalAttribution() {
 // モード: none / 1m（全国） / 0.5m（地域DEM優先）
 // 0.5m モードはズーム17以上で地域CSを表示し、ズーム17未満は1mに自動フォールバック
 function updateCsVisibility() {
-  const on  = document.getElementById('chk-cs').checked;
-  const res = document.getElementById('sel-cs-res').value; // '1m' | '0.5m'
-  const mode = on ? res : 'none';
+  const basemap = document.getElementById('sel-basemap').value;   // 'cs-1m' | 'cs-0.5m' | others
+  const overlay = document.getElementById('sel-overlay').value;   // 'cs-1m' | 'cs-0.5m' | 'none'
+
+  // オーバーレイ優先、なければベースマップ選択を参照
+  const csKey = overlay !== 'none' ? overlay
+              : basemap.startsWith('cs-') ? basemap
+              : null;
+
   const z = map.getZoom();
-  const show1m  = (mode === '1m') || (mode === '0.5m' && z < 17);
-  const show05m = (mode === '0.5m') && z >= 17;
+  const csRes   = csKey?.replace('cs-', '');              // '1m' | '0.5m' | undefined
+  const show1m  = !!csKey && (csRes === '1m' || (csRes === '0.5m' && z < 17));
+  const show05m = !!csKey && csRes === '0.5m' && z >= 17;
 
   if (map.getLayer('cs-relief-layer')) {
     map.setLayoutProperty('cs-relief-layer', 'visibility', show1m ? 'visible' : 'none');
@@ -5794,13 +5803,11 @@ function updateCsVisibility() {
     }
   });
 
-  document.getElementById('sel-cs-res').disabled = !on;
-  document.getElementById('slider-cs').disabled  = !on;
+  document.getElementById('slider-cs').disabled = !csKey;
   updateRegionalAttribution();
 }
 
-document.getElementById('chk-cs').addEventListener('change', updateCsVisibility);
-document.getElementById('sel-cs-res').addEventListener('change', updateCsVisibility);
+document.getElementById('sel-overlay').addEventListener('change', updateCsVisibility);
 
 // ズーム17の境界を跨いだとき 0.5m ↔ 1m を自動切替
 map.on('zoomend', updateCsVisibility);
@@ -6037,6 +6044,16 @@ function switchBasemap(key) {
     if (map.getLayer('basemap-fallback-layer')) {
       map.setLayoutProperty('basemap-fallback-layer', 'visibility', 'visible');
     }
+  } else if (key.startsWith('cs-')) {
+    // CS立体図をベースマップとして使用: OriLibre・ラスターを全て非表示にして CS のみ表示
+    oriLibreLayers.forEach(({ id }) => {
+      if (id === 'building-3d') return;
+      if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', 'none');
+    });
+    if (map.getLayer('basemap-fallback-layer')) {
+      map.setLayoutProperty('basemap-fallback-layer', 'visibility', 'none');
+    }
+    // CS レイヤーの表示は updateCsVisibility に委譲
   } else {
     // ③ OriLibre レイヤーを全て非表示（building-3d は全ベースマップで表示するため除外）
     oriLibreLayers.forEach(({ id }) => {
@@ -6050,6 +6067,8 @@ function switchBasemap(key) {
     if (map.getLayer(key + '-layer')) map.setLayoutProperty(key + '-layer', 'visibility', 'visible');
   }
 
+  // CS 表示状態を更新（ベースマップとしての CS も updateCsVisibility で管理）
+  updateCsVisibility();
   // 出典先頭のベースマップ表記を更新
   updateBasemapAttribution();
 }
