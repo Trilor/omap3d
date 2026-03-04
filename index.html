@@ -1700,17 +1700,20 @@ label.setting-label {
 #pc-sim-hint.fade-out {
   opacity: 0.2;
 }
-#pc-sim-hint .hint-group {
+#pc-sim-hint .hint-group,
+#pc-sim-readmap-label .hint-group {
   display: inline-flex;
   align-items: center;
   gap: 6px;
 }
-#pc-sim-hint .hint-action {
+#pc-sim-hint .hint-action,
+#pc-sim-readmap-label .hint-action {
   color: rgba(255,255,255,0.9);
   font-size: 11px;
   margin-left: 2px;
 }
-#pc-sim-hint .hint-sep {
+#pc-sim-hint .hint-sep,
+#pc-sim-readmap-label .hint-sep {
   display: inline-block;
   width: 1px;
   height: 14px;
@@ -1718,7 +1721,8 @@ label.setting-label {
   margin: 0 12px;
   vertical-align: middle;
 }
-#pc-sim-hint kbd {
+#pc-sim-hint kbd,
+#pc-sim-readmap-label kbd {
   display: inline-block;
   background: rgba(255,255,255,0.15);
   border: 1px solid rgba(255,255,255,0.35);
@@ -1730,7 +1734,8 @@ label.setting-label {
   line-height: 1.6;
   vertical-align: middle;
 }
-#pc-sim-hint .hint-or {
+#pc-sim-hint .hint-or,
+#pc-sim-readmap-label .hint-or {
   color: rgba(255,255,255,0.45);
   font-size: 10px;
   margin: 0 1px;
@@ -2339,7 +2344,9 @@ label.setting-label {
     </div>
     <div id="pc-sim-readmap-dot"></div>
     <div id="pc-sim-readmap-arrow"></div>
-    <div id="pc-sim-readmap-label">読図モード（スペースキー/右クリックを離して閉じる）</div>
+    <div id="pc-sim-readmap-label">
+      <span class="hint-group"><kbd>Space</kbd><span class="hint-or">/</span><kbd>右クリック</kbd><span class="hint-action">を離して閉じる</span></span>
+    </div>
   </div>
 </div>
 
