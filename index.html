@@ -1462,9 +1462,9 @@ label.setting-label {
    ================================================================ */
 
 /* トグルボタン（右下固定） */
-/* モバイルシムボタン：PC シムの下にサブボタンとして配置 */
+/* モバイルシムボタン：一旦非表示 */
 #sim-toggle-btn {
-  display: block;
+  display: none;
   width: calc(100% - 20px);
   margin: 6px 10px 8px;
   padding: 7px 12px;
@@ -1836,7 +1836,7 @@ label.setting-label {
   <!-- シミュレーターボタン（最上部） -->
   <div class="sim-btn-group">
     <button id="pc-sim-toggle-btn">PC シミュレーター開始</button>
-    <button id="sim-toggle-btn">モバイルシミュレーター開始</button>
+    <!-- <button id="sim-toggle-btn">モバイルシミュレーター開始</button> -->
   </div>
 
   <!-- シミュレーター設定 -->
@@ -1977,7 +1977,7 @@ label.setting-label {
     <!-- 3D表示（地形誇張） -->
     <div class="setting-row toggle-left">
       <div class="setting-left">
-        <label for="chk-exaggeration" class="setting-label">3D誇張</label>
+        <label for="chk-exaggeration" class="setting-label">3D表示</label>
         <label class="toggle-switch">
           <input type="checkbox" id="chk-exaggeration" checked />
           <span class="toggle-slider"></span>
