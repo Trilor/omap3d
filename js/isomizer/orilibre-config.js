@@ -9,6 +9,7 @@ export const DESIGN_PLAN = {
     ofm: {
       type: "vector",
       url: "https://tiles.openfreemap.org/planet",
+      attribution: "&copy; <a href='https://www.openstreetmap.org/copyright' target='_blank'>OpenStreetMap</a> contributors",
     },
     gsivt: {
       type: "vector",
