@@ -3353,6 +3353,14 @@ map.on('load', async () => {
       }
     });
 
+    // gsivt の line レイヤーはズーム9未満で非表示にする
+    // （低ズームで日本陸地の黒輪郭が出る原因のため minzoom を引き上げる）
+    map.getStyle().layers.forEach(layer => {
+      if (layer.source === 'gsivt' && layer.type === 'line' && (layer.minzoom ?? 0) < 9) {
+        map.setLayerZoomRange(layer.id, 9, layer.maxzoom ?? 24);
+      }
+    });
+
     // isomizer が追加したレイヤーを収集（ベースマップ切替で一括 visibility 制御するため）
     // contour-source のレイヤーは除外（等高線はベースマップ切替の影響を受けない）
     oriLibreLayers = map.getStyle().layers
