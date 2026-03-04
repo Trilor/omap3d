@@ -1878,11 +1878,11 @@ label.setting-label {
   bottom: 0; /* position:absolute のまま右下固定 */
 }
 
-/* 右下フロート縮尺コントロール */
+/* 左下フロート縮尺コントロール */
 #scale-ctrl-container {
   position: absolute;
   bottom: 24px;
-  right: 10px;
+  left: 10px;
   z-index: 10;
 }
 .scale-ctrl-select {
@@ -6319,16 +6319,32 @@ selScale.addEventListener('change', () => {
   if (val) zoomToScale(val);
 });
 
-// 縮尺コントロールを出典（右下コントロール群）の直上に配置し、出典の開閉に連動して追従する
+// 縮尺コントロールを左下に配置し、出典と重なる場合は出典の上に移動する
 function updateScalePosition() {
-  const br = document.querySelector('.maplibregl-ctrl-bottom-right');
+  const attrib = document.querySelector('.maplibregl-ctrl-attrib');
   const scaleEl = document.getElementById('scale-ctrl-container');
-  if (!br || !scaleEl) return;
-  scaleEl.style.bottom = (br.offsetHeight + 4) + 'px';
+  if (!attrib || !scaleEl) return;
+
+  // CSSデフォルト（bottom: 24px）にリセット
+  scaleEl.style.bottom = '';
+
+  // リセット後の矩形を取得（getBoundingClientRect はレイアウト同期済み）
+  const ar = attrib.getBoundingClientRect();
+  const sr = scaleEl.getBoundingClientRect();
+
+  // 水平・垂直の両方で重なる場合のみ出典の上に移動
+  const hOverlap = ar.left < sr.right + 4 && ar.right > sr.left - 4;
+  const vOverlap = ar.top  < sr.bottom + 4 && ar.bottom > sr.top - 4;
+  if (hOverlap && vOverlap) {
+    scaleEl.style.bottom = (window.innerHeight - ar.top + 4) + 'px';
+  }
 }
-// 出典の開閉（高さ変化）を監視して自動追従
-const _brCtrl = document.querySelector('.maplibregl-ctrl-bottom-right');
-if (_brCtrl) new ResizeObserver(updateScalePosition).observe(_brCtrl);
+// 出典の開閉（サイズ変化・クラス変化）を監視して自動追従
+const _attribEl = document.querySelector('.maplibregl-ctrl-attrib');
+if (_attribEl) {
+  new ResizeObserver(updateScalePosition).observe(_attribEl);
+  new MutationObserver(updateScalePosition).observe(_attribEl, { attributes: true, attributeFilter: ['class'] });
+}
 map.once('idle', updateScalePosition);
 
 
