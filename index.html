@@ -3039,9 +3039,7 @@ map.addControl(new maplibregl.AttributionControl({
   customAttribution:
     '(<a href="https://www.geospatial.jp/ckan/dataset/qchizu_94dem_99gsi" target="_blank">Q地図1mDEM</a>' +
     ' | <a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">地理院タイル[PNG標高DEM5A/湖水深/基準水面標高]</a>' +
-    ' | <a href="https://www.ngdc.noaa.gov/geomag/WMM/" target="_blank">WMM/NOAA</a>' +
-    ' | <a href="https://www.mlit.go.jp/plateau/open-data/" target="_blank">国土交通省3D都市モデルPLATEAU</a>' +
-    '（<a href="https://github.com/shiwaku/mlit-plateau-bldg-pmtiles" target="_blank">shiwaku</a>がPMTiles変換）)' +
+    ' | <a href="https://www.ngdc.noaa.gov/geomag/WMM/" target="_blank">WMM/NOAA</a>)' +
     ' を加工して作成',
 }), 'bottom-right');
 
@@ -5932,6 +5930,22 @@ function updateRegionalAttribution() {
   attrEl.innerHTML = html ? ' | ' + html : '';
 }
 
+function updatePlateauAttribution() {
+  let attrEl = document.getElementById('plateau-attr');
+  if (!attrEl) {
+    const attrInner = document.querySelector('.maplibregl-ctrl-attrib-inner');
+    if (!attrInner) return;
+    attrEl = document.createElement('span');
+    attrEl.id = 'plateau-attr';
+    attrInner.appendChild(attrEl);
+  }
+  const buildingOn = document.getElementById('chk-building')?.checked ?? false;
+  const mode       = document.getElementById('sel-building')?.value ?? 'plateau';
+  attrEl.innerHTML = (buildingOn && mode === 'plateau')
+    ? ' | <a href="https://www.mlit.go.jp/plateau/open-data/" target="_blank">国土交通省3D都市モデルPLATEAU</a>（<a href="https://github.com/shiwaku/mlit-plateau-bldg-pmtiles" target="_blank">shiwaku</a>加工）'
+    : '';
+}
+
 // ---- CS立体図 ラジオボタン制御 ----
 // モード: none / 1m（全国） / 0.5m（地域DEM優先）
 // 0.5m モードはズーム17以上で地域CSを表示し、ズーム17未満は1mに自動フォールバック
@@ -6014,7 +6028,7 @@ function updateBuildingLayer() {
   // 既存レイヤーを一旦削除
   if (map.getLayer('building-3d')) map.removeLayer('building-3d');
 
-  if (!buildingOn) return;
+  if (!buildingOn) { updatePlateauAttribution(); return; }
 
   const cfg = BUILDING_CFG[mode];
   if (!cfg || !map.getSource(cfg.source)) return; // ソース未追加なら無視
@@ -6032,6 +6046,7 @@ function updateBuildingLayer() {
       'fill-extrusion-opacity': 0.7,
     },
   });
+  updatePlateauAttribution();
 }
 
 document.getElementById('sel-building').addEventListener('change', updateBuildingLayer);
