@@ -6942,10 +6942,10 @@ document.addEventListener('keydown', (e) => {
     openPcReadMap();
   }
   // + キーで距離を縮める（ズームイン）、- キーで距離を伸ばす（ズームアウト）（PCシム中のみ）
-  if (pcSimActive && (e.code === 'Equal' || e.code === 'NumpadAdd' || e.code === 'Minus' || e.code === 'NumpadSubtract')) {
+  if (pcSimActive && (e.code === 'Semicolon' || e.code === 'NumpadAdd' || e.code === 'Minus' || e.code === 'NumpadSubtract')) {
     e.preventDefault();
-    if (e.code === 'Equal' || e.code === 'NumpadAdd') pcCamDistM = Math.max(PC_CAM_DIST_MIN, pcCamDistM * 0.7);
-    else                                              pcCamDistM = Math.min(PC_CAM_DIST_MAX, pcCamDistM * 1.4);
+    if (e.code === 'Semicolon' || e.code === 'NumpadAdd') pcCamDistM = Math.max(PC_CAM_DIST_MIN, pcCamDistM * 0.7);
+    else                                                  pcCamDistM = Math.min(PC_CAM_DIST_MAX, pcCamDistM * 1.4);
   }
 });
 
