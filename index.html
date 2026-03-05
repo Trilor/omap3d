@@ -3034,8 +3034,8 @@ const map = new maplibregl.Map({
     'NavigationControl.ZoomIn':           'ズームイン',
     'NavigationControl.ZoomOut':          'ズームアウト',
     'NavigationControl.ResetBearing':     '北を上にリセット',
-    'FullscreenControl.Enter':            'フルスクリーン',
-    'FullscreenControl.Exit':             'フルスクリーン終了',
+    'FullscreenControl.Enter':            '全画面表示',
+    'FullscreenControl.Exit':             '全画面表示を終了',
     'GeolocateControl.FindMyLocation':    '現在地を表示',
     'GeolocateControl.LocationNotAvailable': '現在地を取得できません',
     'AttributionControl.ToggleAttribution': '出典を表示',
@@ -5861,7 +5861,9 @@ function updateMagneticNorth() {
     }
   }
 
-  map.getSource('magnetic-north').setData(turf.featureCollection(features));
+  const featureCollection = turf.featureCollection(features);
+  _lastMagneticNorthData = featureCollection;
+  map.getSource('magnetic-north').setData(featureCollection);
 }
 
 // 都道府県別CS出典の動的表示
@@ -7205,6 +7207,57 @@ function getReadmapBaseStyle(bgKey) {
 }
 
 /* ----------------------------------------------------------------
+   syncReadmapOriLibre: OriLibre読図マップに磁北線・等高線設定を同期
+   initPcReadMap の load コールバック、updateMagneticNorth、
+   applyContourInterval などから呼ばれる。
+   ---------------------------------------------------------------- */
+// 直近の磁北線 GeoJSON（読図マップへの同期用キャッシュ）
+let _lastMagneticNorthData = { type: 'FeatureCollection', features: [] };
+
+function syncReadmapOriLibre() {
+  if (!pcSimReadMap || !pcSimReadMap.isStyleLoaded()) return;
+  if (document.getElementById('sel-readmap-bg').value !== 'orilibre') return;
+
+  // ── 等高線: tile URL と visibility を同期 ──────────────────────
+  if (pcSimReadMap.getSource('contour-source') && lastAppliedContourInterval) {
+    const newUrl = buildContourTileUrl(lastAppliedContourInterval);
+    if (newUrl) pcSimReadMap.getSource('contour-source').setTiles([newUrl]);
+  }
+  const contourVis = chkContour.checked ? 'visible' : 'none';
+  for (const id of contourLayerIds) {
+    if (!pcSimReadMap.getLayer(id)) continue;
+    // symbol レイヤー（数値ラベル）は常に非表示
+    const vis = pcSimReadMap.getLayer(id).type === 'symbol' ? 'none' : contourVis;
+    pcSimReadMap.setLayoutProperty(id, 'visibility', vis);
+  }
+
+  // ── 磁北線: ソース・レイヤーを初回追加してから GeoJSON を同期 ──
+  const magnVis = chkMagneticNorth.checked ? 'visible' : 'none';
+  if (!pcSimReadMap.getSource('magnetic-north')) {
+    pcSimReadMap.addSource('magnetic-north', {
+      type: 'geojson',
+      data: _lastMagneticNorthData,
+    });
+    pcSimReadMap.addLayer({
+      id: 'magnetic-north-layer',
+      type: 'line',
+      source: 'magnetic-north',
+      layout: { visibility: magnVis },
+      paint: {
+        'line-color': '#0055cc',
+        'line-width': 0.8,
+        'line-opacity': 1.0,
+      },
+    });
+  } else {
+    pcSimReadMap.getSource('magnetic-north').setData(_lastMagneticNorthData);
+    if (pcSimReadMap.getLayer('magnetic-north-layer')) {
+      pcSimReadMap.setLayoutProperty('magnetic-north-layer', 'visibility', magnVis);
+    }
+  }
+}
+
+/* ----------------------------------------------------------------
    initPcReadMap: 読図用 MapLibre インスタンスを生成
    選択中の読図地図設定を反映したベースで初期化する。
    ---------------------------------------------------------------- */
@@ -7227,6 +7280,7 @@ function initPcReadMap() {
 
   pcSimReadMap.on('load', () => {
     syncKmzToPcReadMap(bgKey);
+    syncReadmapOriLibre();
     // ロード完了後に rotation・resize を適用（遅延初期化の場合に必要）
     document.getElementById('pc-sim-readmap-inner').style.transform = `rotate(${-pcBearing}deg)`;
     pcSimReadMap.resize();
