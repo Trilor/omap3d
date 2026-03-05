@@ -2055,6 +2055,18 @@ label.setting-label {
   border-top: 1px solid rgba(255,255,255,0.1);
   padding-top: 10px;
 }
+.import-ctrl-slider {
+  width: 100%;
+  accent-color: #4a7c59;
+  cursor: pointer;
+}
+#import-image-only-ctrl {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-top: 1px solid rgba(255,255,255,0.1);
+  padding-top: 12px;
+}
 
 /* フッター */
 #import-modal-footer {
@@ -2442,41 +2454,60 @@ label.setting-label {
     <!-- ボディ：プレビューマップ + コントロール -->
     <div id="import-modal-body">
       <div id="import-preview-map"></div>
-      <!-- コントロールパネル（画像単体のみ表示） -->
+      <!-- コントロールパネル（KMZ・画像共通） -->
       <div id="import-controls">
+        <!-- 背景地図（常時表示） -->
         <div class="import-ctrl-group">
-          <div class="import-ctrl-label">用紙サイズ</div>
-          <select id="import-paper-size" class="import-ctrl-select">
-            <option value="A4">A4（210×297 mm）</option>
-            <option value="A3">A3（297×420 mm）</option>
-            <option value="B4">B4-JIS（257×364 mm）</option>
-            <option value="B3">B3-JIS（364×515 mm）</option>
+          <div class="import-ctrl-label">背景地図</div>
+          <select id="import-bg-select" class="import-ctrl-select">
+            <option value="osm">OpenStreetMap</option>
+            <option value="gsi-std">地理院標準</option>
+            <option value="gsi-pale">地理院淡色</option>
+            <option value="gsi-photo">地理院写真</option>
           </select>
         </div>
+        <!-- 回転補正（常時表示） -->
         <div class="import-ctrl-group">
-          <div class="import-ctrl-label">向き</div>
-          <select id="import-orientation" class="import-ctrl-select">
-            <option value="portrait">縦（Portrait）</option>
-            <option value="landscape">横（Landscape）</option>
-          </select>
+          <div class="import-ctrl-label">回転補正&emsp;<span id="import-rotation-val">0.0</span>°</div>
+          <input type="range" id="import-rotation" class="import-ctrl-slider"
+            min="-45" max="45" value="0" step="0.5" />
         </div>
-        <div class="import-ctrl-group">
-          <div class="import-ctrl-label">縮尺</div>
-          <select id="import-scale" class="import-ctrl-select">
-            <option value="3000">1:3,000</option>
-            <option value="4000">1:4,000</option>
-            <option value="5000" selected>1:5,000</option>
-            <option value="7500">1:7,500</option>
-            <option value="10000">1:10,000</option>
-            <option value="15000">1:15,000</option>
-            <option value="custom">手入力...</option>
-          </select>
-          <input type="number" id="import-scale-custom" class="import-ctrl-input"
-            placeholder="例: 10000" min="500" max="200000" style="display:none;margin-top:4px;" />
-        </div>
-        <div class="import-ctrl-hint">
-          磁北補正は自動で適用されます。<br><br>
-          赤いマーカーをドラッグして地図の中心位置を合わせてください。
+        <!-- 用紙・縮尺（画像モードのみ） -->
+        <div id="import-image-only-ctrl">
+          <div class="import-ctrl-group">
+            <div class="import-ctrl-label">用紙サイズ</div>
+            <select id="import-paper-size" class="import-ctrl-select">
+              <option value="A4">A4（210×297 mm）</option>
+              <option value="A3">A3（297×420 mm）</option>
+              <option value="B4">B4-JIS（257×364 mm）</option>
+              <option value="B3">B3-JIS（364×515 mm）</option>
+            </select>
+          </div>
+          <div class="import-ctrl-group">
+            <div class="import-ctrl-label">向き</div>
+            <select id="import-orientation" class="import-ctrl-select">
+              <option value="portrait">縦（Portrait）</option>
+              <option value="landscape">横（Landscape）</option>
+            </select>
+          </div>
+          <div class="import-ctrl-group">
+            <div class="import-ctrl-label">縮尺</div>
+            <select id="import-scale" class="import-ctrl-select">
+              <option value="3000">1:3,000</option>
+              <option value="4000">1:4,000</option>
+              <option value="5000" selected>1:5,000</option>
+              <option value="7500">1:7,500</option>
+              <option value="10000">1:10,000</option>
+              <option value="15000">1:15,000</option>
+              <option value="custom">手入力...</option>
+            </select>
+            <input type="number" id="import-scale-custom" class="import-ctrl-input"
+              placeholder="例: 10000" min="500" max="200000" style="display:none;margin-top:4px;" />
+          </div>
+          <div class="import-ctrl-hint">
+            磁北補正は自動で適用されます。<br><br>
+            赤いマーカーをドラッグして地図の中心位置を合わせてください。
+          </div>
         </div>
       </div>
     </div>
@@ -7657,6 +7688,8 @@ let _importMoveMarker = null; // 中心移動マーカー（赤ドット）
 let _importCoords    = null;  // 現在の4隅座標 [[lng,lat]*4] TL→TR→BR→BL
 let _importCornerMarkers = []; // 微調整モードの4隅マーカー
 let _fineTuneActive  = false; // 微調整モード中か
+let _importCenter    = null;  // 中心マーカー位置 {lng, lat}（マーカードラッグで更新）
+let _importBaseCoords = null; // KMZモード：ドラッグ前の基準4隅座標（回転前）
 
 // ---- 用紙サイズ＋縮尺 → 実世界サイズ（メートル）を計算 ----
 function _importCalcSizeM() {
@@ -7697,18 +7730,26 @@ function _importCalcCorners(lng, lat, widthM, heightM, decl) {
   ];
 }
 
-// ---- プレビューマップ上のソース/マーカーを最新設定に更新 ----
+// ---- プレビューマップ上のソース/マーカーを最新設定に更新（画像モード用） ----
 function _updateImportPreview() {
   if (!_previewMap || !_importImgUrl) return;
-  const c = _previewMap.getCenter();
+
+  // 中心位置：マーカーがあればマーカー位置、なければマップ中心で初期化
+  if (!_importCenter) {
+    const mc = _previewMap.getCenter();
+    _importCenter = { lng: mc.lng, lat: mc.lat };
+  }
+  const c = _importCenter;
 
   const [wM, hM] = _importCalcSizeM();
+  // 回転補正スライダー値を取得（磁北に加算）
+  const rotOffset = parseFloat(document.getElementById('import-rotation')?.value ?? '0');
 
   // 磁気偏角を取得（geomag.field が使えない場合は 0 で代替）
   let decl = 0;
   try { decl = geomag.field(c.lat, c.lng).declination ?? 0; } catch (e) {}
 
-  _importCoords = _importCalcCorners(c.lng, c.lat, wM, hM, decl);
+  _importCoords = _importCalcCorners(c.lng, c.lat, wM, hM, decl + rotOffset);
 
   const src = _previewMap.getSource('_import-img');
   if (src) {
@@ -7737,13 +7778,15 @@ function _updateImportPreview() {
       .setLngLat([c.lng, c.lat])
       .addTo(_previewMap);
 
-    // ドラッグ中に座標をリアルタイム更新
+    // ドラッグ中に _importCenter を更新して座標をリアルタイム再計算
     _importMoveMarker.on('drag', () => {
       const pos = _importMoveMarker.getLngLat();
+      _importCenter = { lng: pos.lng, lat: pos.lat };
       const [wMd, hMd] = _importCalcSizeM();
+      const rot = parseFloat(document.getElementById('import-rotation')?.value ?? '0');
       let d = 0;
       try { d = geomag.field(pos.lat, pos.lng).declination ?? 0; } catch (e) {}
-      _importCoords = _importCalcCorners(pos.lng, pos.lat, wMd, hMd, d);
+      _importCoords = _importCalcCorners(pos.lng, pos.lat, wMd, hMd, d + rot);
       _previewMap.getSource('_import-img').updateImage({ coordinates: _importCoords });
     });
   }
@@ -7752,12 +7795,17 @@ function _updateImportPreview() {
 // ---- モーダル共通初期化（previewMap生成） ----
 // onLoad: マップ読み込み完了後に呼ぶコールバック
 function _openImportOverlay(imgUrl, onLoad) {
-  _importImgUrl = imgUrl;
+  _importImgUrl    = imgUrl;
   _importMoveMarker = null;
-  _importCoords     = null;
-  _fineTuneActive   = false;
+  _importCoords    = null;
+  _importCenter    = null;
+  _importBaseCoords = null;
+  _fineTuneActive  = false;
   // タブを「平行移動」にリセット
   document.querySelectorAll('.import-tab').forEach(t => t.classList.toggle('active', t.dataset.mode === 'move'));
+  // 回転スライダーをリセット
+  const rotEl = document.getElementById('import-rotation');
+  if (rotEl) { rotEl.value = '0'; document.getElementById('import-rotation-val').textContent = '0.0'; }
   document.getElementById('import-overlay').classList.add('visible');
 
   if (_previewMap) { _previewMap.remove(); _previewMap = null; }
@@ -7766,39 +7814,76 @@ function _openImportOverlay(imgUrl, onLoad) {
     style: {
       version: 8,
       sources: {
-        osm: {
-          type: 'raster',
-          tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-          tileSize: 256,
-          attribution: '© OpenStreetMap contributors',
-        },
+        'bg-osm':       { type: 'raster', tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], tileSize: 256, attribution: '© OpenStreetMap contributors' },
+        'bg-gsi-std':   { type: 'raster', tiles: ['https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png'], tileSize: 256, attribution: '国土地理院' },
+        'bg-gsi-pale':  { type: 'raster', tiles: ['https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png'], tileSize: 256, attribution: '国土地理院' },
+        'bg-gsi-photo': { type: 'raster', tiles: ['https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg'], tileSize: 256, attribution: '国土地理院' },
       },
-      layers: [{ id: 'osm-bg', type: 'raster', source: 'osm' }],
+      layers: [
+        { id: 'bg-osm-layer',       type: 'raster', source: 'bg-osm' },
+        { id: 'bg-gsi-std-layer',   type: 'raster', source: 'bg-gsi-std',   layout: { visibility: 'none' } },
+        { id: 'bg-gsi-pale-layer',  type: 'raster', source: 'bg-gsi-pale',  layout: { visibility: 'none' } },
+        { id: 'bg-gsi-photo-layer', type: 'raster', source: 'bg-gsi-photo', layout: { visibility: 'none' } },
+      ],
     },
     center: map.getCenter(),
     zoom: Math.max(map.getZoom(), 12),
     pitch: 0, bearing: 0,
     attributionControl: false,
   });
+  // 背景地図セレクトを OSM にリセット
+  const bgSel = document.getElementById('import-bg-select');
+  if (bgSel) bgSel.value = 'osm';
   _previewMap.on('load', onLoad);
 }
 
 // ---- 画像ファイルから開く（用紙サイズ設定UI表示） ----
 function openImportModal(imageFile) {
   _importImgFile = imageFile;
+  // 画像モード: コントロールパネル全体を表示（用紙サイズ含む）
   document.getElementById('import-controls').style.display = '';
+  document.getElementById('import-image-only-ctrl').style.display = '';
   _openImportOverlay(URL.createObjectURL(imageFile), _updateImportPreview);
 }
 
-// ---- KMZ座標付きで開く（用紙サイズ設定UI非表示、座標は確定済み） ----
+// ---- KMZ: 現在の _importCenter + 回転スライダーで座標を再計算 ----
+function _applyKmzTransform() {
+  if (!_previewMap || !_importBaseCoords || !_importCenter) return;
+  const { lng: cLng, lat: cLat } = _importCenter;
+  const rotDeg = parseFloat(document.getElementById('import-rotation')?.value ?? '0');
+
+  // _importBaseCoords の重心（基準中心）を算出
+  const baseLngs = _importBaseCoords.map(c => c[0]);
+  const baseLats = _importBaseCoords.map(c => c[1]);
+  const baseCLng = (Math.min(...baseLngs) + Math.max(...baseLngs)) / 2;
+  const baseCLat = (Math.min(...baseLats) + Math.max(...baseLats)) / 2;
+  const baseCtr  = turf.point([baseCLng, baseCLat]);
+  const newCtr   = turf.point([cLng, cLat]);
+
+  // 各隅を基準中心からの距離・方位で算出し、回転+平行移動して新中心に配置
+  _importCoords = _importBaseCoords.map(([lng, lat]) => {
+    const pt   = turf.point([lng, lat]);
+    const dist = turf.distance(baseCtr, pt, { units: 'kilometers' });
+    const bear = turf.bearing(baseCtr, pt) + rotDeg;
+    return turf.getCoord(turf.destination(newCtr, dist, bear, { units: 'kilometers' }));
+  });
+  _previewMap.getSource('_import-img').updateImage({ coordinates: _importCoords });
+}
+
+// ---- KMZ座標付きで開く（回転のみ表示、用紙サイズUI非表示） ----
 function openImportModalWithCoords(imgUrl, coords, label) {
   _importImgFile = null;
-  document.getElementById('import-controls').style.display = 'none';
-  _importCoords = [...coords]; // コピーして保持
+  // KMZモード: コントロールパネルを表示し、用紙サイズ・縮尺部分は非表示
+  document.getElementById('import-controls').style.display = '';
+  document.getElementById('import-image-only-ctrl').style.display = 'none';
+
+  _importBaseCoords = coords.map(c => [...c]); // 回転前の基準座標
+  _importCoords = coords.map(c => [...c]);
 
   const lats = coords.map(c => c[1]), lngs = coords.map(c => c[0]);
   const centerLat = (Math.min(...lats) + Math.max(...lats)) / 2;
   const centerLng = (Math.min(...lngs) + Math.max(...lngs)) / 2;
+  _importCenter = { lng: centerLng, lat: centerLat };
 
   _openImportOverlay(imgUrl, () => {
     // KMZ画像全体が収まるようfitBounds（即時・アニメーションなし）
@@ -7820,9 +7905,8 @@ function openImportModalWithCoords(imgUrl, coords, label) {
 
     _importMoveMarker.on('drag', () => {
       const pos = _importMoveMarker.getLngLat();
-      const dLng = pos.lng - centerLng, dLat = pos.lat - centerLat;
-      _importCoords = coords.map(c => [c[0] + dLng, c[1] + dLat]);
-      _previewMap.getSource('_import-img').updateImage({ coordinates: _importCoords });
+      _importCenter = { lng: pos.lng, lat: pos.lat };
+      _applyKmzTransform();
     });
   });
 }
@@ -7831,8 +7915,6 @@ function openImportModalWithCoords(imgUrl, coords, label) {
 function enterFineTuneMode() {
   if (!_previewMap || !_importCoords) return;
   _fineTuneActive = true;
-  document.getElementById('import-finetune-btn').classList.add('active');
-  document.getElementById('import-finetune-btn').textContent = '通常モードに戻す';
 
   // 中心マーカーを非表示
   if (_importMoveMarker) _importMoveMarker.getElement().style.display = 'none';
@@ -7858,8 +7940,6 @@ function enterFineTuneMode() {
 // ---- 微調整モード解除 ----
 function exitFineTuneMode() {
   _fineTuneActive = false;
-  document.getElementById('import-finetune-btn').classList.remove('active');
-  document.getElementById('import-finetune-btn').textContent = '微調整モード';
   _importCornerMarkers.forEach(m => m.remove());
   _importCornerMarkers = [];
   if (_importMoveMarker) _importMoveMarker.getElement().style.display = '';
@@ -7902,11 +7982,35 @@ document.getElementById('import-scale').addEventListener('change', (e) => {
   _updateImportPreview();
 });
 
-// 設定変更 → プレビュー再計算
+// 設定変更 → プレビュー再計算（画像モード）
 ['import-paper-size', 'import-orientation'].forEach(id => {
   document.getElementById(id).addEventListener('change', _updateImportPreview);
 });
 document.getElementById('import-scale-custom').addEventListener('input', _updateImportPreview);
+
+// 背景地図切り替え
+document.getElementById('import-bg-select').addEventListener('change', (e) => {
+  if (!_previewMap) return;
+  const layerMap = {
+    'osm':       'bg-osm-layer',
+    'gsi-std':   'bg-gsi-std-layer',
+    'gsi-pale':  'bg-gsi-pale-layer',
+    'gsi-photo': 'bg-gsi-photo-layer',
+  };
+  Object.values(layerMap).forEach(id => _previewMap.setLayoutProperty(id, 'visibility', 'none'));
+  _previewMap.setLayoutProperty(layerMap[e.target.value], 'visibility', 'visible');
+});
+
+// 回転スライダー → プレビュー再計算
+document.getElementById('import-rotation').addEventListener('input', (e) => {
+  document.getElementById('import-rotation-val').textContent = parseFloat(e.target.value).toFixed(1);
+  // KMZモードと画像モードで処理を分岐
+  if (_importBaseCoords) {
+    _applyKmzTransform();
+  } else {
+    _updateImportPreview();
+  }
+});
 
 // 決定ボタン → メインマップにレイヤーを追加してモーダルを閉じる
 document.getElementById('import-decide-btn').addEventListener('click', () => {
