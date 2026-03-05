@@ -7894,6 +7894,23 @@ let _importDragRafId = null;
 // 磁気偏角キャッシュ（ドラッグ中に毎回計算しないよう dragend で更新）
 let _cachedImportDecl = 0;
 
+// Hitboxドラッグ（平行移動）用
+let _isDraggingImage   = false;
+let _dragStartLngLat   = null;
+let _dragStartCoords   = null;
+let _dragStartCenter   = null;
+
+// ヒットボックス + 回転ハンドル初期化フラグ
+let _imgInteractionInited = false;
+let _imgEventsAdded       = false;
+
+// アンテナ型回転ハンドル
+let _importRotateMarker  = null;
+let _isRotatingHandle    = false;
+let _rotateStartAngle    = 0;
+let _rotateStartSlider   = 0;
+let _rotateCenterCoord   = null;
+
 // ---- 用紙サイズ＋縮尺 → 実世界サイズ（メートル）を計算 ----
 function _importCalcSizeM() {
   const paperKey   = document.getElementById('import-paper-size').value;
@@ -7949,6 +7966,11 @@ function _replaceImageSource() {
     _previewMap.addSource('_import-img', { type: 'image', url: _importImgUrl, coordinates: _importCoords });
     _previewMap.addLayer({ id: '_import-layer', type: 'raster', source: '_import-img', paint: { 'raster-opacity': initOpacity } });
   }
+  // ヒットボックス・回転ハンドルの初期化 & 更新（冪等）
+  _initImgInteraction();
+  _updateHitbox();
+  if (_isRotatingHandle) _updateRotateLine();
+  else                   _updateRotateHandle();
 }
 
 // ---- RAFスロットル付き _replaceImageSource（ドラッグ中の高速リアルタイム更新） ----
@@ -7958,6 +7980,238 @@ function _replaceImageSourceRaf() {
     _importDragRafId = null;
     _replaceImageSource();
   });
+}
+
+/* =======================================================================
+   ヒットボックス（透明ポリゴン）＆ アンテナ型回転ハンドル ヘルパー群
+   ======================================================================= */
+
+// ---- _importCoords から GeoJSON ポリゴンを生成 ----
+function _importCoordsToPolygon() {
+  if (!_importCoords) return { type: 'FeatureCollection', features: [] };
+  return {
+    type: 'Feature',
+    geometry: { type: 'Polygon', coordinates: [[..._importCoords, _importCoords[0]]] }
+  };
+}
+
+// ---- ヒットボックスポリゴンソースを最新座標で更新 ----
+function _updateHitbox() {
+  if (!_previewMap || !_importCoords) return;
+  const src = _previewMap.getSource('_import-hitbox');
+  if (src) src.setData(_importCoordsToPolygon());
+}
+
+// ---- 画像の重心をピクセル座標で返す ----
+function _getImageCenterPx() {
+  if (!_importCoords || !_previewMap) return { x: 0, y: 0 };
+  const cx = _importCoords.reduce((s, c) => s + c[0], 0) / 4;
+  const cy = _importCoords.reduce((s, c) => s + c[1], 0) / 4;
+  return _previewMap.project([cx, cy]);
+}
+
+// ---- 上辺中点から画面上 40px 上方の地理座標を計算 ----
+function _calcRotateHandlePos() {
+  if (!_importCoords || !_previewMap) return null;
+  const TL = _importCoords[0], TR = _importCoords[1];
+  const topMidLng = (TL[0] + TR[0]) / 2;
+  const topMidLat = (TL[1] + TR[1]) / 2;
+  const topMidPx  = _previewMap.project([topMidLng, topMidLat]);
+  const handleLL  = _previewMap.unproject({ x: topMidPx.x, y: topMidPx.y - 44 });
+  return { topMidLng, topMidLat, handleLng: handleLL.lng, handleLat: handleLL.lat };
+}
+
+// ---- アンテナ線（上辺中点 → ハンドル）のソースを更新 ----
+function _updateRotateLine() {
+  if (!_previewMap || !_importCoords || !_importRotateMarker) return;
+  const src = _previewMap.getSource('_import-rotate-line');
+  if (!src) return;
+  const TL = _importCoords[0], TR = _importCoords[1];
+  const topMidLng = (TL[0] + TR[0]) / 2;
+  const topMidLat = (TL[1] + TR[1]) / 2;
+  const ll = _importRotateMarker.getLngLat();
+  src.setData({
+    type: 'Feature',
+    geometry: { type: 'LineString', coordinates: [[topMidLng, topMidLat], [ll.lng, ll.lat]] }
+  });
+}
+
+// ---- 回転ハンドルの地理座標を再計算して更新（ドラッグ中は呼ばない） ----
+function _updateRotateHandle() {
+  if (!_previewMap || !_importCoords || !_importRotateMarker || _isRotatingHandle) return;
+  const pos = _calcRotateHandlePos();
+  if (!pos) return;
+  _importRotateMarker.setLngLat([pos.handleLng, pos.handleLat]);
+  _updateRotateLine();
+}
+
+// ---- 画像モード専用：キャッシュした偏角で回転のみ再計算（重い geomag 計算をスキップ） ----
+function _updateImportRotation() {
+  if (!_importCenter || !_importImgUrl || !_previewMap) return;
+  const [wM, hM] = _importCalcSizeM();
+  const rotOffset = parseFloat(document.getElementById('import-rotation')?.value ?? '0');
+  _importCoords = _importCalcCorners(_importCenter.lng, _importCenter.lat, wM, hM, _cachedImportDecl + rotOffset);
+  _replaceImageSource();
+}
+
+// ---- アンテナ型回転ハンドル＋線を初期化（_initImgInteraction 内から呼ぶ） ----
+function _initRotateHandle() {
+  if (!_previewMap || !_importCoords) return;
+  const pos = _calcRotateHandlePos();
+  if (!pos) return;
+
+  // アンテナ線（点線）のソース・レイヤー
+  if (!_previewMap.getSource('_import-rotate-line')) {
+    _previewMap.addSource('_import-rotate-line', {
+      type: 'geojson',
+      data: {
+        type: 'Feature',
+        geometry: { type: 'LineString', coordinates: [[pos.topMidLng, pos.topMidLat], [pos.handleLng, pos.handleLat]] }
+      }
+    });
+    _previewMap.addLayer({
+      id: '_import-rotate-line-layer', type: 'line', source: '_import-rotate-line',
+      paint: { 'line-color': '#4a7c59', 'line-width': 1.5, 'line-dasharray': [4, 3] }
+    });
+  }
+
+  // ハンドルマーカー（緑丸）
+  const el = document.createElement('div');
+  el.style.cssText =
+    'width:16px;height:16px;background:#4a7c59;border:2px solid #fff;' +
+    'border-radius:50%;cursor:grab;box-shadow:0 1px 5px rgba(0,0,0,0.5);' +
+    'display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;';
+  el.textContent = '↻';
+  el.title = 'ドラッグして回転';
+  _importRotateMarker = new maplibregl.Marker({ element: el, draggable: true, anchor: 'center' })
+    .setLngLat([pos.handleLng, pos.handleLat])
+    .addTo(_previewMap);
+
+  _importRotateMarker.on('dragstart', () => {
+    _isRotatingHandle = true;
+    el.style.cursor = 'grabbing';
+    _importSaveState();
+    // 回転の中心（画像の重心）を固定
+    const cx = _importCoords.reduce((s, c) => s + c[0], 0) / 4;
+    const cy = _importCoords.reduce((s, c) => s + c[1], 0) / 4;
+    _rotateCenterCoord = [cx, cy];
+    const ll = _importRotateMarker.getLngLat();
+    _rotateStartAngle  = turf.bearing([cx, cy], [ll.lng, ll.lat]);
+    _rotateStartSlider = parseFloat(document.getElementById('import-rotation')?.value ?? '0');
+  });
+
+  _importRotateMarker.on('drag', () => {
+    const ll = _importRotateMarker.getLngLat();
+    // turf.bearing で重心→ハンドルの方位角を計算（地理座標系・プロジェクション歪みに依存しない）
+    const currAngle = turf.bearing(_rotateCenterCoord, [ll.lng, ll.lat]);
+    let deltaDeg = currAngle - _rotateStartAngle;
+    if (deltaDeg >  180) deltaDeg -= 360;
+    if (deltaDeg < -180) deltaDeg += 360;
+    const newVal = Math.min(45, Math.max(-45, _rotateStartSlider + deltaDeg));
+    const rotEl = document.getElementById('import-rotation');
+    if (rotEl) {
+      rotEl.value = String(newVal);
+      document.getElementById('import-rotation-val').textContent = newVal.toFixed(1);
+    }
+    // RAF経由で再描画（_isRotatingHandle=true のためハンドル位置は更新されない）
+    if (_importDragRafId) cancelAnimationFrame(_importDragRafId);
+    _importDragRafId = requestAnimationFrame(() => {
+      _importDragRafId = null;
+      if (_importBaseCoords) { _applyKmzTransform(); } else { _updateImportRotation(); }
+    });
+  });
+
+  _importRotateMarker.on('dragend', () => {
+    el.style.cursor = 'grab';
+    _isRotatingHandle = false;
+    _updateRotateHandle(); // 正しい位置にスナップ
+  });
+  // zoom/move リスナーは _initImgInteraction の _imgEventsAdded ブロックで登録する
+}
+
+// ---- ヒットボックス + 回転ハンドル + ドラッグ平行移動 を初期化（冪等） ----
+function _initImgInteraction() {
+  if (!_previewMap || !_importCoords) return;
+
+  // --- ヒットボックスのソース・レイヤー（なければ追加） ---
+  if (!_previewMap.getSource('_import-hitbox')) {
+    _previewMap.addSource('_import-hitbox', { type: 'geojson', data: _importCoordsToPolygon() });
+    _previewMap.addLayer({
+      id: '_import-hitbox-layer', type: 'fill', source: '_import-hitbox',
+      // fill-opacity: 0 だとクリックを拾えない場合があるため極小値を使用
+      paint: { 'fill-color': '#000000', 'fill-opacity': 0.001 }
+    });
+    _imgInteractionInited = true;
+  }
+
+  // --- イベントリスナーは一度だけ追加 ---
+  if (!_imgEventsAdded) {
+    _imgEventsAdded = true;
+
+    // カーソル制御
+    _previewMap.on('mouseenter', '_import-hitbox-layer', () => {
+      if (!_fineTuneActive && !_isDraggingImage)
+        _previewMap.getCanvas().style.cursor = 'move';
+    });
+    _previewMap.on('mouseleave', '_import-hitbox-layer', () => {
+      if (!_isDraggingImage) _previewMap.getCanvas().style.cursor = '';
+    });
+
+    // mousedown → ドラッグ開始（hitboxレイヤー上）
+    _previewMap.on('mousedown', '_import-hitbox-layer', (e) => {
+      if (_fineTuneActive) return;
+      e.preventDefault();
+      _importSaveState();
+      _isDraggingImage = true;
+      _dragStartLngLat = { lng: e.lngLat.lng, lat: e.lngLat.lat };
+      _dragStartCoords = _importCoords.map(c => [...c]);
+      _dragStartCenter = _importCenter ? { ..._importCenter } : null;
+      _previewMap.dragPan.disable();
+      _previewMap.getCanvas().style.cursor = 'grabbing';
+    });
+
+    // mousemove → ドラッグ中に座標をリアルタイム更新
+    _previewMap.on('mousemove', (e) => {
+      if (!_isDraggingImage || _fineTuneActive) return;
+      const dx = e.lngLat.lng - _dragStartLngLat.lng;
+      const dy = e.lngLat.lat - _dragStartLngLat.lat;
+      _importCenter = _dragStartCenter
+        ? { lng: _dragStartCenter.lng + dx, lat: _dragStartCenter.lat + dy }
+        : null;
+      if (_importBaseCoords) {
+        // KMZモード: _importCenter を更新して _applyKmzTransform（RAF）
+        if (_importDragRafId) cancelAnimationFrame(_importDragRafId);
+        _importDragRafId = requestAnimationFrame(() => {
+          _importDragRafId = null;
+          _applyKmzTransform();
+        });
+      } else {
+        // 画像モード: 全隅を直接平行移動 → RAFで再描画
+        _importCoords = _dragStartCoords.map(c => [c[0] + dx, c[1] + dy]);
+        _replaceImageSourceRaf();
+      }
+    });
+
+    // mouseup → ドラッグ終了
+    _previewMap.on('mouseup', () => {
+      if (!_isDraggingImage) return;
+      _isDraggingImage = false;
+      _previewMap.dragPan.enable();
+      _previewMap.getCanvas().style.cursor = '';
+      // ドラッグ終了後に磁気偏角キャッシュを更新
+      if (_importCenter) {
+        try { _cachedImportDecl = geomag.field(_importCenter.lat, _importCenter.lng).declination ?? 0; } catch (e) {}
+      }
+    });
+
+    // ズーム・パン時にハンドル位置を再計算（画面上で常に 44px を維持）
+    // _imgEventsAdded ブロック内なので重複登録されない
+    _previewMap.on('zoom', () => { if (!_isRotatingHandle) _updateRotateHandle(); });
+    _previewMap.on('move', () => { if (!_isRotatingHandle) _updateRotateHandle(); });
+  }
+
+  // --- 回転ハンドル（マーカーがなければ追加） ---
+  if (!_importRotateMarker) _initRotateHandle();
 }
 
 // ---- Undo/Redo：現在の座標・中心・回転値を履歴に保存 ----
@@ -8010,10 +8264,6 @@ function _importRestoreState(state) {
     document.getElementById('import-rotation-val').textContent =
       parseFloat(state.rotation).toFixed(1);
   }
-  // マーカー位置も復元
-  if (_importMoveMarker && _importCenter) {
-    _importMoveMarker.setLngLat([_importCenter.lng, _importCenter.lat]);
-  }
   // 微調整モード中は各コーナーマーカーも更新
   if (_fineTuneActive && _importCornerMarkers.length === 4) {
     _importCornerMarkers.forEach((m, i) => m.setLngLat(_importCoords[i]));
@@ -8039,44 +8289,17 @@ function _updateImportPreview() {
   _cachedImportDecl = decl; // ドラッグ用キャッシュを更新
   _importCoords = _importCalcCorners(c.lng, c.lat, wM, hM, decl + rotOffset);
 
-  // ソースを削除→再追加して再描画（updateImage は不使用）
-  _replaceImageSource();
-
-  // 初回のみ: 画像全体にフィット＋マーカー作成
-  if (!_importMoveMarker) {
+  // 初回のみ: 画像全体にフィット
+  if (!_previewMap.getSource('_import-img')) {
     const lngs = _importCoords.map(p => p[0]), lats = _importCoords.map(p => p[1]);
     _previewMap.fitBounds(
       [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
       { padding: 60, duration: 0 }
     );
-
-    // 中心移動マーカー（赤ドット）
-    const el = document.createElement('div');
-    el.style.cssText =
-      'width:16px;height:16px;background:#e02020;border:3px solid #fff;' +
-      'border-radius:50%;cursor:move;box-shadow:0 1px 5px rgba(0,0,0,0.55);';
-    _importMoveMarker = new maplibregl.Marker({ element: el, draggable: true })
-      .setLngLat([c.lng, c.lat])
-      .addTo(_previewMap);
-
-    _importMoveMarker.on('dragstart', () => {
-      // ドラッグ開始前に状態保存（undo用）
-      _importSaveState();
-    });
-    _importMoveMarker.on('drag', () => {
-      const pos = _importMoveMarker.getLngLat();
-      _importCenter = { lng: pos.lng, lat: pos.lat };
-      const [wMd, hMd] = _importCalcSizeM();
-      const rot = parseFloat(document.getElementById('import-rotation')?.value ?? '0');
-      // キャッシュした磁気偏角を使用（ドラッグ中は再計算しないためリアルタイム更新を高速化）
-      _importCoords = _importCalcCorners(pos.lng, pos.lat, wMd, hMd, _cachedImportDecl + rot);
-      _replaceImageSourceRaf();
-    });
-    _importMoveMarker.on('dragend', () => {
-      // ドラッグ終了後に磁気偏角キャッシュを更新
-      try { _cachedImportDecl = geomag.field(_importCenter.lat, _importCenter.lng).declination ?? 0; } catch (e) {}
-    });
   }
+
+  // 画像ソース更新 → _initImgInteraction も内部で呼ばれる
+  _replaceImageSource();
 }
 
 // ---- ラスター背景スタイル定義（OSM/GSI 共通ベース） ----
@@ -8132,15 +8355,20 @@ function _addPreviewContourAndNorth(m) {
 // ---- モーダル共通初期化（previewMap生成） ----
 // onLoad: マップ読み込み完了後に呼ぶコールバック
 function _openImportOverlay(imgUrl, onLoad) {
-  _importImgUrl    = imgUrl;
-  _importMoveMarker = null;
-  _importCoords    = null;
-  _importCenter    = null;
-  _importBaseCoords = null;
-  _fineTuneActive  = false;
-  _importHistory   = [];
-  _importFuture    = [];
-  _cachedImportDecl = 0;
+  _importImgUrl         = imgUrl;
+  _importMoveMarker     = null;
+  _importCoords         = null;
+  _importCenter         = null;
+  _importBaseCoords     = null;
+  _fineTuneActive       = false;
+  _importHistory        = [];
+  _importFuture         = [];
+  _cachedImportDecl     = 0;
+  _isDraggingImage      = false;
+  _isRotatingHandle     = false;
+  _imgInteractionInited = false;
+  _imgEventsAdded       = false;
+  if (_importRotateMarker) { _importRotateMarker.remove(); _importRotateMarker = null; }
   document.querySelectorAll('.import-tab').forEach(t => t.classList.toggle('active', t.dataset.mode === 'move'));
   // 基本モードに戻す（ステップ1を表示・微調整ヒントを非表示）
   document.getElementById('import-image-only-ctrl')?.classList.remove('disabled');
@@ -8251,28 +8479,8 @@ function openImportModalWithCoords(imgUrl, coords, label) {
       { padding: 60, duration: 0 }
     );
 
-    const initOpacityKmz = (parseInt(document.getElementById('import-opacity')?.value ?? '85', 10)) / 100;
-    _previewMap.addSource('_import-img', { type: 'image', url: imgUrl, coordinates: _importCoords });
-    _previewMap.addLayer({ id: '_import-layer', type: 'raster', source: '_import-img',
-      paint: { 'raster-opacity': initOpacityKmz } });
-
-    // 中心マーカーで平行移動
-    const el = document.createElement('div');
-    el.style.cssText = 'width:16px;height:16px;background:#e02020;border:3px solid #fff;' +
-      'border-radius:50%;cursor:move;box-shadow:0 1px 5px rgba(0,0,0,0.55);';
-    _importMoveMarker = new maplibregl.Marker({ element: el, draggable: true })
-      .setLngLat([centerLng, centerLat]).addTo(_previewMap);
-
-    _importMoveMarker.on('dragstart', () => { _importSaveState(); });
-    _importMoveMarker.on('drag', () => {
-      const pos = _importMoveMarker.getLngLat();
-      _importCenter = { lng: pos.lng, lat: pos.lat };
-      if (_importDragRafId) cancelAnimationFrame(_importDragRafId);
-      _importDragRafId = requestAnimationFrame(() => {
-        _importDragRafId = null;
-        _applyKmzTransform();
-      });
-    });
+    // 画像ソース + hitbox + 回転ハンドルを一括初期化
+    _replaceImageSource();
   });
 }
 
@@ -8281,8 +8489,15 @@ function enterFineTuneMode() {
   if (!_previewMap || !_importCoords) return;
   _fineTuneActive = true;
 
-  // 中心マーカーを非表示
-  if (_importMoveMarker) _importMoveMarker.getElement().style.display = 'none';
+  // ヒットボックスを非表示（微調整モード中はhitboxドラッグを無効化）
+  if (_previewMap.getLayer('_import-hitbox-layer'))
+    _previewMap.setLayoutProperty('_import-hitbox-layer', 'visibility', 'none');
+  _previewMap.getCanvas().style.cursor = '';
+
+  // 回転ハンドル・アンテナ線を非表示
+  if (_importRotateMarker) _importRotateMarker.getElement().style.display = 'none';
+  if (_previewMap.getLayer('_import-rotate-line-layer'))
+    _previewMap.setLayoutProperty('_import-rotate-line-layer', 'visibility', 'none');
 
   // 4隅にドラッグ可能なマーカーを配置
   _importCornerMarkers = _importCoords.map((coord, i) => {
@@ -8309,17 +8524,30 @@ function exitFineTuneMode() {
   _fineTuneActive = false;
   _importCornerMarkers.forEach(m => m.remove());
   _importCornerMarkers = [];
-  if (_importMoveMarker) _importMoveMarker.getElement().style.display = '';
+
+  // ヒットボックスを再表示
+  if (_previewMap && _previewMap.getLayer('_import-hitbox-layer'))
+    _previewMap.setLayoutProperty('_import-hitbox-layer', 'visibility', 'visible');
+
+  // 回転ハンドル・アンテナ線を再表示
+  if (_importRotateMarker) _importRotateMarker.getElement().style.display = '';
+  if (_previewMap && _previewMap.getLayer('_import-rotate-line-layer'))
+    _previewMap.setLayoutProperty('_import-rotate-line-layer', 'visibility', 'visible');
 }
 
 // ---- モーダルを閉じる（revokeUrl=false のとき ObjectURL を解放しない） ----
 function closeImportModal(revokeUrl = true) {
   _importCornerMarkers.forEach(m => m.remove());
   _importCornerMarkers = [];
-  _fineTuneActive = false;
+  _fineTuneActive         = false;
+  _isDraggingImage        = false;
+  _isRotatingHandle       = false;
+  _imgInteractionInited   = false;
+  _imgEventsAdded         = false;
   document.getElementById('import-overlay').classList.remove('visible');
-  if (_importMoveMarker) { _importMoveMarker.remove(); _importMoveMarker = null; }
-  if (_previewMap)       { _previewMap.remove(); _previewMap = null; }
+  if (_importMoveMarker)   { _importMoveMarker.remove();  _importMoveMarker  = null; }
+  if (_importRotateMarker) { _importRotateMarker.remove(); _importRotateMarker = null; }
+  if (_previewMap)         { _previewMap.remove(); _previewMap = null; }
   if (revokeUrl && _importImgUrl) { URL.revokeObjectURL(_importImgUrl); }
   _importImgUrl  = null;
   _importImgFile = null;
@@ -8406,6 +8634,9 @@ document.getElementById('import-bg-select').addEventListener('change', (e) => {
   _previewMap.once('style.load', () => {
     if (_previewMap.getTerrain()) _previewMap.setTerrain(null);
     if (!toOriLibre) _addPreviewContourAndNorth(_previewMap);
+    // setStyle でソース/レイヤーが全て消えるため再初期化（イベントは保持）
+    _imgInteractionInited = false;
+    if (_importRotateMarker) { _importRotateMarker.remove(); _importRotateMarker = null; }
     _replaceImageSource();
   });
 });
