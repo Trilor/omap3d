@@ -7843,10 +7843,19 @@ function openImportModal(imageFile) {
   // 画像モード: コントロールパネル全体を表示（用紙サイズ含む）
   document.getElementById('import-controls').style.display = '';
   document.getElementById('import-image-only-ctrl').style.display = '';
-  // 用紙サイズをA4縦にリセット
+  // 用紙サイズはA4固定、向きは画像の縦横比から自動判断
   document.getElementById('import-paper-size').value = 'A4';
-  document.getElementById('import-orientation').value = 'portrait';
-  _openImportOverlay(URL.createObjectURL(imageFile), _updateImportPreview);
+  const imgUrl = URL.createObjectURL(imageFile);
+  const tmp = new Image();
+  tmp.onload  = () => {
+    document.getElementById('import-orientation').value = tmp.width >= tmp.height ? 'landscape' : 'portrait';
+    _openImportOverlay(imgUrl, _updateImportPreview);
+  };
+  tmp.onerror = () => {
+    document.getElementById('import-orientation').value = 'portrait';
+    _openImportOverlay(imgUrl, _updateImportPreview);
+  };
+  tmp.src = imgUrl;
 }
 
 // ---- KMZ: 現在の _importCenter + 回転スライダーで座標を再計算 ----
