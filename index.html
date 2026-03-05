@@ -665,7 +665,7 @@ label.setting-label {
 }
 .panel-btn-primary:hover { background: #3a6449; }
 
-#kmz-upload-btn {
+#map-import-btn {
   display: block;
   width: calc(100% - 20px);
   margin: 6px 10px;
@@ -676,16 +676,13 @@ label.setting-label {
   border-radius: 4px;
   font-size: 12px;
   font-weight: 600;
+  font-family: inherit;
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
   text-align: center;
   letter-spacing: 0.02em;
 }
-
-#kmz-upload-btn:hover {
-  background: #4a7c59;
-  color: #fff;
-}
+#map-import-btn:hover { background: #4a7c59; color: #fff; }
 
 /* ===== 地図カタログ ===== */
 
@@ -973,24 +970,6 @@ label.setting-label {
 .frame-overlap-item:hover { background: #f0f8f3; }
 .frame-overlap-item:last-child { border-bottom: none; }
 
-/* 画像+JGW モーダル起動ボタン（KMZボタンと同スタイル） */
-#imgw-modal-open-btn {
-  display: block;
-  width: calc(100% - 20px);
-  margin: 4px 10px 8px;
-  padding: 6px 12px;
-  background: #fff;
-  color: #4a7c59;
-  border: 1.5px solid #4a7c59;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s;
-  text-align: center;
-  letter-spacing: 0.02em;
-}
-#imgw-modal-open-btn:hover { background: #4a7c59; color: #fff; }
 
 /* ===== 画像+JGW モーダル ===== */
 .imgw-modal-overlay {
@@ -2353,11 +2332,8 @@ label.setting-label {
   <details class="panel-section">
     <summary>OMAP（KMZ・JGW）</summary>
     <div id="kmz-list"></div>
-    <input type="file" id="kmz-file-input" accept=".kmz" multiple style="display:none" />
-    <button id="kmz-upload-btn">＋ KMZ を追加</button>
-    <button id="imgw-modal-open-btn">＋ 画像＋JGW を追加</button>
-    <input type="file" id="img-import-input" accept=".jpg,.jpeg,.png" style="display:none" />
-    <button id="img-import-btn">＋ 画像を追加（位置合わせ）</button>
+    <input type="file" id="map-import-input" accept=".kmz,.jpg,.jpeg,.png" multiple style="display:none" />
+    <button id="map-import-btn">＋ 地図画像を追加</button>
   </details>
 
   <!-- ===== GPX 軌跡（デフォルト open） ===== -->
@@ -5610,11 +5586,18 @@ document.getElementById('place-search-clear').addEventListener('click', clearSea
     ファイル選択ボタンの制御
     ======================================================== */
 
-const kmzFileInput = document.getElementById('kmz-file-input');
-const kmzUploadBtn = document.getElementById('kmz-upload-btn');
-
-// KMZボタンをクリックすると非表示の <input type="file"> を呼び出す
-kmzUploadBtn.addEventListener('click', () => kmzFileInput.click());
+// ---- 統合インポートボタン（KMZ / 画像） ----
+const mapImportInput = document.getElementById('map-import-input');
+document.getElementById('map-import-btn').addEventListener('click', () => mapImportInput.click());
+mapImportInput.addEventListener('change', async (e) => {
+  const files = Array.from(e.target.files);
+  const kmzFiles = files.filter(f => /\.kmz$/i.test(f.name));
+  const imgFiles = files.filter(f => /\.(jpe?g|png)$/i.test(f.name));
+  for (const file of kmzFiles) await loadKmz(file);
+  // 画像は1枚ずつ位置合わせモーダルを開く
+  for (const file of imgFiles) openImportModal(file);
+  e.target.value = '';
+});
 
 // GPXファイル選択ボタン
 const gpxFileInput = document.getElementById('gpx-file-input');
@@ -5647,20 +5630,8 @@ document.getElementById('seek-bar').addEventListener('input', (e) => {
   }
 });
 
-// ファイルが選択されたら loadKmz を呼び出す（複数ファイル対応）
-kmzFileInput.addEventListener('change', async (e) => {
-  for (const file of e.target.files) {
-    await loadKmz(file);
-  }
-
-  // 同じファイルを再選択できるよう入力をリセット
-  e.target.value = '';
-});
 
 // ---- 画像+JGW モーダルのイベントリスナー ----
-
-// モーダルを開くボタン
-document.getElementById('imgw-modal-open-btn').addEventListener('click', () => openImgwModal());
 
 // モーダルを閉じるボタン
 document.getElementById('imgw-modal-close-btn').addEventListener('click', closeImgwModal);
@@ -5848,9 +5819,11 @@ document.addEventListener('drop', async (e) => {
   for (const file of kmzFiles) await loadKmz(file);
   for (const file of gpxFiles) await loadGpx(file);
 
-  // 画像またはワールドファイルがある場合はモーダルを開いて
-  // ファイルを事前選択状態にする（座標系の確認が必要なため）
-  if (imgFiles.length > 0 || jgwFiles.length > 0) {
+  // 画像は統合インポートモーダルへ（1枚ずつ）
+  // ワールドファイル付きの場合は従来の imgwModal にフォールバック
+  if (imgFiles.length > 0 && jgwFiles.length === 0) {
+    for (const file of imgFiles) openImportModal(file);
+  } else if (imgFiles.length > 0 || jgwFiles.length > 0) {
     openImgwModal(
       imgFiles.length > 0 ? imgFiles       : [],
       jgwFiles.length > 0 ? jgwFiles[0]    : null,
@@ -7700,15 +7673,6 @@ function closeImportModal(revokeUrl = true) {
 
 // ---- イベントリスナー ----
 
-// 開くボタン・input
-document.getElementById('img-import-btn').addEventListener('click', () => {
-  document.getElementById('img-import-input').click();
-});
-document.getElementById('img-import-input').addEventListener('change', (e) => {
-  const file = e.target.files[0];
-  if (file) openImportModal(file);
-  e.target.value = '';
-});
 
 // 閉じる・キャンセル
 document.getElementById('import-overlay-close-btn').addEventListener('click', () => closeImportModal());
