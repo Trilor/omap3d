@@ -2299,9 +2299,9 @@ label.setting-label {
         </select>
       </div>
     </div>
-    <div class="setting-row" id="row-contour-dem">
+    <div class="setting-row toggle-left">
       <div class="setting-left">
-        <label class="setting-label">DEMソース</label>
+        <label for="sel-contour-dem" class="setting-label">DEMソース</label>
       </div>
       <div class="setting-right">
         <select id="sel-contour-dem" class="setting-select">
@@ -3420,7 +3420,7 @@ function buildContourThresholds(intervalM) {
 
 // contour-source の tiles URL を生成（demSource は load 内で初期化）
 let contourDemSource = null;
-let seamlessContourDemSource = null; // シームレス標高タイル等高線フォールバック用
+let seamlessContourDemSource = null; // DEM5A 5m 等高線ソース（Q地図と独立・排他切り替え）
 
 function buildContourTileUrl(intervalM) {
   if (!contourDemSource) return null;
@@ -3510,19 +3510,7 @@ async function synthesizeLakeElevationTile(url) {
   return new Response(blob, { headers: { 'Content-Type': 'image/png' } });
 }
 
-// Q地図 DEM タイルが 404 のとき DEM5A にフォールバックする（等高線用）。
-// contourDemSource は worker:false で動くため window.fetch が呼ばれる。
-async function _fetchQchizuWithFallback(input, init, url) {
-  const res = await _origFetch(input, init);
-  if (res.ok) return res;
-  const m = url.match(/\/(\d+)\/(\d+)\/(\d+)\.\w+$/);
-  if (!m) return res;
-  return _origFetch(`${DEM5A_BASE}/${m[1]}/${m[2]}/${m[3]}.png`, init);
-}
-
-// 湖水深タイルのみをインターセプト。
-// Q地図等高線の DEM5A フォールバックは別途独立した DemSource（seamlessContourDemSource）で行うため
-// window.fetch オーバーライドに混在させない（キャッシュ汚染による等高線崩れを防ぐ）。
+// 湖水深合成タイルのみをインターセプト（Q地図・DEM5A は独立 DemSource で処理するため不要）。
 window.fetch = function(input, init) {
   const url = typeof input === 'string' ? input : (input instanceof Request ? input.url : String(input));
   if (url.startsWith(LAKE_ELEV_PREFIX)) return synthesizeLakeElevationTile(url);
@@ -3613,8 +3601,7 @@ map.on('load', async () => {
       maxzoom: 15,
       attribution: '',
     });
-    // DEM5A等高線（Q地図未カバーエリアのフォールバック）
-    // worker: true で独立したキャッシュを持ち Q地図ソースとの混在を防ぐ。
+    // DEM5A 5m 等高線ソース（Q地図と完全独立・標高タイルのある範囲で全域描画）
     seamlessContourDemSource = new mlcontour.DemSource({
       url: `${DEM5A_BASE}/{z}/{x}/{y}.png`,
       encoding: 'numpng',
