@@ -3660,13 +3660,17 @@ map.on('load', async () => {
   // MapLibre v5 以降で利用可能。高ズームではメルカトルに自動移行する。
   map.setProjection({ type: 'globe' });
 
-  // Globe投影の大気圏・星空表現（ズームアウト時に地球が宇宙空間に浮かんで見える）
-  map.setFog({
-    'color':          '#BAD2EB', // 下層大気（地平線付近の明るい青）
-    'high-color':     '#245CDF', // 上層大気（宇宙に近い濃い青）
-    'horizon-blend':  0.02,      // 大気の厚み（小さいほどシャープ）
-    'space-color':    '#0B0B19', // 宇宙空間の背景色（ほぼ黒）
-    'star-intensity': 0.6,       // 星の明るさ
+  // Globe投影の大気圏・星空表現
+  // OriLibreがsetStyle()でスタイルを再構築するとfogがリセットされるため、
+  // style.load イベントで毎回再適用する
+  map.on('style.load', () => {
+    map.setFog({
+      'color':          '#BAD2EB', // 下層大気（地平線付近の明るい青）
+      'high-color':     '#245CDF', // 上層大気（宇宙に近い濃い青）
+      'horizon-blend':  0.02,      // 大気の厚み（小さいほどシャープ）
+      'space-color':    '#0B0B19', // 宇宙空間の背景色（ほぼ黒）
+      'star-intensity': 0.6,       // 星の明るさ
+    });
   });
 
   // ⑤ テレインマスタ → フレームの順で自動読み込みする
