@@ -6760,7 +6760,7 @@ let pcPlayerLat  = null;  // プレイヤーの緯度
 let pcBearing    = 0;     // カメラの向き（deg, 北=0）
 let pcPitch      = SIM_PITCH; // カメラのピッチ（deg, 0=真下 ～ 85=水平）
 let pcCamDistM   = 50;    // カメラ ↔ プレイヤー間の距離（m）
-const PC_CAM_DIST_MIN = 5;
+const PC_CAM_DIST_MIN = 1;
 const PC_CAM_DIST_MAX = 500;
 let smoothedSlopeAdj  = 0;  // 地形傾斜による自動ピッチ補正（deg、ローパスフィルタ済み）
 let _cachedTerrainH   = 0;  // queryTerrainElevation が null のときに使うキャッシュ値
