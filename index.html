@@ -7837,13 +7837,37 @@ function _openImportOverlay(imgUrl, onLoad) {
   _previewMap.on('load', onLoad);
 }
 
+// ---- 画像縦横比から最適な用紙サイズ・向きを自動推定してUIに反映 ----
+function _autoDetectPaperSize(w, h) {
+  const ratio = w / h;
+  let best = null, bestDiff = Infinity;
+  for (const [key, [pw, ph]] of Object.entries(PAPER_SIZES_MM)) {
+    // 縦向き
+    const dP = Math.abs(ratio - pw / ph);
+    if (dP < bestDiff) { bestDiff = dP; best = { key, orientation: 'portrait' }; }
+    // 横向き
+    const dL = Math.abs(ratio - ph / pw);
+    if (dL < bestDiff) { bestDiff = dL; best = { key, orientation: 'landscape' }; }
+  }
+  if (best) {
+    document.getElementById('import-paper-size').value = best.key;
+    document.getElementById('import-orientation').value = best.orientation;
+  }
+}
+
 // ---- 画像ファイルから開く（用紙サイズ設定UI表示） ----
 function openImportModal(imageFile) {
   _importImgFile = imageFile;
   // 画像モード: コントロールパネル全体を表示（用紙サイズ含む）
   document.getElementById('import-controls').style.display = '';
   document.getElementById('import-image-only-ctrl').style.display = '';
-  _openImportOverlay(URL.createObjectURL(imageFile), _updateImportPreview);
+
+  const imgUrl = URL.createObjectURL(imageFile);
+  // 画像の縦横比から用紙サイズ・向きを自動推定してからモーダルを開く
+  const tempImg = new Image();
+  tempImg.onload  = () => { _autoDetectPaperSize(tempImg.width, tempImg.height); _openImportOverlay(imgUrl, _updateImportPreview); };
+  tempImg.onerror = () => { _openImportOverlay(imgUrl, _updateImportPreview); };
+  tempImg.src = imgUrl;
 }
 
 // ---- KMZ: 現在の _importCenter + 回転スライダーで座標を再計算 ----
@@ -7877,15 +7901,18 @@ function openImportModalWithCoords(imgUrl, coords, label) {
   document.getElementById('import-controls').style.display = '';
   document.getElementById('import-image-only-ctrl').style.display = 'none';
 
-  _importBaseCoords = coords.map(c => [...c]); // 回転前の基準座標
-  _importCoords = coords.map(c => [...c]);
-
+  // 中心座標をローカル変数で先に計算（クロージャで参照）
   const lats = coords.map(c => c[1]), lngs = coords.map(c => c[0]);
   const centerLat = (Math.min(...lats) + Math.max(...lats)) / 2;
   const centerLng = (Math.min(...lngs) + Math.max(...lngs)) / 2;
-  _importCenter = { lng: centerLng, lat: centerLat };
 
+  // _openImportOverlay がリセットするため、状態変数は onLoad コールバック内で初期化する
   _openImportOverlay(imgUrl, () => {
+    // ここで初期化（_openImportOverlay によるリセット後に設定）
+    _importBaseCoords = coords.map(c => [...c]); // 回転前の基準座標
+    _importCoords     = coords.map(c => [...c]);
+    _importCenter     = { lng: centerLng, lat: centerLat };
+
     // KMZ画像全体が収まるようfitBounds（即時・アニメーションなし）
     _previewMap.fitBounds(
       [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
