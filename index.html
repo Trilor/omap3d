@@ -6533,8 +6533,9 @@ document.getElementById('ui-panel-header').addEventListener('click', () => {
 });
 
 // ---- 縮尺セレクト（現在の縮尺をリアルタイム表示 ＋ プリセット選択でズーム） ----
-// 画面のDPI（デバイスピクセル比を考慮）
-const SCREEN_DPI = (window.devicePixelRatio || 1) * 96;
+// CSS仕様上 1 CSS inch = 96 CSS pixel（devicePixelRatio に依存しない定数）
+// MapLibre の getZoom() は CSS pixel 基準のため、物理DPIではなく CSS PPI を使う
+const SCREEN_DPI = 96;
 
 // 現在の地図ズーム・中心緯度から縮尺分母を計算する
 // 計算式: 地上分解能(m/px) = 156543.034 × cos(緯度) / 2^zoom
@@ -7730,11 +7731,21 @@ function _importCalcCorners(lng, lat, widthM, heightM, decl) {
   ];
 }
 
+// ---- 画像ソース/レイヤーを削除→再追加して確実に再描画 ----
+// updateImage は MapLibre 5.x で GPU 再描画を起こさない場合があるため使用しない
+function _replaceImageSource() {
+  if (!_previewMap || !_importImgUrl || !_importCoords) return;
+  if (_previewMap.getLayer('_import-layer')) _previewMap.removeLayer('_import-layer');
+  if (_previewMap.getSource('_import-img')) _previewMap.removeSource('_import-img');
+  _previewMap.addSource('_import-img', { type: 'image', url: _importImgUrl, coordinates: _importCoords });
+  _previewMap.addLayer({ id: '_import-layer', type: 'raster', source: '_import-img', paint: { 'raster-opacity': 0.85 } });
+}
+
 // ---- プレビューマップ上のソース/マーカーを最新設定に更新（画像モード用） ----
 function _updateImportPreview() {
   if (!_previewMap || !_importImgUrl) return;
 
-  // 中心位置：マーカーがあればマーカー位置、なければマップ中心で初期化
+  // 中心位置：マーカーがなければマップ中心で初期化
   if (!_importCenter) {
     const mc = _previewMap.getCenter();
     _importCenter = { lng: mc.lng, lat: mc.lat };
@@ -7742,32 +7753,21 @@ function _updateImportPreview() {
   const c = _importCenter;
 
   const [wM, hM] = _importCalcSizeM();
-  // 回転補正スライダー値を取得（磁北に加算）
   const rotOffset = parseFloat(document.getElementById('import-rotation')?.value ?? '0');
-
-  // 磁気偏角を取得（geomag.field が使えない場合は 0 で代替）
   let decl = 0;
   try { decl = geomag.field(c.lat, c.lng).declination ?? 0; } catch (e) {}
-
   _importCoords = _importCalcCorners(c.lng, c.lat, wM, hM, decl + rotOffset);
 
-  const src = _previewMap.getSource('_import-img');
-  if (src) {
-    // ソース更新
-    src.updateImage({ coordinates: _importCoords });
-  } else {
-    // 初回：ソース＋レイヤー追加
-    _previewMap.addSource('_import-img', {
-      type: 'image',
-      url:  _importImgUrl,
-      coordinates: _importCoords,
-    });
-    _previewMap.addLayer({
-      id: '_import-layer',
-      type: 'raster',
-      source: '_import-img',
-      paint: { 'raster-opacity': 0.85 },
-    });
+  // ソースを削除→再追加して再描画（updateImage は不使用）
+  _replaceImageSource();
+
+  // 初回のみ: 画像全体にフィット＋マーカー作成
+  if (!_importMoveMarker) {
+    const lngs = _importCoords.map(p => p[0]), lats = _importCoords.map(p => p[1]);
+    _previewMap.fitBounds(
+      [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
+      { padding: 60, duration: 0 }
+    );
 
     // 中心移動マーカー（赤ドット）
     const el = document.createElement('div');
@@ -7778,7 +7778,6 @@ function _updateImportPreview() {
       .setLngLat([c.lng, c.lat])
       .addTo(_previewMap);
 
-    // ドラッグ中に _importCenter を更新して座標をリアルタイム再計算
     _importMoveMarker.on('drag', () => {
       const pos = _importMoveMarker.getLngLat();
       _importCenter = { lng: pos.lng, lat: pos.lat };
@@ -7787,7 +7786,7 @@ function _updateImportPreview() {
       let d = 0;
       try { d = geomag.field(pos.lat, pos.lng).declination ?? 0; } catch (e) {}
       _importCoords = _importCalcCorners(pos.lng, pos.lat, wMd, hMd, d + rot);
-      _previewMap.getSource('_import-img').updateImage({ coordinates: _importCoords });
+      _replaceImageSource();
     });
   }
 }
@@ -7838,36 +7837,16 @@ function _openImportOverlay(imgUrl, onLoad) {
 }
 
 // ---- 画像縦横比から最適な用紙サイズ・向きを自動推定してUIに反映 ----
-function _autoDetectPaperSize(w, h) {
-  const ratio = w / h;
-  let best = null, bestDiff = Infinity;
-  for (const [key, [pw, ph]] of Object.entries(PAPER_SIZES_MM)) {
-    // 縦向き
-    const dP = Math.abs(ratio - pw / ph);
-    if (dP < bestDiff) { bestDiff = dP; best = { key, orientation: 'portrait' }; }
-    // 横向き
-    const dL = Math.abs(ratio - ph / pw);
-    if (dL < bestDiff) { bestDiff = dL; best = { key, orientation: 'landscape' }; }
-  }
-  if (best) {
-    document.getElementById('import-paper-size').value = best.key;
-    document.getElementById('import-orientation').value = best.orientation;
-  }
-}
-
-// ---- 画像ファイルから開く（用紙サイズ設定UI表示） ----
+// ---- 画像ファイルから開く（用紙サイズ設定UI表示・A4デフォルト） ----
 function openImportModal(imageFile) {
   _importImgFile = imageFile;
   // 画像モード: コントロールパネル全体を表示（用紙サイズ含む）
   document.getElementById('import-controls').style.display = '';
   document.getElementById('import-image-only-ctrl').style.display = '';
-
-  const imgUrl = URL.createObjectURL(imageFile);
-  // 画像の縦横比から用紙サイズ・向きを自動推定してからモーダルを開く
-  const tempImg = new Image();
-  tempImg.onload  = () => { _autoDetectPaperSize(tempImg.width, tempImg.height); _openImportOverlay(imgUrl, _updateImportPreview); };
-  tempImg.onerror = () => { _openImportOverlay(imgUrl, _updateImportPreview); };
-  tempImg.src = imgUrl;
+  // 用紙サイズをA4縦にリセット
+  document.getElementById('import-paper-size').value = 'A4';
+  document.getElementById('import-orientation').value = 'portrait';
+  _openImportOverlay(URL.createObjectURL(imageFile), _updateImportPreview);
 }
 
 // ---- KMZ: 現在の _importCenter + 回転スライダーで座標を再計算 ----
@@ -7891,7 +7870,7 @@ function _applyKmzTransform() {
     const bear = turf.bearing(baseCtr, pt) + rotDeg;
     return turf.getCoord(turf.destination(newCtr, dist, bear, { units: 'kilometers' }));
   });
-  _previewMap.getSource('_import-img').updateImage({ coordinates: _importCoords });
+  _replaceImageSource();
 }
 
 // ---- KMZ座標付きで開く（回転のみ表示、用紙サイズUI非表示） ----
@@ -7957,8 +7936,9 @@ function enterFineTuneMode() {
       .setLngLat(coord)
       .addTo(_previewMap);
     marker.on('drag', () => {
-      _importCoords[i] = Object.values(marker.getLngLat()); // [lng, lat]
-      _previewMap.getSource('_import-img').updateImage({ coordinates: _importCoords });
+      const ll = marker.getLngLat();
+      _importCoords[i] = [ll.lng, ll.lat];
+      _replaceImageSource();
     });
     return marker;
   });
