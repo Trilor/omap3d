@@ -665,11 +665,10 @@ label.setting-label {
 }
 .panel-btn-primary:hover { background: #3a6449; }
 
-#map-import-btn {
+#map-import-btn-top {
   display: block;
-  width: calc(100% - 20px);
-  margin: 6px 10px;
-  padding: 6px 12px;
+  width: 100%;
+  padding: 7px 12px;
   background: #fff;
   color: #4a7c59;
   border: 1.5px solid #4a7c59;
@@ -682,7 +681,7 @@ label.setting-label {
   text-align: center;
   letter-spacing: 0.02em;
 }
-#map-import-btn:hover { background: #4a7c59; color: #fff; }
+#map-import-btn-top:hover { background: #4a7c59; color: #fff; }
 
 /* ===== 地図カタログ ===== */
 
@@ -2090,6 +2089,12 @@ label.setting-label {
     <div id="place-search-results"></div>
   </div>
 
+  <!-- ===== 地図画像インポートボタン（常時固定表示） ===== -->
+  <input type="file" id="map-import-input-top" accept=".kmz,.jpg,.jpeg,.png" multiple style="display:none" />
+  <div style="padding:6px 10px;border-bottom:1px solid #d8d8d8;">
+    <button id="map-import-btn-top">＋ 地図画像を追加</button>
+  </div>
+
   <!-- ===== タブバー ===== -->
   <div class="tab-bar">
     <button class="tab-btn active" data-tab="sim">シミュレーター</button>
@@ -2328,12 +2333,10 @@ label.setting-label {
     <button id="geojson-load-btn" class="panel-btn-outline" style="margin-top:6px">GeoJSONを読み込む</button>
   </div>
 
-  <!-- ===== OMAP（KMZ・画像+JGW / 後方互換）===== -->
-  <details class="panel-section">
-    <summary>OMAP（KMZ・JGW）</summary>
+  <!-- ===== 読み込み済み地図レイヤー一覧 ===== -->
+  <details class="panel-section" open>
+    <summary>読み込み済み地図</summary>
     <div id="kmz-list"></div>
-    <input type="file" id="map-import-input" accept=".kmz,.jpg,.jpeg,.png" multiple style="display:none" />
-    <button id="map-import-btn">＋ 地図画像を追加</button>
   </details>
 
   <!-- ===== GPX 軌跡（デフォルト open） ===== -->
@@ -5586,16 +5589,18 @@ document.getElementById('place-search-clear').addEventListener('click', clearSea
     ファイル選択ボタンの制御
     ======================================================== */
 
-// ---- 統合インポートボタン（KMZ / 画像） ----
-const mapImportInput = document.getElementById('map-import-input');
-document.getElementById('map-import-btn').addEventListener('click', () => mapImportInput.click());
-mapImportInput.addEventListener('change', async (e) => {
+// ---- 統合インポートボタン（KMZ / 画像 → すべて位置合わせモーダルへ） ----
+const mapImportInputTop = document.getElementById('map-import-input-top');
+document.getElementById('map-import-btn-top').addEventListener('click', () => mapImportInputTop.click());
+mapImportInputTop.addEventListener('change', async (e) => {
   const files = Array.from(e.target.files);
-  const kmzFiles = files.filter(f => /\.kmz$/i.test(f.name));
-  const imgFiles = files.filter(f => /\.(jpe?g|png)$/i.test(f.name));
-  for (const file of kmzFiles) await loadKmz(file);
-  // 画像は1枚ずつ位置合わせモーダルを開く
-  for (const file of imgFiles) openImportModal(file);
+  for (const file of files) {
+    if (/\.kmz$/i.test(file.name)) {
+      await openImportModalFromKmz(file);
+    } else if (/\.(jpe?g|png)$/i.test(file.name)) {
+      openImportModal(file);
+    }
+  }
   e.target.value = '';
 });
 
@@ -5815,8 +5820,8 @@ document.addEventListener('drop', async (e) => {
     return;
   }
 
-  // KMZ・GPX は即座に処理する
-  for (const file of kmzFiles) await loadKmz(file);
+  // KMZ もモーダル経由に統一。GPX は即座に処理する
+  for (const file of kmzFiles) await openImportModalFromKmz(file);
   for (const file of gpxFiles) await loadGpx(file);
 
   // 画像は統合インポートモーダルへ（1枚ずつ）
@@ -7529,6 +7534,62 @@ document.getElementById('sel-readmap-bg').addEventListener('change', () => {
 // 用紙サイズ定数（mm）: [幅, 高さ] 縦置き基準
 const PAPER_SIZES_MM = { A4: [210, 297], A3: [297, 420], B4: [257, 364], B3: [364, 515] };
 
+// ---- KMZ から画像と座標を抽出して位置合わせモーダルを開く ----
+// loadKmz() の①〜⑦相当の処理を行い、直接マップ追加する代わりにモーダルへ渡す
+async function openImportModalFromKmz(file) {
+  try {
+    const zip = await JSZip.loadAsync(await file.arrayBuffer());
+    const fileNames = Object.keys(zip.files);
+    const kmlFileName = fileNames.find(n => n.toLowerCase().endsWith('.kml'));
+    if (!kmlFileName) { alert('KMZ内にKMLファイルが見つかりません。'); return; }
+
+    const kmlDom = new DOMParser().parseFromString(await zip.files[kmlFileName].async('text'), 'text/xml');
+    if (kmlDom.getElementsByTagName('parseerror').length > 0) { alert('KML解析エラー。'); return; }
+
+    const kmlGet = (root, tag) => root.getElementsByTagNameNS('*', tag)[0] ?? root.getElementsByTagName(tag)[0];
+    const groundOverlay = kmlGet(kmlDom, 'GroundOverlay');
+    if (!groundOverlay) { alert('GroundOverlay要素が見つかりません。'); return; }
+
+    const latLonBox = kmlGet(groundOverlay, 'LatLonBox');
+    if (!latLonBox) { alert('LatLonBox要素が見つかりません。'); return; }
+
+    const north    = parseFloat(kmlGet(latLonBox, 'north')?.textContent);
+    const south    = parseFloat(kmlGet(latLonBox, 'south')?.textContent);
+    const east     = parseFloat(kmlGet(latLonBox, 'east')?.textContent);
+    const west     = parseFloat(kmlGet(latLonBox, 'west')?.textContent);
+    const rotation = parseFloat(kmlGet(latLonBox, 'rotation')?.textContent ?? '0');
+    if (isNaN(north) || isNaN(south) || isNaN(east) || isNaN(west)) { alert('LatLonBoxの座標値が読み取れません。'); return; }
+
+    // KMZ と同じ回転計算（loadKmz と同ロジック）
+    const cx = (east + west) / 2, cy = (north + south) / 2;
+    const hw = (east - west) / 2, hh = (north - south) / 2;
+    const rad = rotation * Math.PI / 180, cosR = Math.cos(rad), sinR = Math.sin(rad);
+    const latCos = Math.cos(cy * Math.PI / 180);
+    const rotateCorner = (dx, dy) => {
+      const dxs = dx * latCos;
+      return [cx + (dxs * cosR - dy * sinR) / latCos, cy + (dxs * sinR + dy * cosR)];
+    };
+    const kmzCoords = [
+      rotateCorner(-hw, +hh), rotateCorner(+hw, +hh),
+      rotateCorner(+hw, -hh), rotateCorner(-hw, -hh),
+    ];
+
+    // 画像を抽出してObjectURLを生成
+    const iconHref = kmlGet(kmlGet(groundOverlay, 'Icon'), 'href')?.textContent?.trim();
+    if (!iconHref) { alert('Icon/hrefが見つかりません。'); return; }
+    const imgEntry = zip.files[iconHref] ?? zip.files[fileNames.find(n => n.endsWith('/' + iconHref) || n === iconHref)];
+    if (!imgEntry) { alert(`KMZ内に画像 "${iconHref}" が見つかりません。`); return; }
+
+    const imgUrl = URL.createObjectURL(await imgEntry.async('blob'));
+
+    // モーダルをKMZ座標で開く（用紙サイズ設定UIは不要なので非表示）
+    openImportModalWithCoords(imgUrl, kmzCoords, file.name);
+  } catch (err) {
+    console.error('KMZモーダル展開エラー:', err);
+    alert(`KMZの読み込みに失敗しました: ${err.message}`);
+  }
+}
+
 let _previewMap      = null;  // プレビュー用 MapLibre インスタンス
 let _importImgFile   = null;  // インポート中の画像 File
 let _importImgUrl    = null;  // 対応する ObjectURL
@@ -7626,17 +7687,15 @@ function _updateImportPreview() {
   }
 }
 
-// ---- モーダルを開く ----
-function openImportModal(imageFile) {
-  _importImgFile = imageFile;
-  _importImgUrl  = URL.createObjectURL(imageFile);
-  document.getElementById('import-overlay').classList.add('visible');
-
-  // プレビューマップを生成（OSMベースで軽量）
-  if (_previewMap) { _previewMap.remove(); _previewMap = null; }
+// ---- モーダル共通初期化（previewMap生成） ----
+// onLoad: マップ読み込み完了後に呼ぶコールバック
+function _openImportOverlay(imgUrl, onLoad) {
+  _importImgUrl = imgUrl;
   _importMoveMarker = null;
   _importCoords     = null;
+  document.getElementById('import-overlay').classList.add('visible');
 
+  if (_previewMap) { _previewMap.remove(); _previewMap = null; }
   _previewMap = new maplibregl.Map({
     container: 'import-preview-map',
     style: {
@@ -7652,12 +7711,53 @@ function openImportModal(imageFile) {
       layers: [{ id: 'osm-bg', type: 'raster', source: 'osm' }],
     },
     center: map.getCenter(),
-    zoom: Math.max(map.getZoom(), 12), // 位置合わせしやすいズームレベル
-    pitch: 0,
-    bearing: 0,
+    zoom: Math.max(map.getZoom(), 12),
+    pitch: 0, bearing: 0,
     attributionControl: false,
   });
-  _previewMap.on('load', _updateImportPreview);
+  _previewMap.on('load', onLoad);
+}
+
+// ---- 画像ファイルから開く（用紙サイズ設定UI表示） ----
+function openImportModal(imageFile) {
+  _importImgFile = imageFile;
+  document.getElementById('import-controls').style.display = '';
+  _openImportOverlay(URL.createObjectURL(imageFile), _updateImportPreview);
+}
+
+// ---- KMZ座標付きで開く（用紙サイズ設定UI非表示、座標は確定済み） ----
+function openImportModalWithCoords(imgUrl, coords, label) {
+  _importImgFile = null;
+  document.getElementById('import-controls').style.display = 'none';
+  _importCoords = coords;
+  // 画像の中心座標にプレビューマップを合わせる
+  const lats = coords.map(c => c[1]), lngs = coords.map(c => c[0]);
+  const centerLat = (Math.min(...lats) + Math.max(...lats)) / 2;
+  const centerLng = (Math.min(...lngs) + Math.max(...lngs)) / 2;
+
+  _openImportOverlay(imgUrl, () => {
+    // 既存座標で画像をそのまま配置、移動マーカーも表示
+    _previewMap.addSource('_import-img', { type: 'image', url: imgUrl, coordinates: coords });
+    _previewMap.addLayer({ id: '_import-layer', type: 'raster', source: '_import-img',
+      paint: { 'raster-opacity': 0.85 } });
+
+    const el = document.createElement('div');
+    el.style.cssText = 'width:16px;height:16px;background:#e02020;border:3px solid #fff;' +
+      'border-radius:50%;cursor:move;box-shadow:0 1px 5px rgba(0,0,0,0.55);';
+    _importMoveMarker = new maplibregl.Marker({ element: el, draggable: true })
+      .setLngLat([centerLng, centerLat]).addTo(_previewMap);
+
+    _previewMap.flyTo({ center: [centerLng, centerLat],
+      zoom: Math.max(_previewMap.getZoom(), 12), duration: 600 });
+
+    // ドラッグ：KMZ座標形状を維持しつつ平行移動
+    _importMoveMarker.on('drag', () => {
+      const pos = _importMoveMarker.getLngLat();
+      const dLng = pos.lng - centerLng, dLat = pos.lat - centerLat;
+      _importCoords = coords.map(c => [c[0] + dLng, c[1] + dLat]);
+      _previewMap.getSource('_import-img').updateImage({ coordinates: _importCoords });
+    });
+  });
 }
 
 // ---- モーダルを閉じる（cancelOnly=false のとき URL を revoke しない） ----
