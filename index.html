@@ -1919,26 +1919,27 @@ label.setting-label {
    地図画像 位置合わせモーダル（読図モードポップアップと同デザイン）
    =================================================================== */
 
-/* 全画面暗転オーバーレイ */
+/* 全画面暗転オーバーレイ（PC readmap と同系） */
 #import-overlay {
   display: none;
   position: fixed;
   inset: 0;
   z-index: 50;
-  background: rgba(0, 0, 0, 0.35);
+  background: rgba(0, 0, 0, 0.55);
   align-items: center;
   justify-content: center;
 }
 #import-overlay.visible { display: flex; }
 
-/* モーダル本体：左パネルと同系のライトデザイン */
+/* モーダル本体（PC readmap wrapper と同系スタイル） */
 #import-modal-wrapper {
   position: relative;
   width: min(92vw, 1040px);
   height: min(88vh, 720px);
-  border-radius: 4px;
+  border-radius: 12px;
   overflow: hidden;
-  box-shadow: 0 0 0 2px rgba(0,0,0,.1), 0 4px 16px rgba(0,0,0,0.18);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.65);
+  border: 2px solid rgba(255, 255, 255, 0.25);
   background: #fff;
   display: flex;
   flex-direction: column;
@@ -2473,6 +2474,7 @@ label.setting-label {
         <div class="import-ctrl-group">
           <div class="import-ctrl-label">背景地図</div>
           <select id="import-bg-select" class="import-ctrl-select">
+            <option value="orilibre">OriLibre</option>
             <option value="osm">OpenStreetMap</option>
             <option value="gsi-std">地理院標準</option>
             <option value="gsi-pale">地理院淡色</option>
@@ -3299,6 +3301,7 @@ const map = new maplibregl.Map({
   pitch: INITIAL_PITCH,
   bearing: INITIAL_BEARING,
   minZoom: 0,
+  maxZoom: 24,
   maxPitch: 85,
   locale: {
     'NavigationControl.ZoomIn':           'ズームイン',
@@ -7252,14 +7255,17 @@ function setCameraFromPlayer() {
     { exaggerated: false }
   ) ?? h;
 
+  // カメラ距離に比例したマージン（近距離では小さく、遠距離では最大8m）
+  const backMargin = Math.min(8, Math.max(0.5, pcCamDistM * 0.1));
   const cameraAlt = Math.max(
-    h + Math.max(1, pcCamDistM * Math.cos(pitchRad)),
-    backH + 8   // カメラが後方地形より必ず8m上に位置するよう保証
+    h + Math.max(0.5, pcCamDistM * Math.cos(pitchRad)),
+    backH + backMargin   // カメラが後方地形より必ずbackMargin上に位置するよう保証
   );
 
-  const targetZoom = Math.max(12, Math.min(22, Math.log2(
+  // ズームキャップを24に拡張（1m近接時にもズームインが効くよう）
+  const targetZoom = Math.max(12, Math.min(24, Math.log2(
     H * 2 * Math.PI * R * Math.cos(lat_rad) /
-    (1024 * Math.tan(fov_rad / 2) * Math.max(1, cameraAlt))
+    (1024 * Math.tan(fov_rad / 2) * Math.max(0.5, cameraAlt))
   )));
 
   map.jumpTo({
@@ -7803,14 +7809,21 @@ function _importCalcCorners(lng, lat, widthM, heightM, decl) {
   ];
 }
 
-// ---- 画像ソース/レイヤーを削除→再追加して確実に再描画 ----
-// updateImage は MapLibre 5.x で GPU 再描画を起こさない場合があるため使用しない
+// ---- 画像ソース/レイヤーを更新して再描画 ----
+// 既存ソースがある場合は updateImage + triggerRepaint でドラッグ中のリアルタイム表示を実現。
+// 初回のみ addSource + addLayer で生成する。
 function _replaceImageSource() {
   if (!_previewMap || !_importImgUrl || !_importCoords) return;
-  if (_previewMap.getLayer('_import-layer')) _previewMap.removeLayer('_import-layer');
-  if (_previewMap.getSource('_import-img')) _previewMap.removeSource('_import-img');
-  _previewMap.addSource('_import-img', { type: 'image', url: _importImgUrl, coordinates: _importCoords });
-  _previewMap.addLayer({ id: '_import-layer', type: 'raster', source: '_import-img', paint: { 'raster-opacity': 0.85 } });
+  const src = _previewMap.getSource('_import-img');
+  if (src) {
+    // ドラッグ中の高速パス: 座標を更新して即時再描画
+    src.updateImage({ url: _importImgUrl, coordinates: _importCoords });
+    _previewMap.triggerRepaint();
+  } else {
+    // 初回: ソース・レイヤーを追加
+    _previewMap.addSource('_import-img', { type: 'image', url: _importImgUrl, coordinates: _importCoords });
+    _previewMap.addLayer({ id: '_import-layer', type: 'raster', source: '_import-img', paint: { 'raster-opacity': 0.85 } });
+  }
 }
 
 // ---- プレビューマップ上のソース/マーカーを最新設定に更新（画像モード用） ----
@@ -7863,6 +7876,56 @@ function _updateImportPreview() {
   }
 }
 
+// ---- ラスター背景スタイル定義（OSM/GSI 共通ベース） ----
+const _PREVIEW_RASTER_STYLE = {
+  version: 8,
+  sources: {
+    'bg-osm':       { type: 'raster', tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],                                    tileSize: 256, attribution: '© OpenStreetMap contributors' },
+    'bg-gsi-std':   { type: 'raster', tiles: ['https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png'],                          tileSize: 256, attribution: '国土地理院' },
+    'bg-gsi-pale':  { type: 'raster', tiles: ['https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png'],                         tileSize: 256, attribution: '国土地理院' },
+    'bg-gsi-photo': { type: 'raster', tiles: ['https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg'],                tileSize: 256, attribution: '国土地理院' },
+  },
+  layers: [
+    { id: 'bg-osm-layer',       type: 'raster', source: 'bg-osm',       layout: { visibility: 'visible' } },
+    { id: 'bg-gsi-std-layer',   type: 'raster', source: 'bg-gsi-std',   layout: { visibility: 'none' } },
+    { id: 'bg-gsi-pale-layer',  type: 'raster', source: 'bg-gsi-pale',  layout: { visibility: 'none' } },
+    { id: 'bg-gsi-photo-layer', type: 'raster', source: 'bg-gsi-photo', layout: { visibility: 'none' } },
+  ],
+};
+
+// ---- ラスター背景のプレビューマップに等高線・磁北線を追加 ----
+// OriLibre の場合は oriLibreCachedStyle に既に含まれているため不要。
+function _addPreviewContourAndNorth(m) {
+  // 等高線
+  if (chkContour.checked && contourDemSource) {
+    const iv  = getEffectiveContourInterval();
+    const url = contourDemMode === 'dem5a' ? buildSeamlessContourTileUrl(iv) : buildContourTileUrl(iv);
+    if (url) {
+      m.addSource('prev-contour', { type: 'vector', tiles: [url], maxzoom: 15, attribution: '' });
+      m.addLayer({ id: 'prev-contour-regular', type: 'line', source: 'prev-contour', 'source-layer': 'contours',
+        filter: ['!=', ['get', 'level'], 1],
+        paint: { 'line-color': '#c86400', 'line-width': 1.0, 'line-opacity': 0.85 } });
+      m.addLayer({ id: 'prev-contour-index', type: 'line', source: 'prev-contour', 'source-layer': 'contours',
+        filter: ['==', ['get', 'level'], 1],
+        paint: { 'line-color': '#c86400', 'line-width': 1.79, 'line-opacity': 1.0 } });
+    }
+    // 湖水深等高線
+    const lakeUrl = buildLakeContourTileUrl(iv);
+    if (lakeUrl && lakeContourDemSource) {
+      m.addSource('prev-contour-lake', { type: 'vector', tiles: [lakeUrl], maxzoom: 15, attribution: '' });
+      m.addLayer({ id: 'prev-contour-lake-regular', type: 'line', source: 'prev-contour-lake', 'source-layer': 'contours',
+        filter: ['==', ['get', 'level'], 0],
+        paint: { 'line-color': '#4a90d9', 'line-width': 0.8, 'line-opacity': 0.75, 'line-blur': 0.5 } });
+    }
+  }
+  // 磁北線
+  if (chkMagneticNorth.checked && _lastMagneticNorthData.features.length > 0) {
+    m.addSource('prev-magnetic-north', { type: 'geojson', data: _lastMagneticNorthData });
+    m.addLayer({ id: 'prev-magnetic-north-layer', type: 'line', source: 'prev-magnetic-north',
+      paint: { 'line-color': '#0055cc', 'line-width': 0.8, 'line-opacity': 1.0 } });
+  }
+}
+
 // ---- モーダル共通初期化（previewMap生成） ----
 // onLoad: マップ読み込み完了後に呼ぶコールバック
 function _openImportOverlay(imgUrl, onLoad) {
@@ -7872,40 +7935,36 @@ function _openImportOverlay(imgUrl, onLoad) {
   _importCenter    = null;
   _importBaseCoords = null;
   _fineTuneActive  = false;
-  // タブを「平行移動」にリセット
   document.querySelectorAll('.import-tab').forEach(t => t.classList.toggle('active', t.dataset.mode === 'move'));
-  // 回転スライダーをリセット
   const rotEl = document.getElementById('import-rotation');
   if (rotEl) { rotEl.value = '0'; document.getElementById('import-rotation-val').textContent = '0.0'; }
   document.getElementById('import-overlay').classList.add('visible');
 
   if (_previewMap) { _previewMap.remove(); _previewMap = null; }
+
+  // 初期背景: OriLibreが利用可能なら優先（地理院タイルより高品質）
+  const bgSel = document.getElementById('import-bg-select');
+  const initBg = oriLibreCachedStyle ? 'orilibre' : 'osm';
+  if (bgSel) bgSel.value = initBg;
+
+  const initStyle = (initBg === 'orilibre') ? oriLibreCachedStyle : _PREVIEW_RASTER_STYLE;
+
   _previewMap = new maplibregl.Map({
     container: 'import-preview-map',
-    style: {
-      version: 8,
-      sources: {
-        'bg-osm':       { type: 'raster', tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], tileSize: 256, attribution: '© OpenStreetMap contributors' },
-        'bg-gsi-std':   { type: 'raster', tiles: ['https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png'], tileSize: 256, attribution: '国土地理院' },
-        'bg-gsi-pale':  { type: 'raster', tiles: ['https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png'], tileSize: 256, attribution: '国土地理院' },
-        'bg-gsi-photo': { type: 'raster', tiles: ['https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg'], tileSize: 256, attribution: '国土地理院' },
-      },
-      layers: [
-        { id: 'bg-osm-layer',       type: 'raster', source: 'bg-osm' },
-        { id: 'bg-gsi-std-layer',   type: 'raster', source: 'bg-gsi-std',   layout: { visibility: 'none' } },
-        { id: 'bg-gsi-pale-layer',  type: 'raster', source: 'bg-gsi-pale',  layout: { visibility: 'none' } },
-        { id: 'bg-gsi-photo-layer', type: 'raster', source: 'bg-gsi-photo', layout: { visibility: 'none' } },
-      ],
-    },
+    style: initStyle,
     center: map.getCenter(),
     zoom: Math.max(map.getZoom(), 12),
     pitch: 0, bearing: 0,
     attributionControl: false,
   });
-  // 背景地図セレクトを OSM にリセット
-  const bgSel = document.getElementById('import-bg-select');
-  if (bgSel) bgSel.value = 'osm';
-  _previewMap.on('load', onLoad);
+
+  _previewMap.on('load', () => {
+    // 3D terrain 無効化（3Dは不使用）
+    if (_previewMap.getTerrain()) _previewMap.setTerrain(null);
+    // ラスター背景の場合のみ等高線・磁北線を追加（OriLibreはキャッシュスタイルに含まれている）
+    if (initBg !== 'orilibre') _addPreviewContourAndNorth(_previewMap);
+    onLoad();
+  });
 }
 
 // ---- 画像縦横比から最適な用紙サイズ・向きを自動推定してUIに反映 ----
@@ -8076,17 +8135,52 @@ document.getElementById('import-scale').addEventListener('change', (e) => {
 });
 document.getElementById('import-scale-custom').addEventListener('input', _updateImportPreview);
 
-// 背景地図切り替え
+// 背景地図切り替え（OriLibre ↔ ラスター間の setStyle にも対応）
 document.getElementById('import-bg-select').addEventListener('change', (e) => {
   if (!_previewMap) return;
-  const layerMap = {
+  const val = e.target.value;
+
+  // ラスター間切り替え（setStyle 不要）
+  const rasterLayerMap = {
     'osm':       'bg-osm-layer',
     'gsi-std':   'bg-gsi-std-layer',
     'gsi-pale':  'bg-gsi-pale-layer',
     'gsi-photo': 'bg-gsi-photo-layer',
   };
-  Object.values(layerMap).forEach(id => _previewMap.setLayoutProperty(id, 'visibility', 'none'));
-  _previewMap.setLayoutProperty(layerMap[e.target.value], 'visibility', 'visible');
+
+  const prevStyle = _previewMap.getStyle();
+  const wasOriLibre = prevStyle && !prevStyle.sources['bg-osm']; // OriLibreスタイルはbg-osmを持たない
+  const toOriLibre  = (val === 'orilibre');
+
+  if (!wasOriLibre && !toOriLibre) {
+    // ラスター → ラスター: レイヤー表示切り替えのみ
+    Object.values(rasterLayerMap).forEach(id => {
+      if (_previewMap.getLayer(id)) _previewMap.setLayoutProperty(id, 'visibility', 'none');
+    });
+    if (_previewMap.getLayer(rasterLayerMap[val])) {
+      _previewMap.setLayoutProperty(rasterLayerMap[val], 'visibility', 'visible');
+    }
+    return;
+  }
+
+  // OriLibre ↔ ラスター: スタイル全体を差し替え
+  const newStyle = toOriLibre ? oriLibreCachedStyle : (() => {
+    // ラスタースタイルで選択背景のみ表示
+    const s = JSON.parse(JSON.stringify(_PREVIEW_RASTER_STYLE));
+    s.layers.forEach(l => { l.layout = l.layout || {}; l.layout.visibility = 'none'; });
+    const target = s.layers.find(l => l.id === rasterLayerMap[val]);
+    if (target) target.layout.visibility = 'visible';
+    return s;
+  })();
+
+  if (!newStyle) return;
+
+  _previewMap.setStyle(newStyle);
+  _previewMap.once('style.load', () => {
+    if (_previewMap.getTerrain()) _previewMap.setTerrain(null);
+    if (!toOriLibre) _addPreviewContourAndNorth(_previewMap);
+    _replaceImageSource();
+  });
 });
 
 // 回転スライダー → プレビュー再計算
