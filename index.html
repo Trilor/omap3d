@@ -8043,9 +8043,43 @@ function _renderFixedPointMarkers() {
       'position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);' +
       'font-size:9px;font-weight:bold;color:#fff;line-height:1;';
     el.appendChild(num);
-    _importFixedPointMarkers.push(
-      new maplibregl.Marker({ element: el, draggable: false }).setLngLat([pt.lng, pt.lat]).addTo(_previewMap)
-    );
+    const marker = new maplibregl.Marker({ element: el, draggable: true }).setLngLat([pt.lng, pt.lat]).addTo(_previewMap);
+    let startCoords = null;
+    let startFixedPoints = null;
+    marker.on('dragstart', () => {
+      _importSaveState();
+      startCoords = _importCoords ? _importCoords.map(c => [...c]) : null;
+      startFixedPoints = _importFixedPoints.map(p => ({ ...p }));
+      if (_previewMap) _previewMap.getCanvas().style.cursor = 'grabbing';
+    });
+    marker.on('drag', () => {
+      if (!startCoords || !startFixedPoints) return;
+      const ll = marker.getLngLat();
+      const current = [ll.lng, ll.lat];
+      if (startFixedPoints.length >= 2) {
+        const pivotIdx = i === 0 ? 1 : 0;
+        const pivot = [startFixedPoints[pivotIdx].lng, startFixedPoints[pivotIdx].lat];
+        const moveStart = [startFixedPoints[i].lng, startFixedPoints[i].lat];
+        _importCoords = _transformCoordsByPivotMove(startCoords, pivot, moveStart, current);
+        _importFixedPoints = startFixedPoints.map(p => ({ ...p }));
+        _importFixedPoints[i] = { lng: ll.lng, lat: ll.lat };
+      } else {
+        const moveStart = [startFixedPoints[i].lng, startFixedPoints[i].lat];
+        const dx = current[0] - moveStart[0];
+        const dy = current[1] - moveStart[1];
+        _importCoords = startCoords.map(c => [c[0] + dx, c[1] + dy]);
+        _importFixedPoints = startFixedPoints.map(p => ({ lng: p.lng + dx, lat: p.lat + dy }));
+      }
+      _recalcImportCenterFromCoords();
+      _updateBaseScaleCoords();
+      _updateFixedPointStatus();
+      _replaceImageSourceRaf();
+    });
+    marker.on('dragend', () => {
+      if (_previewMap) _previewMap.getCanvas().style.cursor = '';
+      _renderFixedPointMarkers();
+    });
+    _importFixedPointMarkers.push(marker);
   });
   if (_importPendingFixedPoint) {
     const el = document.createElement('div');
@@ -8075,9 +8109,13 @@ function _updateFixedPointStatus() {
     st.textContent = '待機中';
   }
   const setBtn = document.getElementById('import-fixed-point-set');
+  const commitBtn = document.getElementById('import-fixed-point-commit');
   if (setBtn) {
     setBtn.classList.toggle('active', _isSettingFixedPoint || _isPlacingFixedPoint);
     setBtn.disabled = _importFixedPoints.length >= 2;
+  }
+  if (commitBtn) {
+    commitBtn.disabled = !_importPendingFixedPoint;
   }
 }
 
@@ -8131,6 +8169,27 @@ function _rotateCoordsAroundPivot(coords, angleDeg, pivot) {
   const poly = turf.polygon([[...coords, coords[0]]]);
   const rot  = turf.transformRotate(poly, angleDeg, { pivot });
   return rot.geometry.coordinates[0].slice(0, 4);
+}
+
+function _recalcImportCenterFromCoords() {
+  if (!_importCoords) return;
+  _importCenter = {
+    lng: _importCoords.reduce((s, c) => s + c[0], 0) / 4,
+    lat: _importCoords.reduce((s, c) => s + c[1], 0) / 4,
+  };
+}
+
+function _transformCoordsByPivotMove(startCoords, pivot, startMovePoint, currentMovePoint) {
+  const startDist = turf.distance(turf.point(pivot), turf.point(startMovePoint), { units: 'kilometers' });
+  const curDist   = turf.distance(turf.point(pivot), turf.point(currentMovePoint), { units: 'kilometers' });
+  const startBear = turf.bearing(turf.point(pivot), turf.point(startMovePoint));
+  const curBear   = turf.bearing(turf.point(pivot), turf.point(currentMovePoint));
+  const angleDeg  = curBear - startBear;
+  const scale     = startDist > 1e-9 ? (curDist / startDist) : 1;
+  const poly = turf.polygon([[...startCoords, startCoords[0]]]);
+  const rotated = turf.transformRotate(poly, angleDeg, { pivot });
+  const scaled  = turf.transformScale(rotated, scale, { origin: pivot });
+  return scaled.geometry.coordinates[0].slice(0, 4);
 }
 
 // ---- 用紙サイズ＋縮尺 → 実世界サイズ（メートル）を計算 ----
@@ -8326,6 +8385,22 @@ function _initImgInteraction() {
 
     // mousedown → ドラッグ開始（hitboxレイヤー上）
     _previewMap.on('mousedown', '_import-hitbox-layer', (e) => {
+      // 固定点追加モード中は、クリック保持ですぐドラッグ位置合わせに入る
+      if (_isSettingFixedPoint && _importFixedPoints.length < 2) {
+        e.preventDefault();
+        _importSaveState();
+        _setPendingFixedPoint(e.lngLat.lng, e.lngLat.lat);
+        _isDraggingImage = true;
+        _dragStartLngLat = { lng: e.lngLat.lng, lat: e.lngLat.lat };
+        _dragStartCoords = _importCoords.map(c => [...c]);
+        _dragStartCenter = _importCenter ? { ..._importCenter } : null;
+        _dragStartBaseScaleCoords = _importBaseScaleCoords ? _importBaseScaleCoords.map(c => [...c]) : null;
+        _dragStartFixedPoints = _importFixedPoints.map(pt => ({ ...pt }));
+        _dragStartPendingFixedPoint = _importPendingFixedPoint ? { ..._importPendingFixedPoint } : null;
+        _previewMap.dragPan.disable();
+        _previewMap.getCanvas().style.cursor = 'grabbing';
+        return;
+      }
       if (((_importFixedPoints.length > 0) || _isSettingFixedPoint) && !_isPlacingFixedPoint) return; // 固定点設定済み時は通常移動を無効化
       e.preventDefault();
       _importSaveState();
@@ -8351,28 +8426,57 @@ function _initImgInteraction() {
       if (_importBaseCoords) {
         // KMZモード: _importCenter を更新して _applyKmzTransform（RAF）
         if (_isPlacingFixedPoint) {
-          _importFixedPoints = (_dragStartFixedPoints || []).map(pt => ({ lng: pt.lng + dx, lat: pt.lat + dy }));
-          _importPendingFixedPoint = _dragStartPendingFixedPoint
-            ? { lng: _dragStartPendingFixedPoint.lng + dx, lat: _dragStartPendingFixedPoint.lat + dy }
-            : null;
+          const hasPivot = (_dragStartFixedPoints || []).length >= 1;
+          if (hasPivot && _dragStartPendingFixedPoint) {
+            const pivot = [_dragStartFixedPoints[0].lng, _dragStartFixedPoints[0].lat];
+            const startMove = [_dragStartPendingFixedPoint.lng, _dragStartPendingFixedPoint.lat];
+            const currentMove = [e.lngLat.lng, e.lngLat.lat];
+            _importCoords = _transformCoordsByPivotMove(_dragStartCoords, pivot, startMove, currentMove);
+            _recalcImportCenterFromCoords();
+            _importFixedPoints = _dragStartFixedPoints.map(pt => ({ ...pt }));
+            _importPendingFixedPoint = { lng: e.lngLat.lng, lat: e.lngLat.lat };
+          } else if (_dragStartPendingFixedPoint) {
+            _importCoords = _dragStartCoords.map(c => [c[0] + dx, c[1] + dy]);
+            if (_dragStartBaseScaleCoords)
+              _importBaseScaleCoords = _dragStartBaseScaleCoords.map(c => [c[0] + dx, c[1] + dy]);
+            _importPendingFixedPoint = { lng: _dragStartPendingFixedPoint.lng + dx, lat: _dragStartPendingFixedPoint.lat + dy };
+          }
           _renderFixedPointMarkers();
         }
-        if (_importDragRafId) cancelAnimationFrame(_importDragRafId);
-        _importDragRafId = requestAnimationFrame(() => {
-          _importDragRafId = null;
-          _applyKmzTransform();
-        });
+        if (_isPlacingFixedPoint) {
+          _updateBaseScaleCoords();
+          _replaceImageSourceRaf();
+        } else {
+          if (_importDragRafId) cancelAnimationFrame(_importDragRafId);
+          _importDragRafId = requestAnimationFrame(() => {
+            _importDragRafId = null;
+            _applyKmzTransform();
+          });
+        }
       } else {
         // 画像モード: 全隅・ベース座標を直接平行移動 → RAFで再描画
-        _importCoords = _dragStartCoords.map(c => [c[0] + dx, c[1] + dy]);
-        if (_dragStartBaseScaleCoords)
-          _importBaseScaleCoords = _dragStartBaseScaleCoords.map(c => [c[0] + dx, c[1] + dy]);
         if (_isPlacingFixedPoint) {
-          _importFixedPoints = (_dragStartFixedPoints || []).map(pt => ({ lng: pt.lng + dx, lat: pt.lat + dy }));
-          _importPendingFixedPoint = _dragStartPendingFixedPoint
-            ? { lng: _dragStartPendingFixedPoint.lng + dx, lat: _dragStartPendingFixedPoint.lat + dy }
-            : null;
+          const hasPivot = (_dragStartFixedPoints || []).length >= 1;
+          if (hasPivot && _dragStartPendingFixedPoint) {
+            const pivot = [_dragStartFixedPoints[0].lng, _dragStartFixedPoints[0].lat];
+            const startMove = [_dragStartPendingFixedPoint.lng, _dragStartPendingFixedPoint.lat];
+            const currentMove = [e.lngLat.lng, e.lngLat.lat];
+            _importCoords = _transformCoordsByPivotMove(_dragStartCoords, pivot, startMove, currentMove);
+            _recalcImportCenterFromCoords();
+            _importFixedPoints = _dragStartFixedPoints.map(pt => ({ ...pt }));
+            _importPendingFixedPoint = { lng: e.lngLat.lng, lat: e.lngLat.lat };
+          } else if (_dragStartPendingFixedPoint) {
+            _importCoords = _dragStartCoords.map(c => [c[0] + dx, c[1] + dy]);
+            if (_dragStartBaseScaleCoords)
+              _importBaseScaleCoords = _dragStartBaseScaleCoords.map(c => [c[0] + dx, c[1] + dy]);
+            _importPendingFixedPoint = { lng: _dragStartPendingFixedPoint.lng + dx, lat: _dragStartPendingFixedPoint.lat + dy };
+          }
           _renderFixedPointMarkers();
+          _updateBaseScaleCoords();
+        } else {
+          _importCoords = _dragStartCoords.map(c => [c[0] + dx, c[1] + dy]);
+          if (_dragStartBaseScaleCoords)
+            _importBaseScaleCoords = _dragStartBaseScaleCoords.map(c => [c[0] + dx, c[1] + dy]);
         }
         _replaceImageSourceRaf();
       }
@@ -8401,6 +8505,7 @@ function _initImgInteraction() {
       if (_importFixedPoints.length >= 2) return;
       _importSaveState();
       _setPendingFixedPoint(e.lngLat.lng, e.lngLat.lat);
+      _updateFixedPointStatus();
       _replaceImageSource();
     });
 
