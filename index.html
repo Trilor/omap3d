@@ -2039,6 +2039,47 @@ label.setting-label {
   font-weight: bold;
   letter-spacing: 0.02em;
 }
+.import-label-with-reset {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.import-reset-btn {
+  width: 18px;
+  height: 18px;
+  border: 1px solid #c8c8c8;
+  border-radius: 50%;
+  background: #fff;
+  color: #555;
+  font-size: 12px;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.import-reset-btn:hover {
+  background: #f0f0f0;
+  color: #333;
+  border-color: #b8b8b8;
+}
+.import-reset-btn:active { background: #e5e5e5; }
+.import-slider-wrap {
+  position: relative;
+}
+.import-slider-wrap::after {
+  content: '';
+  position: absolute;
+  left: var(--init-pct, 50%);
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 2px;
+  height: 11px;
+  border-radius: 1px;
+  background: #666;
+  opacity: 0.7;
+  pointer-events: none;
+}
 .import-ctrl-select, .import-ctrl-input {
   width: 100%;
   background: #fff;
@@ -2605,18 +2646,28 @@ label.setting-label {
             ※4隅の青マーカーをドラッグして拡大縮小できます。
           </div>
           <div class="import-ctrl-group">
-            <div class="import-ctrl-label">回転補正&emsp;<span id="import-rotation-val">0.0</span>°</div>
-            <input type="range" id="import-rotation" class="import-ctrl-slider"
-              min="-2" max="2" value="0" step="0.1" />
+            <div class="import-ctrl-label import-label-with-reset">
+              <span>回転補正&emsp;<span id="import-rotation-val">0.0</span>°</span>
+              <button id="import-rotation-reset" class="import-reset-btn" type="button" title="回転補正を初期値に戻す">↺</button>
+            </div>
+            <div class="import-slider-wrap" style="--init-pct:50%">
+              <input type="range" id="import-rotation" class="import-ctrl-slider"
+                min="-2" max="2" value="0" step="0.1" />
+            </div>
             <div class="import-rotation-adj-row">
               <button class="import-rotation-adj-btn" id="import-rotation-minus">−0.1°</button>
               <button class="import-rotation-adj-btn" id="import-rotation-plus">+0.1°</button>
             </div>
           </div>
           <div class="import-ctrl-group">
-            <div class="import-ctrl-label">スケール補正&emsp;<span id="import-scale-adj-val">100.0%</span></div>
-            <input type="range" id="import-scale-adj" class="import-ctrl-slider"
-              min="50" max="200" value="100" step="0.1" />
+            <div class="import-ctrl-label import-label-with-reset">
+              <span>スケール補正&emsp;<span id="import-scale-adj-val">100.0%</span></span>
+              <button id="import-scale-adj-reset" class="import-reset-btn" type="button" title="スケール補正を初期値に戻す">↺</button>
+            </div>
+            <div class="import-slider-wrap" style="--init-pct:50%">
+              <input type="range" id="import-scale-adj" class="import-ctrl-slider"
+                min="80" max="120" value="100" step="0.1" />
+            </div>
             <div class="import-rotation-adj-row">
               <button class="import-rotation-adj-btn" id="import-scale-adj-minus">−0.5%</button>
               <button class="import-rotation-adj-btn" id="import-scale-adj-plus">+0.5%</button>
@@ -8013,7 +8064,7 @@ function _importCoordsToPolygon() {
 function _syncScaleUI() {
   const el    = document.getElementById('import-scale-adj');
   const valEl = document.getElementById('import-scale-adj-val');
-  if (el)    el.value = Math.min(200, Math.max(50, _importScaleVal));
+  if (el)    el.value = Math.min(120, Math.max(80, _importScaleVal));
   if (valEl) valEl.textContent = _importScaleVal.toFixed(1) + '%';
   if (el) updateSliderGradient(el, '#4a7c59');
 }
@@ -8675,6 +8726,15 @@ function _applyRotationAdj(delta) {
 }
 document.getElementById('import-rotation-minus').addEventListener('click', () => _applyRotationAdj(-0.1));
 document.getElementById('import-rotation-plus') .addEventListener('click', () => _applyRotationAdj( 0.1));
+document.getElementById('import-rotation-reset').addEventListener('click', () => {
+  const rotEl = document.getElementById('import-rotation');
+  if (!rotEl) return;
+  _importSaveState();
+  rotEl.value = '0';
+  document.getElementById('import-rotation-val').textContent = '0.0';
+  updateSliderGradient(rotEl, '#4a7c59');
+  if (_importBaseCoords) { _applyKmzTransform(); } else { _updateImportRotation(); }
+});
 
 // スケール補正スライダー/微調整ボタン
 document.getElementById('import-scale-adj').addEventListener('input', (e) => {
@@ -8687,13 +8747,19 @@ function _applyScaleAdj(delta) {
   if (!scaleEl) return;
   _importSaveState(); // 変更前にundo用保存
   const cur = parseFloat(scaleEl.value);
-  const newVal = Math.min(200, Math.max(50, cur + delta));
+  const newVal = Math.min(120, Math.max(80, cur + delta));
   _importScaleVal = newVal;
   _syncScaleUI();
   _updateImportScale();
 }
 document.getElementById('import-scale-adj-minus').addEventListener('click', () => _applyScaleAdj(-0.5));
 document.getElementById('import-scale-adj-plus') .addEventListener('click', () => _applyScaleAdj( 0.5));
+document.getElementById('import-scale-adj-reset').addEventListener('click', () => {
+  _importSaveState();
+  _importScaleVal = 100;
+  _syncScaleUI();
+  _updateImportScale();
+});
 _bindRangePreSave('import-rotation');
 _bindRangePreSave('import-scale-adj');
 
