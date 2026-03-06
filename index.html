@@ -8033,85 +8033,20 @@ function _renderFixedPointMarkers() {
   _importFixedPointMarkers.forEach(m => m.remove());
   _importFixedPointMarkers = [];
   if (!_previewMap) return;
-  const placingMode = _isSettingFixedPoint || _isPlacingFixedPoint;
   _importFixedPoints.forEach((pt, i) => {
     const el = document.createElement('div');
     el.style.cssText =
       'width:14px;height:14px;background:#e54848;border:2px solid #fff;' +
       'border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,0.6);position:relative;';
-    el.title = 'ドラッグで移動 / ×で削除';
+    // 固定点マーカーは常時ヒット判定を無効化（表示専用）
+    el.style.pointerEvents = 'none';
     const num = document.createElement('span');
     num.textContent = String(i + 1);
     num.style.cssText =
       'position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);' +
       'font-size:9px;font-weight:bold;color:#fff;line-height:1;';
     el.appendChild(num);
-    const delBtn = document.createElement('button');
-    delBtn.type = 'button';
-    delBtn.textContent = '×';
-    delBtn.title = `固定点${i + 1}を削除`;
-    delBtn.style.cssText =
-      'position:absolute;right:-8px;top:-8px;width:14px;height:14px;border:1px solid #fff;' +
-      'border-radius:50%;background:#c93636;color:#fff;font-size:10px;line-height:1;padding:0;' +
-      'cursor:pointer;display:flex;align-items:center;justify-content:center;opacity:0;' +
-      'pointer-events:none;box-shadow:0 1px 3px rgba(0,0,0,0.5);';
-    el.appendChild(delBtn);
-    el.addEventListener('mouseenter', () => { delBtn.style.opacity = '1'; delBtn.style.pointerEvents = 'auto'; });
-    el.addEventListener('mouseleave', () => { delBtn.style.opacity = '0'; delBtn.style.pointerEvents = 'none'; });
-    delBtn.addEventListener('mousedown', (ev) => { ev.stopPropagation(); ev.preventDefault(); });
-    delBtn.addEventListener('click', (ev) => {
-      ev.stopPropagation();
-      ev.preventDefault();
-      _importSaveState();
-      _importFixedPoints = _importFixedPoints.filter((_, idx) => idx !== i);
-      _updateBaseScaleCoords();
-      _renderFixedPointMarkers();
-      _updateFixedPointStatus();
-      _replaceImageSource();
-    });
-    if (placingMode) {
-      // 固定点追加中は既存固定点のヒット判定を無効化して、地図ドラッグ処理だけを有効にする
-      el.style.pointerEvents = 'none';
-    }
-    const marker = new maplibregl.Marker({ element: el, draggable: !placingMode }).setLngLat([pt.lng, pt.lat]).addTo(_previewMap);
-    let startCoords = null;
-    let startFixedPoints = null;
-    marker.on('dragstart', () => {
-      if (placingMode) return;
-      _importSaveState();
-      startCoords = _importCoords ? _importCoords.map(c => [...c]) : null;
-      startFixedPoints = _importFixedPoints.map(p => ({ ...p }));
-      if (_previewMap) _previewMap.getCanvas().style.cursor = 'grabbing';
-    });
-    marker.on('drag', () => {
-      if (placingMode) return;
-      if (!startCoords || !startFixedPoints) return;
-      const ll = marker.getLngLat();
-      const current = [ll.lng, ll.lat];
-      if (startFixedPoints.length >= 2) {
-        const pivotIdx = i === 0 ? 1 : 0;
-        const pivot = [startFixedPoints[pivotIdx].lng, startFixedPoints[pivotIdx].lat];
-        const moveStart = [startFixedPoints[i].lng, startFixedPoints[i].lat];
-        _importCoords = _transformCoordsByPivotMove(startCoords, pivot, moveStart, current);
-        _importFixedPoints = startFixedPoints.map(p => ({ ...p }));
-        _importFixedPoints[i] = { lng: ll.lng, lat: ll.lat };
-      } else {
-        const moveStart = [startFixedPoints[i].lng, startFixedPoints[i].lat];
-        const dx = current[0] - moveStart[0];
-        const dy = current[1] - moveStart[1];
-        _importCoords = startCoords.map(c => [c[0] + dx, c[1] + dy]);
-        _importFixedPoints = startFixedPoints.map(p => ({ lng: p.lng + dx, lat: p.lat + dy }));
-      }
-      _recalcImportCenterFromCoords();
-      _updateBaseScaleCoords();
-      _updateFixedPointStatus();
-      _replaceImageSourceRaf();
-    });
-    marker.on('dragend', () => {
-      if (placingMode) return;
-      if (_previewMap) _previewMap.getCanvas().style.cursor = '';
-      _renderFixedPointMarkers();
-    });
+    const marker = new maplibregl.Marker({ element: el, draggable: false }).setLngLat([pt.lng, pt.lat]).addTo(_previewMap);
     _importFixedPointMarkers.push(marker);
   });
   if (_importPendingFixedPoint) {
