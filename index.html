@@ -2227,6 +2227,11 @@ label.setting-label {
 }
 .import-rotation-adj-btn:hover { background: #e0e0e0; }
 .import-rotation-adj-btn:active { background: #d0d0d0; }
+.import-rotation-adj-btn.active {
+  background: #e8f2eb;
+  border-color: #4a7c59;
+  color: #2f5c3d;
+}
 
 </style>
 </head>
@@ -2652,11 +2657,11 @@ label.setting-label {
             </div>
             <div class="import-slider-wrap" style="--init-pct:50%">
               <input type="range" id="import-rotation" class="import-ctrl-slider"
-                min="-2" max="2" value="0" step="0.1" />
+                min="-2" max="2" value="0" step="0.05" />
             </div>
             <div class="import-rotation-adj-row">
-              <button class="import-rotation-adj-btn" id="import-rotation-minus">−0.1°</button>
-              <button class="import-rotation-adj-btn" id="import-rotation-plus">+0.1°</button>
+              <button class="import-rotation-adj-btn" id="import-rotation-minus">−0.05°</button>
+              <button class="import-rotation-adj-btn" id="import-rotation-plus">+0.05°</button>
             </div>
           </div>
           <div class="import-ctrl-group">
@@ -2672,6 +2677,14 @@ label.setting-label {
               <button class="import-rotation-adj-btn" id="import-scale-adj-minus">−0.5%</button>
               <button class="import-rotation-adj-btn" id="import-scale-adj-plus">+0.5%</button>
             </div>
+          </div>
+          <div class="import-ctrl-group">
+            <div class="import-ctrl-label">固定点（回転・拡大縮小の中心）</div>
+            <div class="import-rotation-adj-row">
+              <button class="import-rotation-adj-btn" id="import-fixed-point-set" type="button">固定点を追加</button>
+              <button class="import-rotation-adj-btn" id="import-fixed-point-clear" type="button">固定点解除</button>
+            </div>
+            <div class="import-ctrl-hint" id="import-fixed-point-status">未設定</div>
           </div>
         </div>
 
@@ -2689,9 +2702,9 @@ label.setting-label {
             </select>
           </div>
           <div class="import-ctrl-group">
-            <div class="import-ctrl-label">画像の透明度&emsp;<span id="import-opacity-val">85</span>%</div>
+            <div class="import-ctrl-label">画像の透明度&emsp;<span id="import-opacity-val">70</span>%</div>
             <input type="range" id="import-opacity" class="import-ctrl-slider"
-              min="0" max="100" value="85" step="1" />
+              min="0" max="100" value="70" step="1" />
           </div>
         </div>
 
@@ -7961,6 +7974,9 @@ let _dragStartLngLat          = null;
 let _dragStartCoords          = null;
 let _dragStartCenter          = null;
 let _dragStartBaseScaleCoords = null; // 平行移動開始時の _importBaseScaleCoords
+let _importFixedPoint         = null; // 固定点 {lng, lat}
+let _importFixedPointMarker   = null; // 固定点マーカー
+let _isSettingFixedPoint      = false; // 固定点設定待ち（次クリックで確定）
 
 // ヒットボックス + 回転ハンドル初期化フラグ
 let _imgInteractionInited = false;
@@ -7970,6 +7986,61 @@ let _imgEventsAdded       = false;
 // 背景切替: setStyle を使わず visibility 操作のみで行うため
 // OriLibre 初期化時のレイヤー一覧を保存（{id, vis} 形式）
 let _previewOriLibreLayers = [];
+
+function _updateFixedPointStatus() {
+  const st = document.getElementById('import-fixed-point-status');
+  if (!st) return;
+  if (_importFixedPoint) {
+    st.textContent = `設定済み: ${_importFixedPoint.lng.toFixed(6)}, ${_importFixedPoint.lat.toFixed(6)}（平行移動は無効）`;
+  } else if (_isSettingFixedPoint) {
+    st.textContent = '地図上をクリックして固定点を設定';
+  } else {
+    st.textContent = '未設定';
+  }
+}
+
+function _setFixedPointSettingMode(on) {
+  _isSettingFixedPoint = !!on;
+  const btn = document.getElementById('import-fixed-point-set');
+  if (btn) btn.classList.toggle('active', _isSettingFixedPoint);
+  if (_previewMap) _previewMap.getCanvas().style.cursor = _isSettingFixedPoint ? 'crosshair' : '';
+  _updateFixedPointStatus();
+}
+
+function _setImportFixedPoint(lng, lat) {
+  _importFixedPoint = { lng, lat };
+  if (_importFixedPointMarker) _importFixedPointMarker.remove();
+  const el = document.createElement('div');
+  el.style.cssText =
+    'width:14px;height:14px;background:#e54848;border:2px solid #fff;' +
+    'border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,0.6);';
+  _importFixedPointMarker = new maplibregl.Marker({ element: el, draggable: false })
+    .setLngLat([lng, lat])
+    .addTo(_previewMap);
+  _updateFixedPointStatus();
+}
+
+function _clearImportFixedPoint() {
+  _importFixedPoint = null;
+  if (_importFixedPointMarker) {
+    _importFixedPointMarker.remove();
+    _importFixedPointMarker = null;
+  }
+  _setFixedPointSettingMode(false);
+  _updateFixedPointStatus();
+}
+
+function _getImportTransformOrigin() {
+  if (_importFixedPoint) return [_importFixedPoint.lng, _importFixedPoint.lat];
+  if (_importCenter) return [_importCenter.lng, _importCenter.lat];
+  return null;
+}
+
+function _rotateCoordsAroundPivot(coords, angleDeg, pivot) {
+  const poly = turf.polygon([[...coords, coords[0]]]);
+  const rot  = turf.transformRotate(poly, angleDeg, { pivot });
+  return rot.geometry.coordinates[0].slice(0, 4);
+}
 
 // ---- 用紙サイズ＋縮尺 → 実世界サイズ（メートル）を計算 ----
 function _importCalcSizeM() {
@@ -8028,7 +8099,7 @@ function _replaceImageSource() {
     _previewMap.triggerRepaint();
   } else {
     // 初回: ソース・レイヤーを追加（透明度スライダーの現在値を反映）
-    const initOpacity = (parseInt(document.getElementById('import-opacity')?.value ?? '85', 10)) / 100;
+    const initOpacity = (parseInt(document.getElementById('import-opacity')?.value ?? '70', 10)) / 100;
     _previewMap.addSource('_import-img', { type: 'image', url: _importImgUrl, coordinates: _importCoords });
     _previewMap.addLayer({ id: '_import-layer', type: 'raster', source: '_import-img', paint: { 'raster-opacity': initOpacity } });
   }
@@ -8079,9 +8150,10 @@ function _syncScaleUI() {
 
 // ---- _importBaseScaleCoords × _importScaleVal → _importCoords を再計算（Turf.js） ----
 function _applyImportScale() {
-  if (!_importBaseScaleCoords || !_importCenter) return;
+  if (!_importBaseScaleCoords) return;
+  const origin = _getImportTransformOrigin();
+  if (!origin) return;
   const poly   = turf.polygon([[..._importBaseScaleCoords, _importBaseScaleCoords[0]]]);
-  const origin = [_importCenter.lng, _importCenter.lat];
   const scaled = turf.transformScale(poly, _importScaleVal / 100, { origin });
   _importCoords = scaled.geometry.coordinates[0].slice(0, 4);
 }
@@ -8089,9 +8161,10 @@ function _applyImportScale() {
 // ---- _importCoords の逆スケールで _importBaseScaleCoords を再構築 ----
 // （4隅ドラッグ後など、coords 側が先に確定したときに呼ぶ）
 function _updateBaseScaleCoords() {
-  if (!_importCoords || !_importCenter || _importScaleVal <= 0) return;
+  if (!_importCoords || _importScaleVal <= 0) return;
+  const origin = _getImportTransformOrigin();
+  if (!origin) return;
   const poly   = turf.polygon([[..._importCoords, _importCoords[0]]]);
-  const origin = [_importCenter.lng, _importCenter.lat];
   const base   = turf.transformScale(poly, 100 / _importScaleVal, { origin });
   _importBaseScaleCoords = base.geometry.coordinates[0].slice(0, 4);
 }
@@ -8119,8 +8192,12 @@ function _updateImportRotation() {
   if (!_importCenter || !_importImgUrl || !_previewMap) return;
   const [wM, hM] = _importCalcSizeM();
   const rotOffset = parseFloat(document.getElementById('import-rotation')?.value ?? '0');
-  // 回転100%時のベース座標を更新
-  _importBaseScaleCoords = _importCalcCorners(_importCenter.lng, _importCenter.lat, wM, hM, _cachedImportDecl + rotOffset);
+  // 回転0°（磁北補正のみ）のベースから、指定の回転補正を適用
+  const origin = _getImportTransformOrigin() ?? [_importCenter.lng, _importCenter.lat];
+  const baseNoRot = _importCalcCorners(_importCenter.lng, _importCenter.lat, wM, hM, _cachedImportDecl);
+  _importBaseScaleCoords = Math.abs(rotOffset) < 1e-9
+    ? baseNoRot
+    : _rotateCoordsAroundPivot(baseNoRot, rotOffset, origin);
   // 現在のスケール倍率を適用して _importCoords を確定
   _applyImportScale();
   _replaceImageSource();
@@ -8148,8 +8225,9 @@ function _initImgInteraction() {
 
     // カーソル制御
     _previewMap.on('mouseenter', '_import-hitbox-layer', () => {
-      if (!_isDraggingImage)
-        _previewMap.getCanvas().style.cursor = 'move';
+      if (!_isDraggingImage) {
+        _previewMap.getCanvas().style.cursor = _isSettingFixedPoint ? 'crosshair' : (_importFixedPoint ? 'not-allowed' : 'move');
+      }
     });
     _previewMap.on('mouseleave', '_import-hitbox-layer', () => {
       if (!_isDraggingImage) _previewMap.getCanvas().style.cursor = '';
@@ -8157,6 +8235,7 @@ function _initImgInteraction() {
 
     // mousedown → ドラッグ開始（hitboxレイヤー上）
     _previewMap.on('mousedown', '_import-hitbox-layer', (e) => {
+      if (_importFixedPoint || _isSettingFixedPoint) return; // 固定点モードでは平行移動を無効化
       e.preventDefault();
       _importSaveState();
       _isDraggingImage = true;
@@ -8206,6 +8285,16 @@ function _initImgInteraction() {
       }
     });
 
+    // 固定点設定モード: 次のクリック位置を固定点にする
+    _previewMap.on('click', (e) => {
+      if (!_isSettingFixedPoint) return;
+      _importSaveState();
+      _setImportFixedPoint(e.lngLat.lng, e.lngLat.lat);
+      _setFixedPointSettingMode(false);
+      _updateBaseScaleCoords();
+      _replaceImageSource();
+    });
+
   }
 }
 
@@ -8218,6 +8307,7 @@ function _importSaveState() {
     rotation: document.getElementById('import-rotation')?.value ?? '0',
     scaleVal: _importScaleVal,
     baseScaleCoords: _importBaseScaleCoords ? _importBaseScaleCoords.map(c => [...c]) : null,
+    fixedPoint: _importFixedPoint ? { ..._importFixedPoint } : null,
   });
   _importFuture = []; // 新操作でredo履歴をクリア
 }
@@ -8233,6 +8323,7 @@ function _importUndo() {
       rotation: document.getElementById('import-rotation')?.value ?? '0',
       scaleVal: _importScaleVal,
       baseScaleCoords: _importBaseScaleCoords ? _importBaseScaleCoords.map(c => [...c]) : null,
+      fixedPoint: _importFixedPoint ? { ..._importFixedPoint } : null,
     });
   }
   const state = _importHistory.pop();
@@ -8249,6 +8340,7 @@ function _importRedo() {
       rotation: document.getElementById('import-rotation')?.value ?? '0',
       scaleVal: _importScaleVal,
       baseScaleCoords: _importBaseScaleCoords ? _importBaseScaleCoords.map(c => [...c]) : null,
+      fixedPoint: _importFixedPoint ? { ..._importFixedPoint } : null,
     });
   }
   const state = _importFuture.pop();
@@ -8263,6 +8355,12 @@ function _importRestoreState(state) {
   _importBaseScaleCoords = state.baseScaleCoords
     ? state.baseScaleCoords.map(c => [...c])
     : null;
+  if (state.fixedPoint) {
+    _setImportFixedPoint(state.fixedPoint.lng, state.fixedPoint.lat);
+    _setFixedPointSettingMode(false);
+  } else {
+    _clearImportFixedPoint();
+  }
   if (!_importBaseScaleCoords) _updateBaseScaleCoords();
   _syncScaleUI();
   const rotEl = document.getElementById('import-rotation');
@@ -8297,8 +8395,12 @@ function _updateImportPreview() {
   _cachedImportDecl = decl; // ドラッグ用キャッシュを更新
   // 用紙サイズ・縮尺変更時はスケールをリセットしてベース座標を再構築
   _importScaleVal        = 100;
-  _importBaseScaleCoords = _importCalcCorners(c.lng, c.lat, wM, hM, decl + rotOffset);
-  _importCoords          = _importBaseScaleCoords.map(p => [...p]);
+  const origin = _getImportTransformOrigin() ?? [c.lng, c.lat];
+  const baseNoRot = _importCalcCorners(c.lng, c.lat, wM, hM, decl);
+  _importBaseScaleCoords = Math.abs(rotOffset) < 1e-9
+    ? baseNoRot
+    : _rotateCoordsAroundPivot(baseNoRot, rotOffset, origin);
+  _importCoords = _importBaseScaleCoords.map(p => [...p]);
   _syncScaleUI();
 
   // 初回のみ: 画像全体にフィット
@@ -8377,6 +8479,7 @@ function _openImportOverlay(imgUrl, onLoad) {
   _cachedImportDecl     = 0;
   _importScaleVal       = 100;
   _importBaseScaleCoords = null;
+  _clearImportFixedPoint();
   _isDraggingImage      = false;
   _imgInteractionInited = false;
   _imgEventsAdded       = false;
@@ -8385,10 +8488,11 @@ function _openImportOverlay(imgUrl, onLoad) {
   _scaleCornerMarkers = [];
   // 透明度スライダーを初期値に
   const opEl = document.getElementById('import-opacity');
-  if (opEl) { opEl.value = '85'; document.getElementById('import-opacity-val').textContent = '85'; }
+  if (opEl) { opEl.value = '70'; document.getElementById('import-opacity-val').textContent = '70'; }
   const rotEl = document.getElementById('import-rotation');
   if (rotEl) { rotEl.value = '0'; document.getElementById('import-rotation-val').textContent = '0.0'; }
   _syncScaleUI();
+  _updateFixedPointStatus();
   if (opEl) updateSliderGradient(opEl, '#4a7c59');
   if (rotEl) updateSliderGradient(rotEl, '#4a7c59');
   document.getElementById('import-overlay').classList.add('visible');
@@ -8476,15 +8580,20 @@ function _applyKmzTransform() {
   const baseCtr  = turf.point([baseCLng, baseCLat]);
   const newCtr   = turf.point([cLng, cLat]);
 
-  // 各隅を基準中心からの距離・方位で算出し、回転+平行移動して新中心に配置
+  // 各隅を基準中心からの距離・方位で算出し、まず平行移動して新中心に配置
   const rawCoords = _importBaseCoords.map(([lng, lat]) => {
     const pt   = turf.point([lng, lat]);
     const dist = turf.distance(baseCtr, pt, { units: 'kilometers' });
-    const bear = turf.bearing(baseCtr, pt) + rotDeg;
+    const bear = turf.bearing(baseCtr, pt);
     return turf.getCoord(turf.destination(newCtr, dist, bear, { units: 'kilometers' }));
   });
+  // 回転補正は中心または固定点を軸に適用
+  const origin = _getImportTransformOrigin() ?? [cLng, cLat];
+  const rotatedRaw = Math.abs(rotDeg) < 1e-9
+    ? rawCoords
+    : _rotateCoordsAroundPivot(rawCoords, rotDeg, origin);
   // KMZ変換後のコードをスケール100%ベースとして保存し、現在スケールを適用
-  _importBaseScaleCoords = rawCoords;
+  _importBaseScaleCoords = rotatedRaw;
   _applyImportScale();
   _syncScaleUI();
   _replaceImageSource();
@@ -8551,7 +8660,7 @@ function exitFineTuneMode() {
 }
 */
 
-// ---- 4隅マーカーを常時表示（対角コーナー固定で相似拡大縮小） ----
+// ---- 4隅マーカーを常時表示（固定点があれば固定点中心、なければ対角固定で相似拡大縮小） ----
 function enterScaleMode() {
   if (!_previewMap || !_importCoords) return;
   if (_scaleCornerMarkers.length === 4) {
@@ -8571,15 +8680,19 @@ function enterScaleMode() {
       .addTo(_previewMap);
 
     // dragstart/drag 用クロージャ変数
-    let fixedCoord    = null; // 固定する対角コーナー座標
+    let fixedCoord    = null; // 固定する座標（固定点 or 対角コーナー）
     let startCoords   = null; // ドラッグ開始時の全隅座標
     let startDist     = 0;    // ドラッグ開始時のドラッグ隅→固定隅の距離
     let savedScaleVal = 100;  // ドラッグ開始時のスケール倍率
 
     marker.on('dragstart', () => {
       _importSaveState();
-      const oppIdx   = (i + 2) % 4;               // 対角コーナーのインデックス
-      fixedCoord     = [..._importCoords[oppIdx]]; // 固定点（対角）
+      if (_importFixedPoint) {
+        fixedCoord = [_importFixedPoint.lng, _importFixedPoint.lat];
+      } else {
+        const oppIdx = (i + 2) % 4;                 // 対角コーナーのインデックス
+        fixedCoord   = [..._importCoords[oppIdx]];  // 固定点（対角）
+      }
       startCoords    = _importCoords.map(c => [...c]);
       savedScaleVal  = _importScaleVal;
       const cosLat   = Math.cos(fixedCoord[1] * Math.PI / 180);
@@ -8595,7 +8708,7 @@ function enterScaleMode() {
       const dx1    = (ll.lng - fixedCoord[0]) * cosLat;
       const dy1    =  ll.lat - fixedCoord[1];
       const scale  = Math.sqrt(dx1 * dx1 + dy1 * dy1) / startDist;
-      // 全隅を固定コーナーからの相似拡大縮小で再計算
+      // 全隅を固定点からの相似拡大縮小で再計算
       _importCoords = startCoords.map(([lng, lat]) => {
         const dx = (lng - fixedCoord[0]) * cosLat;
         const dy =  lat - fixedCoord[1];
@@ -8629,6 +8742,7 @@ function exitScaleMode() {
 function closeImportModal(revokeUrl = true) {
   _scaleCornerMarkers.forEach(m => m.remove());
   _scaleCornerMarkers = [];
+  _clearImportFixedPoint();
   // _importCornerMarkers.forEach(m => m.remove()); _importCornerMarkers = []; // 旧・微調整モード（廃止）
   // _fineTuneActive = false; // 廃止
   _isDraggingImage        = false;
@@ -8721,7 +8835,7 @@ function _bindRangePreSave(id) {
   el.addEventListener('change', () => { armed = false; });
 }
 
-// ±0.5° 微調整ボタン
+// ±0.05° 微調整ボタン
 function _applyRotationAdj(delta) {
   const rotEl = document.getElementById('import-rotation');
   if (!rotEl) return;
@@ -8732,8 +8846,8 @@ function _applyRotationAdj(delta) {
   updateSliderGradient(rotEl, '#4a7c59');
   if (_importBaseCoords) { _applyKmzTransform(); } else { _updateImportRotation(); }
 }
-document.getElementById('import-rotation-minus').addEventListener('click', () => _applyRotationAdj(-0.1));
-document.getElementById('import-rotation-plus') .addEventListener('click', () => _applyRotationAdj( 0.1));
+document.getElementById('import-rotation-minus').addEventListener('click', () => _applyRotationAdj(-0.05));
+document.getElementById('import-rotation-plus') .addEventListener('click', () => _applyRotationAdj( 0.05));
 document.getElementById('import-rotation-reset').addEventListener('click', () => {
   const rotEl = document.getElementById('import-rotation');
   if (!rotEl) return;
@@ -8742,6 +8856,18 @@ document.getElementById('import-rotation-reset').addEventListener('click', () =>
   document.getElementById('import-rotation-val').textContent = '0.0';
   updateSliderGradient(rotEl, '#4a7c59');
   if (_importBaseCoords) { _applyKmzTransform(); } else { _updateImportRotation(); }
+});
+
+// 固定点の追加/解除
+document.getElementById('import-fixed-point-set').addEventListener('click', () => {
+  if (!_previewMap || !_importCoords) return;
+  _setFixedPointSettingMode(true);
+});
+document.getElementById('import-fixed-point-clear').addEventListener('click', () => {
+  if (!_importFixedPoint) return;
+  _importSaveState();
+  _clearImportFixedPoint();
+  _replaceImageSource();
 });
 
 // スケール補正スライダー/微調整ボタン
