@@ -2066,6 +2066,9 @@ label.setting-label {
 .import-reset-btn:active { background: #e5e5e5; }
 .import-slider-wrap {
   position: relative;
+  height: 12px;
+  display: flex;
+  align-items: center;
 }
 .import-slider-wrap::after {
   content: '';
@@ -2079,6 +2082,16 @@ label.setting-label {
   background: #666;
   opacity: 0.7;
   pointer-events: none;
+}
+.import-slider-ends {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 10px;
+  color: #777;
+  line-height: 1;
+  margin-top: 1px;
+  margin-bottom: 2px;
 }
 .import-ctrl-select, .import-ctrl-input {
   width: 100%;
@@ -2102,6 +2115,7 @@ label.setting-label {
 .import-ctrl-slider {
   width: 100%;
   height: 3px;
+  margin: 0;
   cursor: pointer;
   -webkit-appearance: none;
   appearance: none;
@@ -2655,6 +2669,7 @@ label.setting-label {
               <span>回転補正&emsp;<span id="import-rotation-val">0.0</span>°</span>
               <button id="import-rotation-reset" class="import-reset-btn" type="button" title="回転補正を初期値に戻す">↺</button>
             </div>
+            <div class="import-slider-ends"><span>-2.0</span><span>2.0</span></div>
             <div class="import-slider-wrap" style="--init-pct:50%">
               <input type="range" id="import-rotation" class="import-ctrl-slider"
                 min="-2" max="2" value="0" step="0.05" />
@@ -2669,6 +2684,7 @@ label.setting-label {
               <span>スケール補正&emsp;<span id="import-scale-adj-val">100.0%</span></span>
               <button id="import-scale-adj-reset" class="import-reset-btn" type="button" title="スケール補正を初期値に戻す">↺</button>
             </div>
+            <div class="import-slider-ends"><span>80%</span><span>120%</span></div>
             <div class="import-slider-wrap" style="--init-pct:50%">
               <input type="range" id="import-scale-adj" class="import-ctrl-slider"
                 min="80" max="120" value="100" step="0.1" />
