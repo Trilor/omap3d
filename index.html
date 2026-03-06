@@ -8490,15 +8490,8 @@ function _initImgInteraction() {
     });
 
     // mouseup → ドラッグ終了
-    _previewMap.on('mouseup', (e) => {
+    _previewMap.on('mouseup', () => {
       if (!_isDraggingImage) return;
-      // 最終座標を取りこぼさないよう、mouseup時点の位置で一度確定計算する
-      if (_isPlacingFixedPoint && e?.lngLat) {
-        _applyPendingFixedPointPlacement(e.lngLat);
-        if (_importDragRafId) cancelAnimationFrame(_importDragRafId);
-        _importDragRafId = null;
-        _replaceImageSource();
-      }
       _isDraggingImage = false;
       _previewMap.dragPan.enable();
       _previewMap.getCanvas().style.cursor = '';
