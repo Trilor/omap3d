@@ -2697,12 +2697,12 @@ label.setting-label {
               <button id="import-scale-adj-reset" class="import-reset-btn" type="button" title="スケール補正を初期値に戻す">↺</button>
             </div>
             <div class="import-slider-line">
-              <span class="import-slider-side left">80</span>
+              <span class="import-slider-side left">90</span>
               <div class="import-slider-wrap" style="--init-pct:50%">
                 <input type="range" id="import-scale-adj" class="import-ctrl-slider"
-                  min="80" max="120" value="100" step="0.1" />
+                  min="90" max="110" value="100" step="0.1" />
               </div>
-              <span class="import-slider-side right">120</span>
+              <span class="import-slider-side right">110</span>
             </div>
             <div class="import-rotation-adj-row">
               <button class="import-rotation-adj-btn" id="import-scale-adj-minus">−0.1%</button>
@@ -8174,7 +8174,7 @@ function _importCoordsToPolygon() {
 function _syncScaleUI() {
   const el    = document.getElementById('import-scale-adj');
   const valEl = document.getElementById('import-scale-adj-val');
-  if (el)    el.value = Math.min(120, Math.max(80, _importScaleVal));
+  if (el)    el.value = Math.min(110, Math.max(90, _importScaleVal));
   if (valEl) valEl.textContent = _importScaleVal.toFixed(1) + '%';
   if (el) updateSliderGradient(el, '#4a7c59');
 }
@@ -8912,7 +8912,7 @@ function _applyScaleAdj(delta) {
   if (!scaleEl) return;
   _importSaveState(); // 変更前にundo用保存
   const cur = parseFloat(scaleEl.value);
-  const newVal = Math.min(120, Math.max(80, cur + delta));
+  const newVal = Math.min(110, Math.max(90, cur + delta));
   _importScaleVal = newVal;
   _syncScaleUI();
   _updateImportScale();
