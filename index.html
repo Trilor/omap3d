@@ -2712,12 +2712,16 @@ label.setting-label {
             </div>
           </div>
           <div class="import-ctrl-group">
-            <div class="import-ctrl-label">固定点（回転・拡大縮小の中心）</div>
+            <div class="import-ctrl-label">固定点（最大2点）&emsp;<span id="import-fixed-point-count">0 / 2</span></div>
+            <div class="import-ctrl-hint">手順: 1) 点を選ぶ → 2) 画像をドラッグで合わせる → 3) 固定点を確定</div>
             <div class="import-rotation-adj-row">
-              <button class="import-rotation-adj-btn" id="import-fixed-point-set" type="button">固定点を追加</button>
-              <button class="import-rotation-adj-btn" id="import-fixed-point-clear" type="button">固定点解除</button>
+              <button class="import-rotation-adj-btn" id="import-fixed-point-set" type="button">① 点を選ぶ</button>
+              <button class="import-rotation-adj-btn" id="import-fixed-point-commit" type="button">固定点を確定</button>
             </div>
-            <div class="import-ctrl-hint" id="import-fixed-point-status">未設定</div>
+            <div class="import-rotation-adj-row">
+              <button class="import-rotation-adj-btn" id="import-fixed-point-clear" type="button">全解除</button>
+            </div>
+            <div class="import-ctrl-hint" id="import-fixed-point-status">待機中</div>
           </div>
         </div>
 
@@ -8007,9 +8011,13 @@ let _dragStartLngLat          = null;
 let _dragStartCoords          = null;
 let _dragStartCenter          = null;
 let _dragStartBaseScaleCoords = null; // 平行移動開始時の _importBaseScaleCoords
-let _importFixedPoint         = null; // 固定点 {lng, lat}
-let _importFixedPointMarker   = null; // 固定点マーカー
-let _isSettingFixedPoint      = false; // 固定点設定待ち（次クリックで確定）
+let _dragStartFixedPoints      = null; // 平行移動開始時の固定点配列
+let _dragStartPendingFixedPoint = null; // 平行移動開始時の仮固定点
+let _importFixedPoints         = [];   // 固定点配列 [{lng, lat}]（最大2）
+let _importFixedPointMarkers   = [];   // 固定点マーカー配列
+let _importPendingFixedPoint   = null; // 追加中の仮固定点 {lng, lat}
+let _isSettingFixedPoint       = false; // 固定点選択待ち（クリックで仮固定点を作る）
+let _isPlacingFixedPoint       = false; // 仮固定点を画像と一緒にドラッグして位置合わせ中
 
 // ヒットボックス + 回転ハンドル初期化フラグ
 let _imgInteractionInited = false;
@@ -8020,51 +8028,101 @@ let _imgEventsAdded       = false;
 // OriLibre 初期化時のレイヤー一覧を保存（{id, vis} 形式）
 let _previewOriLibreLayers = [];
 
+function _renderFixedPointMarkers() {
+  _importFixedPointMarkers.forEach(m => m.remove());
+  _importFixedPointMarkers = [];
+  if (!_previewMap) return;
+  _importFixedPoints.forEach((pt, i) => {
+    const el = document.createElement('div');
+    el.style.cssText =
+      'width:14px;height:14px;background:#e54848;border:2px solid #fff;' +
+      'border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,0.6);position:relative;';
+    const num = document.createElement('span');
+    num.textContent = String(i + 1);
+    num.style.cssText =
+      'position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);' +
+      'font-size:9px;font-weight:bold;color:#fff;line-height:1;';
+    el.appendChild(num);
+    _importFixedPointMarkers.push(
+      new maplibregl.Marker({ element: el, draggable: false }).setLngLat([pt.lng, pt.lat]).addTo(_previewMap)
+    );
+  });
+  if (_importPendingFixedPoint) {
+    const el = document.createElement('div');
+    el.style.cssText =
+      'width:14px;height:14px;background:#e54848;border:2px dashed #fff;' +
+      'border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,0.6);opacity:0.9;';
+    _importFixedPointMarkers.push(
+      new maplibregl.Marker({ element: el, draggable: false })
+        .setLngLat([_importPendingFixedPoint.lng, _importPendingFixedPoint.lat])
+        .addTo(_previewMap)
+    );
+  }
+}
+
 function _updateFixedPointStatus() {
   const st = document.getElementById('import-fixed-point-status');
+  const ct = document.getElementById('import-fixed-point-count');
+  if (ct) ct.textContent = `${_importFixedPoints.length} / 2`;
   if (!st) return;
-  if (_importFixedPoint) {
-    st.textContent = `設定済み: ${_importFixedPoint.lng.toFixed(6)}, ${_importFixedPoint.lat.toFixed(6)}（平行移動は無効）`;
+  if (_isPlacingFixedPoint) {
+    st.textContent = '位置合わせ中: 画像をドラッグして離すと固定点を確定';
   } else if (_isSettingFixedPoint) {
-    st.textContent = '地図上をクリックして固定点を設定';
+    st.textContent = `点選択中: ${_importFixedPoints.length + 1}点目を地図上でクリック`;
+  } else if (_importFixedPoints.length > 0) {
+    st.textContent = `固定点設定済み: ${_importFixedPoints.length}点（通常平行移動は無効）`;
   } else {
-    st.textContent = '未設定';
+    st.textContent = '待機中';
+  }
+  const setBtn = document.getElementById('import-fixed-point-set');
+  if (setBtn) {
+    setBtn.classList.toggle('active', _isSettingFixedPoint || _isPlacingFixedPoint);
+    setBtn.disabled = _importFixedPoints.length >= 2;
   }
 }
 
 function _setFixedPointSettingMode(on) {
-  _isSettingFixedPoint = !!on;
-  const btn = document.getElementById('import-fixed-point-set');
-  if (btn) btn.classList.toggle('active', _isSettingFixedPoint);
-  if (_previewMap) _previewMap.getCanvas().style.cursor = _isSettingFixedPoint ? 'crosshair' : '';
-  _updateFixedPointStatus();
-}
-
-function _setImportFixedPoint(lng, lat) {
-  _importFixedPoint = { lng, lat };
-  if (_importFixedPointMarker) _importFixedPointMarker.remove();
-  const el = document.createElement('div');
-  el.style.cssText =
-    'width:14px;height:14px;background:#e54848;border:2px solid #fff;' +
-    'border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,0.6);';
-  _importFixedPointMarker = new maplibregl.Marker({ element: el, draggable: false })
-    .setLngLat([lng, lat])
-    .addTo(_previewMap);
-  _updateFixedPointStatus();
-}
-
-function _clearImportFixedPoint() {
-  _importFixedPoint = null;
-  if (_importFixedPointMarker) {
-    _importFixedPointMarker.remove();
-    _importFixedPointMarker = null;
+  _isSettingFixedPoint = !!on && _importFixedPoints.length < 2;
+  if (!_isSettingFixedPoint) _isPlacingFixedPoint = false;
+  if (_previewMap) {
+    _previewMap.getCanvas().style.cursor = _isSettingFixedPoint ? 'crosshair' : '';
   }
-  _setFixedPointSettingMode(false);
+  _updateFixedPointStatus();
+}
+
+function _setPendingFixedPoint(lng, lat) {
+  _importPendingFixedPoint = { lng, lat };
+  _isSettingFixedPoint = false;
+  _isPlacingFixedPoint = true;
+  _renderFixedPointMarkers();
+  _updateFixedPointStatus();
+}
+
+function _commitPendingFixedPoint() {
+  if (!_importPendingFixedPoint || _importFixedPoints.length >= 2) return;
+  _importFixedPoints.push({ ..._importPendingFixedPoint });
+  _importPendingFixedPoint = null;
+  _isPlacingFixedPoint = false;
+  _isSettingFixedPoint = false;
+  _updateBaseScaleCoords();
+  _renderFixedPointMarkers();
+  _updateFixedPointStatus();
+}
+
+function _clearImportFixedPoints() {
+  _importFixedPoints = [];
+  _importPendingFixedPoint = null;
+  _isSettingFixedPoint = false;
+  _isPlacingFixedPoint = false;
+  _renderFixedPointMarkers();
   _updateFixedPointStatus();
 }
 
 function _getImportTransformOrigin() {
-  if (_importFixedPoint) return [_importFixedPoint.lng, _importFixedPoint.lat];
+  if (_importFixedPoints.length > 0) {
+    const sum = _importFixedPoints.reduce((acc, pt) => ({ lng: acc.lng + pt.lng, lat: acc.lat + pt.lat }), { lng: 0, lat: 0 });
+    return [sum.lng / _importFixedPoints.length, sum.lat / _importFixedPoints.length];
+  }
   if (_importCenter) return [_importCenter.lng, _importCenter.lat];
   return null;
 }
@@ -8259,7 +8317,7 @@ function _initImgInteraction() {
     // カーソル制御
     _previewMap.on('mouseenter', '_import-hitbox-layer', () => {
       if (!_isDraggingImage) {
-        _previewMap.getCanvas().style.cursor = _isSettingFixedPoint ? 'crosshair' : (_importFixedPoint ? 'not-allowed' : 'move');
+        _previewMap.getCanvas().style.cursor = _isSettingFixedPoint ? 'crosshair' : ((_importFixedPoints.length > 0 && !_isPlacingFixedPoint) ? 'not-allowed' : 'move');
       }
     });
     _previewMap.on('mouseleave', '_import-hitbox-layer', () => {
@@ -8268,7 +8326,7 @@ function _initImgInteraction() {
 
     // mousedown → ドラッグ開始（hitboxレイヤー上）
     _previewMap.on('mousedown', '_import-hitbox-layer', (e) => {
-      if (_importFixedPoint || _isSettingFixedPoint) return; // 固定点モードでは平行移動を無効化
+      if (((_importFixedPoints.length > 0) || _isSettingFixedPoint) && !_isPlacingFixedPoint) return; // 固定点設定済み時は通常移動を無効化
       e.preventDefault();
       _importSaveState();
       _isDraggingImage = true;
@@ -8276,6 +8334,8 @@ function _initImgInteraction() {
       _dragStartCoords          = _importCoords.map(c => [...c]);
       _dragStartCenter          = _importCenter          ? { ..._importCenter }          : null;
       _dragStartBaseScaleCoords = _importBaseScaleCoords ? _importBaseScaleCoords.map(c => [...c]) : null;
+      _dragStartFixedPoints = _importFixedPoints.map(pt => ({ ...pt }));
+      _dragStartPendingFixedPoint = _importPendingFixedPoint ? { ..._importPendingFixedPoint } : null;
       _previewMap.dragPan.disable();
       _previewMap.getCanvas().style.cursor = 'grabbing';
     });
@@ -8290,6 +8350,13 @@ function _initImgInteraction() {
         : null;
       if (_importBaseCoords) {
         // KMZモード: _importCenter を更新して _applyKmzTransform（RAF）
+        if (_isPlacingFixedPoint) {
+          _importFixedPoints = (_dragStartFixedPoints || []).map(pt => ({ lng: pt.lng + dx, lat: pt.lat + dy }));
+          _importPendingFixedPoint = _dragStartPendingFixedPoint
+            ? { lng: _dragStartPendingFixedPoint.lng + dx, lat: _dragStartPendingFixedPoint.lat + dy }
+            : null;
+          _renderFixedPointMarkers();
+        }
         if (_importDragRafId) cancelAnimationFrame(_importDragRafId);
         _importDragRafId = requestAnimationFrame(() => {
           _importDragRafId = null;
@@ -8300,6 +8367,13 @@ function _initImgInteraction() {
         _importCoords = _dragStartCoords.map(c => [c[0] + dx, c[1] + dy]);
         if (_dragStartBaseScaleCoords)
           _importBaseScaleCoords = _dragStartBaseScaleCoords.map(c => [c[0] + dx, c[1] + dy]);
+        if (_isPlacingFixedPoint) {
+          _importFixedPoints = (_dragStartFixedPoints || []).map(pt => ({ lng: pt.lng + dx, lat: pt.lat + dy }));
+          _importPendingFixedPoint = _dragStartPendingFixedPoint
+            ? { lng: _dragStartPendingFixedPoint.lng + dx, lat: _dragStartPendingFixedPoint.lat + dy }
+            : null;
+          _renderFixedPointMarkers();
+        }
         _replaceImageSourceRaf();
       }
     });
@@ -8316,15 +8390,17 @@ function _initImgInteraction() {
       if (_importCenter) {
         try { _cachedImportDecl = geomag.field(_importCenter.lat, _importCenter.lng).declination ?? 0; } catch (e) {}
       }
+      if (_isPlacingFixedPoint && _importPendingFixedPoint) {
+        _commitPendingFixedPoint();
+      }
     });
 
-    // 固定点設定モード: 次のクリック位置を固定点にする
+    // 固定点設定モード: 次のクリック位置を仮固定点にする
     _previewMap.on('click', (e) => {
       if (!_isSettingFixedPoint) return;
+      if (_importFixedPoints.length >= 2) return;
       _importSaveState();
-      _setImportFixedPoint(e.lngLat.lng, e.lngLat.lat);
-      _setFixedPointSettingMode(false);
-      _updateBaseScaleCoords();
+      _setPendingFixedPoint(e.lngLat.lng, e.lngLat.lat);
       _replaceImageSource();
     });
 
@@ -8340,7 +8416,7 @@ function _importSaveState() {
     rotation: document.getElementById('import-rotation')?.value ?? '0',
     scaleVal: _importScaleVal,
     baseScaleCoords: _importBaseScaleCoords ? _importBaseScaleCoords.map(c => [...c]) : null,
-    fixedPoint: _importFixedPoint ? { ..._importFixedPoint } : null,
+    fixedPoints: _importFixedPoints.map(pt => ({ ...pt })),
   });
   _importFuture = []; // 新操作でredo履歴をクリア
 }
@@ -8356,7 +8432,7 @@ function _importUndo() {
       rotation: document.getElementById('import-rotation')?.value ?? '0',
       scaleVal: _importScaleVal,
       baseScaleCoords: _importBaseScaleCoords ? _importBaseScaleCoords.map(c => [...c]) : null,
-      fixedPoint: _importFixedPoint ? { ..._importFixedPoint } : null,
+      fixedPoints: _importFixedPoints.map(pt => ({ ...pt })),
     });
   }
   const state = _importHistory.pop();
@@ -8373,7 +8449,7 @@ function _importRedo() {
       rotation: document.getElementById('import-rotation')?.value ?? '0',
       scaleVal: _importScaleVal,
       baseScaleCoords: _importBaseScaleCoords ? _importBaseScaleCoords.map(c => [...c]) : null,
-      fixedPoint: _importFixedPoint ? { ..._importFixedPoint } : null,
+      fixedPoints: _importFixedPoints.map(pt => ({ ...pt })),
     });
   }
   const state = _importFuture.pop();
@@ -8388,12 +8464,18 @@ function _importRestoreState(state) {
   _importBaseScaleCoords = state.baseScaleCoords
     ? state.baseScaleCoords.map(c => [...c])
     : null;
-  if (state.fixedPoint) {
-    _setImportFixedPoint(state.fixedPoint.lng, state.fixedPoint.lat);
-    _setFixedPointSettingMode(false);
+  if (Array.isArray(state.fixedPoints)) {
+    _importFixedPoints = state.fixedPoints.map(pt => ({ ...pt })).slice(0, 2);
+  } else if (state.fixedPoint) {
+    _importFixedPoints = [{ ...state.fixedPoint }];
   } else {
-    _clearImportFixedPoint();
+    _importFixedPoints = [];
   }
+  _importPendingFixedPoint = null;
+  _isSettingFixedPoint = false;
+  _isPlacingFixedPoint = false;
+  _renderFixedPointMarkers();
+  _updateFixedPointStatus();
   if (!_importBaseScaleCoords) _updateBaseScaleCoords();
   _syncScaleUI();
   const rotEl = document.getElementById('import-rotation');
@@ -8512,7 +8594,7 @@ function _openImportOverlay(imgUrl, onLoad) {
   _cachedImportDecl     = 0;
   _importScaleVal       = 100;
   _importBaseScaleCoords = null;
-  _clearImportFixedPoint();
+  _clearImportFixedPoints();
   _isDraggingImage      = false;
   _imgInteractionInited = false;
   _imgEventsAdded       = false;
@@ -8720,8 +8802,8 @@ function enterScaleMode() {
 
     marker.on('dragstart', () => {
       _importSaveState();
-      if (_importFixedPoint) {
-        fixedCoord = [_importFixedPoint.lng, _importFixedPoint.lat];
+      if (_importFixedPoints.length > 0) {
+        fixedCoord = _getImportTransformOrigin();
       } else {
         const oppIdx = (i + 2) % 4;                 // 対角コーナーのインデックス
         fixedCoord   = [..._importCoords[oppIdx]];  // 固定点（対角）
@@ -8775,7 +8857,7 @@ function exitScaleMode() {
 function closeImportModal(revokeUrl = true) {
   _scaleCornerMarkers.forEach(m => m.remove());
   _scaleCornerMarkers = [];
-  _clearImportFixedPoint();
+  _clearImportFixedPoints();
   // _importCornerMarkers.forEach(m => m.remove()); _importCornerMarkers = []; // 旧・微調整モード（廃止）
   // _fineTuneActive = false; // 廃止
   _isDraggingImage        = false;
@@ -8894,12 +8976,23 @@ document.getElementById('import-rotation-reset').addEventListener('click', () =>
 // 固定点の追加/解除
 document.getElementById('import-fixed-point-set').addEventListener('click', () => {
   if (!_previewMap || !_importCoords) return;
+  if (_importFixedPoints.length >= 2) return;
   _setFixedPointSettingMode(true);
+  _importPendingFixedPoint = null;
+  _renderFixedPointMarkers();
+});
+document.getElementById('import-fixed-point-commit').addEventListener('click', () => {
+  if (!_importPendingFixedPoint) return;
+  _importSaveState();
+  _commitPendingFixedPoint();
+  _updateBaseScaleCoords();
+  _replaceImageSource();
 });
 document.getElementById('import-fixed-point-clear').addEventListener('click', () => {
-  if (!_importFixedPoint) return;
+  if (_importFixedPoints.length === 0 && !_importPendingFixedPoint) return;
   _importSaveState();
-  _clearImportFixedPoint();
+  _clearImportFixedPoints();
+  _updateBaseScaleCoords();
   _replaceImageSource();
 });
 
