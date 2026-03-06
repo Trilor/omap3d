@@ -2663,14 +2663,6 @@ label.setting-label {
               <input type="number" id="import-scale-custom" class="import-ctrl-input"
                 placeholder="例: 10000" min="500" max="200000" style="display:none;margin-top:4px;" />
             </div>
-            <div class="import-ctrl-group">
-              <div class="import-ctrl-label">比率</div>
-              <select id="import-ratio-mode" class="import-ctrl-select">
-                <option value="preserve" selected>元画像比率を維持（推奨）</option>
-                <option value="paper">用紙比率に合わせる</option>
-              </select>
-              <div class="import-ctrl-hint" id="import-ratio-info">実効サイズを計算中...</div>
-            </div>
           </div>
         </div>
 
@@ -2721,7 +2713,7 @@ label.setting-label {
           </div>
           <div class="import-ctrl-group">
             <div class="import-ctrl-label">固定点（最大2点）&emsp;<span id="import-fixed-point-count">0 / 2</span></div>
-            <div class="import-ctrl-hint">手順: 1) 点を選ぶ → 2) 画像をドラッグで合わせる → 3) 固定点を確定</div>
+            <div class="import-ctrl-hint">手順: 1) 点を選ぶ → 2) 画像をドラッグで合わせる → 3) 固定点を確定（固定点ホバーで削除）</div>
             <div class="import-rotation-adj-row">
               <button class="import-rotation-adj-btn" id="import-fixed-point-set" type="button">① 点を選ぶ</button>
               <button class="import-rotation-adj-btn" id="import-fixed-point-commit" type="button">固定点を確定</button>
@@ -8046,12 +8038,36 @@ function _renderFixedPointMarkers() {
     el.style.cssText =
       'width:14px;height:14px;background:#e54848;border:2px solid #fff;' +
       'border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,0.6);position:relative;';
+    el.title = 'ドラッグで移動 / ×で削除';
     const num = document.createElement('span');
     num.textContent = String(i + 1);
     num.style.cssText =
       'position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);' +
       'font-size:9px;font-weight:bold;color:#fff;line-height:1;';
     el.appendChild(num);
+    const delBtn = document.createElement('button');
+    delBtn.type = 'button';
+    delBtn.textContent = '×';
+    delBtn.title = `固定点${i + 1}を削除`;
+    delBtn.style.cssText =
+      'position:absolute;right:-8px;top:-8px;width:14px;height:14px;border:1px solid #fff;' +
+      'border-radius:50%;background:#c93636;color:#fff;font-size:10px;line-height:1;padding:0;' +
+      'cursor:pointer;display:flex;align-items:center;justify-content:center;opacity:0;' +
+      'pointer-events:none;box-shadow:0 1px 3px rgba(0,0,0,0.5);';
+    el.appendChild(delBtn);
+    el.addEventListener('mouseenter', () => { delBtn.style.opacity = '1'; delBtn.style.pointerEvents = 'auto'; });
+    el.addEventListener('mouseleave', () => { delBtn.style.opacity = '0'; delBtn.style.pointerEvents = 'none'; });
+    delBtn.addEventListener('mousedown', (ev) => { ev.stopPropagation(); ev.preventDefault(); });
+    delBtn.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      ev.preventDefault();
+      _importSaveState();
+      _importFixedPoints = _importFixedPoints.filter((_, idx) => idx !== i);
+      _updateBaseScaleCoords();
+      _renderFixedPointMarkers();
+      _updateFixedPointStatus();
+      _replaceImageSource();
+    });
     const marker = new maplibregl.Marker({ element: el, draggable: true }).setLngLat([pt.lng, pt.lat]).addTo(_previewMap);
     let startCoords = null;
     let startFixedPoints = null;
@@ -8201,17 +8217,39 @@ function _transformCoordsByPivotMove(startCoords, pivot, startMovePoint, current
   return scaled.geometry.coordinates[0].slice(0, 4);
 }
 
+function _applyPendingFixedPointPlacement(currentLngLat) {
+  if (!_isPlacingFixedPoint || !_dragStartCoords || !_dragStartLngLat || !currentLngLat) return;
+  const dx = currentLngLat.lng - _dragStartLngLat.lng;
+  const dy = currentLngLat.lat - _dragStartLngLat.lat;
+  const hasPivot = (_dragStartFixedPoints || []).length >= 1;
+  if (hasPivot && _dragStartPendingFixedPoint) {
+    const pivot = [_dragStartFixedPoints[0].lng, _dragStartFixedPoints[0].lat];
+    const startMove = [_dragStartPendingFixedPoint.lng, _dragStartPendingFixedPoint.lat];
+    const currentMove = [currentLngLat.lng, currentLngLat.lat];
+    _importCoords = _transformCoordsByPivotMove(_dragStartCoords, pivot, startMove, currentMove);
+    _recalcImportCenterFromCoords();
+    _importFixedPoints = _dragStartFixedPoints.map(pt => ({ ...pt }));
+    _importPendingFixedPoint = { lng: currentLngLat.lng, lat: currentLngLat.lat };
+  } else if (_dragStartPendingFixedPoint) {
+    _importCoords = _dragStartCoords.map(c => [c[0] + dx, c[1] + dy]);
+    if (_dragStartBaseScaleCoords)
+      _importBaseScaleCoords = _dragStartBaseScaleCoords.map(c => [c[0] + dx, c[1] + dy]);
+    _importPendingFixedPoint = { lng: _dragStartPendingFixedPoint.lng + dx, lat: _dragStartPendingFixedPoint.lat + dy };
+  }
+  _updateBaseScaleCoords();
+  _renderFixedPointMarkers();
+}
+
 // ---- 用紙サイズ＋縮尺 → 実世界サイズ（メートル）を計算 ----
 function _calcImportSizeMm() {
   const paperKey    = document.getElementById('import-paper-size').value;
   const orientation = document.getElementById('import-orientation').value;
-  const ratioMode   = document.getElementById('import-ratio-mode')?.value ?? 'preserve';
   let [paperWmm, paperHmm] = PAPER_SIZES_MM[paperKey] || [210, 297];
   if (orientation === 'landscape') [paperWmm, paperHmm] = [paperHmm, paperWmm];
 
   let effWmm = paperWmm;
   let effHmm = paperHmm;
-  if (ratioMode === 'preserve' && _importImgAspect && _importImgAspect > 0) {
+  if (_importImgAspect && _importImgAspect > 0) {
     const paperAspect = paperWmm / paperHmm;
     if (_importImgAspect > paperAspect) {
       effWmm = paperWmm;
@@ -8222,7 +8260,6 @@ function _calcImportSizeMm() {
     }
   }
   return {
-    ratioMode,
     paperWmm,
     paperHmm,
     effWmm,
@@ -8230,20 +8267,6 @@ function _calcImportSizeMm() {
     marginXmm: Math.max(0, (paperWmm - effWmm) / 2),
     marginYmm: Math.max(0, (paperHmm - effHmm) / 2),
   };
-}
-
-function _updateImportRatioInfo() {
-  const infoEl = document.getElementById('import-ratio-info');
-  if (!infoEl || document.getElementById('import-image-only-ctrl')?.style.display === 'none') return;
-  const s = _calcImportSizeMm();
-  if (s.ratioMode === 'preserve' && _importImgAspect && _importImgAspect > 0) {
-    infoEl.textContent =
-      `実効サイズ: ${s.effWmm.toFixed(1)}×${s.effHmm.toFixed(1)}mm / 余白: 左右${s.marginXmm.toFixed(1)}mm・上下${s.marginYmm.toFixed(1)}mm`;
-  } else if (s.ratioMode === 'paper') {
-    infoEl.textContent = '用紙比率に合わせて配置します（画像は縦横方向に変形されます）';
-  } else {
-    infoEl.textContent = '実効サイズを計算中...';
-  }
 }
 
 function _importCalcSizeM() {
@@ -8475,25 +8498,9 @@ function _initImgInteraction() {
       if (_importBaseCoords) {
         // KMZモード: _importCenter を更新して _applyKmzTransform（RAF）
         if (_isPlacingFixedPoint) {
-          const hasPivot = (_dragStartFixedPoints || []).length >= 1;
-          if (hasPivot && _dragStartPendingFixedPoint) {
-            const pivot = [_dragStartFixedPoints[0].lng, _dragStartFixedPoints[0].lat];
-            const startMove = [_dragStartPendingFixedPoint.lng, _dragStartPendingFixedPoint.lat];
-            const currentMove = [e.lngLat.lng, e.lngLat.lat];
-            _importCoords = _transformCoordsByPivotMove(_dragStartCoords, pivot, startMove, currentMove);
-            _recalcImportCenterFromCoords();
-            _importFixedPoints = _dragStartFixedPoints.map(pt => ({ ...pt }));
-            _importPendingFixedPoint = { lng: e.lngLat.lng, lat: e.lngLat.lat };
-          } else if (_dragStartPendingFixedPoint) {
-            _importCoords = _dragStartCoords.map(c => [c[0] + dx, c[1] + dy]);
-            if (_dragStartBaseScaleCoords)
-              _importBaseScaleCoords = _dragStartBaseScaleCoords.map(c => [c[0] + dx, c[1] + dy]);
-            _importPendingFixedPoint = { lng: _dragStartPendingFixedPoint.lng + dx, lat: _dragStartPendingFixedPoint.lat + dy };
-          }
-          _renderFixedPointMarkers();
+          _applyPendingFixedPointPlacement(e.lngLat);
         }
         if (_isPlacingFixedPoint) {
-          _updateBaseScaleCoords();
           _replaceImageSourceRaf();
         } else {
           if (_importDragRafId) cancelAnimationFrame(_importDragRafId);
@@ -8505,23 +8512,7 @@ function _initImgInteraction() {
       } else {
         // 画像モード: 全隅・ベース座標を直接平行移動 → RAFで再描画
         if (_isPlacingFixedPoint) {
-          const hasPivot = (_dragStartFixedPoints || []).length >= 1;
-          if (hasPivot && _dragStartPendingFixedPoint) {
-            const pivot = [_dragStartFixedPoints[0].lng, _dragStartFixedPoints[0].lat];
-            const startMove = [_dragStartPendingFixedPoint.lng, _dragStartPendingFixedPoint.lat];
-            const currentMove = [e.lngLat.lng, e.lngLat.lat];
-            _importCoords = _transformCoordsByPivotMove(_dragStartCoords, pivot, startMove, currentMove);
-            _recalcImportCenterFromCoords();
-            _importFixedPoints = _dragStartFixedPoints.map(pt => ({ ...pt }));
-            _importPendingFixedPoint = { lng: e.lngLat.lng, lat: e.lngLat.lat };
-          } else if (_dragStartPendingFixedPoint) {
-            _importCoords = _dragStartCoords.map(c => [c[0] + dx, c[1] + dy]);
-            if (_dragStartBaseScaleCoords)
-              _importBaseScaleCoords = _dragStartBaseScaleCoords.map(c => [c[0] + dx, c[1] + dy]);
-            _importPendingFixedPoint = { lng: _dragStartPendingFixedPoint.lng + dx, lat: _dragStartPendingFixedPoint.lat + dy };
-          }
-          _renderFixedPointMarkers();
-          _updateBaseScaleCoords();
+          _applyPendingFixedPointPlacement(e.lngLat);
         } else {
           _importCoords = _dragStartCoords.map(c => [c[0] + dx, c[1] + dy]);
           if (_dragStartBaseScaleCoords)
@@ -8532,8 +8523,15 @@ function _initImgInteraction() {
     });
 
     // mouseup → ドラッグ終了
-    _previewMap.on('mouseup', () => {
+    _previewMap.on('mouseup', (e) => {
       if (!_isDraggingImage) return;
+      // 最終座標を取りこぼさないよう、mouseup時点の位置で一度確定計算する
+      if (_isPlacingFixedPoint && e?.lngLat) {
+        _applyPendingFixedPointPlacement(e.lngLat);
+        if (_importDragRafId) cancelAnimationFrame(_importDragRafId);
+        _importDragRafId = null;
+        _replaceImageSource();
+      }
       _isDraggingImage = false;
       _previewMap.dragPan.enable();
       _previewMap.getCanvas().style.cursor = '';
@@ -8817,6 +8815,7 @@ function _openImportOverlay(imgUrl, onLoad) {
 // ---- 画像ファイルから開く（用紙サイズ設定UI表示・A4デフォルト） ----
 function openImportModal(imageFile) {
   _importImgFile = imageFile;
+  _importImgAspect = null;
   // 画像モード: コントロールパネル全体を表示（用紙サイズ含む）
   document.getElementById('import-controls').style.display = '';
   document.getElementById('import-image-only-ctrl').style.display = '';
@@ -8825,10 +8824,12 @@ function openImportModal(imageFile) {
   const imgUrl = URL.createObjectURL(imageFile);
   const tmp = new Image();
   tmp.onload  = () => {
+    _importImgAspect = (tmp.width > 0 && tmp.height > 0) ? (tmp.width / tmp.height) : null;
     document.getElementById('import-orientation').value = tmp.width >= tmp.height ? 'landscape' : 'portrait';
     _openImportOverlay(imgUrl, _updateImportPreview);
   };
   tmp.onerror = () => {
+    _importImgAspect = null;
     document.getElementById('import-orientation').value = 'portrait';
     _openImportOverlay(imgUrl, _updateImportPreview);
   };
@@ -8871,6 +8872,7 @@ function _applyKmzTransform() {
 // ---- KMZ座標付きで開く（回転のみ表示、用紙サイズUI非表示） ----
 function openImportModalWithCoords(imgUrl, coords, label) {
   _importImgFile = null;
+  _importImgAspect = null;
   // KMZモード: コントロールパネルを表示し、用紙サイズ・縮尺部分は非表示
   document.getElementById('import-controls').style.display = '';
   document.getElementById('import-image-only-ctrl').style.display = 'none';
