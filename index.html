@@ -8015,7 +8015,6 @@ let _dragStartBaseScaleCoords = null; // 平行移動開始時の _importBaseSca
 let _dragStartFixedPoints      = null; // 平行移動開始時の固定点配列
 let _dragStartPendingFixedPoint = null; // 平行移動開始時の仮固定点
 let _importFixedPoints         = [];   // 固定点配列 [{lng, lat}]（最大2）
-let _importFixedPointMarkers   = [];   // 固定点マーカー配列
 let _importPendingFixedPoint   = null; // 追加中の仮固定点 {lng, lat}
 let _isSettingFixedPoint       = false; // 固定点選択待ち（クリックで仮固定点を作る）
 let _isPlacingFixedPoint       = false; // 仮固定点を画像と一緒にドラッグして位置合わせ中
@@ -8029,51 +8028,80 @@ let _imgEventsAdded       = false;
 // OriLibre 初期化時のレイヤー一覧を保存（{id, vis} 形式）
 let _previewOriLibreLayers = [];
 
-function _renderFixedPointMarkers() {
-  _importFixedPointMarkers.forEach(m => m.remove());
-  _importFixedPointMarkers = [];
-  if (!_previewMap) return;
-  _importFixedPoints.forEach((pt, i) => {
-    const el = document.createElement('div');
-    el.style.cssText =
-      'width:14px;height:14px;background:#e54848;border:2px solid #fff;' +
-      'border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,0.6);position:relative;';
-    // 固定点マーカーは常時ヒット判定を無効化（表示専用）
-    el.style.pointerEvents = 'none';
-    const num = document.createElement('span');
-    num.textContent = String(i + 1);
-    num.style.cssText =
-      'position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);' +
-      'font-size:9px;font-weight:bold;color:#fff;line-height:1;';
-    el.appendChild(num);
-    const marker = new maplibregl.Marker({
-      element: el,
-      draggable: false,
-      anchor: 'center',
-      offset: [0, 0],
-      pitchAlignment: 'map',
-      rotationAlignment: 'map',
-    }).setLngLat([pt.lng, pt.lat]).addTo(_previewMap);
-    _importFixedPointMarkers.push(marker);
-  });
+function _fixedPointsToGeoJson() {
+  const features = _importFixedPoints.map((pt, i) => ({
+    type: 'Feature',
+    properties: { kind: 'fixed', label: String(i + 1) },
+    geometry: { type: 'Point', coordinates: [pt.lng, pt.lat] },
+  }));
   if (_importPendingFixedPoint) {
-    const el = document.createElement('div');
-    el.style.cssText =
-      'width:14px;height:14px;background:#e54848;border:2px dashed #fff;' +
-      'border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,0.6);opacity:0.9;pointer-events:none;';
-    _importFixedPointMarkers.push(
-      new maplibregl.Marker({
-        element: el,
-        draggable: false,
-        anchor: 'center',
-        offset: [0, 0],
-        pitchAlignment: 'map',
-        rotationAlignment: 'map',
-      })
-        .setLngLat([_importPendingFixedPoint.lng, _importPendingFixedPoint.lat])
-        .addTo(_previewMap)
-    );
+    features.push({
+      type: 'Feature',
+      properties: { kind: 'pending', label: '' },
+      geometry: { type: 'Point', coordinates: [_importPendingFixedPoint.lng, _importPendingFixedPoint.lat] },
+    });
   }
+  return { type: 'FeatureCollection', features };
+}
+
+function _ensureFixedPointLayers() {
+  if (!_previewMap) return;
+  if (!_previewMap.getSource('_import-fixed-points')) {
+    _previewMap.addSource('_import-fixed-points', { type: 'geojson', data: _fixedPointsToGeoJson() });
+  }
+  if (!_previewMap.getLayer('_import-fixed-point-circles')) {
+    _previewMap.addLayer({
+      id: '_import-fixed-point-circles',
+      type: 'circle',
+      source: '_import-fixed-points',
+      filter: ['==', ['get', 'kind'], 'fixed'],
+      paint: {
+        'circle-radius': 7,
+        'circle-color': '#e54848',
+        'circle-stroke-width': 2,
+        'circle-stroke-color': '#ffffff',
+      },
+    });
+  }
+  if (!_previewMap.getLayer('_import-fixed-point-pending')) {
+    _previewMap.addLayer({
+      id: '_import-fixed-point-pending',
+      type: 'circle',
+      source: '_import-fixed-points',
+      filter: ['==', ['get', 'kind'], 'pending'],
+      paint: {
+        'circle-radius': 7,
+        'circle-color': '#e54848',
+        'circle-opacity': 0.85,
+        'circle-stroke-width': 2,
+        'circle-stroke-color': '#ffffff',
+      },
+    });
+  }
+  if (!_previewMap.getLayer('_import-fixed-point-labels')) {
+    _previewMap.addLayer({
+      id: '_import-fixed-point-labels',
+      type: 'symbol',
+      source: '_import-fixed-points',
+      filter: ['==', ['get', 'kind'], 'fixed'],
+      layout: {
+        'text-field': ['get', 'label'],
+        'text-size': 9,
+        'text-font': ['Noto Sans CJK JP Bold', 'Noto Sans Bold', 'Open Sans Bold'],
+        'text-allow-overlap': true,
+      },
+      paint: {
+        'text-color': '#ffffff',
+      },
+    });
+  }
+}
+
+function _renderFixedPointMarkers() {
+  if (!_previewMap) return;
+  _ensureFixedPointLayers();
+  const src = _previewMap.getSource('_import-fixed-points');
+  if (src) src.setData(_fixedPointsToGeoJson());
 }
 
 function _updateFixedPointStatus() {
