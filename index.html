@@ -8033,6 +8033,7 @@ function _renderFixedPointMarkers() {
   _importFixedPointMarkers.forEach(m => m.remove());
   _importFixedPointMarkers = [];
   if (!_previewMap) return;
+  const placingMode = _isSettingFixedPoint || _isPlacingFixedPoint;
   _importFixedPoints.forEach((pt, i) => {
     const el = document.createElement('div');
     el.style.cssText =
@@ -8068,16 +8069,22 @@ function _renderFixedPointMarkers() {
       _updateFixedPointStatus();
       _replaceImageSource();
     });
-    const marker = new maplibregl.Marker({ element: el, draggable: true }).setLngLat([pt.lng, pt.lat]).addTo(_previewMap);
+    if (placingMode) {
+      // 固定点追加中は既存固定点のヒット判定を無効化して、地図ドラッグ処理だけを有効にする
+      el.style.pointerEvents = 'none';
+    }
+    const marker = new maplibregl.Marker({ element: el, draggable: !placingMode }).setLngLat([pt.lng, pt.lat]).addTo(_previewMap);
     let startCoords = null;
     let startFixedPoints = null;
     marker.on('dragstart', () => {
+      if (placingMode) return;
       _importSaveState();
       startCoords = _importCoords ? _importCoords.map(c => [...c]) : null;
       startFixedPoints = _importFixedPoints.map(p => ({ ...p }));
       if (_previewMap) _previewMap.getCanvas().style.cursor = 'grabbing';
     });
     marker.on('drag', () => {
+      if (placingMode) return;
       if (!startCoords || !startFixedPoints) return;
       const ll = marker.getLngLat();
       const current = [ll.lng, ll.lat];
@@ -8101,6 +8108,7 @@ function _renderFixedPointMarkers() {
       _replaceImageSourceRaf();
     });
     marker.on('dragend', () => {
+      if (placingMode) return;
       if (_previewMap) _previewMap.getCanvas().style.cursor = '';
       _renderFixedPointMarkers();
     });
@@ -8110,7 +8118,7 @@ function _renderFixedPointMarkers() {
     const el = document.createElement('div');
     el.style.cssText =
       'width:14px;height:14px;background:#e54848;border:2px dashed #fff;' +
-      'border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,0.6);opacity:0.9;';
+      'border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,0.6);opacity:0.9;pointer-events:none;';
     _importFixedPointMarkers.push(
       new maplibregl.Marker({ element: el, draggable: false })
         .setLngLat([_importPendingFixedPoint.lng, _importPendingFixedPoint.lat])
@@ -8147,6 +8155,7 @@ function _updateFixedPointStatus() {
 function _setFixedPointSettingMode(on) {
   _isSettingFixedPoint = !!on && _importFixedPoints.length < 2;
   if (!_isSettingFixedPoint) _isPlacingFixedPoint = false;
+  _renderFixedPointMarkers();
   if (_previewMap) {
     _previewMap.getCanvas().style.cursor = _isSettingFixedPoint ? 'crosshair' : '';
   }
