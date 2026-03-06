@@ -1685,22 +1685,19 @@ label.setting-label {
   gap: 0;
 }
 #pc-sim-hint .hint-group,
-#pc-sim-readmap-label .hint-group,
-#import-hint-bar .hint-group {
+#pc-sim-readmap-label .hint-group {
   display: inline-flex;
   align-items: center;
   gap: 6px;
 }
 #pc-sim-hint .hint-action,
-#pc-sim-readmap-label .hint-action,
-#import-hint-bar .hint-action {
+#pc-sim-readmap-label .hint-action {
   color: rgba(255,255,255,0.9);
   font-size: 11px;
   margin-left: 2px;
 }
 #pc-sim-hint .hint-sep,
-#pc-sim-readmap-label .hint-sep,
-#import-hint-bar .hint-sep {
+#pc-sim-readmap-label .hint-sep {
   display: inline-block;
   width: 1px;
   height: 14px;
@@ -1709,8 +1706,7 @@ label.setting-label {
   vertical-align: middle;
 }
 #pc-sim-hint kbd,
-#pc-sim-readmap-label kbd,
-#import-hint-bar kbd {
+#pc-sim-readmap-label kbd {
   display: inline-block;
   background: rgba(255,255,255,0.15);
   border: 1px solid rgba(255,255,255,0.35);
@@ -1723,8 +1719,7 @@ label.setting-label {
   vertical-align: middle;
 }
 #pc-sim-hint .hint-or,
-#pc-sim-readmap-label .hint-or,
-#import-hint-bar .hint-or {
+#pc-sim-readmap-label .hint-or {
   color: rgba(255,255,255,0.45);
   font-size: 10px;
   margin: 0 1px;
@@ -2110,23 +2105,26 @@ label.setting-label {
 }
 #import-cancel-btn:hover { background: #f0f0f0; color: #333; }
 
-/* 位置合わせモーダル：操作ヒントバー（プレビューマップ内・上部中央） */
-#import-hint-bar {
-  position: absolute;
-  top: 10px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 10;
-  background: rgba(0, 0, 0, 0.65);
-  color: #fff;
-  font-size: 11px;
-  padding: 8px 16px;
-  border-radius: 16px;
-  white-space: nowrap;
-  pointer-events: none;
+/* Undo/Redo ボタン（モードタブ行の右端） */
+.import-undo-redo-btn {
+  background: none;
+  border: none;
+  padding: 4px 8px;
+  font-size: 16px;
+  cursor: pointer;
+  color: #555;
+  line-height: 1;
+  border-radius: 4px;
+  transition: background 0.12s, color 0.12s;
+}
+.import-undo-redo-btn:hover { background: #e4e4e4; color: #222; }
+.import-undo-redo-btn:active { background: #d0d0d0; }
+#import-undo-redo-group {
   display: flex;
   align-items: center;
   gap: 0;
+  margin-left: auto;
+  padding-right: 6px;
 }
 
 /* コントロールパネル：ステップセクション */
@@ -2538,23 +2536,21 @@ label.setting-label {
       <button id="import-overlay-close-btn" title="閉じる">✕</button>
     </div>
 
-    <!-- モードタブ -->
+    <!-- モードタブ + Undo/Redo -->
     <div id="import-mode-tabs">
       <button class="import-tab active" data-mode="move">基本モード</button>
       <button class="import-tab" data-mode="finetune">微調整（4隅）モード</button>
+      <div id="import-undo-redo-group">
+        <button class="import-undo-redo-btn" id="import-undo-btn" title="元に戻す (Ctrl+Z)">↩</button>
+        <button class="import-undo-redo-btn" id="import-redo-btn" title="やり直し (Ctrl+Y)">↪</button>
+      </div>
     </div>
 
     <!-- ボディ：プレビューマップ + コントロール -->
     <div id="import-modal-body">
 
-      <!-- プレビューマップ（操作ヒントバーを内包） -->
-      <div id="import-preview-map">
-        <div id="import-hint-bar">
-          <span class="hint-group"><kbd>Ctrl</kbd>+<kbd>Z</kbd><span class="hint-action">元に戻す</span></span>
-          <span class="hint-sep"></span>
-          <span class="hint-group"><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd><span class="hint-or">/</span><kbd>Ctrl</kbd>+<kbd>Y</kbd><span class="hint-action">やり直し</span></span>
-        </div>
-      </div>
+      <!-- プレビューマップ -->
+      <div id="import-preview-map"></div>
 
       <!-- コントロールパネル（ステップ順） -->
       <div id="import-controls">
@@ -2605,15 +2601,15 @@ label.setting-label {
         <div class="import-ctrl-section">
           <div class="import-ctrl-section-title">Step 2 ― 位置と角度を合わせる</div>
           <div class="import-ctrl-hint">
-            ※画像を直接ドラッグして移動、上部のハンドルで回転できます。（磁北は補正済み）
+            ※画像を直接ドラッグして移動できます。（磁北は補正済み）
           </div>
           <div class="import-ctrl-group">
             <div class="import-ctrl-label">回転補正&emsp;<span id="import-rotation-val">0.0</span>°</div>
             <input type="range" id="import-rotation" class="import-ctrl-slider"
-              min="-45" max="45" value="0" step="0.5" />
+              min="-2" max="2" value="0" step="0.1" />
             <div class="import-rotation-adj-row">
-              <button class="import-rotation-adj-btn" id="import-rotation-minus">−0.5°</button>
-              <button class="import-rotation-adj-btn" id="import-rotation-plus">+0.5°</button>
+              <button class="import-rotation-adj-btn" id="import-rotation-minus">−0.1°</button>
+              <button class="import-rotation-adj-btn" id="import-rotation-plus">+0.1°</button>
             </div>
           </div>
         </div>
@@ -7903,12 +7899,6 @@ let _dragStartCenter   = null;
 let _imgInteractionInited = false;
 let _imgEventsAdded       = false;
 
-// アンテナ型回転ハンドル
-let _importRotateMarker  = null;
-let _isRotatingHandle    = false;
-let _rotateStartAngle    = 0;
-let _rotateStartSlider   = 0;
-let _rotateCenterCoord   = null;
 
 // 背景切替: setStyle を使わず visibility 操作のみで行うため
 // OriLibre 初期化時のレイヤー一覧を保存（{id, vis} 形式）
@@ -7969,14 +7959,9 @@ function _replaceImageSource() {
     _previewMap.addSource('_import-img', { type: 'image', url: _importImgUrl, coordinates: _importCoords });
     _previewMap.addLayer({ id: '_import-layer', type: 'raster', source: '_import-img', paint: { 'raster-opacity': initOpacity } });
   }
-  // ヒットボックス・回転ハンドルの初期化 & 更新（冪等）
-  // ドラッグ中は _updateHitbox / _updateRotateHandle をスキップして軽量化
+  // ヒットボックスの初期化 & 更新（ドラッグ中はスキップして軽量化）
   _initImgInteraction();
-  if (!_isDraggingImage) {
-    _updateHitbox();
-    if (_isRotatingHandle) _updateRotateLine();
-    else                   _updateRotateHandle();
-  }
+  if (!_isDraggingImage) _updateHitbox();
 }
 
 // ---- RAFスロットル付き _replaceImageSource（ドラッグ中の高速リアルタイム更新） ----
@@ -8010,48 +7995,6 @@ function _updateHitbox() {
   if (src) src.setData(_importCoordsToPolygon());
 }
 
-// ---- 画像の重心をピクセル座標で返す ----
-function _getImageCenterPx() {
-  if (!_importCoords || !_previewMap) return { x: 0, y: 0 };
-  const cx = _importCoords.reduce((s, c) => s + c[0], 0) / 4;
-  const cy = _importCoords.reduce((s, c) => s + c[1], 0) / 4;
-  return _previewMap.project([cx, cy]);
-}
-
-// ---- 上辺中点から画面上 40px 上方の地理座標を計算 ----
-function _calcRotateHandlePos() {
-  if (!_importCoords || !_previewMap) return null;
-  const TL = _importCoords[0], TR = _importCoords[1];
-  const topMidLng = (TL[0] + TR[0]) / 2;
-  const topMidLat = (TL[1] + TR[1]) / 2;
-  const topMidPx  = _previewMap.project([topMidLng, topMidLat]);
-  const handleLL  = _previewMap.unproject({ x: topMidPx.x, y: topMidPx.y - 44 });
-  return { topMidLng, topMidLat, handleLng: handleLL.lng, handleLat: handleLL.lat };
-}
-
-// ---- アンテナ線（上辺中点 → ハンドル）のソースを更新 ----
-function _updateRotateLine() {
-  if (!_previewMap || !_importCoords || !_importRotateMarker) return;
-  const src = _previewMap.getSource('_import-rotate-line');
-  if (!src) return;
-  const TL = _importCoords[0], TR = _importCoords[1];
-  const topMidLng = (TL[0] + TR[0]) / 2;
-  const topMidLat = (TL[1] + TR[1]) / 2;
-  const ll = _importRotateMarker.getLngLat();
-  src.setData({
-    type: 'Feature',
-    geometry: { type: 'LineString', coordinates: [[topMidLng, topMidLat], [ll.lng, ll.lat]] }
-  });
-}
-
-// ---- 回転ハンドルの地理座標を再計算して更新（ドラッグ中は呼ばない） ----
-function _updateRotateHandle() {
-  if (!_previewMap || !_importCoords || !_importRotateMarker || _isRotatingHandle) return;
-  const pos = _calcRotateHandlePos();
-  if (!pos) return;
-  _importRotateMarker.setLngLat([pos.handleLng, pos.handleLat]);
-  _updateRotateLine();
-}
 
 // ---- 画像モード専用：キャッシュした偏角で回転のみ再計算（重い geomag 計算をスキップ） ----
 function _updateImportRotation() {
@@ -8062,92 +8005,8 @@ function _updateImportRotation() {
   _replaceImageSource();
 }
 
-// ---- アンテナ型回転ハンドル＋線を初期化（_initImgInteraction 内から呼ぶ） ----
-function _initRotateHandle() {
-  if (!_previewMap || !_importCoords) return;
-  const pos = _calcRotateHandlePos();
-  if (!pos) return;
 
-  // アンテナ線（点線）のソース・レイヤー
-  if (!_previewMap.getSource('_import-rotate-line')) {
-    _previewMap.addSource('_import-rotate-line', {
-      type: 'geojson',
-      data: {
-        type: 'Feature',
-        geometry: { type: 'LineString', coordinates: [[pos.topMidLng, pos.topMidLat], [pos.handleLng, pos.handleLat]] }
-      }
-    });
-    // カーシング（縁取り）: 先に描画（下のレイヤー）
-    _previewMap.addLayer({
-      id: '_import-rotate-line-casing', type: 'line', source: '_import-rotate-line',
-      paint: { 'line-color': 'rgba(0,0,0,0.55)', 'line-width': 4 }
-    });
-    // 本線（白点線）: カーシングの上に描画
-    _previewMap.addLayer({
-      id: '_import-rotate-line-layer', type: 'line', source: '_import-rotate-line',
-      paint: { 'line-color': '#ffffff', 'line-width': 2, 'line-dasharray': [4, 3] }
-    });
-  }
-
-  // ハンドルマーカー（白丸・グレー枠・SVG回転アイコン）
-  const el = document.createElement('div');
-  el.style.cssText =
-    'width:22px;height:22px;background:#ffffff;border:2px solid #888;' +
-    'border-radius:50%;cursor:grab;box-shadow:0 2px 6px rgba(0,0,0,0.3);' +
-    'display:flex;align-items:center;justify-content:center;';
-  el.innerHTML =
-    '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">' +
-    '<path d="M23 4v6h-6"/>' +
-    '<path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>' +
-    '</svg>';
-  el.title = 'ドラッグして回転';
-  _importRotateMarker = new maplibregl.Marker({ element: el, draggable: true, anchor: 'center' })
-    .setLngLat([pos.handleLng, pos.handleLat])
-    .addTo(_previewMap);
-
-  _importRotateMarker.on('dragstart', () => {
-    _isRotatingHandle = true;
-    el.style.cursor = 'grabbing';
-    _importSaveState();
-    // 回転の中心（画像の重心）を固定
-    const cx = _importCoords.reduce((s, c) => s + c[0], 0) / 4;
-    const cy = _importCoords.reduce((s, c) => s + c[1], 0) / 4;
-    _rotateCenterCoord = [cx, cy];
-    const ll = _importRotateMarker.getLngLat();
-    _rotateStartAngle  = turf.bearing([cx, cy], [ll.lng, ll.lat]);
-    _rotateStartSlider = parseFloat(document.getElementById('import-rotation')?.value ?? '0');
-  });
-
-  _importRotateMarker.on('drag', () => {
-    const ll = _importRotateMarker.getLngLat();
-    // turf.bearing で重心→ハンドルの方位角を計算（地理座標系・プロジェクション歪みに依存しない）
-    const currAngle = turf.bearing(_rotateCenterCoord, [ll.lng, ll.lat]);
-    let deltaDeg = currAngle - _rotateStartAngle;
-    if (deltaDeg >  180) deltaDeg -= 360;
-    if (deltaDeg < -180) deltaDeg += 360;
-    const newVal = Math.min(45, Math.max(-45, _rotateStartSlider + deltaDeg));
-    const rotEl = document.getElementById('import-rotation');
-    if (rotEl) {
-      rotEl.value = String(newVal);
-      document.getElementById('import-rotation-val').textContent = newVal.toFixed(1);
-    }
-    // RAF経由で再描画（_isRotatingHandle=true のためハンドル位置は更新されない）
-    if (_importDragRafId) cancelAnimationFrame(_importDragRafId);
-    _importDragRafId = requestAnimationFrame(() => {
-      _importDragRafId = null;
-      if (_importBaseCoords) { _applyKmzTransform(); } else { _updateImportRotation(); }
-    });
-  });
-
-  _importRotateMarker.on('dragend', () => {
-    el.style.cursor = 'grab';
-    _isRotatingHandle = false;
-    _updateRotateHandle(); // 正しい位置にスナップ
-  });
-  // zoom/move リスナーは _initImgInteraction の _imgEventsAdded ブロックで登録する
-}
-
-// ---- ヒットボックス + 回転ハンドル + ドラッグ平行移動 を初期化（冪等） ----
+// ---- ヒットボックス + ドラッグ平行移動 を初期化（冪等） ----
 function _initImgInteraction() {
   if (!_previewMap || !_importCoords) return;
 
@@ -8216,23 +8075,15 @@ function _initImgInteraction() {
       _isDraggingImage = false;
       _previewMap.dragPan.enable();
       _previewMap.getCanvas().style.cursor = '';
-      // ドラッグ終了後: ヒットボックス・ハンドル位置を正確に更新
+      // ドラッグ終了後: ヒットボックスを正確な位置に更新
       _updateHitbox();
-      _updateRotateHandle();
       // ドラッグ終了後に磁気偏角キャッシュを更新
       if (_importCenter) {
         try { _cachedImportDecl = geomag.field(_importCenter.lat, _importCenter.lng).declination ?? 0; } catch (e) {}
       }
     });
 
-    // ズーム・パン時にハンドル位置を再計算（画面上で常に 44px を維持）
-    // _imgEventsAdded ブロック内なので重複登録されない
-    _previewMap.on('zoom', () => { if (!_isRotatingHandle) _updateRotateHandle(); });
-    _previewMap.on('move', () => { if (!_isRotatingHandle) _updateRotateHandle(); });
   }
-
-  // --- 回転ハンドル（マーカーがなければ追加） ---
-  if (!_importRotateMarker) _initRotateHandle();
 }
 
 // ---- Undo/Redo：現在の座標・中心・回転値を履歴に保存 ----
@@ -8386,10 +8237,8 @@ function _openImportOverlay(imgUrl, onLoad) {
   _importFuture         = [];
   _cachedImportDecl     = 0;
   _isDraggingImage      = false;
-  _isRotatingHandle     = false;
   _imgInteractionInited = false;
   _imgEventsAdded       = false;
-  if (_importRotateMarker) { _importRotateMarker.remove(); _importRotateMarker = null; }
   document.querySelectorAll('.import-tab').forEach(t => t.classList.toggle('active', t.dataset.mode === 'move'));
   // 基本モードに戻す（ステップ1を表示・微調整ヒントを非表示）
   document.getElementById('import-image-only-ctrl')?.classList.remove('disabled');
@@ -8520,7 +8369,7 @@ function openImportModalWithCoords(imgUrl, coords, label) {
       { padding: 60, duration: 0 }
     );
 
-    // 画像ソース + hitbox + 回転ハンドルを一括初期化
+    // 画像ソース + hitbox を一括初期化
     _replaceImageSource();
   });
 }
@@ -8534,13 +8383,6 @@ function enterFineTuneMode() {
   if (_previewMap.getLayer('_import-hitbox-layer'))
     _previewMap.setLayoutProperty('_import-hitbox-layer', 'visibility', 'none');
   _previewMap.getCanvas().style.cursor = '';
-
-  // 回転ハンドル・アンテナ線を非表示
-  if (_importRotateMarker) _importRotateMarker.getElement().style.display = 'none';
-  if (_previewMap.getLayer('_import-rotate-line-casing'))
-    _previewMap.setLayoutProperty('_import-rotate-line-casing', 'visibility', 'none');
-  if (_previewMap.getLayer('_import-rotate-line-layer'))
-    _previewMap.setLayoutProperty('_import-rotate-line-layer', 'visibility', 'none');
 
   // 4隅にドラッグ可能なマーカーを配置
   _importCornerMarkers = _importCoords.map((coord, i) => {
@@ -8572,12 +8414,6 @@ function exitFineTuneMode() {
   if (_previewMap && _previewMap.getLayer('_import-hitbox-layer'))
     _previewMap.setLayoutProperty('_import-hitbox-layer', 'visibility', 'visible');
 
-  // 回転ハンドル・アンテナ線を再表示
-  if (_importRotateMarker) _importRotateMarker.getElement().style.display = '';
-  if (_previewMap && _previewMap.getLayer('_import-rotate-line-casing'))
-    _previewMap.setLayoutProperty('_import-rotate-line-casing', 'visibility', 'visible');
-  if (_previewMap && _previewMap.getLayer('_import-rotate-line-layer'))
-    _previewMap.setLayoutProperty('_import-rotate-line-layer', 'visibility', 'visible');
 }
 
 // ---- モーダルを閉じる（revokeUrl=false のとき ObjectURL を解放しない） ----
@@ -8586,11 +8422,9 @@ function closeImportModal(revokeUrl = true) {
   _importCornerMarkers = [];
   _fineTuneActive         = false;
   _isDraggingImage        = false;
-  _isRotatingHandle       = false;
   _imgInteractionInited   = false;
   _imgEventsAdded         = false;
   document.getElementById('import-overlay').classList.remove('visible');
-  if (_importRotateMarker) { _importRotateMarker.remove(); _importRotateMarker = null; }
   if (_previewMap)         { _previewMap.remove(); _previewMap = null; }
   if (revokeUrl && _importImgUrl) { URL.revokeObjectURL(_importImgUrl); }
   _importImgUrl  = null;
@@ -8679,13 +8513,15 @@ function _applyRotationAdj(delta) {
   const rotEl = document.getElementById('import-rotation');
   if (!rotEl) return;
   _importSaveState(); // 変更前にundo用保存
-  const newVal = Math.min(45, Math.max(-45, parseFloat(rotEl.value) + delta));
+  const newVal = Math.min(2, Math.max(-2, parseFloat(rotEl.value) + delta));
   rotEl.value = newVal;
   document.getElementById('import-rotation-val').textContent = newVal.toFixed(1);
   if (_importBaseCoords) { _applyKmzTransform(); } else { _updateImportPreview(); }
 }
-document.getElementById('import-rotation-minus').addEventListener('click', () => _applyRotationAdj(-0.5));
-document.getElementById('import-rotation-plus') .addEventListener('click', () => _applyRotationAdj( 0.5));
+document.getElementById('import-rotation-minus').addEventListener('click', () => _applyRotationAdj(-0.1));
+document.getElementById('import-rotation-plus') .addEventListener('click', () => _applyRotationAdj( 0.1));
+document.getElementById('import-undo-btn').addEventListener('click', _importUndo);
+document.getElementById('import-redo-btn').addEventListener('click', _importRedo);
 
 // 透明度スライダー → プレビューマップのraster-opacity をリアルタイム変更
 document.getElementById('import-opacity').addEventListener('input', (e) => {
