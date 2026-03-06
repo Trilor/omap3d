@@ -2663,6 +2663,14 @@ label.setting-label {
               <input type="number" id="import-scale-custom" class="import-ctrl-input"
                 placeholder="例: 10000" min="500" max="200000" style="display:none;margin-top:4px;" />
             </div>
+            <div class="import-ctrl-group">
+              <div class="import-ctrl-label">比率</div>
+              <select id="import-ratio-mode" class="import-ctrl-select">
+                <option value="preserve" selected>元画像比率を維持（推奨）</option>
+                <option value="paper">用紙比率に合わせる</option>
+              </select>
+              <div class="import-ctrl-hint" id="import-ratio-info">実効サイズを計算中...</div>
+            </div>
           </div>
         </div>
 
@@ -7984,6 +7992,7 @@ async function openImportModalFromKmz(file) {
 let _previewMap      = null;  // プレビュー用 MapLibre インスタンス
 let _importImgFile   = null;  // インポート中の画像 File
 let _importImgUrl    = null;  // 対応する ObjectURL
+let _importImgAspect = null;  // 元画像の縦横比（width / height）
 let _importCoords    = null;  // 現在の4隅座標 [[lng,lat]*4] TL→TR→BR→BL
 // let _importCornerMarkers = []; // 微調整モードの4隅マーカー（廃止：拡大縮小モードに統合）
 // let _fineTuneActive  = false; // 微調整モード中か（廃止）
@@ -8193,18 +8202,58 @@ function _transformCoordsByPivotMove(startCoords, pivot, startMovePoint, current
 }
 
 // ---- 用紙サイズ＋縮尺 → 実世界サイズ（メートル）を計算 ----
-function _importCalcSizeM() {
-  const paperKey   = document.getElementById('import-paper-size').value;
+function _calcImportSizeMm() {
+  const paperKey    = document.getElementById('import-paper-size').value;
   const orientation = document.getElementById('import-orientation').value;
+  const ratioMode   = document.getElementById('import-ratio-mode')?.value ?? 'preserve';
+  let [paperWmm, paperHmm] = PAPER_SIZES_MM[paperKey] || [210, 297];
+  if (orientation === 'landscape') [paperWmm, paperHmm] = [paperHmm, paperWmm];
+
+  let effWmm = paperWmm;
+  let effHmm = paperHmm;
+  if (ratioMode === 'preserve' && _importImgAspect && _importImgAspect > 0) {
+    const paperAspect = paperWmm / paperHmm;
+    if (_importImgAspect > paperAspect) {
+      effWmm = paperWmm;
+      effHmm = effWmm / _importImgAspect;
+    } else {
+      effHmm = paperHmm;
+      effWmm = effHmm * _importImgAspect;
+    }
+  }
+  return {
+    ratioMode,
+    paperWmm,
+    paperHmm,
+    effWmm,
+    effHmm,
+    marginXmm: Math.max(0, (paperWmm - effWmm) / 2),
+    marginYmm: Math.max(0, (paperHmm - effHmm) / 2),
+  };
+}
+
+function _updateImportRatioInfo() {
+  const infoEl = document.getElementById('import-ratio-info');
+  if (!infoEl || document.getElementById('import-image-only-ctrl')?.style.display === 'none') return;
+  const s = _calcImportSizeMm();
+  if (s.ratioMode === 'preserve' && _importImgAspect && _importImgAspect > 0) {
+    infoEl.textContent =
+      `実効サイズ: ${s.effWmm.toFixed(1)}×${s.effHmm.toFixed(1)}mm / 余白: 左右${s.marginXmm.toFixed(1)}mm・上下${s.marginYmm.toFixed(1)}mm`;
+  } else if (s.ratioMode === 'paper') {
+    infoEl.textContent = '用紙比率に合わせて配置します（画像は縦横方向に変形されます）';
+  } else {
+    infoEl.textContent = '実効サイズを計算中...';
+  }
+}
+
+function _importCalcSizeM() {
   const scaleEl    = document.getElementById('import-scale');
   const scale      = scaleEl.value === 'custom'
     ? (parseFloat(document.getElementById('import-scale-custom').value) || 10000)
     : parseInt(scaleEl.value, 10);
-
-  let [wMm, hMm] = PAPER_SIZES_MM[paperKey] || [210, 297];
-  if (orientation === 'landscape') [wMm, hMm] = [hMm, wMm];
+  const { effWmm, effHmm } = _calcImportSizeMm();
   // mm × 縮尺 ÷ 1000 = 実世界メートル
-  return [wMm / 1000 * scale, hMm / 1000 * scale];
+  return [effWmm / 1000 * scale, effHmm / 1000 * scale];
 }
 
 // ---- 中心座標＋サイズ(m)＋磁北補正角(deg) → 4隅 [TL,TR,BR,BL] ----
