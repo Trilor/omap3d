@@ -2083,15 +2083,22 @@ label.setting-label {
   opacity: 0.7;
   pointer-events: none;
 }
-.import-slider-ends {
-  display: flex;
-  justify-content: space-between;
+.import-slider-side-values {
+  display: grid;
+  grid-template-columns: 32px 1fr 32px;
   align-items: center;
+  gap: 6px;
   font-size: 10px;
   color: #777;
   line-height: 1;
   margin-top: 1px;
   margin-bottom: 2px;
+}
+.import-slider-side-values .left {
+  text-align: right;
+}
+.import-slider-side-values .right {
+  text-align: left;
 }
 .import-ctrl-select, .import-ctrl-input {
   width: 100%;
@@ -2666,10 +2673,10 @@ label.setting-label {
           </div>
           <div class="import-ctrl-group">
             <div class="import-ctrl-label import-label-with-reset">
-              <span>回転補正&emsp;<span id="import-rotation-val">0.0</span>°</span>
+              <span>回転補正&emsp;<span id="import-rotation-val">0.00</span>°</span>
               <button id="import-rotation-reset" class="import-reset-btn" type="button" title="回転補正を初期値に戻す">↺</button>
             </div>
-            <div class="import-slider-ends"><span>-2.0</span><span>2.0</span></div>
+            <div class="import-slider-side-values"><span class="left">-2.0</span><div></div><span class="right">2.0</span></div>
             <div class="import-slider-wrap" style="--init-pct:50%">
               <input type="range" id="import-rotation" class="import-ctrl-slider"
                 min="-2" max="2" value="0" step="0.05" />
@@ -2684,10 +2691,10 @@ label.setting-label {
               <span>スケール補正&emsp;<span id="import-scale-adj-val">100.0%</span></span>
               <button id="import-scale-adj-reset" class="import-reset-btn" type="button" title="スケール補正を初期値に戻す">↺</button>
             </div>
-            <div class="import-slider-ends"><span>80%</span><span>120%</span></div>
+            <div class="import-slider-side-values"><span class="left">80</span><div></div><span class="right">120</span></div>
             <div class="import-slider-wrap" style="--init-pct:50%">
               <input type="range" id="import-scale-adj" class="import-ctrl-slider"
-                min="80" max="120" value="100" step="0.1" />
+                min="80" max="120" value="100" step="0.5" />
             </div>
             <div class="import-rotation-adj-row">
               <button class="import-rotation-adj-btn" id="import-scale-adj-minus">−0.5%</button>
@@ -8383,7 +8390,7 @@ function _importRestoreState(state) {
   if (rotEl) {
     rotEl.value = state.rotation;
     document.getElementById('import-rotation-val').textContent =
-      parseFloat(state.rotation).toFixed(1);
+      parseFloat(state.rotation).toFixed(2);
   }
   // 常時有効の4隅マーカーも更新
   if (_scaleCornerMarkers.length === 4) {
@@ -8506,7 +8513,7 @@ function _openImportOverlay(imgUrl, onLoad) {
   const opEl = document.getElementById('import-opacity');
   if (opEl) { opEl.value = '70'; document.getElementById('import-opacity-val').textContent = '70'; }
   const rotEl = document.getElementById('import-rotation');
-  if (rotEl) { rotEl.value = '0'; document.getElementById('import-rotation-val').textContent = '0.0'; }
+  if (rotEl) { rotEl.value = '0'; document.getElementById('import-rotation-val').textContent = '0.00'; }
   _syncScaleUI();
   _updateFixedPointStatus();
   if (opEl) updateSliderGradient(opEl, '#4a7c59');
@@ -8822,7 +8829,7 @@ document.getElementById('import-bg-select').addEventListener('change', (e) => {
 
 // 回転スライダー → プレビュー再計算
 document.getElementById('import-rotation').addEventListener('input', (e) => {
-  document.getElementById('import-rotation-val').textContent = parseFloat(e.target.value).toFixed(1);
+  document.getElementById('import-rotation-val').textContent = parseFloat(e.target.value).toFixed(2);
   updateSliderGradient(e.target, '#4a7c59');
   // KMZモードと画像モードで処理を分岐
   if (_importBaseCoords) {
@@ -8858,7 +8865,7 @@ function _applyRotationAdj(delta) {
   _importSaveState(); // 変更前にundo用保存
   const newVal = Math.min(2, Math.max(-2, parseFloat(rotEl.value) + delta));
   rotEl.value = newVal;
-  document.getElementById('import-rotation-val').textContent = newVal.toFixed(1);
+  document.getElementById('import-rotation-val').textContent = newVal.toFixed(2);
   updateSliderGradient(rotEl, '#4a7c59');
   if (_importBaseCoords) { _applyKmzTransform(); } else { _updateImportRotation(); }
 }
@@ -8869,7 +8876,7 @@ document.getElementById('import-rotation-reset').addEventListener('click', () =>
   if (!rotEl) return;
   _importSaveState();
   rotEl.value = '0';
-  document.getElementById('import-rotation-val').textContent = '0.0';
+  document.getElementById('import-rotation-val').textContent = '0.00';
   updateSliderGradient(rotEl, '#4a7c59');
   if (_importBaseCoords) { _applyKmzTransform(); } else { _updateImportRotation(); }
 });
