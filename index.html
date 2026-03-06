@@ -2539,7 +2539,8 @@ label.setting-label {
     <!-- モードタブ + Undo/Redo -->
     <div id="import-mode-tabs">
       <button class="import-tab active" data-mode="move">基本モード</button>
-      <button class="import-tab" data-mode="finetune">微調整（4隅）モード</button>
+      <button class="import-tab" data-mode="scale">拡大縮小モード</button>
+      <!-- <button class="import-tab" data-mode="finetune">微調整（4隅）モード</button> -->
       <div id="import-undo-redo-group">
         <button class="import-undo-redo-btn" id="import-undo-btn" title="元に戻す (Ctrl+Z)">↩</button>
         <button class="import-undo-redo-btn" id="import-redo-btn" title="やり直し (Ctrl+Y)">↪</button>
@@ -7874,8 +7875,10 @@ let _previewMap      = null;  // プレビュー用 MapLibre インスタンス
 let _importImgFile   = null;  // インポート中の画像 File
 let _importImgUrl    = null;  // 対応する ObjectURL
 let _importCoords    = null;  // 現在の4隅座標 [[lng,lat]*4] TL→TR→BR→BL
-let _importCornerMarkers = []; // 微調整モードの4隅マーカー
-let _fineTuneActive  = false; // 微調整モード中か
+// let _importCornerMarkers = []; // 微調整モードの4隅マーカー（廃止：拡大縮小モードに統合）
+// let _fineTuneActive  = false; // 微調整モード中か（廃止）
+let _scaleCornerMarkers = []; // 拡大縮小モードの4隅マーカー
+let _scaleModeActive    = false; // 拡大縮小モード中か
 let _importCenter    = null;  // 中心マーカー位置 {lng, lat}（マーカードラッグで更新）
 let _importBaseCoords = null; // KMZモード：ドラッグ前の基準4隅座標（回転前）
 
@@ -8027,7 +8030,7 @@ function _initImgInteraction() {
 
     // カーソル制御
     _previewMap.on('mouseenter', '_import-hitbox-layer', () => {
-      if (!_fineTuneActive && !_isDraggingImage)
+      if (!_scaleModeActive && !_isDraggingImage)
         _previewMap.getCanvas().style.cursor = 'move';
     });
     _previewMap.on('mouseleave', '_import-hitbox-layer', () => {
@@ -8036,7 +8039,7 @@ function _initImgInteraction() {
 
     // mousedown → ドラッグ開始（hitboxレイヤー上）
     _previewMap.on('mousedown', '_import-hitbox-layer', (e) => {
-      if (_fineTuneActive) return;
+      if (_scaleModeActive) return;
       e.preventDefault();
       _importSaveState();
       _isDraggingImage = true;
@@ -8049,7 +8052,7 @@ function _initImgInteraction() {
 
     // mousemove → ドラッグ中に座標をリアルタイム更新
     _previewMap.on('mousemove', (e) => {
-      if (!_isDraggingImage || _fineTuneActive) return;
+      if (!_isDraggingImage || _scaleModeActive) return;
       const dx = e.lngLat.lng - _dragStartLngLat.lng;
       const dy = e.lngLat.lat - _dragStartLngLat.lat;
       _importCenter = _dragStartCenter
@@ -8136,10 +8139,11 @@ function _importRestoreState(state) {
     document.getElementById('import-rotation-val').textContent =
       parseFloat(state.rotation).toFixed(1);
   }
-  // 微調整モード中は各コーナーマーカーも更新
-  if (_fineTuneActive && _importCornerMarkers.length === 4) {
-    _importCornerMarkers.forEach((m, i) => m.setLngLat(_importCoords[i]));
+  // 拡大縮小モード中は各コーナーマーカーも更新
+  if (_scaleModeActive && _scaleCornerMarkers.length === 4) {
+    _scaleCornerMarkers.forEach((m, i) => m.setLngLat(_importCoords[i]));
   }
+  // 旧・微調整モード（廃止）: if (_fineTuneActive && _importCornerMarkers.length === 4) { _importCornerMarkers.forEach(...) }
   _replaceImageSource();
 }
 
@@ -8232,7 +8236,8 @@ function _openImportOverlay(imgUrl, onLoad) {
   _previewOriLibreLayers  = [];
   _importCenter         = null;
   _importBaseCoords     = null;
-  _fineTuneActive       = false;
+  // _fineTuneActive    = false; // 廃止
+  _scaleModeActive      = false;
   _importHistory        = [];
   _importFuture         = [];
   _cachedImportDecl     = 0;
@@ -8374,17 +8379,13 @@ function openImportModalWithCoords(imgUrl, coords, label) {
   });
 }
 
-// ---- 微調整モード：4隅マーカーを表示 ----
+/* ---- 微調整モード（廃止：拡大縮小モードに統合）----
 function enterFineTuneMode() {
   if (!_previewMap || !_importCoords) return;
   _fineTuneActive = true;
-
-  // ヒットボックスを非表示（微調整モード中はhitboxドラッグを無効化）
   if (_previewMap.getLayer('_import-hitbox-layer'))
     _previewMap.setLayoutProperty('_import-hitbox-layer', 'visibility', 'none');
   _previewMap.getCanvas().style.cursor = '';
-
-  // 4隅にドラッグ可能なマーカーを配置
   _importCornerMarkers = _importCoords.map((coord, i) => {
     const el = document.createElement('div');
     el.style.cssText =
@@ -8392,35 +8393,102 @@ function enterFineTuneMode() {
       'border-radius:50%;cursor:grab;box-shadow:0 1px 4px rgba(0,0,0,0.6);';
     el.title = ['左上', '右上', '右下', '左下'][i];
     const marker = new maplibregl.Marker({ element: el, draggable: true })
+      .setLngLat(coord).addTo(_previewMap);
+    marker.on('dragstart', () => { _importSaveState(); });
+    marker.on('drag', () => { const ll = marker.getLngLat(); _importCoords[i] = [ll.lng, ll.lat]; _replaceImageSourceRaf(); });
+    return marker;
+  });
+}
+function exitFineTuneMode() {
+  _fineTuneActive = false;
+  _importCornerMarkers.forEach(m => m.remove()); _importCornerMarkers = [];
+  if (_previewMap && _previewMap.getLayer('_import-hitbox-layer'))
+    _previewMap.setLayoutProperty('_import-hitbox-layer', 'visibility', 'visible');
+}
+*/
+
+// ---- 拡大縮小モード：4隅マーカーを表示（対角コーナー固定で相似拡大縮小） ----
+function enterScaleMode() {
+  if (!_previewMap || !_importCoords) return;
+  _scaleModeActive = true;
+
+  // ヒットボックスを非表示（拡大縮小モード中はhitboxドラッグを無効化）
+  if (_previewMap.getLayer('_import-hitbox-layer'))
+    _previewMap.setLayoutProperty('_import-hitbox-layer', 'visibility', 'none');
+  _previewMap.getCanvas().style.cursor = '';
+
+  // 4隅にドラッグ可能なマーカーを配置
+  _scaleCornerMarkers = _importCoords.map((coord, i) => {
+    const el = document.createElement('div');
+    el.style.cssText =
+      'width:14px;height:14px;background:#2288ff;border:2px solid #fff;' +
+      'border-radius:50%;cursor:grab;box-shadow:0 1px 4px rgba(0,0,0,0.6);';
+    el.title = ['左上', '右上', '右下', '左下'][i] + '（ドラッグで拡大縮小）';
+    const marker = new maplibregl.Marker({ element: el, draggable: true })
       .setLngLat(coord)
       .addTo(_previewMap);
-    marker.on('dragstart', () => { _importSaveState(); });
+
+    // dragstart/drag 用クロージャ変数
+    let fixedCoord  = null; // 固定する対角コーナー座標
+    let startCoords = null; // ドラッグ開始時の全隅座標
+    let startDist   = 0;    // ドラッグ開始時のドラッグ隅→固定隅の距離
+
+    marker.on('dragstart', () => {
+      _importSaveState();
+      const oppIdx   = (i + 2) % 4;               // 対角コーナーのインデックス
+      fixedCoord     = [..._importCoords[oppIdx]]; // 固定点（対角）
+      startCoords    = _importCoords.map(c => [...c]);
+      const cosLat   = Math.cos(fixedCoord[1] * Math.PI / 180);
+      const dx0      = (startCoords[i][0] - fixedCoord[0]) * cosLat;
+      const dy0      =  startCoords[i][1] - fixedCoord[1];
+      startDist      = Math.sqrt(dx0 * dx0 + dy0 * dy0);
+    });
+
     marker.on('drag', () => {
-      const ll = marker.getLngLat();
-      _importCoords[i] = [ll.lng, ll.lat];
+      if (!fixedCoord || startDist < 1e-9) return;
+      const ll     = marker.getLngLat();
+      const cosLat = Math.cos(fixedCoord[1] * Math.PI / 180);
+      const dx1    = (ll.lng - fixedCoord[0]) * cosLat;
+      const dy1    =  ll.lat - fixedCoord[1];
+      const scale  = Math.sqrt(dx1 * dx1 + dy1 * dy1) / startDist;
+      // 全隅を固定コーナーからの相似拡大縮小で再計算
+      _importCoords = startCoords.map(([lng, lat]) => {
+        const dx = (lng - fixedCoord[0]) * cosLat;
+        const dy =  lat - fixedCoord[1];
+        return [fixedCoord[0] + dx * scale / cosLat, fixedCoord[1] + dy * scale];
+      });
+      // 中心を4隅重心で再計算
+      _importCenter = {
+        lng: _importCoords.reduce((s, c) => s + c[0], 0) / 4,
+        lat: _importCoords.reduce((s, c) => s + c[1], 0) / 4,
+      };
+      // 全マーカーを最新座標に移動
+      _scaleCornerMarkers.forEach((m, j) => m.setLngLat(_importCoords[j]));
       _replaceImageSourceRaf();
     });
+
     return marker;
   });
 }
 
-// ---- 微調整モード解除 ----
-function exitFineTuneMode() {
-  _fineTuneActive = false;
-  _importCornerMarkers.forEach(m => m.remove());
-  _importCornerMarkers = [];
+// ---- 拡大縮小モード解除 ----
+function exitScaleMode() {
+  _scaleModeActive = false;
+  _scaleCornerMarkers.forEach(m => m.remove());
+  _scaleCornerMarkers = [];
 
   // ヒットボックスを再表示
   if (_previewMap && _previewMap.getLayer('_import-hitbox-layer'))
     _previewMap.setLayoutProperty('_import-hitbox-layer', 'visibility', 'visible');
-
 }
 
 // ---- モーダルを閉じる（revokeUrl=false のとき ObjectURL を解放しない） ----
 function closeImportModal(revokeUrl = true) {
-  _importCornerMarkers.forEach(m => m.remove());
-  _importCornerMarkers = [];
-  _fineTuneActive         = false;
+  _scaleCornerMarkers.forEach(m => m.remove());
+  _scaleCornerMarkers = [];
+  _scaleModeActive        = false;
+  // _importCornerMarkers.forEach(m => m.remove()); _importCornerMarkers = []; // 旧・微調整モード（廃止）
+  // _fineTuneActive = false; // 廃止
   _isDraggingImage        = false;
   _imgInteractionInited   = false;
   _imgEventsAdded         = false;
@@ -8439,18 +8507,22 @@ function closeImportModal(revokeUrl = true) {
 document.getElementById('import-overlay-close-btn').addEventListener('click', () => closeImportModal());
 document.getElementById('import-cancel-btn').addEventListener('click', () => closeImportModal());
 
-// モードタブ切り替え（基本モード ↔ 微調整（4隅）モード）
+// モードタブ切り替え（基本モード ↔ 拡大縮小モード）
 document.querySelectorAll('.import-tab').forEach(tab => {
   tab.addEventListener('click', () => {
     document.querySelectorAll('.import-tab').forEach(t => t.classList.remove('active'));
     tab.classList.add('active');
-    const isFine = tab.dataset.mode === 'finetune';
-    isFine ? enterFineTuneMode() : exitFineTuneMode();
-    // ステップ1の表示切り替え
-    const ctrl = document.getElementById('import-image-only-ctrl');
+    const mode = tab.dataset.mode;
+    // 全モード解除 → 対象モードに入る
+    exitScaleMode();
+    // exitFineTuneMode(); // 廃止
+    if (mode === 'scale')   enterScaleMode();
+    // if (mode === 'finetune') enterFineTuneMode(); // 廃止
+    // ステップ1（用紙サイズ）の表示切り替え
+    const ctrl   = document.getElementById('import-image-only-ctrl');
     const ftHint = document.getElementById('import-finetune-hint');
-    if (ctrl)   { ctrl.style.display   = isFine ? 'none' : ''; }
-    if (ftHint) { ftHint.style.display = isFine ? ''     : 'none'; }
+    if (ctrl)   { ctrl.style.display   = (mode === 'move') ? '' : 'none'; }
+    if (ftHint) { ftHint.style.display = 'none'; }
   });
 });
 
