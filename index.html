@@ -2089,25 +2089,16 @@ label.setting-label {
   align-items: center;
   gap: 6px;
 }
-.import-slider-side-values {
-  display: contents;
-}
-.import-slider-side-values .left,
-.import-slider-side-values .right {
+.import-slider-side {
   font-size: 10px;
   color: #777;
   line-height: 1;
 }
-.import-slider-side-values .left {
-  grid-column: 1;
+.import-slider-side.left {
   text-align: right;
 }
-.import-slider-side-values .right {
-  grid-column: 3;
+.import-slider-side.right {
   text-align: left;
-}
-.import-slider-line .import-slider-wrap {
-  grid-column: 2;
 }
 .import-ctrl-select, .import-ctrl-input {
   width: 100%;
@@ -2686,11 +2677,12 @@ label.setting-label {
               <button id="import-rotation-reset" class="import-reset-btn" type="button" title="回転補正を初期値に戻す">↺</button>
             </div>
             <div class="import-slider-line">
-              <div class="import-slider-side-values"><span class="left">-2.0</span><span class="right">2.0</span></div>
+              <span class="import-slider-side left">-2.0</span>
               <div class="import-slider-wrap" style="--init-pct:50%">
                 <input type="range" id="import-rotation" class="import-ctrl-slider"
                   min="-2" max="2" value="0" step="0.05" />
               </div>
+              <span class="import-slider-side right">2.0</span>
             </div>
             <div class="import-rotation-adj-row">
               <button class="import-rotation-adj-btn" id="import-rotation-minus">−0.05°</button>
@@ -2703,11 +2695,12 @@ label.setting-label {
               <button id="import-scale-adj-reset" class="import-reset-btn" type="button" title="スケール補正を初期値に戻す">↺</button>
             </div>
             <div class="import-slider-line">
-              <div class="import-slider-side-values"><span class="left">80</span><span class="right">120</span></div>
+              <span class="import-slider-side left">80</span>
               <div class="import-slider-wrap" style="--init-pct:50%">
                 <input type="range" id="import-scale-adj" class="import-ctrl-slider"
                   min="80" max="120" value="100" step="0.1" />
               </div>
+              <span class="import-slider-side right">120</span>
             </div>
             <div class="import-rotation-adj-row">
               <button class="import-rotation-adj-btn" id="import-scale-adj-minus">−0.1%</button>
