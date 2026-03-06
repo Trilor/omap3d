@@ -8068,17 +8068,48 @@ function _renderFixedPointMarkers() {
   if (!_previewMap || !_importFixedPointOverlay) return;
   _importFixedPoints.forEach((pt, i) => {
     const el = document.createElement('div');
+    // pointer-events:auto でホバー・ドラッグを有効化
     el.style.cssText =
       'width:14px;height:14px;background:#e54848;border:2px solid #fff;' +
-      'border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,0.6);position:absolute;transform:translate(-50%,-50%);';
+      'border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,0.6);position:absolute;transform:translate(-50%,-50%);' +
+      'pointer-events:auto;cursor:grab;';
     const num = document.createElement('span');
     num.textContent = String(i + 1);
     num.style.cssText =
       'position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);' +
-      'font-size:9px;font-weight:bold;color:#fff;line-height:1;';
+      'font-size:9px;font-weight:bold;color:#fff;line-height:1;pointer-events:none;';
     el.appendChild(num);
     el.dataset.lng = String(pt.lng);
     el.dataset.lat = String(pt.lat);
+
+    // ---- ドラッグで固定点を再配置 ----
+    el.addEventListener('mousedown', (startEvt) => {
+      startEvt.stopPropagation(); // マップの pan 開始を抑制
+      startEvt.preventDefault();
+      _importSaveState();
+      el.style.cursor = 'grabbing';
+      const idx = i; // クロージャで添字を保持
+      const onMove = (e) => {
+        if (!_previewMap) return;
+        const rect   = _previewMap.getContainer().getBoundingClientRect();
+        const lngLat = _previewMap.unproject([e.clientX - rect.left, e.clientY - rect.top]);
+        _importFixedPoints[idx] = { lng: lngLat.lng, lat: lngLat.lat };
+        el.dataset.lng = String(lngLat.lng);
+        el.dataset.lat = String(lngLat.lat);
+        _positionFixedPointDom();
+      };
+      const onUp = () => {
+        el.style.cursor = 'grab';
+        // 固定点移動後：逆スケール変換でベース座標を再構築（画像は動かさない）
+        _updateBaseScaleCoords();
+        _updateFixedPointStatus();
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup',   onUp);
+      };
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup',   onUp);
+    });
+
     _importFixedPointOverlay.appendChild(el);
     _importFixedPointMarkers.push(el);
   });
