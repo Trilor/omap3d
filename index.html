@@ -8046,7 +8046,14 @@ function _renderFixedPointMarkers() {
       'position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);' +
       'font-size:9px;font-weight:bold;color:#fff;line-height:1;';
     el.appendChild(num);
-    const marker = new maplibregl.Marker({ element: el, draggable: false }).setLngLat([pt.lng, pt.lat]).addTo(_previewMap);
+    const marker = new maplibregl.Marker({
+      element: el,
+      draggable: false,
+      anchor: 'center',
+      offset: [0, 0],
+      pitchAlignment: 'map',
+      rotationAlignment: 'map',
+    }).setLngLat([pt.lng, pt.lat]).addTo(_previewMap);
     _importFixedPointMarkers.push(marker);
   });
   if (_importPendingFixedPoint) {
@@ -8055,7 +8062,14 @@ function _renderFixedPointMarkers() {
       'width:14px;height:14px;background:#e54848;border:2px dashed #fff;' +
       'border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,0.6);opacity:0.9;pointer-events:none;';
     _importFixedPointMarkers.push(
-      new maplibregl.Marker({ element: el, draggable: false })
+      new maplibregl.Marker({
+        element: el,
+        draggable: false,
+        anchor: 'center',
+        offset: [0, 0],
+        pitchAlignment: 'map',
+        rotationAlignment: 'map',
+      })
         .setLngLat([_importPendingFixedPoint.lng, _importPendingFixedPoint.lat])
         .addTo(_previewMap)
     );
@@ -8415,7 +8429,7 @@ function _initImgInteraction() {
     // カーソル制御
     _previewMap.on('mouseenter', '_import-hitbox-layer', () => {
       if (!_isDraggingImage) {
-        _previewMap.getCanvas().style.cursor = _isSettingFixedPoint ? 'crosshair' : 'move';
+        _previewMap.getCanvas().style.cursor = (_isSettingFixedPoint || _isPlacingFixedPoint) ? 'crosshair' : 'move';
       }
     });
     _previewMap.on('mouseleave', '_import-hitbox-layer', () => {
@@ -8437,7 +8451,7 @@ function _initImgInteraction() {
         _dragStartFixedPoints = _importFixedPoints.map(pt => ({ ...pt }));
         _dragStartPendingFixedPoint = _importPendingFixedPoint ? { ..._importPendingFixedPoint } : null;
         _previewMap.dragPan.disable();
-        _previewMap.getCanvas().style.cursor = 'grabbing';
+        _previewMap.getCanvas().style.cursor = 'crosshair';
         return;
       }
       if (((_importFixedPoints.length > 0) || _isSettingFixedPoint) && !_isPlacingFixedPoint) return; // 固定点設定済み時は通常移動を無効化
@@ -8451,7 +8465,7 @@ function _initImgInteraction() {
       _dragStartFixedPoints = _importFixedPoints.map(pt => ({ ...pt }));
       _dragStartPendingFixedPoint = _importPendingFixedPoint ? { ..._importPendingFixedPoint } : null;
       _previewMap.dragPan.disable();
-      _previewMap.getCanvas().style.cursor = 'grabbing';
+      _previewMap.getCanvas().style.cursor = _isPlacingFixedPoint ? 'crosshair' : 'grabbing';
     });
 
     // mousemove → ドラッグ中に座標をリアルタイム更新
