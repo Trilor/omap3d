@@ -5005,26 +5005,43 @@ function featureToFrameEntry(feature) {
   };
 }
 
-// ---- GeoJSON を読み込んで mapFrames に追加し枠を描画する ----
+// ---- GeoJSON を読み込んで terrainMap / mapFrames に追加し枠を描画する ----
+// terrains.geojson（feature.id があり terrain_id プロパティがない）と
+// frames.geojson（terrain_id プロパティがある）の両形式を自動判別して処理する。
 function loadFramesGeojson(geojson) {
   if (!geojson?.features) { alert('GeoJSONの形式が正しくありません。'); return; }
 
-  let added = 0;
+  let addedTerrains = 0;
+  let addedFrames   = 0;
+
   for (const feature of geojson.features) {
     if (feature.geometry?.type !== 'Polygon') continue;
+
+    const props = feature.properties ?? {};
+
+    // terrains 形式: terrain_id プロパティがなく feature.id がある
+    if (!props.terrain_id && feature.id) {
+      const tid = String(feature.id);
+      if (!terrainMap.has(tid)) {
+        terrainMap.set(tid, { ...props, geometry: feature.geometry });
+        addedTerrains++;
+      }
+      continue;
+    }
+
+    // frames 形式: terrain_id プロパティがある
     const entry = featureToFrameEntry(feature);
     if (!entry) continue;
-    // 既に同じ ID があればスキップ
     if (mapFrames.find(f => f.id === entry.id)) continue;
     mapFrames.push(entry);
-    added++;
+    addedFrames++;
   }
 
   // MapLibre GeoJSON ソースを更新（既存は置き換え）
   updateFrameGeoJsonSource();
   updateTerrainBoundarySource();
   renderMillerColumns();
-  console.log(`フレーム読み込み完了: ${added} 件`);
+  console.log(`読み込み完了: テレイン ${addedTerrains} 件、フレーム ${addedFrames} 件`);
 }
 
 // ---- frames-src GeoJSON ソース / レイヤーを作成または更新する ----
