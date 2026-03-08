@@ -5252,16 +5252,15 @@ function selectMillerTerrain(terrainId) {
   millerTerrain = terrainId;
   selectTerrain(terrainId);
   renderMillerColumns();
-  // テレイン境界にカメラを合わせる
+  // テレイン中心へ移動（ズームレベルは変えない）
   const t = terrainMap.get(terrainId);
   if (t?.geometry) {
     const coords = t.geometry.coordinates[0];
     const lngs = coords.map(c => c[0]);
     const lats  = coords.map(c => c[1]);
-    map.fitBounds(
-      [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
-      { padding: 60, duration: 600, maxZoom: 16 }
-    );
+    const centerLng = (Math.min(...lngs) + Math.max(...lngs)) / 2;
+    const centerLat = (Math.min(...lats) + Math.max(...lats)) / 2;
+    map.easeTo({ center: [centerLng, centerLat], duration: 600 });
   }
 }
 
