@@ -807,6 +807,136 @@ label.setting-label {
 .frame-badge.forest   { background: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
 .frame-badge.subtype  { background: #f5f5f5; color: #666;    border: 1px solid #ddd; }
 
+/* ===== Miller Columns ブラウザ ===== */
+#miller-browser { border-bottom: 1px solid #e0e0e0; }
+
+/* パンくずバー */
+.miller-breadcrumb {
+  display: flex;
+  align-items: center;
+  padding: 4px 8px;
+  font-size: 11px;
+  color: #666;
+  border-bottom: 1px solid #e8e8e8;
+  background: #fafafa;
+  min-height: 24px;
+  gap: 2px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+}
+.miller-bc-root { color: #888; font-size: 11px; cursor: default; white-space: nowrap; }
+.miller-bc-root.clickable { color: #4a7c59; cursor: pointer; font-weight: 600; }
+.miller-bc-root.clickable:hover { text-decoration: underline; }
+.miller-bc-sep { color: #bbb; margin: 0 1px; flex-shrink: 0; }
+.miller-bc-item {
+  cursor: pointer;
+  color: #4a7c59;
+  font-weight: 600;
+  position: relative;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.miller-bc-item:hover { text-decoration: underline; }
+.miller-bc-current { color: #333; font-weight: 600; flex-shrink: 0; white-space: nowrap; }
+.miller-bc-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  background: #fff;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+  min-width: 120px;
+  max-height: 180px;
+  overflow-y: auto;
+  z-index: 200;
+}
+.miller-bc-dropdown-item {
+  padding: 5px 10px;
+  font-size: 11px;
+  cursor: pointer;
+  color: #333;
+  white-space: nowrap;
+}
+.miller-bc-dropdown-item:hover { background: #f0f8f3; }
+.miller-bc-dropdown-item.current { color: #4a7c59; font-weight: 700; }
+
+/* 3列コンテナ */
+.miller-wrap {
+  display: flex;
+  border-bottom: 1px solid #e0e0e0;
+  height: 160px;
+}
+
+/* 各列 */
+.miller-col {
+  flex: 1;
+  border-right: 1px solid #e0e0e0;
+  overflow-y: auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.miller-col:last-child { border-right: none; }
+
+/* 列ヘッダー */
+.miller-col-hd {
+  padding: 3px 6px;
+  font-size: 9px;
+  font-weight: 700;
+  color: #888;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid #e8e8e8;
+  background: #f5f5f5;
+  text-transform: uppercase;
+  position: sticky;
+  top: 0;
+  flex-shrink: 0;
+}
+
+/* 列内アイテム */
+.miller-item {
+  padding: 5px 7px;
+  font-size: 11px;
+  cursor: pointer;
+  border-bottom: 1px solid #f5f5f5;
+  color: #333;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+}
+.miller-item:hover { background: #f0f8f3; color: #2e7d32; }
+.miller-item.selected { background: #4a7c59; color: #fff; }
+.miller-item.disabled { color: #bbb; cursor: default; font-style: italic; }
+.miller-item-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.miller-item-count {
+  font-size: 9px;
+  opacity: 0.65;
+  flex-shrink: 0;
+}
+
+/* テレイン選択後のフレーム一覧ヘッダー */
+.miller-frame-hd {
+  padding: 5px 10px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #888;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  background: #f5f5f5;
+  border-bottom: 1px solid #e8e8e8;
+}
+
+/* 空状態メッセージ */
+.miller-empty { padding: 12px 10px; font-size: 11px; color: #aaa; text-align: center; }
+
 /* ===== タブバー ===== */
 .tab-bar {
   display: flex;
@@ -2549,8 +2679,27 @@ label.setting-label {
       <button class="type-chip" data-type="sprint">スプリント</button>
       <button class="type-chip" data-type="forest">フォレスト</button>
     </div>
-    <!-- テレイングループ一覧（JS生成） -->
-    <div id="catalog-frame-list"></div>
+    <!-- Miller Columns ブラウザ（地方 → 都道府県 → テレイン → フレーム） -->
+    <div id="miller-browser">
+      <!-- パンくずバー -->
+      <div id="miller-breadcrumb" class="miller-breadcrumb">
+        <span class="miller-bc-root">全国</span>
+      </div>
+      <!-- 3列カラム（地方／都道府県／テレイン） -->
+      <div class="miller-wrap">
+        <div class="miller-col" id="miller-col-region">
+          <div class="miller-col-hd">地方</div>
+        </div>
+        <div class="miller-col" id="miller-col-pref">
+          <div class="miller-col-hd">都道府県</div>
+        </div>
+        <div class="miller-col" id="miller-col-terrain">
+          <div class="miller-col-hd">テレイン</div>
+        </div>
+      </div>
+      <!-- テレイン選択後のフレーム一覧 -->
+      <div id="miller-frame-list"></div>
+    </div>
     <!-- GeoJSON 読み込みボタン -->
     <input type="file" id="geojson-file-input" accept=".geojson,.json" style="display:none" />
     <button id="geojson-load-btn" class="panel-btn-outline" style="margin-top:6px">GeoJSONを読み込む</button>
@@ -4774,6 +4923,30 @@ const FRAME_COLOR_EXPR = [
   '#888888',
 ];
 
+// ---- 地方 → 都道府県 マッピング（Miller Columnsブラウザ用）----
+const REGION_PREF_MAP = {
+  '北海道地方':     ['北海道'],
+  '東北地方':       ['青森県','岩手県','宮城県','秋田県','山形県','福島県'],
+  '関東地方':       ['東京都','茨城県','栃木県','群馬県','埼玉県','千葉県','神奈川県'],
+  '中部地方':       ['新潟県','富山県','石川県','福井県','山梨県','長野県','岐阜県','静岡県','愛知県'],
+  '近畿地方':       ['京都府','大阪府','三重県','滋賀県','兵庫県','奈良県','和歌山県'],
+  '中国地方':       ['鳥取県','島根県','岡山県','広島県','山口県'],
+  '四国地方':       ['徳島県','香川県','愛媛県','高知県'],
+  '九州・沖縄地方': ['福岡県','佐賀県','長崎県','熊本県','大分県','宮崎県','鹿児島県','沖縄県'],
+  '海外':           [],
+};
+// 都道府県 → 地方 の逆引きマップを生成する
+const PREF_TO_REGION = {};
+for (const [region, prefs] of Object.entries(REGION_PREF_MAP)) {
+  for (const p of prefs) PREF_TO_REGION[p] = region;
+}
+function prefToRegion(pref) { return PREF_TO_REGION[pref] ?? '海外'; }
+
+// Miller Columns ブラウザの選択状態
+let millerRegion  = null; // 選択中の地方
+let millerPref    = null; // 選択中の都道府県
+let millerTerrain = null; // 選択中の terrain_id
+
 const mapFrames = [];
 const terrainMap = new Map(); // terrain_id → { name, prefecture, terrain_type, terrain_subtype, description, geometry }
 let   activeTypeFilter   = '';   // '' | 'sprint' | 'forest'
@@ -4846,7 +5019,7 @@ function loadFramesGeojson(geojson) {
   // MapLibre GeoJSON ソースを更新（既存は置き換え）
   updateFrameGeoJsonSource();
   updateTerrainBoundarySource();
-  renderFrameList();
+  renderMillerColumns();
   console.log(`フレーム読み込み完了: ${added} 件`);
 }
 
@@ -4982,15 +5155,10 @@ function updateFrameFeatureState(frameId) {
   updateFrameGeoJsonSource();
 }
 
-// ---- サイドパネル: フレーム一覧を描画する（3段ツリー: 都道府県 → テレイン → フレーム）----
-function renderFrameList(query) {
-  const listEl = document.getElementById('catalog-frame-list');
-  if (!listEl) return;
-
-  const q = (query ?? document.getElementById('catalog-search')?.value ?? '').trim().toLowerCase();
-
-  // 1. activeTypeFilter + 検索クエリでフレームを絞り込む
-  const filtered = mapFrames.filter(f => {
+// ---- Miller Columns: フィルター後のフレーム一覧を取得する ----
+function getFilteredFrames() {
+  const q = (document.getElementById('catalog-search')?.value ?? '').trim().toLowerCase();
+  return mapFrames.filter(f => {
     const t = terrainMap.get(f.properties.terrain_id);
     if (activeTypeFilter && (t?.terrain_type ?? '') !== activeTypeFilter) return false;
     if (!q) return true;
@@ -4999,73 +5167,289 @@ function renderFrameList(query) {
     const pref = (t?.prefecture ?? '').toLowerCase();
     return en.includes(q) || tn.includes(q) || pref.includes(q);
   });
+}
 
-  // 2. 都道府県 → terrain_id → frames[] の3段 Map を構築
-  const prefMap = new Map(); // prefecture → Map<terrain_id, frame[]>
-  for (const f of filtered) {
-    const t    = terrainMap.get(f.properties.terrain_id);
-    const pref = t?.prefecture ?? '（未分類）';
-    const tid  = f.properties.terrain_id ?? '__orphan__';
-    if (!prefMap.has(pref)) prefMap.set(pref, new Map());
-    const terrainGroup = prefMap.get(pref);
-    if (!terrainGroup.has(tid)) terrainGroup.set(tid, []);
-    terrainGroup.get(tid).push(f);
+// ---- Miller Columns: フレームが存在する地方一覧を返す ----
+function getAvailableRegions(frames) {
+  const set = new Set();
+  for (const f of frames) {
+    const t = terrainMap.get(f.properties.terrain_id);
+    const pref = t?.prefecture ?? '';
+    set.add(prefToRegion(pref));
   }
-  // 各テレイングループを event_date 降順でソートする
-  for (const tg of prefMap.values()) {
-    for (const arr of tg.values()) {
-      arr.sort((a, b) => (b.properties.event_date ?? '').localeCompare(a.properties.event_date ?? ''));
+  // REGION_PREF_MAP の定義順で並べる
+  return Object.keys(REGION_PREF_MAP).filter(r => set.has(r));
+}
+
+// ---- Miller Columns: 指定地方内でフレームが存在する都道府県一覧を返す ----
+function getAvailablePrefs(frames, region) {
+  const set = new Set();
+  for (const f of frames) {
+    const t = terrainMap.get(f.properties.terrain_id);
+    const pref = t?.prefecture ?? '';
+    if (prefToRegion(pref) === region) set.add(pref);
+  }
+  // 地方定義の順序を維持し、未定義のものは末尾に追加する
+  const ordered = (REGION_PREF_MAP[region] ?? []).filter(p => set.has(p));
+  const extra   = [...set].filter(p => !ordered.includes(p));
+  return [...ordered, ...extra];
+}
+
+// ---- Miller Columns: 指定都道府県内でフレームが存在するテレイン一覧を返す ----
+function getAvailableTerrains(frames, pref) {
+  const seen = new Map(); // terrain_id → terrain info
+  for (const f of frames) {
+    const t  = terrainMap.get(f.properties.terrain_id);
+    const fp = t?.prefecture ?? '';
+    if (fp === pref) {
+      const tid = f.properties.terrain_id ?? '__orphan__';
+      if (!seen.has(tid)) seen.set(tid, t ?? { name: tid });
     }
   }
+  return [...seen.entries()].map(([id, t]) => ({ id, name: t?.name ?? id }));
+}
 
-  listEl.innerHTML = '';
+// ---- Miller Columns: 地方を選択する ----
+function selectMillerRegion(region) {
+  millerRegion  = region;
+  millerPref    = null;
+  millerTerrain = null;
+  selectTerrain(null);
+  renderMillerColumns();
+}
 
-  for (const [pref, terrainGroups] of prefMap) {
-    // 都道府県グループ <details>
-    const prefDetails = document.createElement('details');
-    prefDetails.className = 'pref-group';
-    prefDetails.open = true;
-    const prefSummary = document.createElement('summary');
-    prefSummary.textContent = pref;
-    prefDetails.appendChild(prefSummary);
+// ---- Miller Columns: 都道府県を選択する ----
+function selectMillerPref(pref) {
+  millerPref    = pref;
+  millerTerrain = null;
+  selectTerrain(null);
+  renderMillerColumns();
+}
 
-    for (const [tid, frames] of terrainGroups) {
-      const t = terrainMap.get(tid);
-      const terrainName   = t?.name ?? tid;
-      const terrainType   = t?.terrain_type    ?? '';
-      const terrainSubtype = t?.terrain_subtype ?? '';
+// ---- Miller Columns: テレインを選択し地図にフォーカスする ----
+function selectMillerTerrain(terrainId) {
+  millerTerrain = terrainId;
+  selectTerrain(terrainId);
+  renderMillerColumns();
+  // テレイン境界にカメラを合わせる
+  const t = terrainMap.get(terrainId);
+  if (t?.geometry) {
+    const coords = t.geometry.coordinates[0];
+    const lngs = coords.map(c => c[0]);
+    const lats  = coords.map(c => c[1]);
+    map.fitBounds(
+      [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
+      { padding: 60, duration: 600, maxZoom: 16 }
+    );
+  }
+}
 
-      // テレイングループ <details>
-      const details = document.createElement('details');
-      details.className = 'terrain-group';
-      details.open = true;
-      details.dataset.terrainId = tid;
+// ---- パンくず: 区切り文字を生成する ----
+function makeBcSep() {
+  const sep = document.createElement('span');
+  sep.className = 'miller-bc-sep';
+  sep.textContent = '›';
+  return sep;
+}
 
-      const typeBadgeH = terrainType
-        ? `<span class="frame-badge ${terrainType}">${escHtml(MAP_TYPE_JA[terrainType] ?? terrainType)}</span>` : '';
-      const subtypeBadgeH = terrainSubtype
-        ? `<span class="frame-badge subtype">${escHtml(MAP_SUBTYPE_JA[terrainSubtype] ?? terrainSubtype)}</span>` : '';
-      const loadedCount = frames.filter(f => f.images.length > 0).length;
+// ---- パンくず: ドロップダウン付きリンクを生成する ----
+function makeBcDropdown(level, current) {
+  const frames  = getFilteredFrames();
+  const options = level === 'region'
+    ? getAvailableRegions(frames)
+    : getAvailablePrefs(frames, millerRegion);
 
-      const summary = document.createElement('summary');
-      summary.innerHTML =
-        `${escHtml(terrainName)}${typeBadgeH}${subtypeBadgeH}<span class="terrain-group-count">${loadedCount}/${frames.length}</span>`;
-      details.appendChild(summary);
+  const wrap = document.createElement('span');
+  wrap.className = 'miller-bc-item';
+  wrap.textContent = current;
 
-      for (const frame of frames) {
-        details.appendChild(buildFrameEntryEl(frame));
-      }
-      prefDetails.appendChild(details);
+  wrap.addEventListener('click', (e) => {
+    e.stopPropagation();
+    // 既存のドロップダウンを全て閉じる
+    document.querySelectorAll('.miller-bc-dropdown').forEach(el => el.remove());
+    const dd = document.createElement('div');
+    dd.className = 'miller-bc-dropdown';
+    for (const opt of options) {
+      const item = document.createElement('div');
+      item.className = 'miller-bc-dropdown-item' + (opt === current ? ' current' : '');
+      item.textContent = opt;
+      item.addEventListener('click', (e2) => {
+        e2.stopPropagation();
+        dd.remove();
+        if (level === 'region') selectMillerRegion(opt);
+        else selectMillerPref(opt);
+      });
+      dd.appendChild(item);
     }
-    listEl.appendChild(prefDetails);
+    wrap.appendChild(dd);
+    // 外側クリックで自動クローズ
+    setTimeout(() => {
+      document.addEventListener('click', () => dd.remove(), { once: true });
+    }, 0);
+  });
+
+  return wrap;
+}
+
+// ---- パンくずバーを更新する ----
+function updateMillerBreadcrumb() {
+  const bc = document.getElementById('miller-breadcrumb');
+  if (!bc) return;
+  bc.innerHTML = '';
+
+  // ルート（全国）
+  const root = document.createElement('span');
+  if (millerRegion) {
+    root.className = 'miller-bc-root clickable';
+    root.addEventListener('click', () => {
+      millerRegion = null; millerPref = null; millerTerrain = null;
+      selectTerrain(null);
+      renderMillerColumns();
+    });
+  } else {
+    root.className = 'miller-bc-root';
+  }
+  root.textContent = '全国';
+  bc.appendChild(root);
+
+  if (millerRegion) {
+    bc.appendChild(makeBcSep());
+    bc.appendChild(makeBcDropdown('region', millerRegion));
+  }
+  if (millerPref) {
+    bc.appendChild(makeBcSep());
+    bc.appendChild(makeBcDropdown('pref', millerPref));
+  }
+  if (millerTerrain) {
+    const t = terrainMap.get(millerTerrain);
+    bc.appendChild(makeBcSep());
+    const span = document.createElement('span');
+    span.className = 'miller-bc-current';
+    span.textContent = t?.name ?? millerTerrain;
+    bc.appendChild(span);
+  }
+}
+
+// ---- Miller Columns メイン描画関数（地方 → 都道府県 → テレイン + フレーム一覧）----
+function renderMillerColumns() {
+  // 列ヘッダーを保持しつつ列内アイテムだけを差し替えるユーティリティ
+  function resetCol(id) {
+    const col = document.getElementById(id);
+    if (!col) return col;
+    const hd = col.querySelector('.miller-col-hd');
+    col.innerHTML = '';
+    if (hd) col.appendChild(hd);
+    return col;
   }
 
-  if (listEl.innerHTML === '' && mapFrames.length > 0) {
-    listEl.innerHTML = '<p style="padding:8px 10px;font-size:11px;color:#aaa">検索結果なし</p>';
-  }
   if (mapFrames.length === 0) {
-    listEl.innerHTML = '<p style="padding:8px 10px;font-size:11px;color:#aaa">GeoJSONを読み込んでください</p>';
+    resetCol('miller-col-region');
+    resetCol('miller-col-pref');
+    resetCol('miller-col-terrain');
+    const fl = document.getElementById('miller-frame-list');
+    if (fl) fl.innerHTML = '<div class="miller-empty">GeoJSONを読み込んでください</div>';
+    updateMillerBreadcrumb();
+    return;
   }
+
+  const frames   = getFilteredFrames();
+  const regions  = getAvailableRegions(frames);
+  const prefs    = millerRegion  ? getAvailablePrefs(frames, millerRegion)      : [];
+  const terrains = millerPref    ? getAvailableTerrains(frames, millerPref)      : [];
+  const frameList = millerTerrain
+    ? [...frames.filter(f => f.properties.terrain_id === millerTerrain)]
+        .sort((a, b) => (b.properties.event_date ?? '').localeCompare(a.properties.event_date ?? ''))
+    : [];
+
+  // 地方列
+  const regionCol = resetCol('miller-col-region');
+  if (regionCol) {
+    if (regions.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'miller-item disabled';
+      empty.textContent = '—';
+      regionCol.appendChild(empty);
+    } else {
+      for (const r of regions) {
+        const item = document.createElement('div');
+        item.className = 'miller-item' + (r === millerRegion ? ' selected' : '');
+        item.textContent = r;
+        item.title = r;
+        item.addEventListener('click', () => selectMillerRegion(r));
+        regionCol.appendChild(item);
+      }
+    }
+  }
+
+  // 都道府県列
+  const prefCol = resetCol('miller-col-pref');
+  if (prefCol) {
+    for (const p of prefs) {
+      const item = document.createElement('div');
+      item.className = 'miller-item' + (p === millerPref ? ' selected' : '');
+      item.textContent = p;
+      item.title = p;
+      item.addEventListener('click', () => selectMillerPref(p));
+      prefCol.appendChild(item);
+    }
+  }
+
+  // テレイン列
+  const terrainCol = resetCol('miller-col-terrain');
+  if (terrainCol) {
+    for (const { id, name } of terrains) {
+      const frameCount = frames.filter(f => f.properties.terrain_id === id).length;
+      const item = document.createElement('div');
+      item.className = 'miller-item' + (id === millerTerrain ? ' selected' : '');
+      item.title = name;
+      item.addEventListener('click', () => selectMillerTerrain(id));
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'miller-item-name';
+      nameSpan.textContent = name;
+      const countSpan = document.createElement('span');
+      countSpan.className = 'miller-item-count';
+      countSpan.textContent = frameCount;
+      item.appendChild(nameSpan);
+      item.appendChild(countSpan);
+      terrainCol.appendChild(item);
+    }
+  }
+
+  // フレーム一覧（テレイン選択時のみ表示）
+  const frameListEl = document.getElementById('miller-frame-list');
+  if (frameListEl) {
+    frameListEl.innerHTML = '';
+    if (millerTerrain) {
+      if (frameList.length === 0) {
+        frameListEl.innerHTML = '<div class="miller-empty">該当する大会なし</div>';
+      } else {
+        const t  = terrainMap.get(millerTerrain);
+        const hd = document.createElement('div');
+        hd.className = 'miller-frame-hd';
+        hd.textContent = t?.name ?? millerTerrain;
+        frameListEl.appendChild(hd);
+        for (const frame of frameList) {
+          frameListEl.appendChild(buildFrameEntryEl(frame));
+        }
+      }
+    }
+  }
+
+  // 検索/フィルター中に選択状態がフレームゼロになった場合は空メッセージ表示
+  if (frames.length === 0 && mapFrames.length > 0) {
+    const regionColEl = document.getElementById('miller-col-region');
+    if (regionColEl) {
+      const hd = regionColEl.querySelector('.miller-col-hd');
+      regionColEl.innerHTML = '';
+      if (hd) regionColEl.appendChild(hd);
+      const empty = document.createElement('div');
+      empty.className = 'miller-item disabled';
+      empty.textContent = '検索結果なし';
+      regionColEl.appendChild(empty);
+    }
+  }
+
+  updateMillerBreadcrumb();
 }
 
 // ---- フレームエントリの DOM 要素を構築する ----
@@ -5173,7 +5557,7 @@ async function addImagesToFrame(frameId, files) {
 
   // フレーム枠のスタイルと一覧を更新する
   updateFrameFeatureState(frameId);
-  renderFrameList(document.getElementById('catalog-search')?.value);
+  renderMillerColumns();
 
   // 最初に読み込んだ時だけ地図をフレームにフィットさせる
   if (frame.images.length <= files.length) {
@@ -6077,7 +6461,7 @@ document.getElementById('frame-img-input').addEventListener('change', async (e) 
 
 // ---- 地図カタログ: 検索バー ----
 document.getElementById('catalog-search').addEventListener('input', () => {
-  renderFrameList();
+  renderMillerColumns();
 });
 
 // ---- タブ切替 ----
@@ -6094,7 +6478,7 @@ document.querySelectorAll('.type-chip').forEach(chip => {
   chip.addEventListener('click', () => {
     activeTypeFilter = chip.dataset.type;
     document.querySelectorAll('.type-chip').forEach(c => c.classList.toggle('active', c.dataset.type === activeTypeFilter));
-    renderFrameList();
+    renderMillerColumns();
   });
 });
 
