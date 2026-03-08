@@ -5391,11 +5391,19 @@ function renderMillerColumns() {
       regionCol.appendChild(empty);
     } else {
       for (const r of regions) {
+        const terrainCount = getAvailablePrefs(frames, r).reduce((sum, p) => sum + getAvailableTerrains(frames, p).length, 0);
         const item = document.createElement('div');
         item.className = 'miller-item' + (r === millerRegion ? ' selected' : '');
-        item.textContent = r;
         item.title = r;
         item.addEventListener('click', () => selectMillerRegion(r));
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'miller-item-name';
+        nameSpan.textContent = r;
+        const countSpan = document.createElement('span');
+        countSpan.className = 'miller-item-count';
+        countSpan.textContent = terrainCount;
+        item.appendChild(nameSpan);
+        item.appendChild(countSpan);
         regionCol.appendChild(item);
       }
     }
@@ -5405,11 +5413,19 @@ function renderMillerColumns() {
   const prefCol = resetCol('miller-col-pref');
   if (prefCol) {
     for (const p of prefs) {
+      const terrainCount = getAvailableTerrains(frames, p).length;
       const item = document.createElement('div');
       item.className = 'miller-item' + (p === millerPref ? ' selected' : '');
-      item.textContent = p;
       item.title = p;
       item.addEventListener('click', () => selectMillerPref(p));
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'miller-item-name';
+      nameSpan.textContent = p;
+      const countSpan = document.createElement('span');
+      countSpan.className = 'miller-item-count';
+      countSpan.textContent = terrainCount;
+      item.appendChild(nameSpan);
+      item.appendChild(countSpan);
       prefCol.appendChild(item);
     }
   }
