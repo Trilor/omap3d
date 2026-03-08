@@ -3,142 +3,6770 @@
   "features": [
     {
       "type": "Feature",
-      "id": "frame_yoshida_2024_shinjin",
+      "id": "frame_hokkaido_1_1",
       "properties": {
-        "terrain_id":  "terrain_yoshida",
-        "event_name":  "2024年度 新人戦",
-        "event_date":  "2024-04-21",
-        "description": "北側エリアを広く使用"
+        "terrain_id": "terrain_hokkaido_1",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
       },
       "geometry": {
         "type": "Polygon",
-        "coordinates": [[
-          [135.7793, 35.0278],
-          [135.7868, 35.0278],
-          [135.7868, 35.0220],
-          [135.7793, 35.0220],
-          [135.7793, 35.0278]
-        ]]
+        "coordinates": [
+          [
+            [
+              141.3482,
+              43.061260000000004
+            ],
+            [
+              141.3518,
+              43.061260000000004
+            ],
+            [
+              141.3518,
+              43.05874
+            ],
+            [
+              141.3482,
+              43.05874
+            ],
+            [
+              141.3482,
+              43.061260000000004
+            ]
+          ]
+        ]
       }
     },
     {
       "type": "Feature",
-      "id": "frame_yoshida_2025_kounin",
+      "id": "frame_hokkaido_1_2",
       "properties": {
-        "terrain_id":  "terrain_yoshida",
-        "event_name":  "2025年度 公認大会",
-        "event_date":  "2025-05-11",
-        "description": "南側スタジアム周辺に限定"
+        "terrain_id": "terrain_hokkaido_1",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
       },
       "geometry": {
         "type": "Polygon",
-        "coordinates": [[
-          [135.7810, 35.0260],
-          [135.7870, 35.0260],
-          [135.7870, 35.0225],
-          [135.7810, 35.0225],
-          [135.7810, 35.0260]
-        ]]
+        "coordinates": [
+          [
+            [
+              141.3486,
+              43.061260000000004
+            ],
+            [
+              141.3522,
+              43.061260000000004
+            ],
+            [
+              141.3522,
+              43.05874
+            ],
+            [
+              141.3486,
+              43.05874
+            ],
+            [
+              141.3486,
+              43.061260000000004
+            ]
+          ]
+        ]
       }
     },
     {
       "type": "Feature",
-      "id": "frame_yoshida_2025_indoor",
+      "id": "frame_hokkaido_2_1",
       "properties": {
-        "terrain_id":  "terrain_yoshida_stadium",
-        "event_name":  "2025年度 館内OL",
-        "event_date":  "2025-01-19",
-        "description": "総合体育館1・2F"
+        "terrain_id": "terrain_hokkaido_2",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
       },
       "geometry": {
         "type": "Polygon",
-        "coordinates": [[
-          [135.7818, 35.0242],
-          [135.7836, 35.0242],
-          [135.7836, 35.0233],
-          [135.7818, 35.0233],
-          [135.7818, 35.0242]
-        ]]
+        "coordinates": [
+          [
+            [
+              141.3602,
+              43.061260000000004
+            ],
+            [
+              141.3638,
+              43.061260000000004
+            ],
+            [
+              141.3638,
+              43.05874
+            ],
+            [
+              141.3602,
+              43.05874
+            ],
+            [
+              141.3602,
+              43.061260000000004
+            ]
+          ]
+        ]
       }
     },
     {
       "type": "Feature",
-      "id": "frame_takaragaike_2023_haru",
+      "id": "frame_hokkaido_2_2",
       "properties": {
-        "terrain_id":  "terrain_takaragaike",
-        "event_name":  "2023年度 春合宿",
-        "event_date":  "2023-03-25",
-        "description": "公園南エリア中心"
+        "terrain_id": "terrain_hokkaido_2",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
       },
       "geometry": {
         "type": "Polygon",
-        "coordinates": [[
-          [135.7790, 35.0740],
-          [135.7870, 35.0740],
-          [135.7870, 35.0660],
-          [135.7790, 35.0660],
-          [135.7790, 35.0740]
-        ]]
+        "coordinates": [
+          [
+            [
+              141.3606,
+              43.061260000000004
+            ],
+            [
+              141.3642,
+              43.061260000000004
+            ],
+            [
+              141.3642,
+              43.05874
+            ],
+            [
+              141.3606,
+              43.05874
+            ],
+            [
+              141.3606,
+              43.061260000000004
+            ]
+          ]
+        ]
       }
     },
     {
       "type": "Feature",
-      "id": "frame_takaragaike_2025_shuuki",
+      "id": "frame_aomori_1_1",
       "properties": {
-        "terrain_id":  "terrain_takaragaike",
-        "event_name":  "2025年度 秋季大会",
-        "event_date":  "2025-10-19",
-        "description": "公園全域"
+        "terrain_id": "terrain_aomori_1",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
       },
       "geometry": {
         "type": "Polygon",
-        "coordinates": [[
-          [135.7775, 35.0760],
-          [135.7890, 35.0760],
-          [135.7890, 35.0650],
-          [135.7775, 35.0650],
-          [135.7775, 35.0760]
-        ]]
+        "coordinates": [
+          [
+            [
+              140.7382,
+              40.82126
+            ],
+            [
+              140.7418,
+              40.82126
+            ],
+            [
+              140.7418,
+              40.81874
+            ],
+            [
+              140.7382,
+              40.81874
+            ],
+            [
+              140.7382,
+              40.82126
+            ]
+          ]
+        ]
       }
     },
     {
       "type": "Feature",
-      "id": "frame_daimonji_2022_forest",
+      "id": "frame_aomori_1_2",
       "properties": {
-        "terrain_id":  "terrain_daimonji",
-        "event_name":  "2022年度 山岳OL",
-        "event_date":  "2022-11-03",
-        "description": "火床周辺の急斜面エリア"
+        "terrain_id": "terrain_aomori_1",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
       },
       "geometry": {
         "type": "Polygon",
-        "coordinates": [[
-          [135.8100, 35.0140],
-          [135.8240, 35.0140],
-          [135.8240, 35.0020],
-          [135.8100, 35.0020],
-          [135.8100, 35.0140]
-        ]]
+        "coordinates": [
+          [
+            [
+              140.7386,
+              40.82126
+            ],
+            [
+              140.7422,
+              40.82126
+            ],
+            [
+              140.7422,
+              40.81874
+            ],
+            [
+              140.7386,
+              40.81874
+            ],
+            [
+              140.7386,
+              40.82126
+            ]
+          ]
+        ]
       }
     },
     {
       "type": "Feature",
-      "id": "frame_daimonji_2024_forest",
+      "id": "frame_aomori_2_1",
       "properties": {
-        "terrain_id":  "terrain_daimonji",
-        "event_name":  "2024年度 秋季大会",
-        "event_date":  "2024-11-10",
-        "description": "稜線・北側斜面を中心"
+        "terrain_id": "terrain_aomori_2",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
       },
       "geometry": {
         "type": "Polygon",
-        "coordinates": [[
-          [135.8080, 35.0160],
-          [135.8230, 35.0160],
-          [135.8230, 35.0040],
-          [135.8080, 35.0040],
-          [135.8080, 35.0160]
-        ]]
+        "coordinates": [
+          [
+            [
+              140.7502,
+              40.82126
+            ],
+            [
+              140.7538,
+              40.82126
+            ],
+            [
+              140.7538,
+              40.81874
+            ],
+            [
+              140.7502,
+              40.81874
+            ],
+            [
+              140.7502,
+              40.82126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_aomori_2_2",
+      "properties": {
+        "terrain_id": "terrain_aomori_2",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              140.7506,
+              40.82126
+            ],
+            [
+              140.7542,
+              40.82126
+            ],
+            [
+              140.7542,
+              40.81874
+            ],
+            [
+              140.7506,
+              40.81874
+            ],
+            [
+              140.7506,
+              40.82126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_iwate_1_1",
+      "properties": {
+        "terrain_id": "terrain_iwate_1",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              141.1482,
+              39.701260000000005
+            ],
+            [
+              141.1518,
+              39.701260000000005
+            ],
+            [
+              141.1518,
+              39.69874
+            ],
+            [
+              141.1482,
+              39.69874
+            ],
+            [
+              141.1482,
+              39.701260000000005
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_iwate_1_2",
+      "properties": {
+        "terrain_id": "terrain_iwate_1",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              141.1486,
+              39.701260000000005
+            ],
+            [
+              141.1522,
+              39.701260000000005
+            ],
+            [
+              141.1522,
+              39.69874
+            ],
+            [
+              141.1486,
+              39.69874
+            ],
+            [
+              141.1486,
+              39.701260000000005
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_iwate_2_1",
+      "properties": {
+        "terrain_id": "terrain_iwate_2",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              141.1602,
+              39.701260000000005
+            ],
+            [
+              141.1638,
+              39.701260000000005
+            ],
+            [
+              141.1638,
+              39.69874
+            ],
+            [
+              141.1602,
+              39.69874
+            ],
+            [
+              141.1602,
+              39.701260000000005
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_iwate_2_2",
+      "properties": {
+        "terrain_id": "terrain_iwate_2",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              141.1606,
+              39.701260000000005
+            ],
+            [
+              141.1642,
+              39.701260000000005
+            ],
+            [
+              141.1642,
+              39.69874
+            ],
+            [
+              141.1606,
+              39.69874
+            ],
+            [
+              141.1606,
+              39.701260000000005
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_miyagi_1_1",
+      "properties": {
+        "terrain_id": "terrain_miyagi_1",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              140.8682,
+              38.271260000000005
+            ],
+            [
+              140.8718,
+              38.271260000000005
+            ],
+            [
+              140.8718,
+              38.26874
+            ],
+            [
+              140.8682,
+              38.26874
+            ],
+            [
+              140.8682,
+              38.271260000000005
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_miyagi_1_2",
+      "properties": {
+        "terrain_id": "terrain_miyagi_1",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              140.8686,
+              38.271260000000005
+            ],
+            [
+              140.8722,
+              38.271260000000005
+            ],
+            [
+              140.8722,
+              38.26874
+            ],
+            [
+              140.8686,
+              38.26874
+            ],
+            [
+              140.8686,
+              38.271260000000005
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_miyagi_2_1",
+      "properties": {
+        "terrain_id": "terrain_miyagi_2",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              140.8802,
+              38.271260000000005
+            ],
+            [
+              140.8838,
+              38.271260000000005
+            ],
+            [
+              140.8838,
+              38.26874
+            ],
+            [
+              140.8802,
+              38.26874
+            ],
+            [
+              140.8802,
+              38.271260000000005
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_miyagi_2_2",
+      "properties": {
+        "terrain_id": "terrain_miyagi_2",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              140.8806,
+              38.271260000000005
+            ],
+            [
+              140.8842,
+              38.271260000000005
+            ],
+            [
+              140.8842,
+              38.26874
+            ],
+            [
+              140.8806,
+              38.26874
+            ],
+            [
+              140.8806,
+              38.271260000000005
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_akita_1_1",
+      "properties": {
+        "terrain_id": "terrain_akita_1",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              140.0982,
+              39.72126
+            ],
+            [
+              140.1018,
+              39.72126
+            ],
+            [
+              140.1018,
+              39.71874
+            ],
+            [
+              140.0982,
+              39.71874
+            ],
+            [
+              140.0982,
+              39.72126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_akita_1_2",
+      "properties": {
+        "terrain_id": "terrain_akita_1",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              140.0986,
+              39.72126
+            ],
+            [
+              140.1022,
+              39.72126
+            ],
+            [
+              140.1022,
+              39.71874
+            ],
+            [
+              140.0986,
+              39.71874
+            ],
+            [
+              140.0986,
+              39.72126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_akita_2_1",
+      "properties": {
+        "terrain_id": "terrain_akita_2",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              140.1102,
+              39.72126
+            ],
+            [
+              140.1138,
+              39.72126
+            ],
+            [
+              140.1138,
+              39.71874
+            ],
+            [
+              140.1102,
+              39.71874
+            ],
+            [
+              140.1102,
+              39.72126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_akita_2_2",
+      "properties": {
+        "terrain_id": "terrain_akita_2",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              140.1106,
+              39.72126
+            ],
+            [
+              140.1142,
+              39.72126
+            ],
+            [
+              140.1142,
+              39.71874
+            ],
+            [
+              140.1106,
+              39.71874
+            ],
+            [
+              140.1106,
+              39.72126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_yamagata_1_1",
+      "properties": {
+        "terrain_id": "terrain_yamagata_1",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              140.3582,
+              38.25126
+            ],
+            [
+              140.36180000000002,
+              38.25126
+            ],
+            [
+              140.36180000000002,
+              38.24874
+            ],
+            [
+              140.3582,
+              38.24874
+            ],
+            [
+              140.3582,
+              38.25126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_yamagata_1_2",
+      "properties": {
+        "terrain_id": "terrain_yamagata_1",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              140.3586,
+              38.25126
+            ],
+            [
+              140.3622,
+              38.25126
+            ],
+            [
+              140.3622,
+              38.24874
+            ],
+            [
+              140.3586,
+              38.24874
+            ],
+            [
+              140.3586,
+              38.25126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_yamagata_2_1",
+      "properties": {
+        "terrain_id": "terrain_yamagata_2",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              140.3702,
+              38.25126
+            ],
+            [
+              140.37380000000002,
+              38.25126
+            ],
+            [
+              140.37380000000002,
+              38.24874
+            ],
+            [
+              140.3702,
+              38.24874
+            ],
+            [
+              140.3702,
+              38.25126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_yamagata_2_2",
+      "properties": {
+        "terrain_id": "terrain_yamagata_2",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              140.3706,
+              38.25126
+            ],
+            [
+              140.3742,
+              38.25126
+            ],
+            [
+              140.3742,
+              38.24874
+            ],
+            [
+              140.3706,
+              38.24874
+            ],
+            [
+              140.3706,
+              38.25126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_fukushima_1_1",
+      "properties": {
+        "terrain_id": "terrain_fukushima_1",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              140.4682,
+              37.75126
+            ],
+            [
+              140.4718,
+              37.75126
+            ],
+            [
+              140.4718,
+              37.74874
+            ],
+            [
+              140.4682,
+              37.74874
+            ],
+            [
+              140.4682,
+              37.75126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_fukushima_1_2",
+      "properties": {
+        "terrain_id": "terrain_fukushima_1",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              140.4686,
+              37.75126
+            ],
+            [
+              140.47220000000002,
+              37.75126
+            ],
+            [
+              140.47220000000002,
+              37.74874
+            ],
+            [
+              140.4686,
+              37.74874
+            ],
+            [
+              140.4686,
+              37.75126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_fukushima_2_1",
+      "properties": {
+        "terrain_id": "terrain_fukushima_2",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              140.4802,
+              37.75126
+            ],
+            [
+              140.4838,
+              37.75126
+            ],
+            [
+              140.4838,
+              37.74874
+            ],
+            [
+              140.4802,
+              37.74874
+            ],
+            [
+              140.4802,
+              37.75126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_fukushima_2_2",
+      "properties": {
+        "terrain_id": "terrain_fukushima_2",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              140.4806,
+              37.75126
+            ],
+            [
+              140.48420000000002,
+              37.75126
+            ],
+            [
+              140.48420000000002,
+              37.74874
+            ],
+            [
+              140.4806,
+              37.74874
+            ],
+            [
+              140.4806,
+              37.75126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_ibaraki_1_1",
+      "properties": {
+        "terrain_id": "terrain_ibaraki_1",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              140.4382,
+              36.341260000000005
+            ],
+            [
+              140.4418,
+              36.341260000000005
+            ],
+            [
+              140.4418,
+              36.33874
+            ],
+            [
+              140.4382,
+              36.33874
+            ],
+            [
+              140.4382,
+              36.341260000000005
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_ibaraki_1_2",
+      "properties": {
+        "terrain_id": "terrain_ibaraki_1",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              140.4386,
+              36.341260000000005
+            ],
+            [
+              140.4422,
+              36.341260000000005
+            ],
+            [
+              140.4422,
+              36.33874
+            ],
+            [
+              140.4386,
+              36.33874
+            ],
+            [
+              140.4386,
+              36.341260000000005
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_ibaraki_2_1",
+      "properties": {
+        "terrain_id": "terrain_ibaraki_2",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              140.4502,
+              36.341260000000005
+            ],
+            [
+              140.4538,
+              36.341260000000005
+            ],
+            [
+              140.4538,
+              36.33874
+            ],
+            [
+              140.4502,
+              36.33874
+            ],
+            [
+              140.4502,
+              36.341260000000005
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_ibaraki_2_2",
+      "properties": {
+        "terrain_id": "terrain_ibaraki_2",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              140.4506,
+              36.341260000000005
+            ],
+            [
+              140.45420000000001,
+              36.341260000000005
+            ],
+            [
+              140.45420000000001,
+              36.33874
+            ],
+            [
+              140.4506,
+              36.33874
+            ],
+            [
+              140.4506,
+              36.341260000000005
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_tochigi_1_1",
+      "properties": {
+        "terrain_id": "terrain_tochigi_1",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              139.8782,
+              36.57126
+            ],
+            [
+              139.8818,
+              36.57126
+            ],
+            [
+              139.8818,
+              36.56874
+            ],
+            [
+              139.8782,
+              36.56874
+            ],
+            [
+              139.8782,
+              36.57126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_tochigi_1_2",
+      "properties": {
+        "terrain_id": "terrain_tochigi_1",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              139.8786,
+              36.57126
+            ],
+            [
+              139.8822,
+              36.57126
+            ],
+            [
+              139.8822,
+              36.56874
+            ],
+            [
+              139.8786,
+              36.56874
+            ],
+            [
+              139.8786,
+              36.57126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_tochigi_2_1",
+      "properties": {
+        "terrain_id": "terrain_tochigi_2",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              139.8902,
+              36.57126
+            ],
+            [
+              139.8938,
+              36.57126
+            ],
+            [
+              139.8938,
+              36.56874
+            ],
+            [
+              139.8902,
+              36.56874
+            ],
+            [
+              139.8902,
+              36.57126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_tochigi_2_2",
+      "properties": {
+        "terrain_id": "terrain_tochigi_2",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              139.8906,
+              36.57126
+            ],
+            [
+              139.8942,
+              36.57126
+            ],
+            [
+              139.8942,
+              36.56874
+            ],
+            [
+              139.8906,
+              36.56874
+            ],
+            [
+              139.8906,
+              36.57126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_gunma_1_1",
+      "properties": {
+        "terrain_id": "terrain_gunma_1",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              139.0582,
+              36.39126
+            ],
+            [
+              139.0618,
+              36.39126
+            ],
+            [
+              139.0618,
+              36.38874
+            ],
+            [
+              139.0582,
+              36.38874
+            ],
+            [
+              139.0582,
+              36.39126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_gunma_1_2",
+      "properties": {
+        "terrain_id": "terrain_gunma_1",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              139.05859999999998,
+              36.39126
+            ],
+            [
+              139.0622,
+              36.39126
+            ],
+            [
+              139.0622,
+              36.38874
+            ],
+            [
+              139.05859999999998,
+              36.38874
+            ],
+            [
+              139.05859999999998,
+              36.39126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_gunma_2_1",
+      "properties": {
+        "terrain_id": "terrain_gunma_2",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              139.0702,
+              36.39126
+            ],
+            [
+              139.0738,
+              36.39126
+            ],
+            [
+              139.0738,
+              36.38874
+            ],
+            [
+              139.0702,
+              36.38874
+            ],
+            [
+              139.0702,
+              36.39126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_gunma_2_2",
+      "properties": {
+        "terrain_id": "terrain_gunma_2",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              139.07059999999998,
+              36.39126
+            ],
+            [
+              139.0742,
+              36.39126
+            ],
+            [
+              139.0742,
+              36.38874
+            ],
+            [
+              139.07059999999998,
+              36.38874
+            ],
+            [
+              139.07059999999998,
+              36.39126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_saitama_1_1",
+      "properties": {
+        "terrain_id": "terrain_saitama_1",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              139.6482,
+              35.86126
+            ],
+            [
+              139.6518,
+              35.86126
+            ],
+            [
+              139.6518,
+              35.85874
+            ],
+            [
+              139.6482,
+              35.85874
+            ],
+            [
+              139.6482,
+              35.86126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_saitama_1_2",
+      "properties": {
+        "terrain_id": "terrain_saitama_1",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              139.6486,
+              35.86126
+            ],
+            [
+              139.6522,
+              35.86126
+            ],
+            [
+              139.6522,
+              35.85874
+            ],
+            [
+              139.6486,
+              35.85874
+            ],
+            [
+              139.6486,
+              35.86126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_saitama_2_1",
+      "properties": {
+        "terrain_id": "terrain_saitama_2",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              139.6602,
+              35.86126
+            ],
+            [
+              139.6638,
+              35.86126
+            ],
+            [
+              139.6638,
+              35.85874
+            ],
+            [
+              139.6602,
+              35.85874
+            ],
+            [
+              139.6602,
+              35.86126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_saitama_2_2",
+      "properties": {
+        "terrain_id": "terrain_saitama_2",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              139.6606,
+              35.86126
+            ],
+            [
+              139.6642,
+              35.86126
+            ],
+            [
+              139.6642,
+              35.85874
+            ],
+            [
+              139.6606,
+              35.85874
+            ],
+            [
+              139.6606,
+              35.86126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_chiba_1_1",
+      "properties": {
+        "terrain_id": "terrain_chiba_1",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              140.1182,
+              35.61126
+            ],
+            [
+              140.1218,
+              35.61126
+            ],
+            [
+              140.1218,
+              35.60874
+            ],
+            [
+              140.1182,
+              35.60874
+            ],
+            [
+              140.1182,
+              35.61126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_chiba_1_2",
+      "properties": {
+        "terrain_id": "terrain_chiba_1",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              140.1186,
+              35.61126
+            ],
+            [
+              140.1222,
+              35.61126
+            ],
+            [
+              140.1222,
+              35.60874
+            ],
+            [
+              140.1186,
+              35.60874
+            ],
+            [
+              140.1186,
+              35.61126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_chiba_2_1",
+      "properties": {
+        "terrain_id": "terrain_chiba_2",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              140.1302,
+              35.61126
+            ],
+            [
+              140.1338,
+              35.61126
+            ],
+            [
+              140.1338,
+              35.60874
+            ],
+            [
+              140.1302,
+              35.60874
+            ],
+            [
+              140.1302,
+              35.61126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_chiba_2_2",
+      "properties": {
+        "terrain_id": "terrain_chiba_2",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              140.1306,
+              35.61126
+            ],
+            [
+              140.1342,
+              35.61126
+            ],
+            [
+              140.1342,
+              35.60874
+            ],
+            [
+              140.1306,
+              35.60874
+            ],
+            [
+              140.1306,
+              35.61126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_tokyo_1_1",
+      "properties": {
+        "terrain_id": "terrain_tokyo_1",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              139.6882,
+              35.69126
+            ],
+            [
+              139.6918,
+              35.69126
+            ],
+            [
+              139.6918,
+              35.688739999999996
+            ],
+            [
+              139.6882,
+              35.688739999999996
+            ],
+            [
+              139.6882,
+              35.69126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_tokyo_1_2",
+      "properties": {
+        "terrain_id": "terrain_tokyo_1",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              139.6886,
+              35.69126
+            ],
+            [
+              139.6922,
+              35.69126
+            ],
+            [
+              139.6922,
+              35.688739999999996
+            ],
+            [
+              139.6886,
+              35.688739999999996
+            ],
+            [
+              139.6886,
+              35.69126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_tokyo_2_1",
+      "properties": {
+        "terrain_id": "terrain_tokyo_2",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              139.7002,
+              35.69126
+            ],
+            [
+              139.7038,
+              35.69126
+            ],
+            [
+              139.7038,
+              35.688739999999996
+            ],
+            [
+              139.7002,
+              35.688739999999996
+            ],
+            [
+              139.7002,
+              35.69126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_tokyo_2_2",
+      "properties": {
+        "terrain_id": "terrain_tokyo_2",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              139.7006,
+              35.69126
+            ],
+            [
+              139.70420000000001,
+              35.69126
+            ],
+            [
+              139.70420000000001,
+              35.688739999999996
+            ],
+            [
+              139.7006,
+              35.688739999999996
+            ],
+            [
+              139.7006,
+              35.69126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_kanagawa_1_1",
+      "properties": {
+        "terrain_id": "terrain_kanagawa_1",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              139.63819999999998,
+              35.451260000000005
+            ],
+            [
+              139.6418,
+              35.451260000000005
+            ],
+            [
+              139.6418,
+              35.44874
+            ],
+            [
+              139.63819999999998,
+              35.44874
+            ],
+            [
+              139.63819999999998,
+              35.451260000000005
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_kanagawa_1_2",
+      "properties": {
+        "terrain_id": "terrain_kanagawa_1",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              139.6386,
+              35.451260000000005
+            ],
+            [
+              139.6422,
+              35.451260000000005
+            ],
+            [
+              139.6422,
+              35.44874
+            ],
+            [
+              139.6386,
+              35.44874
+            ],
+            [
+              139.6386,
+              35.451260000000005
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_kanagawa_2_1",
+      "properties": {
+        "terrain_id": "terrain_kanagawa_2",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              139.65019999999998,
+              35.451260000000005
+            ],
+            [
+              139.6538,
+              35.451260000000005
+            ],
+            [
+              139.6538,
+              35.44874
+            ],
+            [
+              139.65019999999998,
+              35.44874
+            ],
+            [
+              139.65019999999998,
+              35.451260000000005
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_kanagawa_2_2",
+      "properties": {
+        "terrain_id": "terrain_kanagawa_2",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              139.6506,
+              35.451260000000005
+            ],
+            [
+              139.6542,
+              35.451260000000005
+            ],
+            [
+              139.6542,
+              35.44874
+            ],
+            [
+              139.6506,
+              35.44874
+            ],
+            [
+              139.6506,
+              35.451260000000005
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_niigata_1_1",
+      "properties": {
+        "terrain_id": "terrain_niigata_1",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              139.0182,
+              37.90126
+            ],
+            [
+              139.0218,
+              37.90126
+            ],
+            [
+              139.0218,
+              37.89874
+            ],
+            [
+              139.0182,
+              37.89874
+            ],
+            [
+              139.0182,
+              37.90126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_niigata_1_2",
+      "properties": {
+        "terrain_id": "terrain_niigata_1",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              139.0186,
+              37.90126
+            ],
+            [
+              139.0222,
+              37.90126
+            ],
+            [
+              139.0222,
+              37.89874
+            ],
+            [
+              139.0186,
+              37.89874
+            ],
+            [
+              139.0186,
+              37.90126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_niigata_2_1",
+      "properties": {
+        "terrain_id": "terrain_niigata_2",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              139.0302,
+              37.90126
+            ],
+            [
+              139.0338,
+              37.90126
+            ],
+            [
+              139.0338,
+              37.89874
+            ],
+            [
+              139.0302,
+              37.89874
+            ],
+            [
+              139.0302,
+              37.90126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_niigata_2_2",
+      "properties": {
+        "terrain_id": "terrain_niigata_2",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              139.0306,
+              37.90126
+            ],
+            [
+              139.0342,
+              37.90126
+            ],
+            [
+              139.0342,
+              37.89874
+            ],
+            [
+              139.0306,
+              37.89874
+            ],
+            [
+              139.0306,
+              37.90126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_toyama_1_1",
+      "properties": {
+        "terrain_id": "terrain_toyama_1",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              137.2082,
+              36.701260000000005
+            ],
+            [
+              137.2118,
+              36.701260000000005
+            ],
+            [
+              137.2118,
+              36.69874
+            ],
+            [
+              137.2082,
+              36.69874
+            ],
+            [
+              137.2082,
+              36.701260000000005
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_toyama_1_2",
+      "properties": {
+        "terrain_id": "terrain_toyama_1",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              137.2086,
+              36.701260000000005
+            ],
+            [
+              137.2122,
+              36.701260000000005
+            ],
+            [
+              137.2122,
+              36.69874
+            ],
+            [
+              137.2086,
+              36.69874
+            ],
+            [
+              137.2086,
+              36.701260000000005
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_toyama_2_1",
+      "properties": {
+        "terrain_id": "terrain_toyama_2",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              137.2202,
+              36.701260000000005
+            ],
+            [
+              137.2238,
+              36.701260000000005
+            ],
+            [
+              137.2238,
+              36.69874
+            ],
+            [
+              137.2202,
+              36.69874
+            ],
+            [
+              137.2202,
+              36.701260000000005
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_toyama_2_2",
+      "properties": {
+        "terrain_id": "terrain_toyama_2",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              137.2206,
+              36.701260000000005
+            ],
+            [
+              137.2242,
+              36.701260000000005
+            ],
+            [
+              137.2242,
+              36.69874
+            ],
+            [
+              137.2206,
+              36.69874
+            ],
+            [
+              137.2206,
+              36.701260000000005
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_ishikawa_1_1",
+      "properties": {
+        "terrain_id": "terrain_ishikawa_1",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              136.6282,
+              36.591260000000005
+            ],
+            [
+              136.6318,
+              36.591260000000005
+            ],
+            [
+              136.6318,
+              36.58874
+            ],
+            [
+              136.6282,
+              36.58874
+            ],
+            [
+              136.6282,
+              36.591260000000005
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_ishikawa_1_2",
+      "properties": {
+        "terrain_id": "terrain_ishikawa_1",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              136.6286,
+              36.591260000000005
+            ],
+            [
+              136.6322,
+              36.591260000000005
+            ],
+            [
+              136.6322,
+              36.58874
+            ],
+            [
+              136.6286,
+              36.58874
+            ],
+            [
+              136.6286,
+              36.591260000000005
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_ishikawa_2_1",
+      "properties": {
+        "terrain_id": "terrain_ishikawa_2",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              136.6402,
+              36.591260000000005
+            ],
+            [
+              136.6438,
+              36.591260000000005
+            ],
+            [
+              136.6438,
+              36.58874
+            ],
+            [
+              136.6402,
+              36.58874
+            ],
+            [
+              136.6402,
+              36.591260000000005
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_ishikawa_2_2",
+      "properties": {
+        "terrain_id": "terrain_ishikawa_2",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              136.6406,
+              36.591260000000005
+            ],
+            [
+              136.6442,
+              36.591260000000005
+            ],
+            [
+              136.6442,
+              36.58874
+            ],
+            [
+              136.6406,
+              36.58874
+            ],
+            [
+              136.6406,
+              36.591260000000005
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_fukui_1_1",
+      "properties": {
+        "terrain_id": "terrain_fukui_1",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              136.2182,
+              36.061260000000004
+            ],
+            [
+              136.2218,
+              36.061260000000004
+            ],
+            [
+              136.2218,
+              36.05874
+            ],
+            [
+              136.2182,
+              36.05874
+            ],
+            [
+              136.2182,
+              36.061260000000004
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_fukui_1_2",
+      "properties": {
+        "terrain_id": "terrain_fukui_1",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              136.2186,
+              36.061260000000004
+            ],
+            [
+              136.22220000000002,
+              36.061260000000004
+            ],
+            [
+              136.22220000000002,
+              36.05874
+            ],
+            [
+              136.2186,
+              36.05874
+            ],
+            [
+              136.2186,
+              36.061260000000004
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_fukui_2_1",
+      "properties": {
+        "terrain_id": "terrain_fukui_2",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              136.2302,
+              36.061260000000004
+            ],
+            [
+              136.2338,
+              36.061260000000004
+            ],
+            [
+              136.2338,
+              36.05874
+            ],
+            [
+              136.2302,
+              36.05874
+            ],
+            [
+              136.2302,
+              36.061260000000004
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_fukui_2_2",
+      "properties": {
+        "terrain_id": "terrain_fukui_2",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              136.2306,
+              36.061260000000004
+            ],
+            [
+              136.23420000000002,
+              36.061260000000004
+            ],
+            [
+              136.23420000000002,
+              36.05874
+            ],
+            [
+              136.2306,
+              36.05874
+            ],
+            [
+              136.2306,
+              36.061260000000004
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_yamanashi_1_1",
+      "properties": {
+        "terrain_id": "terrain_yamanashi_1",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              138.5682,
+              35.66126
+            ],
+            [
+              138.5718,
+              35.66126
+            ],
+            [
+              138.5718,
+              35.658739999999995
+            ],
+            [
+              138.5682,
+              35.658739999999995
+            ],
+            [
+              138.5682,
+              35.66126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_yamanashi_1_2",
+      "properties": {
+        "terrain_id": "terrain_yamanashi_1",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              138.5686,
+              35.66126
+            ],
+            [
+              138.5722,
+              35.66126
+            ],
+            [
+              138.5722,
+              35.658739999999995
+            ],
+            [
+              138.5686,
+              35.658739999999995
+            ],
+            [
+              138.5686,
+              35.66126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_yamanashi_2_1",
+      "properties": {
+        "terrain_id": "terrain_yamanashi_2",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              138.5802,
+              35.66126
+            ],
+            [
+              138.5838,
+              35.66126
+            ],
+            [
+              138.5838,
+              35.658739999999995
+            ],
+            [
+              138.5802,
+              35.658739999999995
+            ],
+            [
+              138.5802,
+              35.66126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_yamanashi_2_2",
+      "properties": {
+        "terrain_id": "terrain_yamanashi_2",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              138.5806,
+              35.66126
+            ],
+            [
+              138.5842,
+              35.66126
+            ],
+            [
+              138.5842,
+              35.658739999999995
+            ],
+            [
+              138.5806,
+              35.658739999999995
+            ],
+            [
+              138.5806,
+              35.66126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_nagano_1_1",
+      "properties": {
+        "terrain_id": "terrain_nagano_1",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              138.1782,
+              36.65126
+            ],
+            [
+              138.1818,
+              36.65126
+            ],
+            [
+              138.1818,
+              36.64874
+            ],
+            [
+              138.1782,
+              36.64874
+            ],
+            [
+              138.1782,
+              36.65126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_nagano_1_2",
+      "properties": {
+        "terrain_id": "terrain_nagano_1",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              138.1786,
+              36.65126
+            ],
+            [
+              138.1822,
+              36.65126
+            ],
+            [
+              138.1822,
+              36.64874
+            ],
+            [
+              138.1786,
+              36.64874
+            ],
+            [
+              138.1786,
+              36.65126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_nagano_2_1",
+      "properties": {
+        "terrain_id": "terrain_nagano_2",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              138.1902,
+              36.65126
+            ],
+            [
+              138.1938,
+              36.65126
+            ],
+            [
+              138.1938,
+              36.64874
+            ],
+            [
+              138.1902,
+              36.64874
+            ],
+            [
+              138.1902,
+              36.65126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_nagano_2_2",
+      "properties": {
+        "terrain_id": "terrain_nagano_2",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              138.1906,
+              36.65126
+            ],
+            [
+              138.1942,
+              36.65126
+            ],
+            [
+              138.1942,
+              36.64874
+            ],
+            [
+              138.1906,
+              36.64874
+            ],
+            [
+              138.1906,
+              36.65126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_gifu_1_1",
+      "properties": {
+        "terrain_id": "terrain_gifu_1",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              136.7182,
+              35.39126
+            ],
+            [
+              136.7218,
+              35.39126
+            ],
+            [
+              136.7218,
+              35.38874
+            ],
+            [
+              136.7182,
+              35.38874
+            ],
+            [
+              136.7182,
+              35.39126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_gifu_1_2",
+      "properties": {
+        "terrain_id": "terrain_gifu_1",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              136.7186,
+              35.39126
+            ],
+            [
+              136.72220000000002,
+              35.39126
+            ],
+            [
+              136.72220000000002,
+              35.38874
+            ],
+            [
+              136.7186,
+              35.38874
+            ],
+            [
+              136.7186,
+              35.39126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_gifu_2_1",
+      "properties": {
+        "terrain_id": "terrain_gifu_2",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              136.7302,
+              35.39126
+            ],
+            [
+              136.7338,
+              35.39126
+            ],
+            [
+              136.7338,
+              35.38874
+            ],
+            [
+              136.7302,
+              35.38874
+            ],
+            [
+              136.7302,
+              35.39126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_gifu_2_2",
+      "properties": {
+        "terrain_id": "terrain_gifu_2",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              136.7306,
+              35.39126
+            ],
+            [
+              136.73420000000002,
+              35.39126
+            ],
+            [
+              136.73420000000002,
+              35.38874
+            ],
+            [
+              136.7306,
+              35.38874
+            ],
+            [
+              136.7306,
+              35.39126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_shizuoka_1_1",
+      "properties": {
+        "terrain_id": "terrain_shizuoka_1",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              138.3782,
+              34.97126
+            ],
+            [
+              138.3818,
+              34.97126
+            ],
+            [
+              138.3818,
+              34.96874
+            ],
+            [
+              138.3782,
+              34.96874
+            ],
+            [
+              138.3782,
+              34.97126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_shizuoka_1_2",
+      "properties": {
+        "terrain_id": "terrain_shizuoka_1",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              138.3786,
+              34.97126
+            ],
+            [
+              138.3822,
+              34.97126
+            ],
+            [
+              138.3822,
+              34.96874
+            ],
+            [
+              138.3786,
+              34.96874
+            ],
+            [
+              138.3786,
+              34.97126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_shizuoka_2_1",
+      "properties": {
+        "terrain_id": "terrain_shizuoka_2",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              138.3902,
+              34.97126
+            ],
+            [
+              138.3938,
+              34.97126
+            ],
+            [
+              138.3938,
+              34.96874
+            ],
+            [
+              138.3902,
+              34.96874
+            ],
+            [
+              138.3902,
+              34.97126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_shizuoka_2_2",
+      "properties": {
+        "terrain_id": "terrain_shizuoka_2",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              138.3906,
+              34.97126
+            ],
+            [
+              138.3942,
+              34.97126
+            ],
+            [
+              138.3942,
+              34.96874
+            ],
+            [
+              138.3906,
+              34.96874
+            ],
+            [
+              138.3906,
+              34.97126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_aichi_1_1",
+      "properties": {
+        "terrain_id": "terrain_aichi_1",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              136.9082,
+              35.18126
+            ],
+            [
+              136.9118,
+              35.18126
+            ],
+            [
+              136.9118,
+              35.17874
+            ],
+            [
+              136.9082,
+              35.17874
+            ],
+            [
+              136.9082,
+              35.18126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_aichi_1_2",
+      "properties": {
+        "terrain_id": "terrain_aichi_1",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              136.9086,
+              35.18126
+            ],
+            [
+              136.9122,
+              35.18126
+            ],
+            [
+              136.9122,
+              35.17874
+            ],
+            [
+              136.9086,
+              35.17874
+            ],
+            [
+              136.9086,
+              35.18126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_aichi_2_1",
+      "properties": {
+        "terrain_id": "terrain_aichi_2",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              136.9202,
+              35.18126
+            ],
+            [
+              136.9238,
+              35.18126
+            ],
+            [
+              136.9238,
+              35.17874
+            ],
+            [
+              136.9202,
+              35.17874
+            ],
+            [
+              136.9202,
+              35.18126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_aichi_2_2",
+      "properties": {
+        "terrain_id": "terrain_aichi_2",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              136.9206,
+              35.18126
+            ],
+            [
+              136.9242,
+              35.18126
+            ],
+            [
+              136.9242,
+              35.17874
+            ],
+            [
+              136.9206,
+              35.17874
+            ],
+            [
+              136.9206,
+              35.18126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_mie_1_1",
+      "properties": {
+        "terrain_id": "terrain_mie_1",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              136.5082,
+              34.73126
+            ],
+            [
+              136.5118,
+              34.73126
+            ],
+            [
+              136.5118,
+              34.728739999999995
+            ],
+            [
+              136.5082,
+              34.728739999999995
+            ],
+            [
+              136.5082,
+              34.73126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_mie_1_2",
+      "properties": {
+        "terrain_id": "terrain_mie_1",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              136.5086,
+              34.73126
+            ],
+            [
+              136.5122,
+              34.73126
+            ],
+            [
+              136.5122,
+              34.728739999999995
+            ],
+            [
+              136.5086,
+              34.728739999999995
+            ],
+            [
+              136.5086,
+              34.73126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_mie_2_1",
+      "properties": {
+        "terrain_id": "terrain_mie_2",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              136.5202,
+              34.73126
+            ],
+            [
+              136.5238,
+              34.73126
+            ],
+            [
+              136.5238,
+              34.728739999999995
+            ],
+            [
+              136.5202,
+              34.728739999999995
+            ],
+            [
+              136.5202,
+              34.73126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_mie_2_2",
+      "properties": {
+        "terrain_id": "terrain_mie_2",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              136.5206,
+              34.73126
+            ],
+            [
+              136.5242,
+              34.73126
+            ],
+            [
+              136.5242,
+              34.728739999999995
+            ],
+            [
+              136.5206,
+              34.728739999999995
+            ],
+            [
+              136.5206,
+              34.73126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_shiga_1_1",
+      "properties": {
+        "terrain_id": "terrain_shiga_1",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              136.2182,
+              35.00126
+            ],
+            [
+              136.2218,
+              35.00126
+            ],
+            [
+              136.2218,
+              34.99874
+            ],
+            [
+              136.2182,
+              34.99874
+            ],
+            [
+              136.2182,
+              35.00126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_shiga_1_2",
+      "properties": {
+        "terrain_id": "terrain_shiga_1",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              136.2186,
+              35.00126
+            ],
+            [
+              136.22220000000002,
+              35.00126
+            ],
+            [
+              136.22220000000002,
+              34.99874
+            ],
+            [
+              136.2186,
+              34.99874
+            ],
+            [
+              136.2186,
+              35.00126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_shiga_2_1",
+      "properties": {
+        "terrain_id": "terrain_shiga_2",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              136.2302,
+              35.00126
+            ],
+            [
+              136.2338,
+              35.00126
+            ],
+            [
+              136.2338,
+              34.99874
+            ],
+            [
+              136.2302,
+              34.99874
+            ],
+            [
+              136.2302,
+              35.00126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_shiga_2_2",
+      "properties": {
+        "terrain_id": "terrain_shiga_2",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              136.2306,
+              35.00126
+            ],
+            [
+              136.23420000000002,
+              35.00126
+            ],
+            [
+              136.23420000000002,
+              34.99874
+            ],
+            [
+              136.2306,
+              34.99874
+            ],
+            [
+              136.2306,
+              35.00126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_kyoto_1_1",
+      "properties": {
+        "terrain_id": "terrain_kyoto_1",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              135.7482,
+              35.021260000000005
+            ],
+            [
+              135.7518,
+              35.021260000000005
+            ],
+            [
+              135.7518,
+              35.01874
+            ],
+            [
+              135.7482,
+              35.01874
+            ],
+            [
+              135.7482,
+              35.021260000000005
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_kyoto_1_2",
+      "properties": {
+        "terrain_id": "terrain_kyoto_1",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              135.7486,
+              35.021260000000005
+            ],
+            [
+              135.75220000000002,
+              35.021260000000005
+            ],
+            [
+              135.75220000000002,
+              35.01874
+            ],
+            [
+              135.7486,
+              35.01874
+            ],
+            [
+              135.7486,
+              35.021260000000005
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_kyoto_2_1",
+      "properties": {
+        "terrain_id": "terrain_kyoto_2",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              135.7602,
+              35.021260000000005
+            ],
+            [
+              135.7638,
+              35.021260000000005
+            ],
+            [
+              135.7638,
+              35.01874
+            ],
+            [
+              135.7602,
+              35.01874
+            ],
+            [
+              135.7602,
+              35.021260000000005
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_kyoto_2_2",
+      "properties": {
+        "terrain_id": "terrain_kyoto_2",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              135.7606,
+              35.021260000000005
+            ],
+            [
+              135.76420000000002,
+              35.021260000000005
+            ],
+            [
+              135.76420000000002,
+              35.01874
+            ],
+            [
+              135.7606,
+              35.01874
+            ],
+            [
+              135.7606,
+              35.021260000000005
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_osaka_1_1",
+      "properties": {
+        "terrain_id": "terrain_osaka_1",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              135.5182,
+              34.69126
+            ],
+            [
+              135.5218,
+              34.69126
+            ],
+            [
+              135.5218,
+              34.688739999999996
+            ],
+            [
+              135.5182,
+              34.688739999999996
+            ],
+            [
+              135.5182,
+              34.69126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_osaka_1_2",
+      "properties": {
+        "terrain_id": "terrain_osaka_1",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              135.5186,
+              34.69126
+            ],
+            [
+              135.5222,
+              34.69126
+            ],
+            [
+              135.5222,
+              34.688739999999996
+            ],
+            [
+              135.5186,
+              34.688739999999996
+            ],
+            [
+              135.5186,
+              34.69126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_osaka_2_1",
+      "properties": {
+        "terrain_id": "terrain_osaka_2",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              135.5302,
+              34.69126
+            ],
+            [
+              135.5338,
+              34.69126
+            ],
+            [
+              135.5338,
+              34.688739999999996
+            ],
+            [
+              135.5302,
+              34.688739999999996
+            ],
+            [
+              135.5302,
+              34.69126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_osaka_2_2",
+      "properties": {
+        "terrain_id": "terrain_osaka_2",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              135.5306,
+              34.69126
+            ],
+            [
+              135.5342,
+              34.69126
+            ],
+            [
+              135.5342,
+              34.688739999999996
+            ],
+            [
+              135.5306,
+              34.688739999999996
+            ],
+            [
+              135.5306,
+              34.69126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_hyogo_1_1",
+      "properties": {
+        "terrain_id": "terrain_hyogo_1",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              134.6882,
+              34.69126
+            ],
+            [
+              134.6918,
+              34.69126
+            ],
+            [
+              134.6918,
+              34.688739999999996
+            ],
+            [
+              134.6882,
+              34.688739999999996
+            ],
+            [
+              134.6882,
+              34.69126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_hyogo_1_2",
+      "properties": {
+        "terrain_id": "terrain_hyogo_1",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              134.6886,
+              34.69126
+            ],
+            [
+              134.6922,
+              34.69126
+            ],
+            [
+              134.6922,
+              34.688739999999996
+            ],
+            [
+              134.6886,
+              34.688739999999996
+            ],
+            [
+              134.6886,
+              34.69126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_hyogo_2_1",
+      "properties": {
+        "terrain_id": "terrain_hyogo_2",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              134.7002,
+              34.69126
+            ],
+            [
+              134.7038,
+              34.69126
+            ],
+            [
+              134.7038,
+              34.688739999999996
+            ],
+            [
+              134.7002,
+              34.688739999999996
+            ],
+            [
+              134.7002,
+              34.69126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_hyogo_2_2",
+      "properties": {
+        "terrain_id": "terrain_hyogo_2",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              134.7006,
+              34.69126
+            ],
+            [
+              134.70420000000001,
+              34.69126
+            ],
+            [
+              134.70420000000001,
+              34.688739999999996
+            ],
+            [
+              134.7006,
+              34.688739999999996
+            ],
+            [
+              134.7006,
+              34.69126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_nara_1_1",
+      "properties": {
+        "terrain_id": "terrain_nara_1",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              135.8282,
+              34.69126
+            ],
+            [
+              135.83180000000002,
+              34.69126
+            ],
+            [
+              135.83180000000002,
+              34.688739999999996
+            ],
+            [
+              135.8282,
+              34.688739999999996
+            ],
+            [
+              135.8282,
+              34.69126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_nara_1_2",
+      "properties": {
+        "terrain_id": "terrain_nara_1",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              135.8286,
+              34.69126
+            ],
+            [
+              135.8322,
+              34.69126
+            ],
+            [
+              135.8322,
+              34.688739999999996
+            ],
+            [
+              135.8286,
+              34.688739999999996
+            ],
+            [
+              135.8286,
+              34.69126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_nara_2_1",
+      "properties": {
+        "terrain_id": "terrain_nara_2",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              135.8402,
+              34.69126
+            ],
+            [
+              135.84380000000002,
+              34.69126
+            ],
+            [
+              135.84380000000002,
+              34.688739999999996
+            ],
+            [
+              135.8402,
+              34.688739999999996
+            ],
+            [
+              135.8402,
+              34.69126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_nara_2_2",
+      "properties": {
+        "terrain_id": "terrain_nara_2",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              135.8406,
+              34.69126
+            ],
+            [
+              135.8442,
+              34.69126
+            ],
+            [
+              135.8442,
+              34.688739999999996
+            ],
+            [
+              135.8406,
+              34.688739999999996
+            ],
+            [
+              135.8406,
+              34.69126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_wakayama_1_1",
+      "properties": {
+        "terrain_id": "terrain_wakayama_1",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              135.16819999999998,
+              34.23126
+            ],
+            [
+              135.1718,
+              34.23126
+            ],
+            [
+              135.1718,
+              34.228739999999995
+            ],
+            [
+              135.16819999999998,
+              34.228739999999995
+            ],
+            [
+              135.16819999999998,
+              34.23126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_wakayama_1_2",
+      "properties": {
+        "terrain_id": "terrain_wakayama_1",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              135.1686,
+              34.23126
+            ],
+            [
+              135.1722,
+              34.23126
+            ],
+            [
+              135.1722,
+              34.228739999999995
+            ],
+            [
+              135.1686,
+              34.228739999999995
+            ],
+            [
+              135.1686,
+              34.23126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_wakayama_2_1",
+      "properties": {
+        "terrain_id": "terrain_wakayama_2",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              135.18019999999999,
+              34.23126
+            ],
+            [
+              135.1838,
+              34.23126
+            ],
+            [
+              135.1838,
+              34.228739999999995
+            ],
+            [
+              135.18019999999999,
+              34.228739999999995
+            ],
+            [
+              135.18019999999999,
+              34.23126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_wakayama_2_2",
+      "properties": {
+        "terrain_id": "terrain_wakayama_2",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              135.1806,
+              34.23126
+            ],
+            [
+              135.1842,
+              34.23126
+            ],
+            [
+              135.1842,
+              34.228739999999995
+            ],
+            [
+              135.1806,
+              34.228739999999995
+            ],
+            [
+              135.1806,
+              34.23126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_tottori_1_1",
+      "properties": {
+        "terrain_id": "terrain_tottori_1",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              134.2382,
+              35.50126
+            ],
+            [
+              134.2418,
+              35.50126
+            ],
+            [
+              134.2418,
+              35.49874
+            ],
+            [
+              134.2382,
+              35.49874
+            ],
+            [
+              134.2382,
+              35.50126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_tottori_1_2",
+      "properties": {
+        "terrain_id": "terrain_tottori_1",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              134.2386,
+              35.50126
+            ],
+            [
+              134.2422,
+              35.50126
+            ],
+            [
+              134.2422,
+              35.49874
+            ],
+            [
+              134.2386,
+              35.49874
+            ],
+            [
+              134.2386,
+              35.50126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_tottori_2_1",
+      "properties": {
+        "terrain_id": "terrain_tottori_2",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              134.2502,
+              35.50126
+            ],
+            [
+              134.2538,
+              35.50126
+            ],
+            [
+              134.2538,
+              35.49874
+            ],
+            [
+              134.2502,
+              35.49874
+            ],
+            [
+              134.2502,
+              35.50126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_tottori_2_2",
+      "properties": {
+        "terrain_id": "terrain_tottori_2",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              134.2506,
+              35.50126
+            ],
+            [
+              134.2542,
+              35.50126
+            ],
+            [
+              134.2542,
+              35.49874
+            ],
+            [
+              134.2506,
+              35.49874
+            ],
+            [
+              134.2506,
+              35.50126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_shimane_1_1",
+      "properties": {
+        "terrain_id": "terrain_shimane_1",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              132.7582,
+              35.47126
+            ],
+            [
+              132.7618,
+              35.47126
+            ],
+            [
+              132.7618,
+              35.46874
+            ],
+            [
+              132.7582,
+              35.46874
+            ],
+            [
+              132.7582,
+              35.47126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_shimane_1_2",
+      "properties": {
+        "terrain_id": "terrain_shimane_1",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              132.7586,
+              35.47126
+            ],
+            [
+              132.7622,
+              35.47126
+            ],
+            [
+              132.7622,
+              35.46874
+            ],
+            [
+              132.7586,
+              35.46874
+            ],
+            [
+              132.7586,
+              35.47126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_shimane_2_1",
+      "properties": {
+        "terrain_id": "terrain_shimane_2",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              132.7702,
+              35.47126
+            ],
+            [
+              132.7738,
+              35.47126
+            ],
+            [
+              132.7738,
+              35.46874
+            ],
+            [
+              132.7702,
+              35.46874
+            ],
+            [
+              132.7702,
+              35.47126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_shimane_2_2",
+      "properties": {
+        "terrain_id": "terrain_shimane_2",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              132.7706,
+              35.47126
+            ],
+            [
+              132.7742,
+              35.47126
+            ],
+            [
+              132.7742,
+              35.46874
+            ],
+            [
+              132.7706,
+              35.46874
+            ],
+            [
+              132.7706,
+              35.47126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_okayama_1_1",
+      "properties": {
+        "terrain_id": "terrain_okayama_1",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              133.9382,
+              34.66126
+            ],
+            [
+              133.9418,
+              34.66126
+            ],
+            [
+              133.9418,
+              34.658739999999995
+            ],
+            [
+              133.9382,
+              34.658739999999995
+            ],
+            [
+              133.9382,
+              34.66126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_okayama_1_2",
+      "properties": {
+        "terrain_id": "terrain_okayama_1",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              133.9386,
+              34.66126
+            ],
+            [
+              133.9422,
+              34.66126
+            ],
+            [
+              133.9422,
+              34.658739999999995
+            ],
+            [
+              133.9386,
+              34.658739999999995
+            ],
+            [
+              133.9386,
+              34.66126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_okayama_2_1",
+      "properties": {
+        "terrain_id": "terrain_okayama_2",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              133.9502,
+              34.66126
+            ],
+            [
+              133.9538,
+              34.66126
+            ],
+            [
+              133.9538,
+              34.658739999999995
+            ],
+            [
+              133.9502,
+              34.658739999999995
+            ],
+            [
+              133.9502,
+              34.66126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_okayama_2_2",
+      "properties": {
+        "terrain_id": "terrain_okayama_2",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              133.9506,
+              34.66126
+            ],
+            [
+              133.95420000000001,
+              34.66126
+            ],
+            [
+              133.95420000000001,
+              34.658739999999995
+            ],
+            [
+              133.9506,
+              34.658739999999995
+            ],
+            [
+              133.9506,
+              34.66126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_hiroshima_1_1",
+      "properties": {
+        "terrain_id": "terrain_hiroshima_1",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              132.4582,
+              34.40126
+            ],
+            [
+              132.4618,
+              34.40126
+            ],
+            [
+              132.4618,
+              34.39874
+            ],
+            [
+              132.4582,
+              34.39874
+            ],
+            [
+              132.4582,
+              34.40126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_hiroshima_1_2",
+      "properties": {
+        "terrain_id": "terrain_hiroshima_1",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              132.4586,
+              34.40126
+            ],
+            [
+              132.4622,
+              34.40126
+            ],
+            [
+              132.4622,
+              34.39874
+            ],
+            [
+              132.4586,
+              34.39874
+            ],
+            [
+              132.4586,
+              34.40126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_hiroshima_2_1",
+      "properties": {
+        "terrain_id": "terrain_hiroshima_2",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              132.4702,
+              34.40126
+            ],
+            [
+              132.4738,
+              34.40126
+            ],
+            [
+              132.4738,
+              34.39874
+            ],
+            [
+              132.4702,
+              34.39874
+            ],
+            [
+              132.4702,
+              34.40126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_hiroshima_2_2",
+      "properties": {
+        "terrain_id": "terrain_hiroshima_2",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              132.4706,
+              34.40126
+            ],
+            [
+              132.4742,
+              34.40126
+            ],
+            [
+              132.4742,
+              34.39874
+            ],
+            [
+              132.4706,
+              34.39874
+            ],
+            [
+              132.4706,
+              34.40126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_yamaguchi_1_1",
+      "properties": {
+        "terrain_id": "terrain_yamaguchi_1",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              131.4682,
+              34.19126
+            ],
+            [
+              131.4718,
+              34.19126
+            ],
+            [
+              131.4718,
+              34.188739999999996
+            ],
+            [
+              131.4682,
+              34.188739999999996
+            ],
+            [
+              131.4682,
+              34.19126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_yamaguchi_1_2",
+      "properties": {
+        "terrain_id": "terrain_yamaguchi_1",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              131.4686,
+              34.19126
+            ],
+            [
+              131.47220000000002,
+              34.19126
+            ],
+            [
+              131.47220000000002,
+              34.188739999999996
+            ],
+            [
+              131.4686,
+              34.188739999999996
+            ],
+            [
+              131.4686,
+              34.19126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_yamaguchi_2_1",
+      "properties": {
+        "terrain_id": "terrain_yamaguchi_2",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              131.4802,
+              34.19126
+            ],
+            [
+              131.4838,
+              34.19126
+            ],
+            [
+              131.4838,
+              34.188739999999996
+            ],
+            [
+              131.4802,
+              34.188739999999996
+            ],
+            [
+              131.4802,
+              34.19126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_yamaguchi_2_2",
+      "properties": {
+        "terrain_id": "terrain_yamaguchi_2",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              131.4806,
+              34.19126
+            ],
+            [
+              131.48420000000002,
+              34.19126
+            ],
+            [
+              131.48420000000002,
+              34.188739999999996
+            ],
+            [
+              131.4806,
+              34.188739999999996
+            ],
+            [
+              131.4806,
+              34.19126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_tokushima_1_1",
+      "properties": {
+        "terrain_id": "terrain_tokushima_1",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              134.5582,
+              34.07126
+            ],
+            [
+              134.5618,
+              34.07126
+            ],
+            [
+              134.5618,
+              34.06874
+            ],
+            [
+              134.5582,
+              34.06874
+            ],
+            [
+              134.5582,
+              34.07126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_tokushima_1_2",
+      "properties": {
+        "terrain_id": "terrain_tokushima_1",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              134.55859999999998,
+              34.07126
+            ],
+            [
+              134.5622,
+              34.07126
+            ],
+            [
+              134.5622,
+              34.06874
+            ],
+            [
+              134.55859999999998,
+              34.06874
+            ],
+            [
+              134.55859999999998,
+              34.07126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_tokushima_2_1",
+      "properties": {
+        "terrain_id": "terrain_tokushima_2",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              134.5702,
+              34.07126
+            ],
+            [
+              134.5738,
+              34.07126
+            ],
+            [
+              134.5738,
+              34.06874
+            ],
+            [
+              134.5702,
+              34.06874
+            ],
+            [
+              134.5702,
+              34.07126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_tokushima_2_2",
+      "properties": {
+        "terrain_id": "terrain_tokushima_2",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              134.57059999999998,
+              34.07126
+            ],
+            [
+              134.5742,
+              34.07126
+            ],
+            [
+              134.5742,
+              34.06874
+            ],
+            [
+              134.57059999999998,
+              34.06874
+            ],
+            [
+              134.57059999999998,
+              34.07126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_kagawa_1_1",
+      "properties": {
+        "terrain_id": "terrain_kagawa_1",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              133.9782,
+              34.341260000000005
+            ],
+            [
+              133.9818,
+              34.341260000000005
+            ],
+            [
+              133.9818,
+              34.33874
+            ],
+            [
+              133.9782,
+              34.33874
+            ],
+            [
+              133.9782,
+              34.341260000000005
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_kagawa_1_2",
+      "properties": {
+        "terrain_id": "terrain_kagawa_1",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              133.9786,
+              34.341260000000005
+            ],
+            [
+              133.9822,
+              34.341260000000005
+            ],
+            [
+              133.9822,
+              34.33874
+            ],
+            [
+              133.9786,
+              34.33874
+            ],
+            [
+              133.9786,
+              34.341260000000005
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_kagawa_2_1",
+      "properties": {
+        "terrain_id": "terrain_kagawa_2",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              133.9902,
+              34.341260000000005
+            ],
+            [
+              133.9938,
+              34.341260000000005
+            ],
+            [
+              133.9938,
+              34.33874
+            ],
+            [
+              133.9902,
+              34.33874
+            ],
+            [
+              133.9902,
+              34.341260000000005
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_kagawa_2_2",
+      "properties": {
+        "terrain_id": "terrain_kagawa_2",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              133.9906,
+              34.341260000000005
+            ],
+            [
+              133.9942,
+              34.341260000000005
+            ],
+            [
+              133.9942,
+              34.33874
+            ],
+            [
+              133.9906,
+              34.33874
+            ],
+            [
+              133.9906,
+              34.341260000000005
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_ehime_1_1",
+      "properties": {
+        "terrain_id": "terrain_ehime_1",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              132.7682,
+              33.841260000000005
+            ],
+            [
+              132.7718,
+              33.841260000000005
+            ],
+            [
+              132.7718,
+              33.83874
+            ],
+            [
+              132.7682,
+              33.83874
+            ],
+            [
+              132.7682,
+              33.841260000000005
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_ehime_1_2",
+      "properties": {
+        "terrain_id": "terrain_ehime_1",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              132.7686,
+              33.841260000000005
+            ],
+            [
+              132.7722,
+              33.841260000000005
+            ],
+            [
+              132.7722,
+              33.83874
+            ],
+            [
+              132.7686,
+              33.83874
+            ],
+            [
+              132.7686,
+              33.841260000000005
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_ehime_2_1",
+      "properties": {
+        "terrain_id": "terrain_ehime_2",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              132.7802,
+              33.841260000000005
+            ],
+            [
+              132.7838,
+              33.841260000000005
+            ],
+            [
+              132.7838,
+              33.83874
+            ],
+            [
+              132.7802,
+              33.83874
+            ],
+            [
+              132.7802,
+              33.841260000000005
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_ehime_2_2",
+      "properties": {
+        "terrain_id": "terrain_ehime_2",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              132.7806,
+              33.841260000000005
+            ],
+            [
+              132.7842,
+              33.841260000000005
+            ],
+            [
+              132.7842,
+              33.83874
+            ],
+            [
+              132.7806,
+              33.83874
+            ],
+            [
+              132.7806,
+              33.841260000000005
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_kochi_1_1",
+      "properties": {
+        "terrain_id": "terrain_kochi_1",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              133.5282,
+              33.561260000000004
+            ],
+            [
+              133.5318,
+              33.561260000000004
+            ],
+            [
+              133.5318,
+              33.55874
+            ],
+            [
+              133.5282,
+              33.55874
+            ],
+            [
+              133.5282,
+              33.561260000000004
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_kochi_1_2",
+      "properties": {
+        "terrain_id": "terrain_kochi_1",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              133.52859999999998,
+              33.561260000000004
+            ],
+            [
+              133.5322,
+              33.561260000000004
+            ],
+            [
+              133.5322,
+              33.55874
+            ],
+            [
+              133.52859999999998,
+              33.55874
+            ],
+            [
+              133.52859999999998,
+              33.561260000000004
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_kochi_2_1",
+      "properties": {
+        "terrain_id": "terrain_kochi_2",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              133.5402,
+              33.561260000000004
+            ],
+            [
+              133.5438,
+              33.561260000000004
+            ],
+            [
+              133.5438,
+              33.55874
+            ],
+            [
+              133.5402,
+              33.55874
+            ],
+            [
+              133.5402,
+              33.561260000000004
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_kochi_2_2",
+      "properties": {
+        "terrain_id": "terrain_kochi_2",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              133.54059999999998,
+              33.561260000000004
+            ],
+            [
+              133.5442,
+              33.561260000000004
+            ],
+            [
+              133.5442,
+              33.55874
+            ],
+            [
+              133.54059999999998,
+              33.55874
+            ],
+            [
+              133.54059999999998,
+              33.561260000000004
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_fukuoka_1_1",
+      "properties": {
+        "terrain_id": "terrain_fukuoka_1",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              130.41819999999998,
+              33.61126
+            ],
+            [
+              130.4218,
+              33.61126
+            ],
+            [
+              130.4218,
+              33.60874
+            ],
+            [
+              130.41819999999998,
+              33.60874
+            ],
+            [
+              130.41819999999998,
+              33.61126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_fukuoka_1_2",
+      "properties": {
+        "terrain_id": "terrain_fukuoka_1",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              130.4186,
+              33.61126
+            ],
+            [
+              130.4222,
+              33.61126
+            ],
+            [
+              130.4222,
+              33.60874
+            ],
+            [
+              130.4186,
+              33.60874
+            ],
+            [
+              130.4186,
+              33.61126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_fukuoka_2_1",
+      "properties": {
+        "terrain_id": "terrain_fukuoka_2",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              130.43019999999999,
+              33.61126
+            ],
+            [
+              130.4338,
+              33.61126
+            ],
+            [
+              130.4338,
+              33.60874
+            ],
+            [
+              130.43019999999999,
+              33.60874
+            ],
+            [
+              130.43019999999999,
+              33.61126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_fukuoka_2_2",
+      "properties": {
+        "terrain_id": "terrain_fukuoka_2",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              130.4306,
+              33.61126
+            ],
+            [
+              130.4342,
+              33.61126
+            ],
+            [
+              130.4342,
+              33.60874
+            ],
+            [
+              130.4306,
+              33.60874
+            ],
+            [
+              130.4306,
+              33.61126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_saga_1_1",
+      "properties": {
+        "terrain_id": "terrain_saga_1",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              130.2982,
+              33.25126
+            ],
+            [
+              130.30180000000001,
+              33.25126
+            ],
+            [
+              130.30180000000001,
+              33.24874
+            ],
+            [
+              130.2982,
+              33.24874
+            ],
+            [
+              130.2982,
+              33.25126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_saga_1_2",
+      "properties": {
+        "terrain_id": "terrain_saga_1",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              130.2986,
+              33.25126
+            ],
+            [
+              130.3022,
+              33.25126
+            ],
+            [
+              130.3022,
+              33.24874
+            ],
+            [
+              130.2986,
+              33.24874
+            ],
+            [
+              130.2986,
+              33.25126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_saga_2_1",
+      "properties": {
+        "terrain_id": "terrain_saga_2",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              130.3102,
+              33.25126
+            ],
+            [
+              130.31380000000001,
+              33.25126
+            ],
+            [
+              130.31380000000001,
+              33.24874
+            ],
+            [
+              130.3102,
+              33.24874
+            ],
+            [
+              130.3102,
+              33.25126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_saga_2_2",
+      "properties": {
+        "terrain_id": "terrain_saga_2",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              130.3106,
+              33.25126
+            ],
+            [
+              130.3142,
+              33.25126
+            ],
+            [
+              130.3142,
+              33.24874
+            ],
+            [
+              130.3106,
+              33.24874
+            ],
+            [
+              130.3106,
+              33.25126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_nagasaki_1_1",
+      "properties": {
+        "terrain_id": "terrain_nagasaki_1",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              129.8682,
+              32.75126
+            ],
+            [
+              129.8718,
+              32.75126
+            ],
+            [
+              129.8718,
+              32.74874
+            ],
+            [
+              129.8682,
+              32.74874
+            ],
+            [
+              129.8682,
+              32.75126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_nagasaki_1_2",
+      "properties": {
+        "terrain_id": "terrain_nagasaki_1",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              129.8686,
+              32.75126
+            ],
+            [
+              129.8722,
+              32.75126
+            ],
+            [
+              129.8722,
+              32.74874
+            ],
+            [
+              129.8686,
+              32.74874
+            ],
+            [
+              129.8686,
+              32.75126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_nagasaki_2_1",
+      "properties": {
+        "terrain_id": "terrain_nagasaki_2",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              129.8802,
+              32.75126
+            ],
+            [
+              129.8838,
+              32.75126
+            ],
+            [
+              129.8838,
+              32.74874
+            ],
+            [
+              129.8802,
+              32.74874
+            ],
+            [
+              129.8802,
+              32.75126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_nagasaki_2_2",
+      "properties": {
+        "terrain_id": "terrain_nagasaki_2",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              129.8806,
+              32.75126
+            ],
+            [
+              129.8842,
+              32.75126
+            ],
+            [
+              129.8842,
+              32.74874
+            ],
+            [
+              129.8806,
+              32.74874
+            ],
+            [
+              129.8806,
+              32.75126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_kumamoto_1_1",
+      "properties": {
+        "terrain_id": "terrain_kumamoto_1",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              130.7382,
+              32.79126
+            ],
+            [
+              130.7418,
+              32.79126
+            ],
+            [
+              130.7418,
+              32.78874
+            ],
+            [
+              130.7382,
+              32.78874
+            ],
+            [
+              130.7382,
+              32.79126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_kumamoto_1_2",
+      "properties": {
+        "terrain_id": "terrain_kumamoto_1",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              130.7386,
+              32.79126
+            ],
+            [
+              130.7422,
+              32.79126
+            ],
+            [
+              130.7422,
+              32.78874
+            ],
+            [
+              130.7386,
+              32.78874
+            ],
+            [
+              130.7386,
+              32.79126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_kumamoto_2_1",
+      "properties": {
+        "terrain_id": "terrain_kumamoto_2",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              130.7502,
+              32.79126
+            ],
+            [
+              130.7538,
+              32.79126
+            ],
+            [
+              130.7538,
+              32.78874
+            ],
+            [
+              130.7502,
+              32.78874
+            ],
+            [
+              130.7502,
+              32.79126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_kumamoto_2_2",
+      "properties": {
+        "terrain_id": "terrain_kumamoto_2",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              130.7506,
+              32.79126
+            ],
+            [
+              130.7542,
+              32.79126
+            ],
+            [
+              130.7542,
+              32.78874
+            ],
+            [
+              130.7506,
+              32.78874
+            ],
+            [
+              130.7506,
+              32.79126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_oita_1_1",
+      "properties": {
+        "terrain_id": "terrain_oita_1",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              131.6082,
+              33.241260000000004
+            ],
+            [
+              131.61180000000002,
+              33.241260000000004
+            ],
+            [
+              131.61180000000002,
+              33.23874
+            ],
+            [
+              131.6082,
+              33.23874
+            ],
+            [
+              131.6082,
+              33.241260000000004
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_oita_1_2",
+      "properties": {
+        "terrain_id": "terrain_oita_1",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              131.6086,
+              33.241260000000004
+            ],
+            [
+              131.6122,
+              33.241260000000004
+            ],
+            [
+              131.6122,
+              33.23874
+            ],
+            [
+              131.6086,
+              33.23874
+            ],
+            [
+              131.6086,
+              33.241260000000004
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_oita_2_1",
+      "properties": {
+        "terrain_id": "terrain_oita_2",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              131.6202,
+              33.241260000000004
+            ],
+            [
+              131.62380000000002,
+              33.241260000000004
+            ],
+            [
+              131.62380000000002,
+              33.23874
+            ],
+            [
+              131.6202,
+              33.23874
+            ],
+            [
+              131.6202,
+              33.241260000000004
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_oita_2_2",
+      "properties": {
+        "terrain_id": "terrain_oita_2",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              131.6206,
+              33.241260000000004
+            ],
+            [
+              131.6242,
+              33.241260000000004
+            ],
+            [
+              131.6242,
+              33.23874
+            ],
+            [
+              131.6206,
+              33.23874
+            ],
+            [
+              131.6206,
+              33.241260000000004
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_miyazaki_1_1",
+      "properties": {
+        "terrain_id": "terrain_miyazaki_1",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              131.41819999999998,
+              31.91126
+            ],
+            [
+              131.4218,
+              31.91126
+            ],
+            [
+              131.4218,
+              31.90874
+            ],
+            [
+              131.41819999999998,
+              31.90874
+            ],
+            [
+              131.41819999999998,
+              31.91126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_miyazaki_1_2",
+      "properties": {
+        "terrain_id": "terrain_miyazaki_1",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              131.4186,
+              31.91126
+            ],
+            [
+              131.4222,
+              31.91126
+            ],
+            [
+              131.4222,
+              31.90874
+            ],
+            [
+              131.4186,
+              31.90874
+            ],
+            [
+              131.4186,
+              31.91126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_miyazaki_2_1",
+      "properties": {
+        "terrain_id": "terrain_miyazaki_2",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              131.43019999999999,
+              31.91126
+            ],
+            [
+              131.4338,
+              31.91126
+            ],
+            [
+              131.4338,
+              31.90874
+            ],
+            [
+              131.43019999999999,
+              31.90874
+            ],
+            [
+              131.43019999999999,
+              31.91126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_miyazaki_2_2",
+      "properties": {
+        "terrain_id": "terrain_miyazaki_2",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              131.4306,
+              31.91126
+            ],
+            [
+              131.4342,
+              31.91126
+            ],
+            [
+              131.4342,
+              31.90874
+            ],
+            [
+              131.4306,
+              31.90874
+            ],
+            [
+              131.4306,
+              31.91126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_kagoshima_1_1",
+      "properties": {
+        "terrain_id": "terrain_kagoshima_1",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              130.5582,
+              31.561259999999997
+            ],
+            [
+              130.5618,
+              31.561259999999997
+            ],
+            [
+              130.5618,
+              31.55874
+            ],
+            [
+              130.5582,
+              31.55874
+            ],
+            [
+              130.5582,
+              31.561259999999997
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_kagoshima_1_2",
+      "properties": {
+        "terrain_id": "terrain_kagoshima_1",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              130.55859999999998,
+              31.561259999999997
+            ],
+            [
+              130.5622,
+              31.561259999999997
+            ],
+            [
+              130.5622,
+              31.55874
+            ],
+            [
+              130.55859999999998,
+              31.55874
+            ],
+            [
+              130.55859999999998,
+              31.561259999999997
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_kagoshima_2_1",
+      "properties": {
+        "terrain_id": "terrain_kagoshima_2",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              130.5702,
+              31.561259999999997
+            ],
+            [
+              130.5738,
+              31.561259999999997
+            ],
+            [
+              130.5738,
+              31.55874
+            ],
+            [
+              130.5702,
+              31.55874
+            ],
+            [
+              130.5702,
+              31.561259999999997
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_kagoshima_2_2",
+      "properties": {
+        "terrain_id": "terrain_kagoshima_2",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              130.57059999999998,
+              31.561259999999997
+            ],
+            [
+              130.5742,
+              31.561259999999997
+            ],
+            [
+              130.5742,
+              31.55874
+            ],
+            [
+              130.57059999999998,
+              31.55874
+            ],
+            [
+              130.57059999999998,
+              31.561259999999997
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_okinawa_1_1",
+      "properties": {
+        "terrain_id": "terrain_okinawa_1",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              127.6782,
+              26.21126
+            ],
+            [
+              127.68180000000001,
+              26.21126
+            ],
+            [
+              127.68180000000001,
+              26.208740000000002
+            ],
+            [
+              127.6782,
+              26.208740000000002
+            ],
+            [
+              127.6782,
+              26.21126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_okinawa_1_2",
+      "properties": {
+        "terrain_id": "terrain_okinawa_1",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              127.6786,
+              26.21126
+            ],
+            [
+              127.68220000000001,
+              26.21126
+            ],
+            [
+              127.68220000000001,
+              26.208740000000002
+            ],
+            [
+              127.6786,
+              26.208740000000002
+            ],
+            [
+              127.6786,
+              26.21126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_okinawa_2_1",
+      "properties": {
+        "terrain_id": "terrain_okinawa_2",
+        "event_name": "大会1",
+        "event_date": "2023-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              127.69019999999999,
+              26.21126
+            ],
+            [
+              127.6938,
+              26.21126
+            ],
+            [
+              127.6938,
+              26.208740000000002
+            ],
+            [
+              127.69019999999999,
+              26.208740000000002
+            ],
+            [
+              127.69019999999999,
+              26.21126
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "frame_okinawa_2_2",
+      "properties": {
+        "terrain_id": "terrain_okinawa_2",
+        "event_name": "大会2",
+        "event_date": "2024-06-01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              127.6906,
+              26.21126
+            ],
+            [
+              127.69420000000001,
+              26.21126
+            ],
+            [
+              127.69420000000001,
+              26.208740000000002
+            ],
+            [
+              127.6906,
+              26.208740000000002
+            ],
+            [
+              127.6906,
+              26.21126
+            ]
+          ]
+        ]
       }
     }
   ]
