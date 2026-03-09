@@ -5224,6 +5224,15 @@ async function loadImageWithJgw(imageFile, jgwText, crsValue) {
   } else {
     map.moveLayer(layerId);
   }
+  // frames-fill が KMZ レイヤーより上にある場合は下に移動
+  if (map.getLayer('frames-fill')) {
+    const styleLayers = map.getStyle().layers.map(l => l.id);
+    const fillIdx = styleLayers.indexOf('frames-fill');
+    const imgIdx  = styleLayers.indexOf(layerId);
+    if (fillIdx > imgIdx && fillIdx >= 0 && imgIdx >= 0) {
+      map.moveLayer('frames-fill', layerId);
+    }
+  }
 
   // ⑥ 管理リストに追加して UI を更新する
   const lngs = coordinates.map(c => c[0]);
@@ -5396,13 +5405,22 @@ function addImageLayerToMap(sourceId, layerId, imageUrl, coordinates, opacity) {
       'raster-resampling':    'linear',
     },
   });
-  // GPX 軌跡レイヤーの下・枠レイヤーの上に配置する
+  // GPX 軌跡レイヤーの下・枠線の下・塗りの上に配置する
   if (map.getLayer('gpx-track-outline')) {
     map.moveLayer(layerId, 'gpx-track-outline');
   } else if (map.getLayer('frames-outline')) {
     map.moveLayer(layerId, 'frames-outline');
   } else {
     map.moveLayer(layerId);
+  }
+  // frames-fill が画像レイヤーより上にある場合（画像が先に追加されたケース）は下に移動
+  if (map.getLayer('frames-fill')) {
+    const styleLayers = map.getStyle().layers.map(l => l.id);
+    const fillIdx  = styleLayers.indexOf('frames-fill');
+    const imgIdx   = styleLayers.indexOf(layerId);
+    if (fillIdx > imgIdx && fillIdx >= 0 && imgIdx >= 0) {
+      map.moveLayer('frames-fill', layerId);
+    }
   }
 }
 
@@ -5496,10 +5514,19 @@ function updateFrameGeoJsonSource() {
   map.addSource('frames-src', { type: 'geojson', data: fc });
 
   // 塗り潰しレイヤー（クリック判定用 + 薄い面表示）
-  map.addLayer({
-    id: 'frames-fill', type: 'fill', source: 'frames-src',
-    paint: { 'fill-color': FRAME_COLOR_EXPR, 'fill-opacity': 0.12 },
-  });
+  // 既存の画像レイヤー（KMZ・フレーム画像）より下に配置して、地図の後ろに隠れるようにする
+  {
+    const existingStyleLayers = map.getStyle().layers.map(l => l.id);
+    const imageLayerIds = new Set([
+      ...kmzLayers.map(e => e.layerId),
+      ...mapFrames.map(e => e.layerId).filter(Boolean),
+    ]);
+    const firstImgLayerId = existingStyleLayers.find(id => imageLayerIds.has(id));
+    map.addLayer({
+      id: 'frames-fill', type: 'fill', source: 'frames-src',
+      paint: { 'fill-color': FRAME_COLOR_EXPR, 'fill-opacity': 0.12 },
+    }, firstImgLayerId); // undefined なら末尾に追加（画像なし時）
+  }
 
   // 枠線: map_type/map_subtype で色分け（実線）
   map.addLayer({
