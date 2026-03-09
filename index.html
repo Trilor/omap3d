@@ -2283,12 +2283,16 @@ label.setting-label {
   body { height: 100dvh; }
 }
 
-/* MapLibre 出典テキスト: 全幅まで使ってから折り返し */
+/* MapLibre 出典コンテナ: 左端をサイドバー幅に合わせてシフト
+   max-width ではなくコンテナごと移動するので確実に重ならない */
+.maplibregl-ctrl-bottom-right {
+  left: var(--sidebar-w, 296px) !important;
+}
+/* 出典テキスト: 全幅まで使ってから折り返し */
 .maplibregl-ctrl-attrib-inner {
   white-space: normal !important;
 }
 .maplibregl-ctrl-attrib {
-  max-width: calc(100vw - var(--sidebar-w, 296px) - 6px);
   background: #fff !important;
   border-radius: 4px !important;
   box-shadow: 0 0 0 2px rgba(0,0,0,.1) !important;
