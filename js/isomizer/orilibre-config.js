@@ -27,10 +27,7 @@ export const DESIGN_PLAN = {
   },
   rules: [
     { symbol_id: ["background"] },
-    {
-      symbol_id: ["101-contour"],
-      links: [{ source: "contour-source", "source-layer": "contours" }],
-    },
+    // 101-contour は app.js で直接 addLayer するため isomizer ルールから除外
     {
       symbol_id: ["208-boulder-field"],
       links: [{

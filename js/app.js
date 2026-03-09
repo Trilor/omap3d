@@ -141,7 +141,8 @@ map.addControl(new maplibregl.GeolocateControl({
   ========================================================
 */
 // 等高線レイヤーIDリスト（isomizer完了後に収集）
-let contourLayerIds = [];
+// Q地図1m 等高線レイヤーID（DEM5A・DEM1A と同じ固定定数方式）
+const contourLayerIds = ['contour-regular', 'contour-index'];
 // 湖水深等高線レイヤーIDリスト（等高線トグルに連動）
 let seamlessContourLayerIds = [];
 // DEMソースモード: 'q1m'（Q地図1m）/ 'dem5a'（DEM5A 5m）/ 'dem1a'（地理院DEM1A 1m）
@@ -528,73 +529,32 @@ map.on('load', async () => {
     });
   }
 
-  // isomizer完了後、contour-sourceを参照するlineレイヤーIDのみを収集（symbol=数値ラベルは除外）
-  // symbol型は表示/非表示制御から外すことで、等高線トグル時にラベルが表示されないようにする
-  contourLayerIds = map.getStyle().layers
-    .filter(l => l.source === 'contour-source' && l.type !== 'symbol')
-    .map(l => l.id);
-  // symbol型（数値ラベル）は常に非表示のまま維持
-  map.getStyle().layers
-    .filter(l => l.source === 'contour-source' && l.type === 'symbol')
-    .forEach(l => map.setLayoutProperty(l.id, 'visibility', 'none'));
-  console.log('等高線レイヤー（isomizer生成）:', contourLayerIds);
-
-  // isomizerが等高線レイヤーを生成しなかった場合のみフォールバックとして明示的に追加
-  // 主曲線（細線）+ 計曲線＝5本ごとの主曲線（太線）+ 計曲線ラベル
-  if (contourLayerIds.length === 0 && map.getSource('contour-source')) {
+  // Q地図1m 等高線レイヤーを DEM5A と同じフローで直接 addLayer（isomizer 非依存）
+  // isomizer が contour-source 用レイヤーを生成することがあるが、
+  // ここで明示的に追加したレイヤーが制御の基準となる。
+  // 初期 visibility: 'none' → setAllContourVisibility() で切り替え（DEM5A と同じ挙動）
+  if (map.getSource('contour-source')) {
     map.addLayer({
       id: 'contour-regular',
       type: 'line',
       source: 'contour-source',
       'source-layer': 'contours',
-      filter: ['!=', ['get', 'level'], 1], // level=0が主曲線（mlcontourは必ずlevelを付与する）
-      paint: {
-        'line-color': '#c86400', // ISOM2017 茶色
-        'line-width': 1.0,
-        'line-opacity': 0.85,
-      },
+      filter: ['!=', ['get', 'level'], 1], // level=0: 主曲線（細線）
+      layout: { 'visibility': 'none', 'line-join': 'round', 'line-cap': 'round' },
+      paint: { 'line-color': '#c86400', 'line-width': 1.0, 'line-opacity': 0.85 },
     });
-
     map.addLayer({
       id: 'contour-index',
       type: 'line',
       source: 'contour-source',
       'source-layer': 'contours',
-      filter: ['==', ['get', 'level'], 1], // level=1が計曲線（5本ごと）
-      paint: {
-        'line-color': '#c86400',
-        'line-width': 1.79, // ISOM2017 主曲線:計曲線 = 14:25 → 1.0 × (25/14)
-        'line-opacity': 1.0,
-      },
+      filter: ['==', ['get', 'level'], 1], // level=1: 計曲線（太線、5本ごと）
+      layout: { 'visibility': 'none', 'line-join': 'round', 'line-cap': 'round' },
+      paint: { 'line-color': '#c86400', 'line-width': 1.79, 'line-opacity': 1.0 },
     });
-
-    map.addLayer({
-      id: 'contour-label',
-      type: 'symbol',
-      source: 'contour-source',
-      'source-layer': 'contours',
-      filter: ['==', ['get', 'level'], 1],
-      layout: {
-        'visibility': 'none',
-        'symbol-placement': 'line',
-        'text-field': ['concat', ['to-string', ['get', 'ele']], 'm'],
-        'text-size': 9,
-        'text-font': ['Noto Sans Bold'],
-        'text-padding': 50,
-      },
-      paint: {
-        'text-color': '#c86400',
-        'text-halo-color': 'rgba(255,255,255,0.85)',
-        'text-halo-width': 1.5,
-      },
-    });
-
-    // contour-label（symbol）は表示/非表示制御から除外（ラベルは常に非表示）
-    contourLayerIds = ['contour-regular', 'contour-index'];
-    console.log('等高線レイヤー（フォールバック生成）:', contourLayerIds);
   }
 
-  // 等高線レイヤーを追加（湖水深 + DEM5A + DEM1A）。Q地図レイヤーはisomizerが生成済み。
+  // 等高線レイヤーを追加（湖水深 + DEM5A + DEM1A）。Q地図レイヤーは上で追加済み。
   // DEMソースはユーザーが排他切り替え（setContourDemMode参照）。
   // 描画順（上から）: Q地図 > DEM5A > DEM1A（常に全部addするが visibility で排他切り替え）> 湖水深
   if (contourLayerIds.length > 0) {
