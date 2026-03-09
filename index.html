@@ -3559,6 +3559,35 @@ maplibregl.addProtocol('gsjdem', async (params, abortController) => {
   return { data: await blob.arrayBuffer() };
 });
 
+/*
+  ========================================================
+  Q地図1m等高線用 DEM プロキシプロトコル (q1mdem://)
+  Q地図タイルを優先取得し、404（未カバーエリア）の場合は DEM5A にタイル単位でフォールバック。
+  ピクセル混合はなく、タイル境界での DEM 切り替えのため境界ズレが生じない。
+  addProtocol 登録のためハンドラはメインスレッドで動作し worker: true のまま使用可能。
+  ========================================================
+*/
+maplibregl.addProtocol('q1mdem', async (params, abortController) => {
+  // q1mdem://path/{z}/{x}/{y}.ext → https://path/{z}/{x}/{y}.ext でQ地図フェッチ
+  const qUrl = params.url.replace('q1mdem://', 'https://');
+  const mCoord = qUrl.match(/\/(\d+)\/(\d+)\/(\d+)\.\w+/);
+  if (!mCoord) throw new Error('q1mdem: URL format invalid');
+  const [, z, x, y] = mCoord;
+
+  // ① Q地図タイルを試行
+  try {
+    const r = await fetch(qUrl, { signal: abortController.signal });
+    if (r.ok) return { data: await r.arrayBuffer() };
+  } catch (e) {
+    if (abortController.signal.aborted) throw e;
+  }
+
+  // ② 404 または エラー → DEM5A フォールバック（タイル単位・ピクセル混合なし）
+  const sUrl = `${DEM5A_BASE}/${z}/${x}/${y}.png`;
+  const r2 = await fetch(sUrl, { signal: abortController.signal });
+  if (!r2.ok) throw new Error(`q1mdem: no tile at ${z}/${x}/${y}`);
+  return { data: await r2.arrayBuffer() };
+});
 
 
 
@@ -4304,10 +4333,11 @@ map.on('load', async () => {
 */
   try {
     contourDemSource = new mlcontour.DemSource({
-      url: 'https://mapdata.qchizu.xyz/03_dem/52_gsi/all_2025/1_02/{z}/{x}/{y}.webp',
+      // q1mdem:// プロトコル: Q地図優先・タイル単位でDEM5Aにフォールバック（安定性向上）
+      url: 'q1mdem://mapdata.qchizu.xyz/03_dem/52_gsi/all_2025/1_02/{z}/{x}/{y}.webp',
       encoding: 'numpng',
       minzoom: 0,
-      maxzoom: 15, // DEM5A と同水準に設定し1mDEMのオーバーズーム平滑化
+      maxzoom: 17, // Q地図は z17 まで提供。高ズームDEMタイルで拡大時の精細な等高線を生成
       worker: true,
       cacheSize: 100,
       timeoutMs: 30_000,
