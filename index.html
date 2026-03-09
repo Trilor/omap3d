@@ -2173,10 +2173,9 @@ label.setting-label {
   box-shadow: 0 0 6px rgba(0,0,0,0.55);
   pointer-events: none;
   z-index: 30;
-  transform: translate(-50%, -50%);
+  /* カーソル（矢印や手の先端）の少し下に赤丸を表示 */
+  transform: translate(-50%, 10px);
 }
-/* クリック待ち中はネイティブカーソルを非表示 */
-#map.sim-start-picking { cursor: none; }
 /* 操作ガイド */
 #sim-start-hint-overlay {
   display: none;
@@ -8794,13 +8793,8 @@ function closePcReadMap() {
 function enterSimStartPicking() {
   if (_simPickingActive || pcSimActive) return;
   _simPickingActive = true;
-  document.getElementById('map').classList.add('sim-start-picking');
   document.getElementById('sim-start-cursor').style.display = 'block';
   document.getElementById('sim-start-hint-overlay').style.display = 'block';
-  document.getElementById('sidebar').style.display = 'none';
-  document.getElementById('unified-search').style.display = 'none';
-  const btn = document.getElementById('pc-sim-toggle-btn');
-  btn.textContent = 'ESCでキャンセル';
   document.addEventListener('mousemove', _onSimPickMouseMove);
   document.getElementById('map').addEventListener('click', _onSimPickClick);
   document.addEventListener('keydown', _onSimPickKeydown);
@@ -8809,13 +8803,8 @@ function enterSimStartPicking() {
 function exitSimStartPicking() {
   if (!_simPickingActive) return;
   _simPickingActive = false;
-  document.getElementById('map').classList.remove('sim-start-picking');
   document.getElementById('sim-start-cursor').style.display = 'none';
   document.getElementById('sim-start-hint-overlay').style.display = 'none';
-  document.getElementById('sidebar').style.display = '';
-  document.getElementById('unified-search').style.display = '';
-  const btn = document.getElementById('pc-sim-toggle-btn');
-  btn.textContent = 'PC シミュレーター開始';
   document.removeEventListener('mousemove', _onSimPickMouseMove);
   document.getElementById('map').removeEventListener('click', _onSimPickClick);
   document.removeEventListener('keydown', _onSimPickKeydown);
