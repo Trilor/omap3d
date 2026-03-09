@@ -2313,17 +2313,22 @@ label.setting-label {
   bottom: 0; /* position:absolute のまま右下固定 */
 }
 
-/* 右上フロート縮尺コントロール（ミニマップの左隣） */
+/* 縮尺コントロール: 全画面ボタンの左隣に配置
+   MapLibre ボタン: 29×29px / ctrl-top-right margin: 10px 10px 0 0
+   ボタン左端 = right: 39px（10+29）/ ボタン間隔 = 10px（次グループの margin-top）
+   → 縮尺右端 = right: 49px */
 #scale-ctrl-container {
   position: absolute;
-  top: 10px;
-  right: calc(30vmin + 18px); /* ミニマップ幅30vmin + 右余白10px + gap8px */
+  top: 10px;   /* 全画面ボタン上端に揃える */
+  right: 49px; /* 全画面ボタン左端(39px) + ボタン間隔(10px) */
   z-index: 19;
 }
 .scale-ctrl-select {
+  height: 29px;           /* 全画面ボタンと同じ高さ */
+  box-sizing: border-box;
+  padding: 0 8px;
   background: #fff;
   border-radius: 4px;
-  padding: 4px 8px;
   font-size: 11px;
   color: #333;
   box-shadow: 0 0 0 2px rgba(0,0,0,.1);
