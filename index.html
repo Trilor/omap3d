@@ -737,7 +737,47 @@ label.setting-label {
 }
 
 /* オーバーレイ 2段組みレイアウト */
-
+.setting-row.overlay-stacked {
+  align-items: stretch;
+  padding: 0 12px;
+}
+.setting-row.overlay-stacked .setting-left {
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  width: 80px;
+}
+.overlay-left-top {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex: 1;
+}
+.overlay-left-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex: 1;
+}
+.overlay-controls {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.overlay-ctrl-top {
+  display: flex;
+  align-items: center;
+  padding: 5px 0 4px 4px;
+  gap: 5px;
+}
+.overlay-ctrl-bottom {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 0 4px 4px;
+}
 
 /* 透明度スライダー行 */
 .opacity-row {
@@ -754,7 +794,8 @@ label.setting-label {
   flex-shrink: 0;
 }
 
-.opacity-row input[type="range"] {
+.opacity-row input[type="range"],
+.overlay-ctrl-bottom input[type="range"] {
   flex: 1;
   min-width: 0;
   height: 3px;
@@ -766,16 +807,19 @@ label.setting-label {
   outline: none;
 }
 .opacity-row input[type="range"]:disabled,
+.overlay-ctrl-bottom input[type="range"]:disabled,
 .setting-right input[type="range"]:disabled {
   opacity: 0.35;
   cursor: default;
 }
 .opacity-row input[type="range"]:disabled ~ .opacity-val,
+.overlay-ctrl-bottom input[type="range"]:disabled ~ .opacity-val,
 .setting-right input[type="range"]:disabled ~ .opacity-val {
   color: #aaa;
 }
 
-.opacity-row input[type="range"]::-webkit-slider-thumb {
+.opacity-row input[type="range"]::-webkit-slider-thumb,
+.overlay-ctrl-bottom input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
   width: 12px;
@@ -787,6 +831,9 @@ label.setting-label {
 }
 
 .opacity-row input[type="range"]::-webkit-slider-thumb:hover,
+.overlay-ctrl-bottom input[type="range"]::-webkit-slider-thumb:hover {
+  border-color: #4a7c59;
+}
 
 .opacity-val {
   min-width: 30px;
@@ -2807,25 +2854,30 @@ label.setting-label {
               </select>
             </div>
           </div>
-          <div class="setting-row ctrl-right">
+          <div class="setting-row overlay-stacked">
             <div class="setting-left">
-              <span class="setting-label">オーバーレイ</span>
+              <div class="overlay-left-top">
+                <label for="chk-overlay" class="setting-label">オーバーレイ</label>
+              </div>
+              <div class="overlay-left-bottom">
+                <label class="toggle-switch">
+                  <input type="checkbox" id="chk-overlay" />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
             </div>
-            <div class="setting-right">
-              <select id="sel-overlay" class="setting-select">
-                <option value="none">なし</option>
-                <option value="cs-1m">CS立体図 1m（全国）</option>
-                <option value="cs-0.5m" title="ズーム17以上で0.5mを表示">CS立体図 0.5m（一部地域）</option>
-              </select>
-            </div>
-          </div>
-          <div class="setting-row ctrl-right" id="overlay-opacity-row">
-            <div class="setting-left">
-              <span class="setting-label opacity-row-label">透明度</span>
-            </div>
-            <div class="setting-right">
-              <input type="range" id="slider-cs" min="0" max="1" step="0.05" value="1.0" disabled />
-              <span class="opacity-val" id="val-cs">100%</span>
+            <div class="overlay-controls">
+              <div class="overlay-ctrl-top">
+                <select id="sel-overlay" class="setting-select">
+                  <option value="cs-1m">全国 1m</option>
+                  <option value="cs-0.5m" title="ズーム17以上で0.5mを表示">一部地域 0.5m</option>
+                </select>
+              </div>
+              <div class="overlay-ctrl-bottom">
+                <span class="opacity-row-label">透明度</span>
+                <input type="range" id="slider-cs" min="0" max="1" step="0.05" value="1.0" disabled />
+                <span class="opacity-val" id="val-cs">100%</span>
+              </div>
             </div>
           </div>
         </div>
@@ -7306,7 +7358,8 @@ function updateRegionalAttribution() {
     attrEl.id = 'regional-cs-attr';
     attrInner.appendChild(attrEl);
   }
-  const _csOverlay  = document.getElementById('sel-overlay')?.value ?? 'none';
+  const _overlayOn  = document.getElementById('chk-overlay')?.checked;
+  const _csOverlay  = _overlayOn ? document.getElementById('sel-overlay')?.value : 'none';
   const _csBasemap  = document.getElementById('sel-basemap')?.value;
   const _csKey      = _csOverlay !== 'none' ? _csOverlay : _csBasemap;
   const csRegionalOn = _csKey === 'cs-0.5m' && map.getZoom() >= 17;
@@ -7351,11 +7404,11 @@ function updatePlateauAttribution() {
 }
 
 // ---- CS立体図 オーバーレイ制御 ----
-// sel-overlay の value: 'none' | 'cs-1m' | 'cs-0.5m'
 // 0.5m モードはズーム17以上で地域CSを表示し、ズーム17未満は1mに自動フォールバック
 function updateCsVisibility() {
-  const basemap = document.getElementById('sel-basemap').value;   // 'cs-1m' | 'cs-0.5m' | others
-  const overlay = document.getElementById('sel-overlay').value;   // 'none' | 'cs-1m' | 'cs-0.5m'
+  const basemap    = document.getElementById('sel-basemap').value;
+  const overlayOn  = document.getElementById('chk-overlay').checked;
+  const overlay    = overlayOn ? document.getElementById('sel-overlay').value : 'none';
 
   // オーバーレイ優先、なければベースマップ選択を参照
   const csKey = overlay !== 'none' ? overlay
@@ -7376,12 +7429,12 @@ function updateCsVisibility() {
     }
   });
 
-  const overlayOn = overlay !== 'none';
   document.getElementById('slider-cs').disabled = !overlayOn;
   updateRegionalAttribution();
 }
 
 document.getElementById('sel-overlay').addEventListener('change', updateCsVisibility);
+document.getElementById('chk-overlay').addEventListener('change', updateCsVisibility);
 
 // ズーム17の境界を跨いだとき 0.5m ↔ 1m を自動切替
 map.on('zoomend', updateCsVisibility);
