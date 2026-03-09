@@ -2747,6 +2747,175 @@ label.setting-label {
   color: #2f5c3d;
 }
 
+/* ============================================================
+   モバイル専用要素: デスクトップでは非表示
+   ============================================================ */
+#sheet-handle,
+#sheet-mini-bar { display: none; }
+
+/* ============================================================
+   @media (max-width: 768px)
+   ボトムナビゲーション & ドラッグ可能ボトムシート
+   ============================================================ */
+@media (max-width: 768px) {
+
+  /* サイドバー幅を 0 に（地図UIをフルスクリーン化） */
+  :root { --sidebar-w: 0px !important; }
+
+  /* #sidebar → 画面下部に固定・縦→横レイアウト */
+  #sidebar {
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100vw;
+    height: auto;
+    flex-direction: column-reverse; /* icon-bar が最下部 */
+    z-index: 20;
+  }
+
+  /* ── ボトムナビゲーションバー ── */
+  #sidebar-icon-bar {
+    width: 100%;
+    height: 54px;
+    height: calc(54px + env(safe-area-inset-bottom, 0px));
+    flex-direction: row;
+    justify-content: space-around;
+    padding: 0 4px;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    gap: 0;
+    box-shadow: 0 -1px 0 rgba(0,0,0,0.10), 0 -2px 12px rgba(0,0,0,0.08);
+    flex-shrink: 0;
+  }
+
+  /* ロゴ非表示 */
+  #sidebar-logo { display: none; }
+
+  /* ナビボタン: 横並びに */
+  .sidebar-nav-btn {
+    flex: 1;
+    height: 54px;
+    width: auto;
+    border-radius: 0;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .nav-label { display: block; font-size: 9px; }
+
+  /* アクティブインジケーター → 上端ボーダーに */
+  .sidebar-nav-btn.active::before {
+    top: 0;
+    bottom: auto;
+    left: 25%;
+    right: 25%;
+    width: auto;
+    height: 3px;
+    border-radius: 0 0 3px 3px;
+  }
+
+  /* ── ボトムシート ── */
+  #sidebar-panel {
+    position: fixed;
+    bottom: 54px;
+    bottom: calc(54px + env(safe-area-inset-bottom, 0px));
+    left: 0;
+    right: 0;
+    top: auto;
+    width: 100vw;
+    height: var(--sheet-height, 72px);
+    border-right: none;
+    border-top: 1px solid rgba(0,0,0,0.10);
+    border-radius: 16px 16px 0 0;
+    box-shadow: 0 -4px 24px rgba(0,0,0,0.14);
+    transition: height 0.32s cubic-bezier(0.4,0,0.2,1);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* sb-hidden を無効化（ボトムシートは常に表示） */
+  #sidebar-panel.sb-hidden { display: flex !important; }
+
+  /* ── ドラッグハンドル ── */
+  #sheet-handle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 22px;
+    flex-shrink: 0;
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+    background: inherit;
+  }
+  #sheet-handle:active { cursor: grabbing; }
+  .sheet-handle-bar {
+    width: 40px;
+    height: 4px;
+    background: rgba(0,0,0,0.18);
+    border-radius: 2px;
+    transition: background 0.15s, width 0.15s;
+  }
+  #sheet-handle:active .sheet-handle-bar {
+    background: rgba(74,124,89,0.55);
+    width: 52px;
+  }
+
+  /* ── ミニバー（最小展開時のプレビュー行） ── */
+  #sheet-mini-bar {
+    display: flex;
+    align-items: center;
+    padding: 0 14px;
+    gap: 10px;
+    height: 50px;
+    flex-shrink: 0;
+    border-top: 1px solid rgba(0,0,0,0.07);
+    background: #fff;
+  }
+  #sheet-mini-label {
+    flex: 1;
+    font-size: 12px;
+    color: #555;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 600;
+  }
+  #sheet-mini-start-btn {
+    padding: 6px 16px;
+    background: #4a7c59;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+    font-family: inherit;
+  }
+
+  /* 展開時はミニバー非表示 */
+  #sidebar-panel.sheet-mid #sheet-mini-bar,
+  #sidebar-panel.sheet-full #sheet-mini-bar { display: none; }
+
+  /* 最小時: スクロール無効 / 展開時: スクロール有効 */
+  #sidebar-panel.sheet-min  .sidebar-scroll { overflow-y: hidden; }
+  #sidebar-panel.sheet-mid  .sidebar-scroll,
+  #sidebar-panel.sheet-full .sidebar-scroll { overflow-y: auto; }
+
+  /* セクションが見えないときは pointer-events を切る */
+  #sidebar-panel.sheet-min .sidebar-section { pointer-events: none; }
+  #sidebar-panel.sheet-mid .sidebar-section,
+  #sidebar-panel.sheet-full .sidebar-section { pointer-events: auto; }
+
+  /* 地図コントロール（ズーム等）が底に隠れないよう上げる */
+  .maplibregl-ctrl-bottom-right,
+  .maplibregl-ctrl-bottom-left {
+    bottom: calc(54px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+}
+
 </style>
 </head>
 
@@ -2805,6 +2974,14 @@ label.setting-label {
 
   <!-- パネルコンテンツ -->
   <div id="sidebar-panel">
+
+    <!-- ドラッグハンドル（モバイル専用） -->
+    <div id="sheet-handle" aria-hidden="true"><div class="sheet-handle-bar"></div></div>
+    <!-- ミニバー: 最小展開時のプレビュー（モバイル専用） -->
+    <div id="sheet-mini-bar">
+      <span id="sheet-mini-label">シミュレーター</span>
+      <button id="sheet-mini-start-btn">▶ 開始</button>
+    </div>
 
     <!-- ▶ シミュレーター -->
     <div class="sidebar-section active" id="panel-sim">
@@ -7856,6 +8033,11 @@ let _sidebarOpen = true;
 
 // サイドバー幅をCSS変数に反映（検索ボックス・出典の左位置が連動する）
 function updateSidebarWidth() {
+  // モバイルではサイドバーは下部に配置するため幅は 0
+  if (window.matchMedia('(max-width: 768px)').matches) {
+    document.documentElement.style.setProperty('--sidebar-w', '0px');
+    return;
+  }
   const sidebar = document.getElementById('sidebar');
   const w = sidebar ? sidebar.offsetWidth : 296;
   document.documentElement.style.setProperty('--sidebar-w', w + 'px');
@@ -10346,6 +10528,129 @@ document.getElementById('import-decide-btn').addEventListener('click', () => {
   addImageLayerToMap(uid + '-src', uid + '-layer', keepUrl, _importCoords, 1.0);
   closeImportModal(false);
 });
+
+// ============================================================
+// モバイル ボトムシート ドラッグ制御
+// touchstart / touchmove / touchend で上下にスワイプし、
+// 離した位置に最も近い 3段階（min / mid / full）へスナップする。
+// ============================================================
+(function initBottomSheet() {
+  const MQ         = window.matchMedia('(max-width: 768px)');
+  const panel      = document.getElementById('sidebar-panel');
+  const handle     = document.getElementById('sheet-handle');
+  const miniLabel  = document.getElementById('sheet-mini-label');
+  const miniStart  = document.getElementById('sheet-mini-start-btn');
+  if (!panel || !handle) return;
+
+  const NAV_H  = 54;  // ボトムナビゲーションバーの高さ (px)
+  const MIN_H  = 72;  // 最小展開: ハンドル(22px) + ミニバー(50px)
+
+  // 3段階のスナップ高さ（mid / full は画面高さに依存するため動的）
+  function sh() {
+    return {
+      min:  MIN_H,
+      mid:  Math.round(window.innerHeight * 0.42),
+      full: window.innerHeight - NAV_H,
+    };
+  }
+
+  let snapState  = 'min';
+  let dragStartY = 0;
+  let dragStartH = 0;
+  let dragging   = false;
+
+  function applyHeight(h, animate) {
+    panel.style.transition = animate
+      ? 'height 0.32s cubic-bezier(0.4,0,0.2,1)'
+      : 'none';
+    panel.style.height = h + 'px';
+  }
+
+  function snapTo(state, animate = true) {
+    snapState = state;
+    applyHeight(sh()[state], animate);
+    panel.classList.toggle('sheet-min',  state === 'min');
+    panel.classList.toggle('sheet-mid',  state === 'mid');
+    panel.classList.toggle('sheet-full', state === 'full');
+  }
+
+  function nearestSnap(h) {
+    const s = sh();
+    return [
+      { k: 'min',  v: s.min  },
+      { k: 'mid',  v: s.mid  },
+      { k: 'full', v: s.full },
+    ].reduce((a, b) => Math.abs(a.v - h) <= Math.abs(b.v - h) ? a : b).k;
+  }
+
+  // ---- タッチドラッグ ----
+  handle.addEventListener('touchstart', e => {
+    if (!MQ.matches) return;
+    dragging   = true;
+    dragStartY = e.touches[0].clientY;
+    dragStartH = panel.getBoundingClientRect().height;
+    panel.style.transition = 'none';
+  }, { passive: true });
+
+  handle.addEventListener('touchmove', e => {
+    if (!dragging || !MQ.matches) return;
+    const dy = dragStartY - e.touches[0].clientY;
+    const s  = sh();
+    panel.style.height = Math.max(s.min, Math.min(s.full, dragStartH + dy)) + 'px';
+  }, { passive: true });
+
+  handle.addEventListener('touchend', () => {
+    if (!dragging) return;
+    dragging = false;
+    snapTo(nearestSnap(panel.getBoundingClientRect().height));
+  });
+
+  // ---- ナビボタンタップ: min → mid に展開 ----
+  document.querySelectorAll('.sidebar-nav-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (MQ.matches && snapState === 'min') snapTo('mid');
+    });
+  });
+
+  // ---- ミニバー「開始」ボタン → シミュレーター本体ボタンに委譲 ----
+  if (miniStart) {
+    miniStart.addEventListener('click', () => {
+      document.getElementById('pc-sim-toggle-btn')?.click();
+    });
+  }
+
+  // ---- ミニバーラベル: アクティブパネル名を表示 ----
+  const PANEL_NAMES = { sim: 'シミュレーター', settings: '表示設定', catalog: '地図管理' };
+  function updateMiniLabel() {
+    const active = document.querySelector('.sidebar-nav-btn.active');
+    const key    = active?.dataset?.panel ?? 'sim';
+    if (miniLabel) miniLabel.textContent = PANEL_NAMES[key] ?? key;
+  }
+  document.querySelectorAll('.sidebar-nav-btn').forEach(btn =>
+    btn.addEventListener('click', updateMiniLabel)
+  );
+  updateMiniLabel();
+
+  // ---- リサイズ: スナップ高さを再計算 ----
+  window.addEventListener('resize', () => {
+    if (MQ.matches) snapTo(snapState, false);
+  });
+
+  // ---- デスクトップ ↔ モバイル 切り替え ----
+  MQ.addEventListener('change', e => {
+    if (e.matches) {
+      snapTo('min', false);
+    } else {
+      panel.style.height     = '';
+      panel.style.transition = '';
+      panel.classList.remove('sheet-min', 'sheet-mid', 'sheet-full');
+    }
+    updateSidebarWidth();
+  });
+
+  // ---- 初期化 ----
+  if (MQ.matches) snapTo('min', false);
+})();
 
 
 </script>
