@@ -350,13 +350,16 @@ map.on('load', async () => {
   isomizer（design-plan.yml）がこのソースを参照してスタイリングできる。
   ========================================================
 */
+  // Q地図 1m 等高線ソース
+  // worker: false = メインスレッドで fetch → Blob URL Worker の null Origin 問題を回避
+  // （worker: true の場合、Blob URL Worker の Origin が null になり Q地図サーバーが 404 を返す）
   try {
     contourDemSource = new mlcontour.DemSource({
       url: 'https://mapdata.qchizu.xyz/03_dem/52_gsi/all_2025/1_02/{z}/{x}/{y}.webp',
       encoding: 'numpng',
       minzoom: 0,
-      maxzoom: 15,
-      worker: true,
+      maxzoom: 17,
+      worker: false,
       cacheSize: 100,
       timeoutMs: 30_000,
     });
@@ -364,13 +367,18 @@ map.on('load', async () => {
     map.addSource('contour-source', {
       type: 'vector',
       tiles: [buildContourTileUrl(userContourInterval)],
-      maxzoom: 15,
+      maxzoom: 17,
       attribution: '',
     });
+    console.log('Q地図 1m 等高線ソース登録完了');
+  } catch (e) {
+    console.warn('Q地図 DemSource の初期化に失敗:', e);
+  }
 
-    // 湖水深等高線（湖底実際の標高 = 基準水面標高 - 湖水深）
-    // worker: false でメインスレッドで動かし、window.fetch オーバーライドで
-    // LAKE_ELEV_PREFIX への合成タイルを取得する。
+  // 湖水深等高線（湖底実際の標高 = 基準水面標高 - 湖水深）
+  // worker: false でメインスレッドで動かし、window.fetch オーバーライドで
+  // LAKE_ELEV_PREFIX への合成タイルを取得する。
+  try {
     lakeContourDemSource = new mlcontour.DemSource({
       url: `${LAKE_ELEV_PREFIX}{z}/{x}/{y}.png`,
       encoding: 'numpng',
@@ -387,7 +395,13 @@ map.on('load', async () => {
       maxzoom: 15,
       attribution: '',
     });
-    // DEM5A 5m 等高線ソース（Q地図と完全独立・標高タイルのある範囲で全域描画）
+    console.log('湖水深等高線ソース登録完了');
+  } catch (e) {
+    console.warn('湖水深 DemSource の初期化に失敗:', e);
+  }
+
+  // DEM5A 5m 等高線ソース（Q地図と完全独立・標高タイルのある範囲で全域描画）
+  try {
     seamlessContourDemSource = new mlcontour.DemSource({
       url: `${DEM5A_BASE}/{z}/{x}/{y}.png`,
       encoding: 'numpng',
@@ -404,7 +418,13 @@ map.on('load', async () => {
       maxzoom: 15,
       attribution: '',
     });
-    // 地理院 DEM1A 1m 等高線ソース（DEM5Aと同設定・maxzoomのみ17）
+    console.log('DEM5A 等高線ソース登録完了');
+  } catch (e) {
+    console.warn('DEM5A DemSource の初期化に失敗:', e);
+  }
+
+  // 地理院 DEM1A 1m 等高線ソース（DEM5Aと同設定・maxzoomのみ17）
+  try {
     dem1aContourDemSource = new mlcontour.DemSource({
       url: `${DEM1A_BASE}/{z}/{x}/{y}.png`,
       encoding: 'numpng',
@@ -421,11 +441,9 @@ map.on('load', async () => {
       maxzoom: 15,
       attribution: '',
     });
-    console.log('等高線ソース登録完了（Q地図 + DEM5A + DEM1A + 湖水深）');
-  }
-
-  catch (e) {
-    console.warn('mlcontour DemSource の初期化に失敗:', e);
+    console.log('DEM1A 等高線ソース登録完了');
+  } catch (e) {
+    console.warn('DEM1A DemSource の初期化に失敗:', e);
   }
 
   /*
@@ -3677,20 +3695,19 @@ function applyContourInterval(intervalM) {
   const newUrlDem5a = buildSeamlessContourTileUrl(intervalM);
   const newUrlDem1a = buildDem1aContourTileUrl(intervalM);
   const newUrlLake  = buildLakeContourTileUrl(intervalM);
-  if (!newUrl || !map.getSource('contour-source')) return;
+  // 各ソースを個別にチェック（1つが未登録でも他のソースは更新し続ける）
+  const hasQchizu = newUrl      && map.getSource('contour-source');
+  const hasDem5a  = newUrlDem5a && map.getSource('contour-source-dem5a');
+  const hasDem1a  = newUrlDem1a && map.getSource('contour-source-dem1a');
+  const hasLake   = newUrlLake  && map.getSource('contour-source-lake');
+  if (!hasQchizu && !hasDem5a && !hasDem1a && !hasLake) return;
   // MapLibreは高ズーム時に「新タイルが届くまで旧タイルを保持」するため、
   // 一旦 visibility:none で旧タイルを即座に消去してからURLを切り替える
   setAllContourVisibility('none');
-  map.getSource('contour-source').setTiles([newUrl]);
-  if (newUrlDem5a && map.getSource('contour-source-dem5a')) {
-    map.getSource('contour-source-dem5a').setTiles([newUrlDem5a]);
-  }
-  if (newUrlDem1a && map.getSource('contour-source-dem1a')) {
-    map.getSource('contour-source-dem1a').setTiles([newUrlDem1a]);
-  }
-  if (newUrlLake && map.getSource('contour-source-lake')) {
-    map.getSource('contour-source-lake').setTiles([newUrlLake]);
-  }
+  if (hasQchizu) map.getSource('contour-source').setTiles([newUrl]);
+  if (hasDem5a)  map.getSource('contour-source-dem5a').setTiles([newUrlDem5a]);
+  if (hasDem1a)  map.getSource('contour-source-dem1a').setTiles([newUrlDem1a]);
+  if (hasLake)   map.getSource('contour-source-lake').setTiles([newUrlLake]);
   requestAnimationFrame(() => {
     if (!chkContour.checked) return;
     setAllContourVisibility('visible');
