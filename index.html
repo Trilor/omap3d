@@ -1447,6 +1447,90 @@ label.setting-label {
 .imgw-place-btn:not(:disabled):hover { background: #3a6449; }
 
 /* 地名検索 */
+/* ===== 統合検索ボックス（常時表示・サイドバー幅に連動） ===== */
+#unified-search {
+  position: absolute;
+  top: 10px;
+  left: calc(var(--sidebar-w, 296px) + 8px);
+  z-index: 10;
+  width: 270px;
+  transition: left 0.15s ease;
+}
+#unified-search-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+#unified-search-row .search-icon {
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: #888;
+}
+#unified-search-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 26px 6px 30px;
+  border: none;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #333;
+  background: #fff;
+  box-shadow: 0 0 0 2px rgba(0,0,0,.1);
+  outline: none;
+}
+#unified-search-input:focus {
+  box-shadow: 0 0 0 2px #4a7c59;
+}
+#unified-search-clear {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  padding: 2px;
+  cursor: pointer;
+  color: #aaa;
+  line-height: 0;
+  border-radius: 50%;
+  transition: color 0.15s, background 0.15s;
+}
+#unified-search-clear:hover { color: #555; background: #e8e8e8; }
+#unified-search-msg {
+  font-size: 10px;
+  color: #888;
+  margin-top: 3px;
+  padding: 0 2px;
+}
+#unified-search-results {
+  margin-top: 4px;
+  border-radius: 4px;
+  overflow-y: auto;
+  max-height: 280px;
+  background: #fff;
+  box-shadow: 0 0 0 2px rgba(0,0,0,.1);
+}
+/* 結果ソースアイコン */
+.result-source-icon {
+  flex-shrink: 0;
+  font-size: 13px;
+  width: 20px;
+  text-align: center;
+}
+/* テレインタイプバッジ（検索結果用） */
+.result-type-badge {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 4px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.result-type-sprint { background: #fff3e0; color: #c77700; }
+.result-type-forest { background: #e8f5e9; color: #2e7d32; }
+
 #place-search-wrap {
   padding: 8px 10px;
   border-bottom: 1px solid #d8d8d8;
@@ -2651,6 +2735,25 @@ label.setting-label {
 <body>
 <!-- 地図を描画するコンテナ要素 -->
 <div id="map"></div>
+
+<!-- 統合検索ボックス（常時表示・サイドバー幅に連動） -->
+<div id="unified-search">
+  <div id="unified-search-row">
+    <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none" width="14" height="14" aria-hidden="true">
+      <circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" stroke-width="1.5"/>
+      <line x1="10" y1="10" x2="14.5" y2="14.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+    </svg>
+    <input type="text" id="unified-search-input" placeholder="地名・テレインを検索" autocomplete="off" />
+    <button id="unified-search-clear" aria-label="入力をクリア" style="display:none">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none" width="12" height="12" aria-hidden="true">
+        <line x1="3" y1="3" x2="13" y2="13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="13" y1="3" x2="3" y2="13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+    </button>
+  </div>
+  <div id="unified-search-msg"></div>
+  <div id="unified-search-results"></div>
+</div>
 <!-- 右下フロート縮尺コントロール -->
 <div id="scale-ctrl-container">
   <select id="sel-scale" class="scale-ctrl-select" title="地図の縮尺を変更">
@@ -2689,25 +2792,6 @@ label.setting-label {
     <div class="sidebar-section active" id="panel-sim">
       <div class="sidebar-section-header">シミュレーター</div>
       <div class="sidebar-scroll">
-
-        <!-- 地名検索 -->
-        <div id="place-search-wrap">
-          <div id="place-search-row">
-            <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none" width="14" height="14" aria-hidden="true">
-              <circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" stroke-width="1.5"/>
-              <line x1="10" y1="10" x2="14.5" y2="14.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-            </svg>
-            <input type="text" id="place-search-input" placeholder="地名・住所を検索" />
-            <button id="place-search-clear" aria-label="入力をクリア" style="display:none">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none" width="12" height="12" aria-hidden="true">
-                <line x1="3" y1="3" x2="13" y2="13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-                <line x1="13" y1="3" x2="3" y2="13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-              </svg>
-            </button>
-          </div>
-          <div id="place-search-msg"></div>
-          <div id="place-search-results"></div>
-        </div>
 
         <!-- 読図地図 -->
         <div class="panel-block">
@@ -6599,23 +6683,69 @@ let _searchTimer = null; // デバウンス用タイマー
 let _searchAbort  = null; // 進行中リクエストのキャンセル用
 
 function updateClearBtn() {
-  const hasValue = document.getElementById('place-search-input').value.length > 0;
-  document.getElementById('place-search-clear').style.display = hasValue ? 'block' : 'none';
+  const hasValue = document.getElementById('unified-search-input').value.length > 0;
+  document.getElementById('unified-search-clear').style.display = hasValue ? 'block' : 'none';
 }
 
 function clearSearch() {
-  const input = document.getElementById('place-search-input');
+  const input = document.getElementById('unified-search-input');
   input.value = '';
-  document.getElementById('place-search-msg').textContent = '';
-  document.getElementById('place-search-results').innerHTML = '';
+  document.getElementById('unified-search-msg').textContent = '';
+  document.getElementById('unified-search-results').innerHTML = '';
   updateClearBtn();
   input.focus();
 }
 
+// テレインカタログをローカル検索して結果を返す（即時）
+function searchTerrains(q) {
+  if (!q || terrainMap.size === 0) return [];
+  const ql = q.toLowerCase();
+  const seen = new Set();
+  const results = [];
+
+  // terrainMap から名前・都道府県・作成者で検索
+  for (const [tid, t] of terrainMap) {
+    if (seen.has(tid)) continue;
+    const name = (t.name ?? '').toLowerCase();
+    const pref = (t.prefecture ?? '').toLowerCase();
+    const auth = (t.author ?? '').toLowerCase();
+    if (name.includes(ql) || pref.includes(ql) || auth.includes(ql)) {
+      seen.add(tid);
+      results.push({ tid, t });
+    }
+  }
+  // mapFrames のイベント名でも追加検索
+  for (const f of mapFrames) {
+    const tid = f.properties.terrain_id ?? '';
+    if (seen.has(tid)) continue;
+    if ((f.properties.event_name ?? '').toLowerCase().includes(ql)) {
+      seen.add(tid);
+      results.push({ tid, t: terrainMap.get(tid) ?? {} });
+    }
+  }
+
+  // 各テレインの bounds を frames から計算して付与
+  return results.slice(0, 8).map(({ tid, t }) => {
+    const frames = mapFrames.filter(f => f.properties.terrain_id === tid);
+    let bbox = null;
+    if (frames.length > 0) {
+      const lngs = frames.flatMap(f => f.coordinates.map(c => c[0]));
+      const lats  = frames.flatMap(f => f.coordinates.map(c => c[1]));
+      bbox = { west: Math.min(...lngs), east: Math.max(...lngs), south: Math.min(...lats), north: Math.max(...lats) };
+    } else if (t.geometry?.coordinates?.[0]) {
+      const ring = t.geometry.coordinates[0];
+      const lngs = ring.map(c => c[0]);
+      const lats  = ring.map(c => c[1]);
+      bbox = { west: Math.min(...lngs), east: Math.max(...lngs), south: Math.min(...lats), north: Math.max(...lats) };
+    }
+    return { tid, name: t.name ?? tid, prefecture: t.prefecture ?? '', terrain_type: t.terrain_type ?? '', bbox };
+  });
+}
+
 function searchPlace() {
-  const query   = document.getElementById('place-search-input').value.trim();
-  const msg     = document.getElementById('place-search-msg');
-  const results = document.getElementById('place-search-results');
+  const query   = document.getElementById('unified-search-input').value.trim();
+  const msg     = document.getElementById('unified-search-msg');
+  const results = document.getElementById('unified-search-results');
 
   if (!query) {
     results.innerHTML = '';
@@ -6627,9 +6757,55 @@ function searchPlace() {
   if (_searchAbort) { _searchAbort.abort(); }
   _searchAbort = new AbortController();
 
-  msg.textContent = '検索中…';
-  msg.style.color = '#888';
   results.innerHTML = '';
+  msg.textContent = '';
+
+  // ① テレイン検索（即時・ローカル）
+  const terrainHits = searchTerrains(query);
+  terrainHits.forEach(t => {
+    const el = document.createElement('div');
+    el.className = 'place-result-item';
+
+    const iconEl = document.createElement('span');
+    iconEl.className = 'result-source-icon';
+    iconEl.textContent = '🗺';
+    el.appendChild(iconEl);
+
+    const nameEl = document.createElement('span');
+    nameEl.className = 'place-result-name';
+    nameEl.textContent = t.name;
+    el.appendChild(nameEl);
+
+    const metaEl = document.createElement('div');
+    metaEl.className = 'place-result-meta';
+    const prefEl = document.createElement('span');
+    prefEl.textContent = t.prefecture;
+    metaEl.appendChild(prefEl);
+    if (t.terrain_type) {
+      const badge = document.createElement('span');
+      badge.className = `result-type-badge result-type-${t.terrain_type}`;
+      badge.textContent = t.terrain_type === 'sprint' ? 'スプリント' : 'フォレスト';
+      metaEl.appendChild(badge);
+    }
+    el.appendChild(metaEl);
+
+    el.addEventListener('click', () => {
+      if (t.bbox) {
+        const panelWidth = document.getElementById('sidebar')?.offsetWidth ?? 300;
+        map.fitBounds([[t.bbox.west, t.bbox.south], [t.bbox.east, t.bbox.north]], {
+          padding: { top: 60, bottom: 60, left: panelWidth + 30, right: 60 },
+          duration: 800,
+        });
+      }
+      document.getElementById('unified-search-input').value = t.name;
+      updateClearBtn();
+    });
+    results.appendChild(el);
+  });
+
+  // ② 地理院API（非同期）
+  msg.textContent = '地名を検索中…';
+  msg.style.color = '#888';
 
   fetch(
     `https://msearch.gsi.go.jp/address-search/AddressSearch?q=${encodeURIComponent(query)}`,
@@ -6637,12 +6813,14 @@ function searchPlace() {
   )
     .then(r => r.json())
     .then(data => {
+      msg.textContent = '';
       if (!data || data.length === 0) {
-        msg.textContent = '見つかりませんでした';
-        msg.style.color = '#c00';
+        if (terrainHits.length === 0) {
+          msg.textContent = '見つかりませんでした';
+          msg.style.color = '#c00';
+        }
         return;
       }
-      msg.textContent = '';
       data.forEach(item => {
         if (!item?.geometry?.coordinates || !item?.properties) return;
         const [lng, lat] = item.geometry.coordinates;
@@ -6650,6 +6828,11 @@ function searchPlace() {
 
         const el = document.createElement('div');
         el.className = 'place-result-item';
+
+        const iconEl = document.createElement('span');
+        iconEl.className = 'result-source-icon';
+        iconEl.textContent = '📍';
+        el.appendChild(iconEl);
 
         const nameEl = document.createElement('span');
         nameEl.className = 'place-result-name';
@@ -6668,10 +6851,9 @@ function searchPlace() {
         }
         el.appendChild(metaEl);
 
-        // 結果選択：flyTo して入力欄に地名を反映（結果は表示し続ける）
         el.addEventListener('click', () => {
           map.flyTo({ center: [lng, lat], zoom: 15, duration: 1500 });
-          document.getElementById('place-search-input').value = item.properties.title;
+          document.getElementById('unified-search-input').value = item.properties.title;
           msg.textContent = '';
           updateClearBtn();
         });
@@ -6680,32 +6862,30 @@ function searchPlace() {
     })
     .catch(e => {
       if (e.name === 'AbortError') return; // キャンセルは無視
-      console.error('地名検索エラー:', e);
-      msg.textContent = '検索エラー';
-      msg.style.color = '#c00';
+      msg.textContent = '';
     });
 }
 
 // Enter キー
-document.getElementById('place-search-input').addEventListener('keydown', e => {
+document.getElementById('unified-search-input').addEventListener('keydown', e => {
   if (e.key === 'Enter') { clearTimeout(_searchTimer); searchPlace(); }
 });
 
 // 入力中のライブ検索（350ms デバウンス）+ クリアボタン表示制御
-document.getElementById('place-search-input').addEventListener('input', () => {
+document.getElementById('unified-search-input').addEventListener('input', () => {
   updateClearBtn();
   clearTimeout(_searchTimer);
-  const q = document.getElementById('place-search-input').value.trim();
+  const q = document.getElementById('unified-search-input').value.trim();
   if (!q) {
-    document.getElementById('place-search-results').innerHTML = '';
-    document.getElementById('place-search-msg').textContent = '';
+    document.getElementById('unified-search-results').innerHTML = '';
+    document.getElementById('unified-search-msg').textContent = '';
     return;
   }
   _searchTimer = setTimeout(searchPlace, 350);
 });
 
 // クリアボタン
-document.getElementById('place-search-clear').addEventListener('click', clearSearch);
+document.getElementById('unified-search-clear').addEventListener('click', clearSearch);
 
 /* ========================================================
     ファイル選択ボタンの制御
@@ -7736,6 +7916,7 @@ function startSimMode() {
 
   // ④ UIを切り替え
   document.getElementById('sidebar').style.display = 'none';
+  document.getElementById('unified-search').style.display = 'none';
   document.getElementById('scale-ctrl-container').style.display = 'none';
   document.querySelector('.maplibregl-ctrl-top-right').style.display = 'none';
   document.getElementById('sim-overlay').style.display = 'flex';
@@ -7782,6 +7963,7 @@ function stopSimMode() {
 
   // UIを元に戻す
   document.getElementById('sidebar').style.display = '';
+  document.getElementById('unified-search').style.display = '';
   document.getElementById('scale-ctrl-container').style.display = '';
   document.querySelector('.maplibregl-ctrl-top-right').style.display = '';
   document.getElementById('sim-overlay').style.display = 'none';
@@ -8131,6 +8313,7 @@ function onPcSimLocked() {
 
   // ④ UIを更新
   document.getElementById('sidebar').style.display = 'none';
+  document.getElementById('unified-search').style.display = 'none';
   document.getElementById('scale-ctrl-container').style.display = 'none';
   document.querySelector('.maplibregl-ctrl-top-right').style.display = 'none';
   const btn = document.getElementById('pc-sim-toggle-btn');
@@ -8176,6 +8359,7 @@ function stopPcSim() {
 
   // UI 復元
   document.getElementById('sidebar').style.display = '';
+  document.getElementById('unified-search').style.display = '';
   document.getElementById('scale-ctrl-container').style.display = '';
   document.querySelector('.maplibregl-ctrl-top-right').style.display = '';
   const btn = document.getElementById('pc-sim-toggle-btn');
