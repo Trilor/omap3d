@@ -183,20 +183,35 @@ body {
 
 /* ナビゲーションボタン */
 .sidebar-nav-btn {
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 52px;
   border: none;
   background: transparent;
   color: rgba(255,255,255,0.65);
-  border-radius: 8px;
+  border-radius: 6px;
   cursor: pointer;
-  font-size: 20px;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 2px;
   transition: background 0.15s, color 0.15s;
   position: relative;
   flex-shrink: 0;
+  padding: 0;
+}
+.nav-icon {
+  font-size: 18px;
+  line-height: 1;
+  display: block;
+}
+.nav-label {
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.03em;
+  display: block;
+  opacity: 0.9;
 }
 .sidebar-nav-btn:hover {
   background: rgba(255,255,255,0.18);
@@ -269,6 +284,20 @@ body {
 .sidebar-scroll::-webkit-scrollbar-track { background: transparent; }
 .sidebar-scroll::-webkit-scrollbar-thumb { background: #c8c8c8; border-radius: 2px; }
 .sidebar-scroll::-webkit-scrollbar-thumb:hover { background: #999; }
+
+/* 設定グループ区切り */
+.settings-group {
+  border-bottom: 1px solid #e0e0e0;
+}
+.settings-group-title {
+  font-size: 9px;
+  font-weight: 700;
+  color: #aaa;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 8px 12px 4px;
+  user-select: none;
+}
 
 /* パネル内ブロック */
 .panel-block {
@@ -445,8 +474,8 @@ body {
 .setting-row:last-child { border-bottom: none; }
 
 /* パネル内のすべてのチェックボックス・ラジオボタンを同一サイズに統一 */
-#ui-panel input[type="checkbox"],
-#ui-panel input[type="radio"] {
+#sidebar input[type="checkbox"],
+#sidebar input[type="radio"] {
   width: 13px;
   height: 13px;
   flex-shrink: 0;
@@ -2638,9 +2667,18 @@ label.setting-label {
   <!-- アイコンバー（常時表示） -->
   <div id="sidebar-icon-bar">
     <div id="sidebar-logo">TD</div>
-    <button class="sidebar-nav-btn active" data-panel="sim" title="シミュレーター">▶</button>
-    <button class="sidebar-nav-btn" data-panel="settings" title="設定">⚙</button>
-    <button class="sidebar-nav-btn" data-panel="catalog" title="地図管理">🗺</button>
+    <button class="sidebar-nav-btn active" data-panel="sim" title="シミュレーター">
+      <span class="nav-icon">▶</span>
+      <span class="nav-label">ゲーム</span>
+    </button>
+    <button class="sidebar-nav-btn" data-panel="settings" title="表示設定">
+      <span class="nav-icon">⚙</span>
+      <span class="nav-label">設定</span>
+    </button>
+    <button class="sidebar-nav-btn" data-panel="catalog" title="地図カタログ・読み込み済み地図">
+      <span class="nav-icon">🗺</span>
+      <span class="nav-label">地図</span>
+    </button>
   </div>
 
   <!-- パネルコンテンツ -->
@@ -2648,7 +2686,7 @@ label.setting-label {
 
     <!-- ▶ シミュレーター -->
     <div class="sidebar-section active" id="panel-sim">
-      <div class="sidebar-section-header">▶ シミュレーター</div>
+      <div class="sidebar-section-header">シミュレーター</div>
       <div class="sidebar-scroll">
 
         <!-- 地名検索 -->
@@ -2690,191 +2728,186 @@ label.setting-label {
 
     <!-- ⚙ 設定 -->
     <div class="sidebar-section" id="panel-settings">
-      <div class="sidebar-section-header">⚙ 設定</div>
+      <div class="sidebar-section-header">表示設定</div>
       <div class="sidebar-scroll">
 
-        <!-- ベースマップ -->
-        <div class="setting-row ctrl-right">
-          <div class="setting-left">
-            <span class="setting-label">ベースマップ</span>
-          </div>
-          <div class="setting-right">
-            <select id="sel-basemap" class="setting-select">
-              <option value="orilibre">OriLibre</option>
-              <option value="gsi-std">地理院 標準地図</option>
-              <option value="gsi-pale">地理院 淡色地図</option>
-              <option value="gsi-photo">地理院 航空写真</option>
-              <option value="osm">OpenStreetMap</option>
-              <option disabled>──────</option>
-              <option value="cs-1m">CS立体図 1m（全国）</option>
-              <option value="cs-0.5m" title="ズーム17以上で0.5mを表示">CS立体図 0.5m（一部地域）</option>
-            </select>
-          </div>
-        </div>
-
-        <!-- オーバーレイ（2段組み） -->
-        <div class="setting-row overlay-stacked">
-          <div class="setting-left">
-            <div class="overlay-left-top">
-              <label for="chk-overlay" class="setting-label">オーバーレイ</label>
+        <!-- グループ: 地図表示 -->
+        <div class="settings-group">
+          <div class="settings-group-title">地図表示</div>
+          <div class="setting-row ctrl-right">
+            <div class="setting-left">
+              <span class="setting-label">ベースマップ</span>
             </div>
-            <div class="overlay-left-bottom">
-              <label class="toggle-switch">
-                <input type="checkbox" id="chk-overlay" />
-                <span class="toggle-slider"></span>
-              </label>
-            </div>
-          </div>
-          <div class="overlay-controls">
-            <div class="overlay-ctrl-top">
-              <select id="sel-overlay" class="setting-select">
+            <div class="setting-right">
+              <select id="sel-basemap" class="setting-select">
+                <option value="orilibre">OriLibre</option>
+                <option value="gsi-std">地理院 標準地図</option>
+                <option value="gsi-pale">地理院 淡色地図</option>
+                <option value="gsi-photo">地理院 航空写真</option>
+                <option value="osm">OpenStreetMap</option>
+                <option disabled>──────</option>
                 <option value="cs-1m">CS立体図 1m（全国）</option>
                 <option value="cs-0.5m" title="ズーム17以上で0.5mを表示">CS立体図 0.5m（一部地域）</option>
               </select>
             </div>
-            <div class="overlay-ctrl-bottom">
-              <span class="opacity-row-label">透明度</span>
-              <input type="range" id="slider-cs" min="0" max="1" step="0.05" value="1.0" disabled />
-              <span class="opacity-val" id="val-cs">100%</span>
+          </div>
+          <div class="setting-row overlay-stacked">
+            <div class="setting-left">
+              <div class="overlay-left-top">
+                <label for="chk-overlay" class="setting-label">CS立体図</label>
+              </div>
+              <div class="overlay-left-bottom">
+                <label class="toggle-switch">
+                  <input type="checkbox" id="chk-overlay" />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+            </div>
+            <div class="overlay-controls">
+              <div class="overlay-ctrl-top">
+                <select id="sel-overlay" class="setting-select">
+                  <option value="cs-1m">全国 1m</option>
+                  <option value="cs-0.5m" title="ズーム17以上で0.5mを表示">一部地域 0.5m</option>
+                </select>
+              </div>
+              <div class="overlay-ctrl-bottom">
+                <span class="opacity-row-label">透明度</span>
+                <input type="range" id="slider-cs" min="0" max="1" step="0.05" value="1.0" disabled />
+                <span class="opacity-val" id="val-cs">100%</span>
+              </div>
             </div>
           </div>
         </div>
 
-        <!-- 等高線 -->
-        <div class="setting-row toggle-left">
-          <div class="setting-left">
-            <label for="chk-contour" class="setting-label">等高線</label>
-            <label class="toggle-switch">
-              <input type="checkbox" id="chk-contour" checked />
-              <span class="toggle-slider"></span>
-            </label>
+        <!-- グループ: 地形・ナビ -->
+        <div class="settings-group">
+          <div class="settings-group-title">地形・ナビ</div>
+          <div class="setting-row toggle-left">
+            <div class="setting-left">
+              <label for="chk-contour" class="setting-label">等高線</label>
+              <label class="toggle-switch">
+                <input type="checkbox" id="chk-contour" checked />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="setting-right">
+              <select id="sel-contour-interval" class="setting-select">
+                <option id="opt-contour-current" value="">5 m</option>
+                <option disabled>──────</option>
+                <option value="1">1 m</option>
+                <option value="2">2 m</option>
+                <option value="2.5">2.5 m</option>
+                <option value="5">5 m</option>
+                <option value="10">10 m</option>
+              </select>
+            </div>
           </div>
-          <div class="setting-right">
-            <select id="sel-contour-interval" class="setting-select">
-              <option id="opt-contour-current" value="">5 m</option>
-              <option disabled>──────</option>
-              <option value="1">1 m</option>
-              <option value="2">2 m</option>
-              <option value="2.5">2.5 m</option>
-              <option value="5">5 m</option>
-              <option value="10">10 m</option>
-            </select>
+          <div class="setting-row toggle-left">
+            <div class="setting-left">
+              <label for="sel-contour-dem" class="setting-label">DEMソース</label>
+            </div>
+            <div class="setting-right">
+              <select id="sel-contour-dem" class="setting-select">
+                <option value="q1m">Q地図 1m</option>
+                <option value="dem5a">DEM5A 5m</option>
+              </select>
+            </div>
           </div>
-        </div>
-        <div class="setting-row toggle-left">
-          <div class="setting-left">
-            <label for="sel-contour-dem" class="setting-label">DEMソース</label>
+          <div class="setting-row toggle-left">
+            <div class="setting-left">
+              <label for="chk-magnetic-north" class="setting-label">磁北線</label>
+              <label class="toggle-switch">
+                <input type="checkbox" id="chk-magnetic-north" checked />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="setting-right">
+              <select id="sel-magnetic-north-interval" class="setting-select">
+                <option id="opt-magnetic-north-current" value="">300 m</option>
+                <option disabled>──────</option>
+                <option value="120">120 m</option>
+                <option value="150">150 m</option>
+                <option value="250">250 m</option>
+                <option value="300">300 m</option>
+                <option value="500">500 m</option>
+              </select>
+            </div>
           </div>
-          <div class="setting-right">
-            <select id="sel-contour-dem" class="setting-select">
-              <option value="q1m">Q地図 1m</option>
-              <option value="dem5a">DEM5A 5m</option>
-            </select>
+          <div class="setting-row toggle-left">
+            <div class="setting-left">
+              <label for="chk-exaggeration" class="setting-label">3D地形</label>
+              <label class="toggle-switch">
+                <input type="checkbox" id="chk-exaggeration" checked />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="setting-right">
+              <input type="range" id="slider-exaggeration" min="0.5" max="3" step="0.1" value="1.0"
+                class="setting-slider" />
+              <span class="opacity-val" id="val-exaggeration">1.0×</span>
+            </div>
           </div>
-        </div>
-
-        <!-- 磁北線 -->
-        <div class="setting-row toggle-left">
-          <div class="setting-left">
-            <label for="chk-magnetic-north" class="setting-label">磁北線</label>
-            <label class="toggle-switch">
-              <input type="checkbox" id="chk-magnetic-north" checked />
-              <span class="toggle-slider"></span>
-            </label>
-          </div>
-          <div class="setting-right">
-            <select id="sel-magnetic-north-interval" class="setting-select">
-              <option id="opt-magnetic-north-current" value="">300 m</option>
-              <option disabled>──────</option>
-              <option value="120">120 m</option>
-              <option value="150">150 m</option>
-              <option value="250">250 m</option>
-              <option value="300">300 m</option>
-              <option value="500">500 m</option>
-            </select>
-          </div>
-        </div>
-
-        <!-- 3D地形（誇張） -->
-        <div class="setting-row toggle-left">
-          <div class="setting-left">
-            <label for="chk-exaggeration" class="setting-label">3D地形</label>
-            <label class="toggle-switch">
-              <input type="checkbox" id="chk-exaggeration" checked />
-              <span class="toggle-slider"></span>
-            </label>
-          </div>
-          <div class="setting-right">
-            <input type="range" id="slider-exaggeration" min="0.5" max="3" step="0.1" value="1.0"
-              class="setting-slider" />
-            <span class="opacity-val" id="val-exaggeration">1.0×</span>
-          </div>
-        </div>
-
-        <!-- 3D建物 -->
-        <div class="setting-row toggle-left">
-          <div class="setting-left">
-            <label for="chk-building" class="setting-label">3D建物</label>
-            <label class="toggle-switch">
-              <input type="checkbox" id="chk-building" checked />
-              <span class="toggle-slider"></span>
-            </label>
-          </div>
-          <div class="setting-right">
-            <select id="sel-building" class="setting-select">
-              <option value="plateau" selected>PLATEAU</option>
-              <option value="ofm">OpenFreeMap</option>
-            </select>
+          <div class="setting-row toggle-left">
+            <div class="setting-left">
+              <label for="chk-building" class="setting-label">3D建物</label>
+              <label class="toggle-switch">
+                <input type="checkbox" id="chk-building" checked />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="setting-right">
+              <select id="sel-building" class="setting-select">
+                <option value="plateau" selected>PLATEAU</option>
+                <option value="ofm">OpenFreeMap</option>
+              </select>
+            </div>
           </div>
         </div>
 
-        <!-- 移動速度 -->
-        <div class="setting-row ctrl-right">
-          <div class="setting-left">
-            <span class="setting-label">移動速度</span>
+        <!-- グループ: シミュレーター -->
+        <div class="settings-group">
+          <div class="settings-group-title">シミュレーター</div>
+          <div class="setting-row ctrl-right">
+            <div class="setting-left">
+              <span class="setting-label">移動速度</span>
+            </div>
+            <div class="setting-right">
+              <input type="range" id="pc-sim-speed" min="10" max="200" step="5" value="100"
+                class="setting-slider" />
+              <span class="opacity-val" id="pc-sim-speed-val">100km/h</span>
+            </div>
           </div>
-          <div class="setting-right">
-            <input type="range" id="pc-sim-speed" min="10" max="200" step="5" value="100"
-              class="setting-slider" />
-            <span class="opacity-val" id="pc-sim-speed-val">100km/h</span>
+          <div class="setting-row ctrl-right">
+            <div class="setting-left">
+              <span class="setting-label">読図マップ</span>
+            </div>
+            <div class="setting-right">
+              <select id="sel-readmap-bg" class="setting-select">
+                <option value="orilibre" selected>OriLibre</option>
+                <option value="gsi-std">地理院 標準</option>
+                <option value="gsi-pale">地理院 淡色</option>
+                <option value="gsi-photo">航空写真</option>
+                <option value="osm">OpenStreetMap</option>
+              </select>
+            </div>
           </div>
-        </div>
-
-        <!-- 読図地図の背景 -->
-        <div class="setting-row label-right">
-          <div class="setting-left">
-            <label for="sel-readmap-bg" class="setting-label">読図地図の背景</label>
+          <div class="setting-row no-divider">
+            <div class="setting-left">
+              <label for="chk-readmap-dot" class="setting-label">読図モードで現在位置を表示</label>
+              <label class="toggle-switch">
+                <input type="checkbox" id="chk-readmap-dot" checked />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
           </div>
-          <div class="setting-right">
-            <select id="sel-readmap-bg" class="setting-select">
-              <option value="orilibre" selected>OriLibre</option>
-              <option value="gsi-std">地理院 標準地図</option>
-              <option value="gsi-pale">地理院 淡色地図</option>
-              <option value="gsi-photo">地理院 航空写真</option>
-              <option value="osm">OpenStreetMap</option>
-            </select>
-          </div>
-        </div>
-
-        <!-- 読図地図 現在位置ドット -->
-        <div class="setting-row no-divider">
-          <div class="setting-left">
-            <label for="chk-readmap-dot" class="setting-label">読図モードで現在位置を表示</label>
-            <label class="toggle-switch">
-              <input type="checkbox" id="chk-readmap-dot" checked />
-              <span class="toggle-slider"></span>
-            </label>
-          </div>
-        </div>
-
-        <!-- ヒント表示 -->
-        <div class="setting-row no-divider">
-          <div class="setting-left">
-            <label for="chk-sim-hint" class="setting-label">画面に操作のヒントを表示</label>
-            <label class="toggle-switch">
-              <input type="checkbox" id="chk-sim-hint" checked />
-              <span class="toggle-slider"></span>
-            </label>
+          <div class="setting-row no-divider">
+            <div class="setting-left">
+              <label for="chk-sim-hint" class="setting-label">操作ヒントを表示</label>
+              <label class="toggle-switch">
+                <input type="checkbox" id="chk-sim-hint" checked />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
           </div>
         </div>
 
@@ -2883,7 +2916,7 @@ label.setting-label {
 
     <!-- 🗺 地図管理 -->
     <div class="sidebar-section" id="panel-catalog">
-      <div class="sidebar-section-header">🗺 地図管理</div>
+      <div class="sidebar-section-header">地図管理</div>
       <div class="sidebar-scroll">
 
         <!-- 地図カタログ（フレームベース） -->
