@@ -1,0 +1,2813 @@
+/* --sidebar-w をアニメータブルなCSS変数として宣言（Chrome85+ / Firefox128+） */
+@property --sidebar-w {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 296px;
+}
+/* サイドバー幅の変化を 0.15s で補間。これにより calc(var(--sidebar-w)+X) が使われる
+   すべての要素（検索ボックス・縮尺・出典など）が同時にスムーズに追従する */
+:root {
+  transition: --sidebar-w 0.15s ease;
+}
+
+/*
+  ========================================================
+  全画面表示のスタイル設定
+  ========================================================
+*/
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+button, input, textarea {
+  font-family: inherit;
+  font-size: inherit;
+}
+select {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+body {
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  font-family: 'Hiragino Sans', 'Noto Sans JP', sans-serif;
+  background-color: #dbeff9;
+}
+
+#map {
+  width: 100%;
+  height: 100%;
+  background-color: #dbeff9;
+}
+
+
+/* ---- UIパネル（地理院地図/Q地図スタイル） ---- */
+/* ===== サイドバー ===== */
+#sidebar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100vh;
+  display: flex;
+  z-index: 10;
+  pointer-events: none; /* 子要素にのみイベントを通す */
+}
+#sidebar > * { pointer-events: auto; }
+
+/* アイコンバー（常時表示） */
+#sidebar-icon-bar {
+  width: 48px;
+  height: 100%;
+  background: #4a7c59;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0;
+  gap: 2px;
+  flex-shrink: 0;
+  box-shadow: 2px 0 6px rgba(0,0,0,0.15);
+}
+
+/* ロゴ */
+#sidebar-logo {
+  width: 48px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 900;
+  color: #fff;
+  letter-spacing: -0.03em;
+  background: rgba(0,0,0,0.15);
+  flex-shrink: 0;
+  margin-bottom: 4px;
+  user-select: none;
+}
+
+/* ナビゲーションボタン */
+.sidebar-nav-btn {
+  width: 44px;
+  height: 52px;
+  border: none;
+  background: transparent;
+  color: rgba(255,255,255,0.65);
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  transition: background 0.15s, color 0.15s;
+  position: relative;
+  flex-shrink: 0;
+  padding: 0;
+}
+.nav-icon {
+  font-size: 18px;
+  line-height: 1;
+  display: block;
+}
+.nav-label {
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.03em;
+  display: block;
+  opacity: 0.9;
+}
+.sidebar-nav-btn:hover {
+  background: rgba(255,255,255,0.18);
+  color: #fff;
+}
+.sidebar-nav-btn.active {
+  background: rgba(255,255,255,0.28);
+  color: #fff;
+}
+/* アクティブ時の左ボーダー（VS Code風） */
+.sidebar-nav-btn.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  background: #fff;
+  border-radius: 0 2px 2px 0;
+}
+
+/* パネルコンテンツ */
+#sidebar-panel {
+  width: 248px;
+  height: 100%;
+  background: #fff;
+  border-right: 1px solid #ddd;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 2px 0 8px rgba(0,0,0,0.08);
+}
+#sidebar-panel.sb-hidden {
+  display: none;
+}
+
+/* セクション（各パネル） */
+.sidebar-section {
+  display: none;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+.sidebar-section.active {
+  display: flex;
+}
+
+/* セクションヘッダー */
+.sidebar-section-header {
+  background: #4a7c59;
+  color: #fff;
+  padding: 0 12px;
+  height: 44px;
+  font-size: 13px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  letter-spacing: 0.02em;
+}
+
+/* スクロール可能エリア */
+.sidebar-scroll {
+  flex: 1;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #c8c8c8 transparent;
+}
+.sidebar-scroll::-webkit-scrollbar { width: 4px; }
+.sidebar-scroll::-webkit-scrollbar-track { background: transparent; }
+.sidebar-scroll::-webkit-scrollbar-thumb { background: #c8c8c8; border-radius: 2px; }
+.sidebar-scroll::-webkit-scrollbar-thumb:hover { background: #999; }
+
+/* 設定グループ区切り */
+.settings-group {
+  border-bottom: 1px solid #e0e0e0;
+}
+.settings-group-title {
+  font-size: 9px;
+  font-weight: 700;
+  color: #aaa;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 8px 12px 4px;
+  user-select: none;
+}
+
+/* パネル内ブロック */
+.panel-block {
+  padding: 8px 10px;
+  border-bottom: 1px solid #e8e8e8;
+}
+.panel-block-title {
+  font-size: 10px;
+  font-weight: 700;
+  color: #888;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+/* シミュレーター：読図地図リスト */
+.sim-map-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 6px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.12s;
+  margin-bottom: 2px;
+}
+.sim-map-item:hover { background: #f0f8f3; }
+.sim-map-item.active { background: #e6f2ea; }
+.sim-map-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ccc;
+  flex-shrink: 0;
+  border: 1.5px solid #bbb;
+  transition: background 0.12s, border-color 0.12s;
+}
+.sim-map-item.active .sim-map-dot {
+  background: #4a7c59;
+  border-color: #3a6449;
+}
+.sim-map-name {
+  flex: 1;
+  font-size: 12px;
+  color: #333;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.sim-map-item.active .sim-map-name { font-weight: 600; color: #2e7d32; }
+.sim-map-fly-btn {
+  flex-shrink: 0;
+  background: none;
+  border: 1px solid #c8c8c8;
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-size: 11px;
+  cursor: pointer;
+  color: #666;
+  line-height: 1.4;
+  transition: background 0.12s, color 0.12s;
+}
+.sim-map-fly-btn:hover { background: #4a7c59; color: #fff; border-color: #4a7c59; }
+.sim-readmap-empty {
+  font-size: 11px;
+  color: #aaa;
+  padding: 8px 4px;
+  text-align: center;
+}
+
+/* 開始ボタンブロック（パネル最下部固定） */
+.sim-start-block {
+  padding: 10px;
+  border-top: 1px solid #e0e0e0;
+  flex-shrink: 0;
+  background: #fff;
+}
+
+/* カタログパネルの地図追加ボタン */
+#map-import-btn-top {
+  display: block;
+  width: 100%;
+  padding: 6px 10px;
+  background: #fff;
+  color: #4a7c59;
+  border: 1.5px solid #4a7c59;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+  transition: background 0.15s, color 0.15s;
+  margin-bottom: 6px;
+}
+#map-import-btn-top:hover { background: #4a7c59; color: #fff; }
+
+/* カタログから選択ボタン */
+#sim-open-catalog-btn {
+  display: block;
+  width: 100%;
+  padding: 5px 10px;
+  background: #f5f5f5;
+  color: #555;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  text-align: center;
+  transition: background 0.12s;
+}
+#sim-open-catalog-btn:hover { background: #e8e8e8; }
+
+/* セクションヘッダ（後方互換のため残存） */
+.sec-header {
+  background: #f0f0f0;
+  border-top: 1px solid #d8d8d8;
+  border-bottom: 1px solid #d8d8d8;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: bold;
+  color: #555;
+  letter-spacing: 0.02em;
+}
+
+/* ---- アコーディオンセクション (<details> / <summary>) ---- */
+.panel-section {
+  margin: 0;
+}
+
+/* summary がセクションヘッダ代わり */
+.panel-section>summary {
+  background: #f0f0f0;
+  border-top: 1px solid #d8d8d8;
+  border-bottom: 1px solid #d8d8d8;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: bold;
+  color: #555;
+  letter-spacing: 0.02em;
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  user-select: none;
+}
+
+/* Chrome / Safari でのデフォルトマーカーを消す */
+.panel-section>summary::-webkit-details-marker {
+  display: none;
+}
+
+/* 開閉インジケーター: 開 = ▲、閉 = ▼ */
+.panel-section>summary::after {
+  content: '▲';
+  font-size: 11px;
+  color: #888;
+  flex-shrink: 0;
+}
+
+.panel-section:not([open])>summary::after {
+  content: '▼';
+}
+
+/* ---- 表示設定セクション内の1行レイアウト ---- */
+.setting-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 12px;
+  border-bottom: 1px solid #ebebeb;
+}
+.setting-row:last-child { border-bottom: none; }
+
+/* パネル内のすべてのチェックボックス・ラジオボタンを同一サイズに統一 */
+#sidebar input[type="checkbox"],
+#sidebar input[type="radio"] {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+  cursor: pointer;
+  accent-color: #4a7c59;
+}
+
+.setting-label {
+  font-size: 11px;
+  color: #333;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.setting-sublabel {
+  font-size: 11px;
+  color: #555;
+  white-space: nowrap;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.setting-select {
+  background: #f0f0f0;
+  color: #1a1a1a;
+  border: 1px solid #b0b8b0;
+  border-radius: 4px;
+  padding: 2px 4px;
+  font-size: 11px;
+  cursor: pointer;
+  outline: none;
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+}
+
+.setting-slider {
+  flex: 1;
+  min-width: 0;
+  height: 3px;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  border-radius: 2px;
+  background: linear-gradient(to right, #6a8fa0 var(--pct, 20%), #d0d0d0 var(--pct, 20%));
+  outline: none;
+}
+
+.setting-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #fff;
+  border: 1.5px solid #888;
+  cursor: pointer;
+}
+
+.setting-slider::-webkit-slider-thumb:hover {
+  border-color: #6a8fa0;
+}
+
+.setting-slider:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* 表示設定：左ラベル列 / 右コントロール列 */
+.setting-left {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  width: 80px;
+  padding-right: 8px;
+  border-right: 1px solid #ddd;
+}
+/* 区切り線なし・ラベル左＋トグル右行 */
+.setting-row.no-divider .setting-left {
+  width: auto;
+  flex: 1;
+  border-right: none;
+  padding-right: 0;
+}
+.setting-row.no-divider .setting-right {
+  flex: 0 0 auto;
+  padding-left: 8px;
+}
+
+.setting-right {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex: 1;
+  min-width: 0;
+  padding-left: 4px;
+}
+
+/* ラベルを区切り線の左に右揃え、コントロールを右端に寄せる行 */
+.setting-row.ctrl-right .setting-left {
+  justify-content: flex-end;
+}
+/* ラベル右揃え（コントロール側は通常レイアウト）*/
+.setting-row.label-right .setting-left {
+  justify-content: flex-end;
+}
+/* トグルを区切り線の左に置く行：[ラベル][トグル] | [select/slider] */
+.setting-row.toggle-left .setting-left {
+  justify-content: flex-end;
+  width: 80px;
+}
+
+.setting-label.disabled {
+  color: #aaa;
+}
+
+/* レイヤー行 */
+.layer-row {
+  padding: 5px 10px 4px;
+  border-bottom: 1px solid #ebebeb;
+}
+
+.layer-row:last-child {
+  border-bottom: none;
+}
+
+/* チェックボックス + ラベル行 */
+.layer-label-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 3px;
+}
+
+/* #ui-panel input[type="checkbox"] に統合済み */
+
+.layer-name {
+  flex: 1;
+  font-size: 13px;
+  color: #222;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  user-select: none;
+}
+
+.layer-name.disabled {
+  color: #aaa;
+}
+
+.kmz-del-btn {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: #aaa;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0 2px;
+  transition: color 0.15s;
+}
+
+.kmz-del-btn:hover {
+  color: #c0392b;
+}
+
+/* ---- トグルスイッチ ---- */
+.toggle-switch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  width: 28px;
+  height: 16px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+  position: absolute;
+}
+.toggle-slider {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: #bbb;
+  border-radius: 16px;
+  transition: background 0.18s;
+  cursor: pointer;
+}
+.toggle-slider::before {
+  content: '';
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  left: 3px;
+  top: 3px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform 0.18s;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.25);
+}
+.toggle-switch input:checked + .toggle-slider {
+  background: #4a7c59;
+}
+.toggle-switch input:checked + .toggle-slider::before {
+  transform: translateX(12px);
+}
+
+/* ---- ホバーエフェクト（クリック可能行の視覚フィードバック） ---- */
+.setting-row:has(label) {
+  cursor: pointer;
+  transition: background-color 0.12s;
+}
+.setting-row:has(label):hover {
+  background-color: #f0f5f1;
+}
+.layer-label-row {
+  transition: background-color 0.12s;
+}
+.layer-label-row:hover {
+  background-color: #f0f5f1;
+  border-radius: 3px;
+}
+label.setting-label {
+  cursor: pointer;
+}
+.setting-label.disabled,
+.layer-name.disabled {
+  cursor: default;
+}
+
+/* ---- シミュレーターボタングループ（タブ最上部） ---- */
+.sim-btn-group {
+  padding: 10px 10px 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* ---- シミュレーター設定セクションヘッダ ---- */
+.panel-section.sim-section > summary {
+  background: #eaf0ec;
+  color: #3a6449;
+}
+
+/* オーバーレイ 2段組みレイアウト */
+.setting-row.overlay-stacked {
+  align-items: stretch;
+  padding: 0 12px;
+}
+.setting-row.overlay-stacked .setting-left {
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  width: 80px;
+}
+.overlay-left-top {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex: 1;
+}
+.overlay-left-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex: 1;
+}
+.overlay-controls {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.overlay-ctrl-top {
+  display: flex;
+  align-items: center;
+  padding: 5px 0 4px 4px;
+  gap: 5px;
+}
+.overlay-ctrl-bottom {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 0 4px 4px;
+}
+
+/* 透明度スライダー行 */
+.opacity-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-left: 18px;
+  padding-right: 10px;
+}
+.opacity-row-label {
+  font-size: 10px;
+  color: #999;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.opacity-row input[type="range"],
+.overlay-ctrl-bottom input[type="range"] {
+  flex: 1;
+  min-width: 0;
+  height: 3px;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  border-radius: 2px;
+  background: linear-gradient(to right, #4a7c59 var(--pct, 60%), #d0d0d0 var(--pct, 60%));
+  outline: none;
+}
+.opacity-row input[type="range"]:disabled,
+.overlay-ctrl-bottom input[type="range"]:disabled,
+.setting-right input[type="range"]:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.opacity-row input[type="range"]:disabled ~ .opacity-val,
+.overlay-ctrl-bottom input[type="range"]:disabled ~ .opacity-val,
+.setting-right input[type="range"]:disabled ~ .opacity-val {
+  color: #aaa;
+}
+
+.opacity-row input[type="range"]::-webkit-slider-thumb,
+.overlay-ctrl-bottom input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #fff;
+  border: 1.5px solid #888;
+  cursor: pointer;
+}
+
+.opacity-row input[type="range"]::-webkit-slider-thumb:hover,
+.overlay-ctrl-bottom input[type="range"]::-webkit-slider-thumb:hover {
+  border-color: #4a7c59;
+}
+
+.opacity-val {
+  min-width: 30px;
+  text-align: right;
+  font-size: 11px;
+  color: #666;
+  font-variant-numeric: tabular-nums;
+}
+
+/* KMZアップロードボタン */
+/* ---- パネル内共通ボタン基底（セカンダリ：アウトライン） ---- */
+.panel-btn-outline {
+  display: block;
+  width: calc(100% - 20px);
+  margin: 6px 10px;
+  padding: 6px 12px;
+  background: #fff;
+  color: #4a7c59;
+  border: 1.5px solid #4a7c59;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  text-align: center;
+  letter-spacing: 0.02em;
+}
+.panel-btn-outline:hover {
+  background: #4a7c59;
+  color: #fff;
+}
+
+/* ---- パネル内共通ボタン基底（プライマリ：塗りつぶし） ---- */
+.panel-btn-primary {
+  display: block;
+  width: calc(100% - 20px);
+  margin: 6px 10px 8px;
+  padding: 7px 12px;
+  background: #4a7c59;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s;
+  text-align: center;
+  letter-spacing: 0.04em;
+}
+.panel-btn-primary:hover { background: #3a6449; }
+
+#map-import-btn-top {
+  display: block;
+  width: 100%;
+  padding: 7px 12px;
+  background: #fff;
+  color: #4a7c59;
+  border: 1.5px solid #4a7c59;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  text-align: center;
+  letter-spacing: 0.02em;
+}
+#map-import-btn-top:hover { background: #4a7c59; color: #fff; }
+
+/* ===== 地図カタログ ===== */
+
+/* 検索バー */
+.catalog-search-wrap {
+  padding: 6px 10px 4px;
+}
+.catalog-search-row {
+  position: relative;
+}
+.catalog-search-row .search-icon {
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: #888;
+}
+.catalog-search-wrap input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 5px 8px 5px 28px;
+  border: 1px solid #b0b8b0;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #333;
+  background: #f9f9f9;
+  outline: none;
+}
+.catalog-search-wrap input:focus {
+  border-color: #4a7c59;
+  background: #fff;
+}
+
+/* テレイングループ（<details>） */
+.terrain-group {
+  margin: 0;
+  border-bottom: 1px solid #e4e4e4;
+}
+.terrain-group > summary {
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: bold;
+  color: #444;
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  user-select: none;
+  background: #f8f8f8;
+}
+.terrain-group > summary::-webkit-details-marker { display: none; }
+.terrain-group > summary::before {
+  content: '▶';
+  font-size: 9px;
+  color: #aaa;
+  transition: transform 0.15s;
+  flex-shrink: 0;
+}
+.terrain-group[open] > summary::before { transform: rotate(90deg); }
+.terrain-group-count {
+  margin-left: auto;
+  font-size: 10px;
+  color: #aaa;
+  font-weight: 400;
+}
+
+/* フレームエントリ行 */
+.frame-entry {
+  padding: 5px 10px 5px;
+  border-bottom: 1px solid #f0f0f0;
+}
+.frame-entry:last-child { border-bottom: none; }
+
+/* ヘッダー行: 状態ドット + 大会名 + バッジ + 画像ボタン */
+.frame-entry-header {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+/* 可視チェックボックス */
+.frame-vis-chk { flex-shrink: 0; }
+
+/* 状態ドット（緑=画像あり、灰=なし） */
+.frame-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: #ccc;
+  border: 1.5px solid #bbb;
+}
+.frame-status-dot.has-image {
+  background: #4a7c59;
+  border-color: #3a6449;
+}
+
+/* 大会名テキスト */
+.frame-event-name {
+  font-size: 11px;
+  color: #333;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.frame-event-name.disabled { color: #aaa; }
+
+/* バッジ（種別タグ） */
+.frame-badge {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.frame-badge.sprint   { background: #fff3e0; color: #c77700; border: 1px solid #f0c060; }
+.frame-badge.forest   { background: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
+.frame-badge.subtype  { background: #f5f5f5; color: #666;    border: 1px solid #ddd; }
+
+/* ===== Miller Columns ブラウザ ===== */
+#miller-browser { border-bottom: 1px solid #e0e0e0; }
+
+/* パンくずバー */
+.miller-breadcrumb {
+  display: flex;
+  align-items: center;
+  padding: 3px 8px;
+  font-size: 10px;
+  color: #666;
+  border-bottom: 1px solid #e8e8e8;
+  background: #fafafa;
+  min-height: 20px;
+  gap: 2px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+}
+.miller-bc-root { color: #888; font-size: 10px; cursor: default; white-space: nowrap; }
+.miller-bc-root.clickable { color: #4a7c59; cursor: pointer; font-weight: 600; }
+.miller-bc-root.clickable:hover { text-decoration: underline; }
+.miller-bc-sep { color: #bbb; margin: 0 1px; flex-shrink: 0; }
+.miller-bc-item {
+  cursor: pointer;
+  color: #4a7c59;
+  font-weight: 600;
+  position: relative;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.miller-bc-item:hover { text-decoration: underline; }
+.miller-bc-current { color: #333; font-weight: 600; flex-shrink: 0; white-space: nowrap; }
+.miller-bc-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  background: #fff;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+  min-width: 120px;
+  max-height: 180px;
+  overflow-y: auto;
+  z-index: 200;
+}
+.miller-bc-dropdown-item {
+  padding: 5px 10px;
+  font-size: 11px;
+  cursor: pointer;
+  color: #333;
+  white-space: nowrap;
+}
+.miller-bc-dropdown-item:hover { background: #f0f8f3; }
+.miller-bc-dropdown-item.current { color: #4a7c59; font-weight: 700; }
+
+/* 3列コンテナ */
+.miller-wrap {
+  display: flex;
+  border-bottom: 1px solid #e0e0e0;
+  height: 210px;
+}
+
+/* 各列 */
+.miller-col {
+  flex: 1;
+  border-right: 1px solid #e0e0e0;
+  overflow-y: auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.miller-col:last-child { border-right: none; }
+/* 列ごとの幅比率: 地方(狭め) / 都道府県(標準) / テレイン(広め) */
+#miller-col-region  { flex: 0.75; }
+#miller-col-pref    { flex: 1.05; }
+#miller-col-terrain { flex: 1.45; }
+
+/* 列ヘッダー */
+.miller-col-hd {
+  padding: 3px 6px;
+  font-size: 9px;
+  font-weight: 700;
+  color: #888;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid #e8e8e8;
+  background: #f5f5f5;
+  text-transform: uppercase;
+  position: sticky;
+  top: 0;
+  flex-shrink: 0;
+}
+
+/* 列内アイテム */
+.miller-item {
+  padding: 2px 6px;
+  font-size: 10px;
+  line-height: 1.5;
+  cursor: pointer;
+  border-bottom: 1px solid #f5f5f5;
+  color: #333;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+.miller-item:hover { background: #f0f8f3; color: #2e7d32; }
+.miller-item.selected { background: #4a7c59; color: #fff; }
+.miller-item.disabled { color: #bbb; cursor: default; font-style: italic; }
+.miller-item-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.miller-item-count {
+  font-size: 9px;
+  opacity: 0.65;
+  flex-shrink: 0;
+}
+
+/* テレイン選択後のフレーム一覧ヘッダー */
+.miller-frame-hd {
+  padding: 5px 10px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #888;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  background: #f5f5f5;
+  border-bottom: 1px solid #e8e8e8;
+}
+
+/* 空状態メッセージ */
+.miller-empty { padding: 12px 10px; font-size: 11px; color: #aaa; text-align: center; }
+
+/* ===== タブバー ===== */
+.tab-bar {
+  display: flex;
+  align-items: flex-end;
+  border-bottom: 1px solid #ddd;
+  background: #f0f0f0;
+  padding: 5px 5px 0;
+  gap: 3px;
+}
+.tab-btn {
+  flex: 1;
+  padding: 6px 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #333;
+  background: none;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 5px 5px 0 0;
+  cursor: pointer;
+  transition: background 0.12s;
+  letter-spacing: 0.02em;
+  margin-bottom: -1px;
+}
+.tab-btn:hover { background: rgba(255,255,255,0.55); }
+.tab-btn.active {
+  color: #333;
+  background: #fff;
+  border-color: #ddd;
+  border-bottom-color: #fff;
+}
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* ===== map_type チップフィルター ===== */
+.map-type-chips {
+  display: flex;
+  gap: 5px;
+  padding: 6px 10px 4px;
+  flex-wrap: wrap;
+}
+.type-chip {
+  padding: 2px 9px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 12px;
+  border: 1px solid #ccc;
+  background: #f5f5f5;
+  color: #555;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+  letter-spacing: 0.02em;
+}
+.type-chip.active { background: #4a7c59; color: #fff; border-color: #4a7c59; }
+.type-chip:hover:not(.active) { background: #e8f0ea; border-color: #4a7c59; color: #4a7c59; }
+
+
+/* 都道府県グループ（3段ツリーの最上位） */
+.pref-group {
+  border-bottom: 1px solid #e8e8e8;
+}
+.pref-group > summary {
+  padding: 5px 10px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #888;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  list-style: none;
+  text-transform: uppercase;
+  user-select: none;
+}
+.pref-group > summary::-webkit-details-marker { display: none; }
+
+/* 画像ピッカーボタン（小） */
+.frame-img-pick-btn {
+  flex-shrink: 0;
+  background: none;
+  border: 1px solid #c8c8c8;
+  border-radius: 3px;
+  padding: 2px 5px;
+  font-size: 11px;
+  cursor: pointer;
+  color: #666;
+  line-height: 1.2;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.frame-img-pick-btn:hover {
+  background: #4a7c59;
+  color: #fff;
+  border-color: #4a7c59;
+}
+
+/* フレームコントロール（プルダウン＋スライダー）— 画像ありの時のみ表示 */
+.frame-controls {
+  margin-top: 4px;
+}
+.frame-img-select {
+  width: 100%;
+  padding: 3px 5px;
+  border: 1px solid #c8c8c8;
+  border-radius: 3px;
+  font-size: 11px;
+  color: #333;
+  background: #fff;
+  margin-bottom: 3px;
+}
+
+/* MapLibreポップアップ内のカスタムスタイル */
+.frame-popup { font-size: 12px; min-width: 200px; }
+.frame-popup-title {
+  font-weight: 700;
+  font-size: 13px;
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.frame-popup-meta {
+  color: #666;
+  font-size: 11px;
+  margin-bottom: 6px;
+  line-height: 1.5;
+}
+.frame-popup-select {
+  width: 100%;
+  padding: 4px 6px;
+  border: 1px solid #c8c8c8;
+  border-radius: 3px;
+  font-size: 11px;
+  margin-bottom: 6px;
+}
+.frame-popup-upload {
+  display: block;
+  width: 100%;
+  padding: 6px 10px;
+  background: #4a7c59;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+}
+.frame-popup-upload:hover { background: #3a6449; }
+
+/* 重なり時の選択メニュー */
+.frame-overlap-list { list-style: none; margin: 0; padding: 0; }
+.frame-overlap-item {
+  padding: 5px 8px;
+  cursor: pointer;
+  border-bottom: 1px solid #f0f0f0;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.frame-overlap-item:hover { background: #f0f8f3; }
+.frame-overlap-item:last-child { border-bottom: none; }
+
+
+/* ===== 画像+JGW モーダル ===== */
+.imgw-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  background: rgba(0, 0, 0, 0.48);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.imgw-modal-box {
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 6px 32px rgba(0, 0, 0, 0.28);
+  width: min(440px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+.imgw-modal-header {
+  background: #4a7c59;
+  color: #fff;
+  padding: 12px 16px;
+  border-radius: 8px 8px 0 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 14px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.imgw-modal-close {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 18px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0 2px;
+  opacity: 0.8;
+}
+.imgw-modal-close:hover { opacity: 1; }
+.imgw-modal-body { padding: 16px; }
+.imgw-step { margin-bottom: 18px; }
+.imgw-step:last-child { margin-bottom: 0; }
+.imgw-step-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #333;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.imgw-step-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 19px;
+  height: 19px;
+  background: #4a7c59;
+  color: #fff;
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.imgw-pick-btn {
+  display: block;
+  width: 100%;
+  padding: 9px 12px;
+  background: #fff;
+  color: #4a7c59;
+  border: 1.5px dashed #4a7c59;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+  transition: background 0.15s;
+}
+.imgw-pick-btn:hover { background: #f0f8f3; }
+.imgw-pick-btn.has-files {
+  border-style: solid;
+  background: #f0f8f3;
+}
+.imgw-file-list {
+  margin-top: 6px;
+  font-size: 11px;
+  color: #3a6449;
+  line-height: 1.6;
+}
+.imgw-file-item::before { content: '✓ '; font-weight: 700; }
+.imgw-step-note {
+  margin: 6px 0 0;
+  font-size: 10px;
+  color: #888;
+  line-height: 1.4;
+}
+.imgw-crs-select {
+  width: 100%;
+  padding: 7px 8px;
+  border: 1px solid #c8c8c8;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #333;
+  background: #fff;
+}
+.imgw-modal-footer {
+  padding: 12px 16px;
+  border-top: 1px solid #e8e8e8;
+  display: flex;
+  justify-content: flex-end;
+  flex-shrink: 0;
+}
+.imgw-place-btn {
+  padding: 9px 24px;
+  background: #4a7c59;
+  color: #fff;
+  border: none;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, opacity 0.15s;
+}
+.imgw-place-btn:disabled { opacity: 0.38; cursor: not-allowed; }
+.imgw-place-btn:not(:disabled):hover { background: #3a6449; }
+
+/* 地名検索 */
+/* ===== 統合検索ボックス（常時表示・サイドバー幅に連動） ===== */
+#unified-search {
+  position: absolute;
+  top: 10px;
+  left: calc(var(--sidebar-w, 296px) + 8px);
+  z-index: 10;
+  width: 270px;
+}
+#unified-search-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+#unified-search-row .search-icon {
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: #888;
+}
+#unified-search-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 26px 6px 30px;
+  border: none;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #333;
+  background: #fff;
+  box-shadow: 0 0 0 2px rgba(0,0,0,.1);
+  outline: none;
+}
+#unified-search-input:focus {
+  box-shadow: 0 0 0 2px #4a7c59;
+}
+#unified-search-clear {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  padding: 2px;
+  cursor: pointer;
+  color: #aaa;
+  line-height: 0;
+  border-radius: 50%;
+  transition: color 0.15s, background 0.15s;
+}
+#unified-search-clear:hover { color: #555; background: #e8e8e8; }
+#unified-search-msg {
+  font-size: 10px;
+  color: #888;
+  margin-top: 3px;
+  padding: 0 2px;
+}
+#unified-search-results {
+  margin-top: 4px;
+  border-radius: 4px;
+  overflow-y: auto;
+  max-height: 280px;
+  background: #fff;
+  box-shadow: 0 0 0 2px rgba(0,0,0,.1);
+}
+#unified-search-results:empty {
+  display: none;
+}
+#unified-search-msg:empty {
+  margin-top: 0;
+}
+/* 結果ソースアイコン */
+.result-source-icon {
+  flex-shrink: 0;
+  font-size: 13px;
+  width: 20px;
+  text-align: center;
+}
+/* テレインタイプバッジ（検索結果用） */
+.result-type-badge {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 4px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.result-type-sprint { background: #fff3e0; color: #c77700; }
+.result-type-forest { background: #e8f5e9; color: #2e7d32; }
+
+#place-search-wrap {
+  padding: 8px 10px;
+  border-bottom: 1px solid #d8d8d8;
+}
+#place-search-row {
+  position: relative;
+}
+.search-icon {
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: #888;
+}
+#place-search-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 5px 26px 5px 28px;
+  border: 1px solid #b0b8b0;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #333;
+  background: #f9f9f9;
+  outline: none;
+}
+#place-search-input:focus {
+  border-color: #4a7c59;
+  background: #fff;
+}
+#place-search-clear {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  padding: 2px;
+  cursor: pointer;
+  color: #aaa;
+  line-height: 0;
+  border-radius: 50%;
+  transition: color 0.15s, background 0.15s;
+}
+#place-search-clear:hover {
+  color: #555;
+  background: #e8e8e8;
+}
+#place-search-msg {
+  font-size: 10px;
+  color: #888;
+  margin-top: 3px;
+}
+#place-search-results {
+  margin-top: 4px;
+  border: 1px solid #c8c8c8;
+  border-radius: 4px;
+  overflow-y: auto;
+  max-height: 200px;
+  background: #fff;
+}
+.place-result-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 5px 8px;
+  cursor: pointer;
+  border-bottom: 1px solid #ebebeb;
+}
+.place-result-item:last-child { border-bottom: none; }
+.place-result-item:hover,
+.place-result-item:active { background: #e8f2ec; }
+.place-result-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: #333;
+}
+.place-result-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  font-size: 10px;
+  color: #888;
+  white-space: nowrap;
+  flex-shrink: 0;
+  line-height: 1.35;
+}
+
+/* 地形誇張スライダー行 */
+.terrain-row {
+  padding: 5px 10px 5px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.terrain-label {
+  font-size: 11px;
+  color: #555;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.terrain-row input[type="range"] {
+  flex: 1;
+  height: 3px;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  border-radius: 2px;
+  background: linear-gradient(to right, #6a8fa0 var(--pct, 20%), #d0d0d0 var(--pct, 20%));
+  outline: none;
+}
+
+.terrain-row input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #fff;
+  border: 1.5px solid #888;
+  cursor: pointer;
+}
+
+.terrain-row input[type="range"]::-webkit-slider-thumb:hover {
+  border-color: #6a8fa0;
+}
+
+/* ドラッグ＆ドロップ用オーバーレイ */
+#drop-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(74, 124, 89, 0.12);
+  border: 4px dashed #4a7c59;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  font-weight: bold;
+  color: #4a7c59;
+  pointer-events: none;
+}
+
+#drop-overlay.visible {
+  display: flex;
+}
+
+/* 操作ヒント */
+#hint {
+  position: absolute;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 11px;
+  padding: 5px 14px;
+  border-radius: 20px;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+/* 等高線間隔セレクト */
+.contour-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 2px;
+}
+
+.contour-row label {
+  font-size: 11px;
+  color: #333;
+  white-space: nowrap;
+}
+
+#sel-contour-interval {
+  flex: 1;
+  background: #f0f0f0;
+  color: #1a1a1a;
+  border: 1px solid #b0b8b0;
+  border-radius: 4px;
+  padding: 3px 6px;
+  font-size: 12px;
+  cursor: pointer;
+  outline: none;
+}
+
+#sel-contour-interval:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+#sel-magnetic-north-interval {
+  flex: 1;
+  background: #f0f0f0;
+  color: #1a1a1a;
+  border: 1px solid #b0b8b0;
+  border-radius: 4px;
+  padding: 3px 6px;
+  font-size: 12px;
+  cursor: pointer;
+  outline: none;
+}
+
+#sel-magnetic-north-interval:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* チェックボックス/トグルのない行でラベル位置を揃えるスペーサー */
+.chk-spacer {
+  display: inline-block;
+  width: 28px;
+  flex-shrink: 0;
+}
+
+/* 現在位置ボタン（MapLibre GeolocateControl）のカスタムスタイル */
+.maplibregl-ctrl-geolocate {
+  background-size: 70% !important;
+}
+
+/* ---- プライバシー注記 ---- */
+.privacy-note {
+  font-size: 10px;
+  color: #999;
+  padding: 4px 10px 6px;
+  line-height: 1.45;
+  border-bottom: 1px solid #ebebeb;
+}
+
+/* GPXアップロードボタン */
+#gpx-upload-btn {
+  display: block;
+  width: calc(100% - 20px);
+  margin: 6px 10px 4px;
+  padding: 6px 12px;
+  background: #fff;
+  color: #5a7a8a;
+  border: 1.5px solid #5a7a8a;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  text-align: center;
+  letter-spacing: 0.02em;
+}
+
+#gpx-upload-btn:hover {
+  background: #5a7a8a;
+  color: #fff;
+}
+
+/* ---- 視点切り替えトグルボタン ---- */
+#view-toggle-btn {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid #c8c8c8;
+  border-radius: 20px;
+  padding: 6px 18px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #333;
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
+  display: none;
+  /* GPX読み込み前は非表示 */
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+
+#view-toggle-btn:hover {
+  background: rgba(240, 240, 240, 0.95);
+}
+
+#view-toggle-btn.active-first {
+  background: #4a7c59;
+  color: #fff;
+  border-color: #4a7c59;
+}
+
+/* ---- タイムラインパネル（画面下部） ---- */
+#timeline-panel {
+  position: absolute;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid #c8c8c8;
+  border-radius: 8px;
+  padding: 8px 14px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  display: none;
+  /* GPX読み込み前は非表示 */
+  align-items: center;
+  gap: 10px;
+  min-width: 320px;
+  max-width: 90vw;
+}
+
+#play-pause-btn {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: #4a7c59;
+  color: #fff;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+}
+
+#play-pause-btn:hover {
+  background: #3a6349;
+}
+
+#timeline-controls {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+#seek-bar {
+  width: 100%;
+  height: 4px;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  border-radius: 2px;
+  background: linear-gradient(to right, #4a7c59 0%, #d0d0d0 0%);
+  outline: none;
+}
+
+#seek-bar::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid #4a7c59;
+  cursor: pointer;
+}
+
+#time-display {
+  font-size: 11px;
+  color: #555;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+#speed-select {
+  flex-shrink: 0;
+  background: #f0f0f0;
+  color: #333;
+  border: 1px solid #c0c0c0;
+  border-radius: 4px;
+  padding: 3px 5px;
+  font-size: 11px;
+  cursor: pointer;
+  outline: none;
+}
+
+/* GPX軌跡が読み込まれているときの情報表示 */
+#gpx-status {
+  padding: 4px 10px 5px;
+  font-size: 10px;
+  color: #5a7a8a;
+  border-top: 1px solid #ebebeb;
+  display: none;
+}
+
+/* ================================================================
+   O-シミュレーターモード
+   ================================================================ */
+
+/* トグルボタン（右下固定） */
+/* モバイルシムボタン：一旦非表示 */
+#sim-toggle-btn {
+  display: none;
+  width: calc(100% - 20px);
+  margin: 6px 10px 8px;
+  padding: 7px 12px;
+  background: #4a7c59;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  text-align: center;
+  transition: background 0.15s;
+}
+#sim-toggle-btn:hover { background: #3a6449; }
+#sim-toggle-btn.sim-active { background: #b33a2a; }
+#sim-toggle-btn.sim-active:hover { background: #962d20; }
+
+/* フルスクリーン透明オーバーレイ（入力ハンドリング用） */
+#sim-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 18;
+  pointer-events: none; /* 子要素ごとに個別に有効化 */
+}
+
+/* ミニマップ外枠（右上・画面幅の30%） */
+#sim-minimap-container {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 30vmin;
+  height: 30vmin;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+}
+
+/* ミニマップ内側（このdivをCSS rotateでヘディングアップ回転させる） */
+#sim-minimap-inner {
+  width: 100%;
+  height: 100%;
+  transform-origin: center center;
+  transition: transform 0.1s linear;
+}
+
+/* MapLibreが描画するdiv */
+#sim-minimap-map {
+  width: 100%;
+  height: 100%;
+}
+
+/* 中心の現在位置ドット（常に中央固定、回転しない） */
+#sim-minimap-crosshair {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 10px;
+  height: 10px;
+  background: #ff3300;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 0 4px rgba(0,0,0,0.5);
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* 進行方向の三角マーカー（ドットの上に重なる） */
+#sim-minimap-arrow {
+  position: absolute;
+  top: calc(50% - 18px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-bottom: 10px solid #ff3300;
+  filter: drop-shadow(0 0 2px #fff);
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* ジョイスティックゾーン（左下） */
+#sim-joystick-zone {
+  position: absolute;
+  bottom: 30px;
+  left: 20px;
+  width: 140px;
+  height: 140px;
+  pointer-events: auto;
+}
+
+/* 視点操作ゾーン（右半分・透明） */
+#sim-look-zone {
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 50%;
+  height: 100%;
+  pointer-events: auto;
+  touch-action: none;
+  /* デバッグ用: background: rgba(255,0,0,0.05); */
+}
+
+/* ズームスライダー（左上） */
+#sim-zoom-ctrl {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(0,0,0,0.45);
+  padding: 5px 10px;
+  border-radius: 20px;
+  pointer-events: auto;
+}
+#sim-zoom-ctrl label {
+  color: #fff;
+  font-size: 11px;
+  opacity: 0.85;
+  white-space: nowrap;
+}
+#sim-zoom-slider {
+  width: 90px;
+  accent-color: #ff6b35;
+}
+#sim-zoom-val {
+  color: #fff;
+  font-size: 11px;
+  min-width: 28px;
+  text-align: right;
+}
+
+/* ================================================================
+   PC O-シミュレーターモード
+   ================================================================ */
+
+/* PCシムトグルボタン（シミュレーター設定セクション内） */
+#pc-sim-toggle-btn {
+  display: block;
+  width: calc(100% - 20px);
+  margin: 6px 10px 8px;
+  padding: 7px 12px;
+  background: #4a7c59;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  text-align: center;
+  transition: background 0.15s;
+}
+#pc-sim-toggle-btn:hover { background: #3a6449; }
+#pc-sim-toggle-btn.pc-sim-active { background: #b33a2a; }
+#pc-sim-toggle-btn.pc-sim-active:hover { background: #962d20; }
+
+/* 開始地点ヒントテキスト（ボタン下） */
+#pc-sim-start-hint {
+  font-size: 10px;
+  color: #888;
+  text-align: center;
+  padding: 0 0 2px;
+  letter-spacing: 0.02em;
+}
+
+/* 操作ヒントバー（画面上部中央・Pointer Lock 中に表示） */
+#pc-sim-hint {
+  display: none;
+  position: fixed;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 25;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  font-size: 11px;
+  padding: 8px 16px;
+  border-radius: 16px;
+  white-space: nowrap;
+  pointer-events: none;
+  align-items: center;
+  gap: 0;
+}
+#pc-sim-hint .hint-group,
+#pc-sim-readmap-label .hint-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+#pc-sim-hint .hint-action,
+#pc-sim-readmap-label .hint-action {
+  color: rgba(255,255,255,0.9);
+  font-size: 11px;
+  margin-left: 2px;
+}
+#pc-sim-hint .hint-sep,
+#pc-sim-readmap-label .hint-sep {
+  display: inline-block;
+  width: 1px;
+  height: 14px;
+  background: rgba(255,255,255,0.4);
+  margin: 0 12px;
+  vertical-align: middle;
+}
+#pc-sim-hint kbd,
+#pc-sim-readmap-label kbd {
+  display: inline-block;
+  background: rgba(255,255,255,0.15);
+  border: 1px solid rgba(255,255,255,0.35);
+  border-bottom-width: 2px;
+  border-radius: 3px;
+  padding: 0 5px;
+  font-family: inherit;
+  font-size: 10px;
+  line-height: 1.6;
+  vertical-align: middle;
+}
+#pc-sim-hint .hint-or,
+#pc-sim-readmap-label .hint-or {
+  color: rgba(255,255,255,0.45);
+  font-size: 10px;
+  margin: 0 1px;
+}
+
+/* 十字照準（Pointer Lock 中に画面中央に表示） */
+#pc-sim-crosshair {
+  display: none;
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 25;
+  pointer-events: none;
+  width: 16px;
+  height: 16px;
+}
+#pc-sim-crosshair::before,
+#pc-sim-crosshair::after {
+  content: '';
+  position: absolute;
+  background: rgba(255, 255, 255, 0.85);
+}
+#pc-sim-crosshair::before { /* 横線 */
+  width: 16px; height: 2px;
+  top: 7px; left: 0;
+}
+#pc-sim-crosshair::after { /* 縦線 */
+  width: 2px; height: 16px;
+  top: 0; left: 7px;
+}
+
+/* セットアップ時の開始地点クロスヘア（シミュレーション未開始時に常時表示） */
+/* 開始位置クリックモード: 赤丸カーソル */
+#sim-start-cursor {
+  display: none;
+  position: fixed;
+  width: 14px;
+  height: 14px;
+  background: #ff3300;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 0 6px rgba(0,0,0,0.55);
+  pointer-events: none;
+  z-index: 30;
+  /* カーソル（矢印や手の先端）の少し下に赤丸を表示 */
+  transform: translate(-50%, 10px);
+}
+/* 操作ガイド */
+#sim-start-hint-overlay {
+  display: none;
+  position: fixed;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,0.68);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 7px 18px;
+  border-radius: 6px;
+  z-index: 30;
+  pointer-events: none;
+  white-space: nowrap;
+  letter-spacing: 0.03em;
+}
+
+/* 読図アクション オーバーレイ */
+#pc-sim-readmap-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  background: rgba(0, 0, 0, 0.55);
+  align-items: center;
+  justify-content: center;
+}
+#pc-sim-readmap-overlay.visible { display: flex; }
+
+#pc-sim-readmap-wrapper {
+  position: relative;
+  width: min(80vmin, 640px);
+  height: min(80vmin, 640px);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.65);
+  border: 2px solid rgba(255, 255, 255, 0.25);
+}
+#pc-sim-readmap-inner {
+  position: absolute;
+  width: 150%;
+  height: 150%;
+  top: -25%;
+  left: -25%;
+  transform-origin: center center;
+}
+#pc-sim-readmap-map {
+  width: 100%;
+  height: 100%;
+}
+/* 読図マップ中心の現在位置ドット */
+#pc-sim-readmap-dot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 10px;
+  height: 10px;
+  background: #ff3300;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 0 6px rgba(0,0,0,0.6);
+  pointer-events: none;
+  z-index: 2;
+}
+/* 読図マップの進行方向マーカー（常に上 = 進行方向） */
+#pc-sim-readmap-arrow {
+  position: absolute;
+  top: calc(50% - 20px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-bottom: 12px solid #ff3300;
+  filter: drop-shadow(0 0 2px #fff);
+  pointer-events: none;
+  z-index: 2;
+}
+/* 読図ラベル */
+#pc-sim-readmap-label {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,0.65);
+  color: rgba(255,255,255,0.9);
+  font-size: 11px;
+  padding: 8px 16px;
+  border-radius: 16px;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 3;
+}
+
+/* ================================================================
+   スマホアドレスバー対応 / Attribution折り返し / レスポンシブ
+   ================================================================ */
+
+/* 100dvh: スマホのアドレスバーによる下部隠れを防止 */
+@supports (height: 100dvh) {
+  body { height: 100dvh; }
+}
+
+/* MapLibre 出典コンテナ: 左端をサイドバー幅に合わせてシフト
+   max-width ではなくコンテナごと移動するので確実に重ならない */
+.maplibregl-ctrl-bottom-right {
+  left: var(--sidebar-w, 296px) !important;
+}
+/* 出典テキスト: 全幅まで使ってから折り返し */
+.maplibregl-ctrl-attrib-inner {
+  white-space: normal !important;
+}
+.maplibregl-ctrl-attrib {
+  background: #fff !important;
+  border-radius: 4px !important;
+  box-shadow: 0 0 0 2px rgba(0,0,0,.1) !important;
+}
+/*
+  展開時: (i)ボタンを position:absolute; bottom:0; right:0 で右下に固定。
+  コンテナは bottom-right アンカーなので bottom:0/right:0 = 画面座標不変。
+  inner に padding-right を付けてテキストとボタンが重ならないようにする。
+*/
+.maplibregl-ctrl-attrib.maplibregl-compact-show {
+  padding: 2px 0 2px 8px; /* 右側は inner の padding-right に委ねる */
+}
+.maplibregl-ctrl-attrib.maplibregl-compact-show .maplibregl-ctrl-attrib-inner {
+  padding-right: 32px; /* ボタン 24px + 余白 8px */
+}
+.maplibregl-ctrl-attrib.maplibregl-compact-show .maplibregl-ctrl-attrib-button {
+  top: auto;
+  bottom: 0; /* position:absolute のまま右下固定 */
+}
+
+/* 縮尺コントロール: 全画面ボタンの左隣に配置
+   MapLibre ボタン: 29×29px / ctrl-top-right margin: 10px 10px 0 0
+   ボタン左端 = right: 39px（10+29）/ ボタン間隔 = 10px（次グループの margin-top）
+   → 縮尺右端 = right: 49px */
+#scale-ctrl-container {
+  position: absolute;
+  top: 10px;   /* 全画面ボタン上端に揃える */
+  right: 49px; /* 全画面ボタン左端(39px) + ボタン間隔(10px) */
+  z-index: 19;
+}
+.scale-ctrl-select {
+  height: 29px;           /* 全画面ボタンと同じ高さ */
+  box-sizing: border-box;
+  padding: 0 8px;
+  background: #fff;
+  border-radius: 4px;
+  font-size: 11px;
+  color: #333;
+  box-shadow: 0 0 0 2px rgba(0,0,0,.1);
+  cursor: pointer;
+  outline: none;
+  border: none;
+}
+.scale-ctrl-select:hover {
+  background: #f0f0f0;
+}
+
+/* スマホ向けパネル最適化 */
+@media (max-width: 600px) {
+  #sidebar-panel { width: 220px; }
+
+  .setting-row {
+    padding: 9px 12px;
+  }
+
+  /* 検索入力を大きめに */
+  #place-search-input {
+    font-size: 14px;
+    padding: 7px 10px 7px 32px;
+  }
+
+  /* PCシムボタンはスマホでも表示する */
+}
+
+/* ===================================================================
+   地図画像 位置合わせモーダル（読図モードポップアップと同デザイン）
+   =================================================================== */
+
+/* 全画面暗転オーバーレイ（PC readmap と同系） */
+#import-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(0, 0, 0, 0.55);
+  align-items: center;
+  justify-content: center;
+}
+#import-overlay.visible { display: flex; }
+
+/* モーダル本体（PC readmap wrapper と同系スタイル） */
+#import-modal-wrapper {
+  position: relative;
+  width: min(92vw, 1040px);
+  height: min(88vh, 720px);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.65);
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ヘッダー：左パネルヘッダーと同じ緑 */
+#import-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  flex-shrink: 0;
+  background: #4a7c59;
+  color: #fff;
+  font-size: 12px;
+  font-weight: bold;
+}
+#import-overlay-close-btn {
+  background: rgba(255,255,255,0.15);
+  border: none;
+  color: #fff;
+  font-size: 14px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  transition: background 0.15s;
+}
+#import-overlay-close-btn:hover { background: rgba(255,255,255,0.3); }
+
+/* モードタブ：1タブ + Undo/Redo */
+#import-mode-tabs {
+  display: flex;
+  gap: 0;
+  align-items: center;
+  flex-shrink: 0;
+  background: #f0f0f0;
+  border-bottom: 1px solid #d8d8d8;
+}
+.import-tab {
+  padding: 6px 18px;
+  font-size: 12px;
+  font-weight: bold;
+  font-family: inherit;
+  border: none;
+  border-right: 1px solid #d8d8d8;
+  background: #f0f0f0;
+  color: #666;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.import-tab:hover { background: #e4e4e4; color: #333; }
+.import-tab.active {
+  background: #fff;
+  color: #4a7c59;
+  font-weight: bold;
+  box-shadow: inset 0 -2px 0 #4a7c59;
+}
+
+/* ボディ：プレビューマップ + コントロール */
+#import-modal-body {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* プレビュー用 MapLibre */
+#import-preview-map {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+}
+
+/* 右側コントロールパネル */
+#import-controls {
+  width: 200px;
+  flex-shrink: 0;
+  background: #fafafa;
+  color: #333;
+  padding: 14px 12px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  font-size: 12px;
+  border-left: 1px solid #d8d8d8;
+}
+.import-ctrl-group { display: flex; flex-direction: column; gap: 4px; }
+.import-ctrl-label {
+  font-size: 11px;
+  color: #555;
+  font-weight: bold;
+  letter-spacing: 0.02em;
+}
+.import-label-with-reset {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.import-reset-btn {
+  width: 18px;
+  height: 18px;
+  border: 1px solid #c8c8c8;
+  border-radius: 50%;
+  background: #fff;
+  color: #555;
+  font-size: 12px;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.import-reset-btn:hover {
+  background: #f0f0f0;
+  color: #333;
+  border-color: #b8b8b8;
+}
+.import-reset-btn:active { background: #e5e5e5; }
+.import-slider-wrap {
+  position: relative;
+  height: 12px;
+  display: flex;
+  align-items: center;
+}
+.import-slider-wrap::after {
+  content: '';
+  position: absolute;
+  left: var(--init-pct, 50%);
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 2px;
+  height: 11px;
+  border-radius: 1px;
+  background: #666;
+  opacity: 0.7;
+  pointer-events: none;
+}
+.import-slider-line {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr) max-content;
+  align-items: center;
+  gap: 1px;
+  width: 100%;
+}
+.import-slider-side {
+  font-size: 10px;
+  color: #777;
+  line-height: 1;
+  white-space: nowrap;
+  padding: 0;
+  margin: 0;
+}
+.import-slider-side.left {
+  text-align: right;
+}
+.import-slider-side.right {
+  text-align: left;
+}
+.import-ctrl-select, .import-ctrl-input {
+  width: 100%;
+  background: #fff;
+  color: #333;
+  border: 1px solid #c8c8c8;
+  border-radius: 3px;
+  padding: 4px 6px;
+  font-size: 12px;
+  font-family: inherit;
+  outline: none;
+}
+.import-ctrl-select:focus, .import-ctrl-input:focus {
+  border-color: #4a7c59;
+}
+.import-ctrl-hint {
+  font-size: 11px;
+  color: #888;
+  line-height: 1.6;
+}
+.import-ctrl-slider {
+  width: 100%;
+  height: 3px;
+  margin: 0;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  border-radius: 2px;
+  background: linear-gradient(to right, #4a7c59 var(--pct, 20%), #d0d0d0 var(--pct, 20%));
+  outline: none;
+}
+.import-ctrl-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #fff;
+  border: 1.5px solid #888;
+  cursor: pointer;
+}
+.import-ctrl-slider::-webkit-slider-thumb:hover {
+  border-color: #4a7c59;
+}
+#import-image-only-ctrl {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* フッター */
+#import-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #f0f0f0;
+  flex-shrink: 0;
+  border-top: 1px solid #d8d8d8;
+}
+#import-decide-btn {
+  background: #4a7c59;
+  color: #fff;
+  border: none;
+  border-radius: 3px;
+  padding: 6px 20px;
+  font-size: 12px;
+  font-weight: bold;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+#import-decide-btn:hover { background: #3a6449; }
+#import-cancel-btn {
+  background: #fff;
+  color: #555;
+  border: 1px solid #c8c8c8;
+  border-radius: 3px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+#import-cancel-btn:hover { background: #f0f0f0; color: #333; }
+
+/* Undo/Redo ボタン（モードタブ行の右端） */
+.import-undo-redo-btn {
+  background: none;
+  border: none;
+  padding: 4px 8px;
+  font-size: 16px;
+  cursor: pointer;
+  color: #555;
+  line-height: 1;
+  border-radius: 4px;
+  transition: background 0.12s, color 0.12s;
+}
+.import-undo-redo-btn:hover { background: #e4e4e4; color: #222; }
+.import-undo-redo-btn:active { background: #d0d0d0; }
+#import-undo-redo-group {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin-left: auto;
+  padding-right: 6px;
+}
+
+/* コントロールパネル：ステップセクション */
+.import-ctrl-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 14px;
+  border-top: 1px solid #e8e8e8;
+}
+.import-ctrl-section:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+.import-ctrl-section-title {
+  font-size: 10px;
+  font-weight: bold;
+  color: #4a7c59;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* 回転補正 ±0.5° ボタン */
+.import-rotation-adj-row {
+  display: flex;
+  gap: 4px;
+  margin-top: 2px;
+}
+.import-rotation-adj-btn {
+  flex: 1;
+  background: #f0f0f0;
+  border: 1px solid #c8c8c8;
+  border-radius: 3px;
+  padding: 3px 0;
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  color: #333;
+  transition: background 0.12s;
+}
+.import-rotation-adj-btn:hover { background: #e0e0e0; }
+.import-rotation-adj-btn:active { background: #d0d0d0; }
+.import-rotation-adj-btn.active {
+  background: #e8f2eb;
+  border-color: #4a7c59;
+  color: #2f5c3d;
+}
+
+/* ============================================================
+   モバイル専用要素: デスクトップでは非表示
+   ============================================================ */
+#sheet-handle,
+#sheet-mini-bar { display: none; }
+
+/* ============================================================
+   @media (max-width: 768px)
+   ボトムナビゲーション & ドラッグ可能ボトムシート
+   ============================================================ */
+@media (max-width: 768px) {
+
+  /* サイドバー幅を 0 に（地図UIをフルスクリーン化） */
+  :root { --sidebar-w: 0px !important; }
+
+  /* #sidebar → 画面下部に固定・縦→横レイアウト */
+  #sidebar {
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100vw;
+    height: auto;
+    flex-direction: column-reverse; /* icon-bar が最下部 */
+    z-index: 20;
+  }
+
+  /* ── ボトムナビゲーションバー ── */
+  #sidebar-icon-bar {
+    width: 100%;
+    height: 54px;
+    height: calc(54px + env(safe-area-inset-bottom, 0px));
+    flex-direction: row;
+    justify-content: space-around;
+    padding: 0 4px;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    gap: 0;
+    box-shadow: 0 -1px 0 rgba(0,0,0,0.10), 0 -2px 12px rgba(0,0,0,0.08);
+    flex-shrink: 0;
+  }
+
+  /* ロゴ非表示 */
+  #sidebar-logo { display: none; }
+
+  /* ナビボタン: 横並びに */
+  .sidebar-nav-btn {
+    flex: 1;
+    height: 54px;
+    width: auto;
+    border-radius: 0;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .nav-label { display: block; font-size: 9px; }
+
+  /* アクティブインジケーター → 上端ボーダーに */
+  .sidebar-nav-btn.active::before {
+    top: 0;
+    bottom: auto;
+    left: 25%;
+    right: 25%;
+    width: auto;
+    height: 3px;
+    border-radius: 0 0 3px 3px;
+  }
+
+  /* ── ボトムシート ── */
+  #sidebar-panel {
+    position: fixed;
+    bottom: 54px;
+    bottom: calc(54px + env(safe-area-inset-bottom, 0px));
+    left: 0;
+    right: 0;
+    top: auto;
+    width: 100vw;
+    height: var(--sheet-height, 72px);
+    border-right: none;
+    border-top: 1px solid rgba(0,0,0,0.10);
+    border-radius: 16px 16px 0 0;
+    box-shadow: 0 -4px 24px rgba(0,0,0,0.14);
+    transition: height 0.32s cubic-bezier(0.4,0,0.2,1);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* sb-hidden を無効化（ボトムシートは常に表示） */
+  #sidebar-panel.sb-hidden { display: flex !important; }
+
+  /* ── ドラッグハンドル ── */
+  #sheet-handle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 22px;
+    flex-shrink: 0;
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+    background: inherit;
+  }
+  #sheet-handle:active { cursor: grabbing; }
+  .sheet-handle-bar {
+    width: 40px;
+    height: 4px;
+    background: rgba(0,0,0,0.18);
+    border-radius: 2px;
+    transition: background 0.15s, width 0.15s;
+  }
+  #sheet-handle:active .sheet-handle-bar {
+    background: rgba(74,124,89,0.55);
+    width: 52px;
+  }
+
+  /* ── ミニバー（最小展開時のプレビュー行） ── */
+  #sheet-mini-bar {
+    display: flex;
+    align-items: center;
+    padding: 0 14px;
+    gap: 10px;
+    height: 50px;
+    flex-shrink: 0;
+    border-top: 1px solid rgba(0,0,0,0.07);
+    background: #fff;
+  }
+  #sheet-mini-label {
+    flex: 1;
+    font-size: 12px;
+    color: #555;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 600;
+  }
+  #sheet-mini-start-btn {
+    padding: 6px 16px;
+    background: #4a7c59;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+    font-family: inherit;
+  }
+
+  /* 展開時はミニバー非表示 */
+  #sidebar-panel.sheet-mid #sheet-mini-bar,
+  #sidebar-panel.sheet-full #sheet-mini-bar { display: none; }
+
+  /* 最小時: スクロール無効 / 展開時: スクロール有効 */
+  #sidebar-panel.sheet-min  .sidebar-scroll { overflow-y: hidden; }
+  #sidebar-panel.sheet-mid  .sidebar-scroll,
+  #sidebar-panel.sheet-full .sidebar-scroll { overflow-y: auto; }
+
+  /* セクションが見えないときは pointer-events を切る */
+  #sidebar-panel.sheet-min .sidebar-section { pointer-events: none; }
+  #sidebar-panel.sheet-mid .sidebar-section,
+  #sidebar-panel.sheet-full .sidebar-section { pointer-events: auto; }
+
+  /* 地図コントロール（ズーム等）が底に隠れないよう上げる */
+  .maplibregl-ctrl-bottom-right,
+  .maplibregl-ctrl-bottom-left {
+    bottom: calc(54px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+}
+
