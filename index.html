@@ -166,16 +166,14 @@ body {
 #sidebar-icon-bar {
   width: 48px;
   height: 100%;
-  background: rgba(14, 32, 22, 0.78);
-  backdrop-filter: blur(14px) saturate(160%);
-  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  background: #4a7c59;
   display: flex;
   flex-direction: column;
   align-items: center;
   padding: 0;
   gap: 2px;
   flex-shrink: 0;
-  box-shadow: 1px 0 0 rgba(255,255,255,0.07), 2px 0 16px rgba(0,0,0,0.18);
+  box-shadow: 2px 0 6px rgba(0,0,0,0.15);
 }
 
 /* ロゴ */
@@ -187,10 +185,9 @@ body {
   justify-content: center;
   font-size: 13px;
   font-weight: 900;
-  color: rgba(255,255,255,0.95);
+  color: #fff;
   letter-spacing: -0.03em;
-  background: rgba(74,124,89,0.35);
-  border-bottom: 1px solid rgba(255,255,255,0.08);
+  background: rgba(0,0,0,0.15);
   flex-shrink: 0;
   margin-bottom: 4px;
   user-select: none;
@@ -202,8 +199,8 @@ body {
   height: 52px;
   border: none;
   background: transparent;
-  color: rgba(255,255,255,0.55);
-  border-radius: 8px;
+  color: rgba(255,255,255,0.65);
+  border-radius: 6px;
   cursor: pointer;
   display: flex;
   flex-direction: column;
@@ -229,11 +226,11 @@ body {
   opacity: 0.9;
 }
 .sidebar-nav-btn:hover {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.92);
+  background: rgba(255,255,255,0.18);
+  color: #fff;
 }
 .sidebar-nav-btn.active {
-  background: rgba(74,124,89,0.55);
+  background: rgba(255,255,255,0.28);
   color: #fff;
 }
 /* アクティブ時の左ボーダー（VS Code風） */
@@ -241,25 +238,23 @@ body {
   content: '';
   position: absolute;
   left: 0;
-  top: 10px;
-  bottom: 10px;
+  top: 8px;
+  bottom: 8px;
   width: 3px;
-  background: rgba(160,220,180,0.9);
-  border-radius: 0 3px 3px 0;
+  background: #fff;
+  border-radius: 0 2px 2px 0;
 }
 
 /* パネルコンテンツ */
 #sidebar-panel {
   width: 248px;
   height: 100%;
-  background: rgba(245, 251, 248, 0.86);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border-right: 1px solid rgba(180, 215, 198, 0.40);
+  background: #fff;
+  border-right: 1px solid #ddd;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  box-shadow: 4px 0 28px rgba(0,0,0,0.10);
+  box-shadow: 2px 0 8px rgba(0,0,0,0.08);
 }
 #sidebar-panel.sb-hidden {
   display: none;
@@ -278,10 +273,8 @@ body {
 
 /* セクションヘッダー */
 .sidebar-section-header {
-  background: rgba(40, 80, 58, 0.80);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  color: rgba(255,255,255,0.95);
+  background: #4a7c59;
+  color: #fff;
   padding: 0 12px;
   height: 44px;
   font-size: 13px;
@@ -289,8 +282,7 @@ body {
   display: flex;
   align-items: center;
   flex-shrink: 0;
-  letter-spacing: 0.03em;
-  border-bottom: 1px solid rgba(255,255,255,0.08);
+  letter-spacing: 0.02em;
 }
 
 /* スクロール可能エリア */
@@ -298,22 +290,22 @@ body {
   flex: 1;
   overflow-y: auto;
   scrollbar-width: thin;
-  scrollbar-color: rgba(74,124,89,0.30) transparent;
+  scrollbar-color: #c8c8c8 transparent;
 }
-.sidebar-scroll::-webkit-scrollbar { width: 3px; }
+.sidebar-scroll::-webkit-scrollbar { width: 4px; }
 .sidebar-scroll::-webkit-scrollbar-track { background: transparent; }
-.sidebar-scroll::-webkit-scrollbar-thumb { background: rgba(74,124,89,0.28); border-radius: 2px; }
-.sidebar-scroll::-webkit-scrollbar-thumb:hover { background: rgba(74,124,89,0.55); }
+.sidebar-scroll::-webkit-scrollbar-thumb { background: #c8c8c8; border-radius: 2px; }
+.sidebar-scroll::-webkit-scrollbar-thumb:hover { background: #999; }
 
 /* 設定グループ区切り */
 .settings-group {
-  border-bottom: 1px solid rgba(0,0,0,0.06);
+  border-bottom: 1px solid #e0e0e0;
 }
 .settings-group-title {
   font-size: 9px;
   font-weight: 700;
-  color: rgba(74,124,89,0.70);
-  letter-spacing: 0.12em;
+  color: #aaa;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   padding: 8px 12px 4px;
   user-select: none;
@@ -322,13 +314,13 @@ body {
 /* パネル内ブロック */
 .panel-block {
   padding: 8px 10px;
-  border-bottom: 1px solid rgba(0,0,0,0.06);
+  border-bottom: 1px solid #e8e8e8;
 }
 .panel-block-title {
   font-size: 10px;
   font-weight: 700;
-  color: rgba(74,124,89,0.65);
-  letter-spacing: 0.08em;
+  color: #888;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
   margin-bottom: 6px;
 }
@@ -344,8 +336,8 @@ body {
   transition: background 0.12s;
   margin-bottom: 2px;
 }
-.sim-map-item:hover { background: rgba(74,124,89,0.09); }
-.sim-map-item.active { background: rgba(74,124,89,0.14); }
+.sim-map-item:hover { background: #f0f8f3; }
+.sim-map-item.active { background: #e6f2ea; }
 .sim-map-dot {
   width: 8px;
   height: 8px;
@@ -392,9 +384,9 @@ body {
 /* 開始ボタンブロック（パネル最下部固定） */
 .sim-start-block {
   padding: 10px;
-  border-top: 1px solid rgba(0,0,0,0.07);
+  border-top: 1px solid #e0e0e0;
   flex-shrink: 0;
-  background: rgba(255,255,255,0.50);
+  background: #fff;
 }
 
 /* カタログパネルの地図追加ボタン */
@@ -420,26 +412,26 @@ body {
   display: block;
   width: 100%;
   padding: 5px 10px;
-  background: rgba(74,124,89,0.07);
-  color: #4a7c59;
-  border: 1px solid rgba(74,124,89,0.25);
+  background: #f5f5f5;
+  color: #555;
+  border: 1px solid #ccc;
   border-radius: 4px;
   font-size: 12px;
   cursor: pointer;
   text-align: center;
   transition: background 0.12s;
 }
-#sim-open-catalog-btn:hover { background: rgba(74,124,89,0.14); }
+#sim-open-catalog-btn:hover { background: #e8e8e8; }
 
 /* セクションヘッダ（後方互換のため残存） */
 .sec-header {
-  background: rgba(230,242,236,0.60);
-  border-top: 1px solid rgba(0,0,0,0.06);
-  border-bottom: 1px solid rgba(0,0,0,0.06);
+  background: #f0f0f0;
+  border-top: 1px solid #d8d8d8;
+  border-bottom: 1px solid #d8d8d8;
   padding: 4px 10px;
   font-size: 11px;
   font-weight: bold;
-  color: #4a6e57;
+  color: #555;
   letter-spacing: 0.02em;
 }
 
@@ -450,13 +442,13 @@ body {
 
 /* summary がセクションヘッダ代わり */
 .panel-section>summary {
-  background: rgba(220,238,228,0.55);
-  border-top: 1px solid rgba(0,0,0,0.05);
-  border-bottom: 1px solid rgba(0,0,0,0.05);
+  background: #f0f0f0;
+  border-top: 1px solid #d8d8d8;
+  border-bottom: 1px solid #d8d8d8;
   padding: 6px 10px;
   font-size: 12px;
   font-weight: bold;
-  color: #3d6650;
+  color: #555;
   letter-spacing: 0.02em;
   list-style: none;
   cursor: pointer;
@@ -489,7 +481,7 @@ body {
   align-items: center;
   gap: 5px;
   padding: 7px 12px;
-  border-bottom: 1px solid rgba(0,0,0,0.055);
+  border-bottom: 1px solid #ebebeb;
 }
 .setting-row:last-child { border-bottom: none; }
 
@@ -519,10 +511,10 @@ body {
 }
 
 .setting-select {
-  background: rgba(255,255,255,0.65);
+  background: #f0f0f0;
   color: #1a1a1a;
-  border: 1px solid rgba(140,175,155,0.50);
-  border-radius: 5px;
+  border: 1px solid #b0b8b0;
+  border-radius: 4px;
   padding: 2px 4px;
   font-size: 11px;
   cursor: pointer;
@@ -572,7 +564,7 @@ body {
   flex-shrink: 0;
   width: 80px;
   padding-right: 8px;
-  border-right: 1px solid rgba(0,0,0,0.09);
+  border-right: 1px solid #ddd;
 }
 /* 区切り線なし・ラベル左＋トグル右行 */
 .setting-row.no-divider .setting-left {
@@ -616,7 +608,7 @@ body {
 /* レイヤー行 */
 .layer-row {
   padding: 5px 10px 4px;
-  border-bottom: 1px solid rgba(0,0,0,0.055);
+  border-bottom: 1px solid #ebebeb;
 }
 
 .layer-row:last-child {
@@ -713,13 +705,13 @@ body {
   transition: background-color 0.12s;
 }
 .setting-row:has(label):hover {
-  background-color: rgba(74,124,89,0.07);
+  background-color: #f0f5f1;
 }
 .layer-label-row {
   transition: background-color 0.12s;
 }
 .layer-label-row:hover {
-  background-color: rgba(74,124,89,0.07);
+  background-color: #f0f5f1;
   border-radius: 3px;
 }
 label.setting-label {
@@ -740,7 +732,7 @@ label.setting-label {
 
 /* ---- シミュレーター設定セクションヘッダ ---- */
 .panel-section.sim-section > summary {
-  background: rgba(210,235,220,0.50);
+  background: #eaf0ec;
   color: #3a6449;
 }
 
@@ -858,22 +850,21 @@ label.setting-label {
   width: calc(100% - 20px);
   margin: 6px 10px;
   padding: 6px 12px;
-  background: rgba(255,255,255,0.55);
+  background: #fff;
   color: #4a7c59;
-  border: 1.5px solid rgba(74,124,89,0.60);
-  border-radius: 6px;
+  border: 1.5px solid #4a7c59;
+  border-radius: 4px;
   font-size: 12px;
   font-weight: 600;
   font-family: inherit;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  transition: background 0.15s, color 0.15s;
   text-align: center;
   letter-spacing: 0.02em;
 }
 .panel-btn-outline:hover {
   background: #4a7c59;
   color: #fff;
-  border-color: #4a7c59;
 }
 
 /* ---- パネル内共通ボタン基底（プライマリ：塗りつぶし） ---- */
@@ -882,29 +873,28 @@ label.setting-label {
   width: calc(100% - 20px);
   margin: 6px 10px 8px;
   padding: 7px 12px;
-  background: linear-gradient(135deg, #4a7c59, #3a6449);
+  background: #4a7c59;
   color: #fff;
   border: none;
-  border-radius: 6px;
+  border-radius: 4px;
   font-size: 12px;
   font-weight: 600;
   font-family: inherit;
   cursor: pointer;
-  transition: opacity 0.15s, box-shadow 0.15s;
+  transition: background 0.15s;
   text-align: center;
   letter-spacing: 0.04em;
-  box-shadow: 0 2px 8px rgba(74,124,89,0.30);
 }
-.panel-btn-primary:hover { opacity: 0.88; box-shadow: 0 3px 12px rgba(74,124,89,0.40); }
+.panel-btn-primary:hover { background: #3a6449; }
 
 #map-import-btn-top {
   display: block;
   width: 100%;
   padding: 7px 12px;
-  background: rgba(255,255,255,0.55);
+  background: #fff;
   color: #4a7c59;
-  border: 1.5px solid rgba(74,124,89,0.55);
-  border-radius: 6px;
+  border: 1.5px solid #4a7c59;
+  border-radius: 4px;
   font-size: 12px;
   font-weight: 600;
   font-family: inherit;
@@ -936,36 +926,35 @@ label.setting-label {
   width: 100%;
   box-sizing: border-box;
   padding: 5px 8px 5px 28px;
-  border: 1px solid rgba(140,175,155,0.45);
-  border-radius: 6px;
+  border: 1px solid #b0b8b0;
+  border-radius: 4px;
   font-size: 12px;
   color: #333;
-  background: rgba(255,255,255,0.60);
+  background: #f9f9f9;
   outline: none;
-  transition: border-color 0.15s, background 0.15s;
 }
 .catalog-search-wrap input:focus {
-  border-color: rgba(74,124,89,0.70);
-  background: rgba(255,255,255,0.88);
+  border-color: #4a7c59;
+  background: #fff;
 }
 
 /* テレイングループ（<details>） */
 .terrain-group {
   margin: 0;
-  border-bottom: 1px solid rgba(0,0,0,0.06);
+  border-bottom: 1px solid #e4e4e4;
 }
 .terrain-group > summary {
   padding: 5px 10px;
   font-size: 12px;
   font-weight: bold;
-  color: #3d5e4a;
+  color: #444;
   cursor: pointer;
   list-style: none;
   display: flex;
   align-items: center;
   gap: 5px;
   user-select: none;
-  background: rgba(235,245,240,0.55);
+  background: #f8f8f8;
 }
 .terrain-group > summary::-webkit-details-marker { display: none; }
 .terrain-group > summary::before {
@@ -986,7 +975,7 @@ label.setting-label {
 /* フレームエントリ行 */
 .frame-entry {
   padding: 5px 10px 5px;
-  border-bottom: 1px solid rgba(0,0,0,0.05);
+  border-bottom: 1px solid #f0f0f0;
 }
 .frame-entry:last-child { border-bottom: none; }
 
@@ -1041,7 +1030,7 @@ label.setting-label {
 .frame-badge.subtype  { background: #f5f5f5; color: #666;    border: 1px solid #ddd; }
 
 /* ===== Miller Columns ブラウザ ===== */
-#miller-browser { border-bottom: 1px solid rgba(0,0,0,0.07); }
+#miller-browser { border-bottom: 1px solid #e0e0e0; }
 
 /* パンくずバー */
 .miller-breadcrumb {
@@ -1050,8 +1039,8 @@ label.setting-label {
   padding: 3px 8px;
   font-size: 10px;
   color: #666;
-  border-bottom: 1px solid rgba(0,0,0,0.06);
-  background: rgba(240,248,244,0.50);
+  border-bottom: 1px solid #e8e8e8;
+  background: #fafafa;
   min-height: 20px;
   gap: 2px;
   flex-wrap: nowrap;
@@ -1097,14 +1086,14 @@ label.setting-label {
 /* 3列コンテナ */
 .miller-wrap {
   display: flex;
-  border-bottom: 1px solid rgba(0,0,0,0.07);
+  border-bottom: 1px solid #e0e0e0;
   height: 210px;
 }
 
 /* 各列 */
 .miller-col {
   flex: 1;
-  border-right: 1px solid rgba(0,0,0,0.07);
+  border-right: 1px solid #e0e0e0;
   overflow-y: auto;
   min-width: 0;
   display: flex;
@@ -1121,10 +1110,10 @@ label.setting-label {
   padding: 3px 6px;
   font-size: 9px;
   font-weight: 700;
-  color: rgba(74,124,89,0.65);
-  letter-spacing: 0.06em;
-  border-bottom: 1px solid rgba(0,0,0,0.06);
-  background: rgba(230,242,236,0.55);
+  color: #888;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid #e8e8e8;
+  background: #f5f5f5;
   text-transform: uppercase;
   position: sticky;
   top: 0;
@@ -1137,15 +1126,15 @@ label.setting-label {
   font-size: 10px;
   line-height: 1.5;
   cursor: pointer;
-  border-bottom: 1px solid rgba(0,0,0,0.04);
+  border-bottom: 1px solid #f5f5f5;
   color: #333;
   display: flex;
   align-items: center;
   gap: 2px;
   min-width: 0;
 }
-.miller-item:hover { background: rgba(74,124,89,0.10); color: #2a6040; }
-.miller-item.selected { background: rgba(74,124,89,0.82); color: #fff; }
+.miller-item:hover { background: #f0f8f3; color: #2e7d32; }
+.miller-item.selected { background: #4a7c59; color: #fff; }
 .miller-item.disabled { color: #bbb; cursor: default; font-style: italic; }
 .miller-item-name {
   flex: 1;
@@ -1165,11 +1154,11 @@ label.setting-label {
   padding: 5px 10px;
   font-size: 10px;
   font-weight: 700;
-  color: rgba(74,124,89,0.65);
-  letter-spacing: 0.06em;
+  color: #888;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
-  background: rgba(230,242,236,0.55);
-  border-bottom: 1px solid rgba(0,0,0,0.06);
+  background: #f5f5f5;
+  border-bottom: 1px solid #e8e8e8;
 }
 
 /* 空状態メッセージ */
@@ -1179,8 +1168,8 @@ label.setting-label {
 .tab-bar {
   display: flex;
   align-items: flex-end;
-  border-bottom: 1px solid rgba(0,0,0,0.08);
-  background: rgba(225,240,232,0.50);
+  border-bottom: 1px solid #ddd;
+  background: #f0f0f0;
   padding: 5px 5px 0;
   gap: 3px;
 }
@@ -1189,22 +1178,22 @@ label.setting-label {
   padding: 6px 0;
   font-size: 12px;
   font-weight: 600;
-  color: #4a6e57;
+  color: #333;
   background: none;
   border: 1px solid transparent;
   border-bottom: none;
-  border-radius: 6px 6px 0 0;
+  border-radius: 5px 5px 0 0;
   cursor: pointer;
   transition: background 0.12s;
   letter-spacing: 0.02em;
   margin-bottom: -1px;
 }
-.tab-btn:hover { background: rgba(255,255,255,0.50); }
+.tab-btn:hover { background: rgba(255,255,255,0.55); }
 .tab-btn.active {
-  color: #2e5040;
-  background: rgba(245,251,248,0.90);
-  border-color: rgba(0,0,0,0.08);
-  border-bottom-color: rgba(245,251,248,0.90);
+  color: #333;
+  background: #fff;
+  border-color: #ddd;
+  border-bottom-color: #fff;
 }
 .tab-panel { display: none; }
 .tab-panel.active { display: block; }
@@ -1221,15 +1210,15 @@ label.setting-label {
   font-size: 11px;
   font-weight: 600;
   border-radius: 12px;
-  border: 1px solid rgba(0,0,0,0.12);
-  background: rgba(255,255,255,0.55);
-  color: #556b5e;
+  border: 1px solid #ccc;
+  background: #f5f5f5;
+  color: #555;
   cursor: pointer;
   transition: background 0.12s, color 0.12s, border-color 0.12s;
   letter-spacing: 0.02em;
 }
-.type-chip.active { background: rgba(74,124,89,0.85); color: #fff; border-color: rgba(74,124,89,0.85); }
-.type-chip:hover:not(.active) { background: rgba(74,124,89,0.10); border-color: rgba(74,124,89,0.40); color: #3a6449; }
+.type-chip.active { background: #4a7c59; color: #fff; border-color: #4a7c59; }
+.type-chip:hover:not(.active) { background: #e8f0ea; border-color: #4a7c59; color: #4a7c59; }
 
 
 /* 都道府県グループ（3段ツリーの最上位） */
@@ -1252,13 +1241,13 @@ label.setting-label {
 /* 画像ピッカーボタン（小） */
 .frame-img-pick-btn {
   flex-shrink: 0;
-  background: rgba(255,255,255,0.55);
-  border: 1px solid rgba(140,175,155,0.40);
-  border-radius: 4px;
+  background: none;
+  border: 1px solid #c8c8c8;
+  border-radius: 3px;
   padding: 2px 5px;
   font-size: 11px;
   cursor: pointer;
-  color: #4a6e57;
+  color: #666;
   line-height: 1.2;
   transition: background 0.12s, color 0.12s, border-color 0.12s;
 }
@@ -1275,11 +1264,11 @@ label.setting-label {
 .frame-img-select {
   width: 100%;
   padding: 3px 5px;
-  border: 1px solid rgba(140,175,155,0.40);
-  border-radius: 4px;
+  border: 1px solid #c8c8c8;
+  border-radius: 3px;
   font-size: 11px;
   color: #333;
-  background: rgba(255,255,255,0.65);
+  background: #fff;
   margin-bottom: 3px;
 }
 
