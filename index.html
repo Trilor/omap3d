@@ -3418,10 +3418,11 @@ maplibregl.addProtocol('pmtiles', pmtilesProtocol.tile.bind(pmtilesProtocol));
 
 // regionalDemBase: 地域DEMのベースURL（csdem://地域層の場合のみ指定）
 // regionalDemExt : 地域DEMの拡張子（'png' または 'webp'）
-// demMode: 'q1m'（Q地図のみ） または 'dem5a'（DEM5Aのみ）。排他使用でソース間の境界ズレを防ぐ。
-async function fetchCompositeDemBitmap(z, x, y, signal, regionalDemBase = null, regionalDemExt = 'png', demMode = 'q1m') {
-  const useQ = demMode !== 'dem5a'; // Q地図 + 地域DEM を使う
-  const useS = demMode === 'dem5a'; // DEM5A を使う
+// demMode: null/'composite'（全ソース合成）, 'q1m'（Q地図のみ）, 'dem5a'（DEM5Aのみ）
+// 地形(gsjdem://)は null で全合成。等高線は DEMソース選択に従い排他使用。
+async function fetchCompositeDemBitmap(z, x, y, signal, regionalDemBase = null, regionalDemExt = 'png', demMode = null) {
+  const useQ = demMode !== 'dem5a'; // Q地図 + 地域DEM を使う（null/'q1m'/composite いずれも true）
+  const useS = demMode === 'dem5a' || !demMode; // DEM5A を使う（dem5a または full composite）
 
   const qUrl  = useQ ? `${QCHIZU_DEM_BASE}/${z}/${x}/${y}.webp` : null;
   const sUrl  = useS ? `${DEM5A_BASE}/${z}/${x}/${y}.png` : null;
@@ -3524,8 +3525,8 @@ maplibregl.addProtocol('gsjdem', async (params, abortController) => {
   if (!m) throw new Error('gsjdem: URL format invalid');
   const [, z, x, y] = m;
 
-  // contourDemMode に従い Q地図のみ／DEM5Aのみを使用（排他・ソース間境界ズレを防ぐ）
-  const bitmap = await fetchCompositeDemBitmap(z, x, y, abortController.signal, null, 'png', contourDemMode);
+  // 地形は常に全ソース合成（Q地図+DEM5A+湖水深）で滑らかに描画。DEMソース選択には連動しない。
+  const bitmap = await fetchCompositeDemBitmap(z, x, y, abortController.signal);
   if (!bitmap) throw new Error('gsjdem: no DEM data available');
 
   // NumPNG → Terrarium 変換
@@ -4306,8 +4307,8 @@ map.on('load', async () => {
       url: 'https://mapdata.qchizu.xyz/03_dem/52_gsi/all_2025/1_02/{z}/{x}/{y}.webp',
       encoding: 'numpng',
       minzoom: 0,
-      maxzoom: 17,
-      worker: true, // DEM5A フォールバックを廃止したため worker スレッドで高速処理可能
+      maxzoom: 14, // DEM5A と同水準(15)より1段低く設定し1mDEMノイズを平滑化
+      worker: true,
       cacheSize: 100,
       timeoutMs: 30_000,
     });
@@ -7677,10 +7678,7 @@ selContourDem.addEventListener('change', () => {
     // 表示中のレイヤーを現在のモードに合わせて切り替え
     setAllContourVisibility('visible');
   }
-  // 地形DEMも同じソースに切り替える（gsjdem:// は contourDemMode を参照するためキャッシュバスト）
-  if (map.getSource('terrain-dem')) {
-    map.getSource('terrain-dem').setTiles([TERRAIN_URL + '?t=' + Date.now()]);
-  }
+  // 地形は常に全ソース合成のため DEMソース切り替えに連動しない
 });
 
 // ---- 磁北線 チェックボックス + セレクト ----
