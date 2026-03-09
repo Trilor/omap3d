@@ -2241,7 +2241,7 @@ label.setting-label {
   white-space: normal !important;
 }
 .maplibregl-ctrl-attrib {
-  max-width: calc(100vw - 10px);
+  max-width: calc(100vw - var(--sidebar-w, 296px) - 10px);
   background: #fff !important;
   border-radius: 4px !important;
   box-shadow: 0 0 0 2px rgba(0,0,0,.1) !important;
@@ -2266,8 +2266,9 @@ label.setting-label {
 #scale-ctrl-container {
   position: absolute;
   bottom: 24px;
-  left: 10px;
+  left: calc(var(--sidebar-w, 296px) + 6px);
   z-index: 10;
+  transition: left 0.15s ease;
 }
 .scale-ctrl-select {
   background: #fff;
@@ -7559,6 +7560,15 @@ document.getElementById('sel-basemap').addEventListener('change', (e) => {
 let _sidebarCurrentPanel = 'sim';
 let _sidebarOpen = true;
 
+// サイドバー幅をCSS変数に反映（縮尺・出典の位置を連動させる）
+function updateSidebarWidth() {
+  const sidebar = document.getElementById('sidebar');
+  const w = sidebar ? sidebar.offsetWidth : 296;
+  document.documentElement.style.setProperty('--sidebar-w', w + 'px');
+  // 縮尺コントロールの垂直位置も再計算
+  updateScalePosition();
+}
+
 document.querySelectorAll('.sidebar-nav-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     const panel = btn.dataset.panel;
@@ -7577,6 +7587,8 @@ document.querySelectorAll('.sidebar-nav-btn').forEach(btn => {
       _sidebarCurrentPanel = panel;
       _sidebarOpen = true;
     }
+    // CSSアニメーション完了後に幅を反映
+    setTimeout(updateSidebarWidth, 160);
   });
 });
 
@@ -7656,7 +7668,7 @@ if (_attribEl) {
   new ResizeObserver(updateScalePosition).observe(_attribEl);
   new MutationObserver(updateScalePosition).observe(_attribEl, { attributes: true, attributeFilter: ['class'] });
 }
-map.once('idle', updateScalePosition);
+map.once('idle', () => { updateSidebarWidth(); updateScalePosition(); });
 
 
 // スライダーの初期値をUIに反映（値を設定してからグラデーションを更新する）
