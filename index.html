@@ -3418,12 +3418,16 @@ maplibregl.addProtocol('pmtiles', pmtilesProtocol.tile.bind(pmtilesProtocol));
 
 // regionalDemBase: 地域DEMのベースURL（csdem://地域層の場合のみ指定）
 // regionalDemExt : 地域DEMの拡張子（'png' または 'webp'）
-async function fetchCompositeDemBitmap(z, x, y, signal, regionalDemBase = null, regionalDemExt = 'png') {
-  const qUrl  = `${QCHIZU_DEM_BASE}/${z}/${x}/${y}.webp`;
-  const sUrl  = `${DEM5A_BASE}/${z}/${x}/${y}.png`;
+// demMode: 'q1m'（Q地図のみ） または 'dem5a'（DEM5Aのみ）。排他使用でソース間の境界ズレを防ぐ。
+async function fetchCompositeDemBitmap(z, x, y, signal, regionalDemBase = null, regionalDemExt = 'png', demMode = 'q1m') {
+  const useQ = demMode !== 'dem5a'; // Q地図 + 地域DEM を使う
+  const useS = demMode === 'dem5a'; // DEM5A を使う
+
+  const qUrl  = useQ ? `${QCHIZU_DEM_BASE}/${z}/${x}/${y}.webp` : null;
+  const sUrl  = useS ? `${DEM5A_BASE}/${z}/${x}/${y}.png` : null;
   const lUrl  = `${LAKEDEPTH_BASE}/${z}/${x}/${y}.png`;
   const lsUrl = `${LAKEDEPTH_STANDARD_BASE}/${z}/${x}/${y}.png`;
-  const rUrl  = regionalDemBase ? `${regionalDemBase}/${z}/${x}/${y}.${regionalDemExt}` : null;
+  const rUrl  = (useQ && regionalDemBase) ? `${regionalDemBase}/${z}/${x}/${y}.${regionalDemExt}` : null;
 
   async function toImageData(url) {
     try {
@@ -3438,7 +3442,9 @@ async function fetchCompositeDemBitmap(z, x, y, signal, regionalDemBase = null, 
   }
 
   const [qData, sData, lData, lsData, rData] = await Promise.all([
-    toImageData(qUrl), toImageData(sUrl), toImageData(lUrl), toImageData(lsUrl),
+    qUrl ? toImageData(qUrl) : Promise.resolve(null),
+    sUrl ? toImageData(sUrl) : Promise.resolve(null),
+    toImageData(lUrl), toImageData(lsUrl),
     rUrl ? toImageData(rUrl) : Promise.resolve(null),
   ]);
   if (!qData && !sData && !lData && !rData) return null;
@@ -3513,12 +3519,13 @@ async function fetchCompositeDemBitmap(z, x, y, signal, regionalDemBase = null, 
   ========================================================
 */
 maplibregl.addProtocol('gsjdem', async (params, abortController) => {
-  // MapLibre が {z}/{x}/{y} を展開済みの URL から z/x/y を取り出す
-  const m = params.url.match(/\/(\d+)\/(\d+)\/(\d+)\.\w+$/);
+  // MapLibre が {z}/{x}/{y} を展開済みの URL から z/x/y を取り出す（?t= キャッシュバスト対応のため $ なし）
+  const m = params.url.match(/\/(\d+)\/(\d+)\/(\d+)\.\w+/);
   if (!m) throw new Error('gsjdem: URL format invalid');
   const [, z, x, y] = m;
 
-  const bitmap = await fetchCompositeDemBitmap(z, x, y, abortController.signal);
+  // contourDemMode に従い Q地図のみ／DEM5Aのみを使用（排他・ソース間境界ズレを防ぐ）
+  const bitmap = await fetchCompositeDemBitmap(z, x, y, abortController.signal, null, 'png', contourDemMode);
   if (!bitmap) throw new Error('gsjdem: no DEM data available');
 
   // NumPNG → Terrarium 変換
@@ -3533,9 +3540,8 @@ maplibregl.addProtocol('gsjdem', async (params, abortController) => {
   for (let i = 0; i < data.length; i += 4) {
     const r = data[i], g = data[i + 1], b = data[i + 2], a = data[i + 3];
     if ((r === 128 && g === 0 && b === 0) || a !== 255) {
-      // nodata → alpha=0（透明）で出力。MapLibreは透明ピクセルを標高データなしと判断し
-      // 隣接ピクセルで補間するため、水域が強制的に0mになって凹む問題を防ぐ。
-      data[i] = 0; data[i + 1] = 0; data[i + 2] = 0; data[i + 3] = 0;
+      // nodata → Terrarium 0m（前の設定に戻す）。透明にすると境界での補間アーティファクトが出るため。
+      data[i] = 128; data[i + 1] = 0; data[i + 2] = 0; data[i + 3] = 255;
       continue;
     }
     const bits24 = (r << 16) | (g << 8) | b;
@@ -7670,6 +7676,10 @@ selContourDem.addEventListener('change', () => {
   if (chkContour.checked) {
     // 表示中のレイヤーを現在のモードに合わせて切り替え
     setAllContourVisibility('visible');
+  }
+  // 地形DEMも同じソースに切り替える（gsjdem:// は contourDemMode を参照するためキャッシュバスト）
+  if (map.getSource('terrain-dem')) {
+    map.getSource('terrain-dem').setTiles([TERRAIN_URL + '?t=' + Date.now()]);
   }
 });
 
