@@ -4158,11 +4158,6 @@ document.querySelectorAll('.sidebar-nav-btn').forEach(btn => {
   });
 });
 
-// カタログから選択ボタン → 地図管理パネルへ切り替え
-document.getElementById('sim-open-catalog-btn').addEventListener('click', () => {
-  const catalogBtn = document.querySelector('.sidebar-nav-btn[data-panel="catalog"]');
-  if (catalogBtn) catalogBtn.click();
-});
 
 // ---- 縮尺セレクト（現在の縮尺をリアルタイム表示 ＋ プリセット選択でズーム） ----
 // CSS仕様上 1 CSS inch = 96 CSS pixel（devicePixelRatio に依存しない定数）
@@ -4678,6 +4673,18 @@ function onPcSimLocked() {
   // ③ カメラをプレイヤー視点へ即配置
   setCameraFromPlayer();
 
+  // ③-b KMZ・フレーム画像を3D地面から一時非表示（Spaceキーの読図マップのみで使用）
+  kmzLayers.forEach(entry => {
+    if (map.getLayer(entry.layerId)) {
+      map.setLayoutProperty(entry.layerId, 'visibility', 'none');
+    }
+  });
+  mapFrames.forEach(frame => {
+    if (frame.layerId && map.getLayer(frame.layerId)) {
+      map.setLayoutProperty(frame.layerId, 'visibility', 'none');
+    }
+  });
+
   // ④ UIを更新
   document.getElementById('sidebar').style.display = 'none';
   document.getElementById('unified-search').style.display = 'none';
@@ -4732,6 +4739,18 @@ function stopPcSim() {
   btn.classList.remove('pc-sim-active');
   document.getElementById('pc-sim-hint').style.display = 'none';
   document.getElementById('pc-sim-crosshair').style.display = 'none';
+
+  // KMZ・フレーム画像の表示を復元
+  kmzLayers.forEach(entry => {
+    if (map.getLayer(entry.layerId)) {
+      map.setLayoutProperty(entry.layerId, 'visibility', entry.visible ? 'visible' : 'none');
+    }
+  });
+  mapFrames.forEach(frame => {
+    if (frame.layerId && map.getLayer(frame.layerId)) {
+      map.setLayoutProperty(frame.layerId, 'visibility', 'visible');
+    }
+  });
 
   // 地図操作を復元
   map.dragPan.enable();
@@ -6715,10 +6734,10 @@ document.getElementById('import-decide-btn').addEventListener('click', () => {
   }
 
   // ---- ミニバーラベル: アクティブパネル名を表示 ----
-  const PANEL_NAMES = { sim: 'シミュレーター', settings: '表示設定', catalog: '地図管理' };
+  const PANEL_NAMES = { terrain: 'テレイン', readmap: '読図地図', '3denv': '3D環境' };
   function updateMiniLabel() {
     const active = document.querySelector('.sidebar-nav-btn.active');
-    const key    = active?.dataset?.panel ?? 'sim';
+    const key    = active?.dataset?.panel ?? 'terrain';
     if (miniLabel) miniLabel.textContent = PANEL_NAMES[key] ?? key;
   }
   document.querySelectorAll('.sidebar-nav-btn').forEach(btn =>

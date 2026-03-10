@@ -279,7 +279,28 @@ body {
   text-align: center;
 }
 
-/* 開始ボタンブロック（パネル最下部固定） */
+/* 読図地図タブ: 案内テキスト */
+.readmap-info-note {
+  margin: 10px 10px 6px;
+  padding: 8px 10px;
+  background: #f4f8e4;
+  border-left: 3px solid var(--primary);
+  border-radius: 4px;
+  font-size: 11px;
+  color: #555;
+  line-height: 1.5;
+}
+.readmap-info-note kbd {
+  display: inline-block;
+  padding: 1px 5px;
+  background: #e8e8e8;
+  border: 1px solid #bbb;
+  border-radius: 3px;
+  font-size: 10px;
+  font-family: monospace;
+}
+
+/* 開始ボタンブロック（sidebar-panel最下部に常時固定） */
 .sim-start-block {
   padding: 10px;
   border-top: 1px solid #e0e0e0;
@@ -287,10 +308,11 @@ body {
   background: #fff;
 }
 
-/* カタログパネルの地図追加ボタン */
+/* 読図タブ: 地図追加ボタン */
 #map-import-btn-top {
   display: block;
-  width: 100%;
+  width: calc(100% - 20px);
+  margin: 4px 10px 6px;
   padding: 6px 10px;
   background: #fff;
   color: var(--primary);
@@ -301,11 +323,10 @@ body {
   cursor: pointer;
   text-align: center;
   transition: background 0.15s, color 0.15s;
-  margin-bottom: 6px;
 }
 #map-import-btn-top:hover { background: var(--primary); color: #fff; }
 
-/* カタログから選択ボタン */
+/* 削除済みボタンのスタブ（参照残らないように） */
 #sim-open-catalog-btn {
   display: block;
   width: 100%;
