@@ -3995,7 +3995,10 @@ async function captureAllBasemapThumbs() {
     const card = document.querySelector(`#basemap-cards .bm-card[data-key="${key}"]`);
     if (card) card.classList.add('active');
 
-    await waitForMapIdle(4000);
+    // CS立体図は csdem:// プロトコルで TF.js GPU 演算するため1タイル0.5〜2秒かかる。
+    // zoom18 で16枚以上になると4秒では足りず白くなるため、CS系は15秒に拡張。
+    const idleTimeout = key.startsWith('cs-') ? 15000 : 4000;
+    await waitForMapIdle(idleTimeout);
 
     const out = document.createElement('canvas');
     out.width = ORILIBRE_THUMB_SIZE;
