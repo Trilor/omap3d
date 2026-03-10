@@ -6592,14 +6592,37 @@ document.getElementById('import-decide-btn').addEventListener('click', () => {
 
   picker.addEventListener('input', () => applyTheme(picker.value));
 
+  // ---- 文字色トグル（白⇔黒） ----
+  const onCheck = document.getElementById('dev-on-primary-check');
+  const onKnob  = document.getElementById('dev-on-primary-knob');
+  if (onCheck && onKnob) {
+    function applyOnPrimary(isDark) {
+      const root = document.documentElement;
+      if (isDark) {
+        root.style.setProperty('--on-primary',       '#111111');
+        root.style.setProperty('--on-primary-muted', 'rgba(0,0,0,0.60)');
+        onKnob.textContent = '⚫黒';
+      } else {
+        root.style.setProperty('--on-primary',       '#ffffff');
+        root.style.setProperty('--on-primary-muted', 'rgba(255,255,255,0.65)');
+        onKnob.textContent = '⚪白';
+      }
+    }
+    onCheck.addEventListener('change', () => applyOnPrimary(onCheck.checked));
+  }
+
   copyBtn.addEventListener('click', () => {
     const [h,s,l] = hexToHsl(picker.value);
+    const onPrimary = (onCheck?.checked) ? '#111111' : '#ffffff';
+    const onMuted   = (onCheck?.checked) ? 'rgba(0,0,0,0.60)' : 'rgba(255,255,255,0.65)';
     const css = [
-      `--primary:       ${picker.value};`,
-      `--primary-hover: ${hslToHex(h,s,l-10)};`,
-      `--primary-dark:  ${hslToHex(h,s,l-20)};`,
-      `--primary-light: ${hslToHex(h,Math.max(0,s-40),Math.min(97,l+38))};`,
-      `--primary-alpha: ${hexToRgba(picker.value,0.12)};`,
+      `--primary:            ${picker.value};`,
+      `--primary-hover:      ${hslToHex(h,s,l-10)};`,
+      `--primary-dark:       ${hslToHex(h,s,l-20)};`,
+      `--primary-light:      ${hslToHex(h,Math.max(0,s-40),Math.min(97,l+38))};`,
+      `--primary-alpha:      ${hexToRgba(picker.value,0.12)};`,
+      `--on-primary:         ${onPrimary};`,
+      `--on-primary-muted:   ${onMuted};`,
     ].join('\n');
     navigator.clipboard.writeText(css).then(() => {
       copyBtn.textContent = '✓ copied';

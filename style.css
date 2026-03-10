@@ -15,6 +15,10 @@
   --primary-dark:   #1e40af;  /* さらに暗いアクセント */
   --primary-light:  #eff4ff;  /* 極薄背景・ハイライト用 */
   --primary-alpha:  rgba(37, 99, 235, 0.12); /* 半透明オーバーレイ */
+
+  /* 主要背景色（--primary）上のテキスト色（開発用トグルで白⇔黒切り替え） */
+  --on-primary:       #ffffff;
+  --on-primary-muted: rgba(255,255,255,0.65);
 }
 
 /*
@@ -1397,6 +1401,17 @@ label.setting-label {
   color: #555;
 }
 #dev-color-copy:hover { background: #e8e8e8; }
+#dev-on-primary-toggle { cursor: pointer; font-size: 10px; }
+#dev-on-primary-knob {
+  display: inline-block;
+  padding: 2px 6px;
+  border: 1px solid #ccc;
+  border-radius: 10px;
+  background: #f5f5f5;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+#dev-on-primary-toggle:hover #dev-on-primary-knob { background: #e8e8e8; }
 @media (max-width: 768px) { #dev-color-picker { display: none; } }
 
 /* ===== 統合検索ボックス（常時表示・サイドバー幅に連動） ===== */
@@ -2869,3 +2884,37 @@ label.setting-label {
   }
 }
 
+
+/* ============================================================
+   --on-primary 一括適用ブロック
+   ファイル末尾に置くことで既存の color: #fff を上書き
+   ============================================================ */
+
+/* 通常ナビボタン: 少し透過（muted） */
+.sidebar-nav-btn {
+  color: var(--on-primary-muted);
+}
+/* primary 背景上で白/黒を切り替える全要素 */
+.sidebar-nav-btn:hover,
+.sidebar-nav-btn.active,
+.sidebar-section-header,
+.panel-btn-primary,
+.panel-btn-outline:hover,
+.sim-map-fly-btn:hover,
+#map-import-btn-top:hover,
+.miller-item.selected,
+.type-chip.active,
+.frame-img-pick-btn:hover,
+.frame-popup-upload,
+.imgw-modal-header,
+.imgw-step-num,
+.imgw-place-btn,
+#view-toggle-btn.active-first,
+#play-pause-btn,
+#sim-toggle-btn:not(.sim-active),
+#pc-sim-toggle-btn:not(.pc-sim-active),
+.import-overlay-header,
+#import-decide-btn,
+#sheet-mini-start-btn {
+  color: var(--on-primary);
+}
