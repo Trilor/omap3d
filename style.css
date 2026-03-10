@@ -2259,7 +2259,7 @@ label.setting-label {
    出典パネルが開いたとき JS が .above-attrib クラスを付与し出典の上に移動する */
 #scale-ctrl-container {
   position: absolute;
-  left: 10px;
+  left: var(--sidebar-w, 296px); /* 出典コンテナと同じ左端（左パネルに被らない） */
   bottom: 10px;
   z-index: 19;
   transition: bottom 0.2s ease;
@@ -2813,8 +2813,9 @@ label.setting-label {
     bottom: calc(54px + env(safe-area-inset-bottom, 0px)) !important;
   }
 
-  /* 縮尺: ボトムナビの上に配置 */
+  /* 縮尺: ボトムナビの上・モバイルは sidebar-w=0 なので左端に 10px 余白 */
   #scale-ctrl-container {
+    left: 10px;
     bottom: calc(54px + env(safe-area-inset-bottom, 0px) + 10px);
   }
   #scale-ctrl-container.above-attrib {
