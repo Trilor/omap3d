@@ -3666,13 +3666,11 @@ map.on('zoomend', updateCsVisibility);
 
 // ---- CS立体図 透明度スライダー（全国・地域別共通） ----
 const sliderCs = document.getElementById('slider-cs');
-const valCs = document.getElementById('val-cs');
-updateSliderGradient(sliderCs, '#2563eb');
+updateSliderGradient(sliderCs, '#6a8fa0');
 
 sliderCs.addEventListener('input', () => {
   const v = parseFloat(sliderCs.value);
-  valCs.textContent = Math.round(v * 100) + '%';
-  updateSliderGradient(sliderCs, '#2563eb');
+  updateSliderGradient(sliderCs, '#6a8fa0');
   if (map.getLayer('cs-relief-layer')) {
     map.setPaintProperty('cs-relief-layer', 'raster-opacity', v);
   }
@@ -4217,8 +4215,7 @@ map.once('idle', () => { updateSidebarWidth(); });
 
 // スライダーの初期値をUIに反映（値を設定してからグラデーションを更新する）
 sliderCs.value = CS_INITIAL_OPACITY;
-valCs.textContent = Math.round(CS_INITIAL_OPACITY * 100) + '%';
-updateSliderGradient(sliderCs, '#2563eb'); // 値変更後に再計算
+updateSliderGradient(sliderCs, '#6a8fa0'); // 値変更後に再計算
 
 
 sliderExaggeration.value = TERRAIN_EXAGGERATION;
