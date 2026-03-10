@@ -3,7 +3,7 @@
    MapLibre の addProtocol() でブラウザ内 DEM 変換を実現します
    ================================================================ */
 
-import { QCHIZU_DEM_BASE, DEM5A_BASE, LAKEDEPTH_BASE, LAKEDEPTH_STANDARD_BASE } from './config.js';
+import { QCHIZU_DEM_BASE, DEM5A_BASE, LAKEDEPTH_BASE, LAKEDEPTH_STANDARD_BASE, LAND_DEM_BASE } from './config.js';
 
 /*
   ========================================================
@@ -33,11 +33,17 @@ maplibregl.addProtocol('pmtiles', pmtilesProtocol.tile.bind(pmtilesProtocol));
 // demMode: null/'composite'（全ソース合成）, 'q1m'（Q地図のみ）, 'dem5a'（DEM5Aのみ）
 // 地形(gsjdem://)は null で全合成。等高線は DEMソース選択に従い排他使用。
 async function fetchCompositeDemBitmap(z, x, y, signal, regionalDemBase = null, regionalDemExt = 'png', demMode = null) {
-  const useQ = demMode !== 'dem5a'; // Q地図 + 地域DEM を使う（null/'q1m'/composite いずれも true）
-  const useS = demMode === 'dem5a' || !demMode; // DEM5A を使う（dem5a または full composite）
+  const useQ    = demMode !== 'dem5a'; // Q地図 + 地域DEM を使う（null/'q1m'/composite いずれも true）
+  // ── 5mDEM（DEM5A）旧コード: 陸域統合DEM に差し替えのためコメントアウト ──────────────────
+  // const useS = demMode === 'dem5a' || !demMode; // DEM5A を使う（dem5a または full composite）
+  // const sUrl = useS ? `${DEM5A_BASE}/${z}/${x}/${y}.png` : null;
+  // ── 陸域統合DEM（産総研）: 5mDEM の代替。URL は {z}/{y}/{x} 順（y・x 逆転） ───────────
+  const useS    = demMode === 'dem5a'; // DEM5A は等高線等の明示指定時のみ（現在は dead code）
+  const useLand = !demMode;            // 陸域統合DEM は地形合成（demMode=null）時のみ
+  const sUrl    = useS ? `${DEM5A_BASE}/${z}/${x}/${y}.png` : null;
+  const landUrl = useLand ? `${LAND_DEM_BASE}/${z}/${y}/${x}.png` : null; // y・x 逆順
 
   const qUrl  = useQ ? `${QCHIZU_DEM_BASE}/${z}/${x}/${y}.webp` : null;
-  const sUrl  = useS ? `${DEM5A_BASE}/${z}/${x}/${y}.png` : null;
   const lUrl  = `${LAKEDEPTH_BASE}/${z}/${x}/${y}.png`;
   const lsUrl = `${LAKEDEPTH_STANDARD_BASE}/${z}/${x}/${y}.png`;
   const rUrl  = (useQ && regionalDemBase) ? `${regionalDemBase}/${z}/${x}/${y}.${regionalDemExt}` : null;
@@ -54,27 +60,28 @@ async function fetchCompositeDemBitmap(z, x, y, signal, regionalDemBase = null, 
     } catch { return null; }
   }
 
-  const [qData, sData, lData, lsData, rData] = await Promise.all([
-    qUrl ? toImageData(qUrl) : Promise.resolve(null),
-    sUrl ? toImageData(sUrl) : Promise.resolve(null),
+  const [qData, sData, landData, lData, lsData, rData] = await Promise.all([
+    qUrl    ? toImageData(qUrl)    : Promise.resolve(null),
+    sUrl    ? toImageData(sUrl)    : Promise.resolve(null),
+    landUrl ? toImageData(landUrl) : Promise.resolve(null),
     toImageData(lUrl), toImageData(lsUrl),
-    rUrl ? toImageData(rUrl) : Promise.resolve(null),
+    rUrl    ? toImageData(rUrl)    : Promise.resolve(null),
   ]);
-  if (!qData && !sData && !lData && !rData) return null;
+  if (!qData && !sData && !landData && !lData && !rData) return null;
 
   function isNodata(d, i) {
     return (d[i] === 128 && d[i + 1] === 0 && d[i + 2] === 0) || d[i + 3] !== 255;
   }
 
   // 合成先を全 nodata で初期化し、低優先度から順に上書き
-  const { width, height: h } = (qData ?? sData ?? lData ?? rData);
+  const { width, height: h } = (qData ?? sData ?? landData ?? lData ?? rData);
   const cv  = new OffscreenCanvas(width, h);
   const ctx = cv.getContext('2d');
   const out = ctx.createImageData(width, h);
   const o = out.data;
   for (let i = 0; i < o.length; i += 4) { o[i] = 128; o[i + 3] = 255; } // all nodata
 
-  // 優先度 低: 湖水深（基準水面標高 - 湖水深 → 実際の湖底標高へ変換）
+  // 優先度 最低: 湖水深（基準水面標高 - 湖水深 → 実際の湖底標高へ変換）
   // 湖底標高(m) = 基準水面標高(m) - 湖水深(m)
   // NumPNG単位(0.01m): actual_int = stdSigned - depth
   if (lData && lsData) {
@@ -91,12 +98,21 @@ async function fetchCompositeDemBitmap(z, x, y, signal, regionalDemBase = null, 
     }
   }
 
-  // 優先度 中: DEM5A
+  // 優先度 中低: DEM5A（demMode='dem5a' 明示時のみ。通常は dead code）
   if (sData) {
     const s = sData.data;
     for (let i = 0; i < o.length; i += 4) {
       if (isNodata(s, i)) continue;
       o[i] = s[i]; o[i + 1] = s[i + 1]; o[i + 2] = s[i + 2]; o[i + 3] = 255;
+    }
+  }
+
+  // 優先度 中: 陸域統合DEM（5mDEM の代替。産総研提供）
+  if (landData) {
+    const land = landData.data;
+    for (let i = 0; i < o.length; i += 4) {
+      if (isNodata(land, i)) continue;
+      o[i] = land[i]; o[i + 1] = land[i + 1]; o[i + 2] = land[i + 2]; o[i + 3] = 255;
     }
   }
 
