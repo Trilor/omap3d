@@ -3340,7 +3340,7 @@ function buildGlobalMagneticLines() {
   for (let i = 0; i < numLines; i++) {
     const lng0 = -180 + i * actualDlng;
 
-    // 赤道から北極（100°）まで歩く
+    // 赤道から北方向（89° でクランプ）
     const northPts = [[lng0, 0]];
     let lng = lng0, lat = 0;
     for (let s = 0; s < 120; s++) {
@@ -3349,23 +3349,20 @@ function buildGlobalMagneticLines() {
       lng = next.geometry.coordinates[0];
       lat = next.geometry.coordinates[1];
       northPts.push([lng, lat]);
-      if (lat > 100) break;
+      if (lat > 89) break;
     }
 
-    // 赤道から南方向（zoom ≤ 3 専用。南極全域をカバー）
-    // 南緯 60° 以南で磁気ベアリングが北寄り（90°未満 or 270°超）になった場合は
-    // 地理的南（180°）にフォールバックして南極付近でも線が途切れないようにする
+    // 赤道から南方向（zoom ≤ 3 専用。-85° でクランプ）
     const southPts = [[lng0, 0]];
     lng = lng0; lat = 0;
     for (let s = 0; s < 100; s++) {
-      const decl = geomag.field(Math.min(89, Math.max(-89, lat)), lng).declination;
-      let bearing = (decl + 180 + 360) % 360;
-      if (lat < -60 && (bearing < 90 || bearing > 270)) bearing = 180;
-      const next  = turf.destination(turf.point([lng, lat]), GLOBAL_MAG_STEP_KM, bearing, { units: 'kilometers' });
+      const decl    = geomag.field(Math.min(89, Math.max(-89, lat)), lng).declination;
+      const bearing = (decl + 180 + 360) % 360;
+      const next    = turf.destination(turf.point([lng, lat]), GLOBAL_MAG_STEP_KM, bearing, { units: 'kilometers' });
       lng = next.geometry.coordinates[0];
       lat = next.geometry.coordinates[1];
       southPts.push([lng, lat]);
-      if (lat < -100) break;
+      if (lat < -85) break;
     }
 
     // 南端 → 赤道 → 北端 の順に結合して 1 本の LineString にする
