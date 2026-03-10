@@ -10,11 +10,11 @@
   transition: --sidebar-w 0.15s ease;
 
   /* ===== テーマカラー ===== */
-  --primary:        #2563eb;  /* メインカラー（ビビッドブルー）*/
-  --primary-hover:  #1d4ed8;  /* ホバー・押下状態（一段暗め）*/
-  --primary-dark:   #1e40af;  /* さらに暗いアクセント */
-  --primary-light:  #eff4ff;  /* 極薄背景・ハイライト用 */
-  --primary-alpha:  rgba(37, 99, 235, 0.12); /* 半透明オーバーレイ */
+  --primary:        #9bbb1d;  /* メインカラー（オリエンテーリンググリーン）*/
+  --primary-hover:  #849f19;  /* ホバー・押下状態（一段暗め）*/
+  --primary-dark:   #6d8314;  /* さらに暗いアクセント */
+  --primary-light:  #f4f8e4;  /* 極薄背景・ハイライト用 */
+  --primary-alpha:  rgba(155, 187, 29, 0.12); /* 半透明オーバーレイ */
 
   /* 主要背景色（--primary）上のテキスト色（開発用トグルで白⇔黒切り替え） */
   --on-primary:       #ffffff;
