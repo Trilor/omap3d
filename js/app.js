@@ -30,7 +30,6 @@ const map = new maplibregl.Map({
 
   container: 'map',
   attributionControl: false,
-  preserveDrawingBuffer: true, // ベースマップカードのライブサムネイル取得に必要
   style: {
     version: 8,
     // OriLibreのisomizerがベクタースタイルを動的に注入するための基本設定
@@ -3891,51 +3890,10 @@ function switchBasemap(key) {
 document.getElementById('basemap-cards').addEventListener('click', (e) => {
   const card = e.target.closest('.bm-card');
   if (!card) return;
-  // 前アクティブカードのライブサムネイルを削除して static thumb に戻す
-  document.querySelectorAll('#basemap-cards .bm-card.active img.bm-live').forEach(img => {
-    if (img.src?.startsWith('blob:')) URL.revokeObjectURL(img.src);
-    img.remove();
-  });
-  // アクティブ状態を付け替え
   document.querySelectorAll('#basemap-cards .bm-card').forEach(c => c.classList.remove('active'));
   card.classList.add('active');
   switchBasemap(card.dataset.key);
 });
-
-// ---- ライブサムネイル: 地図が静止したとき（idle）にアクティブカードへ反映 ----
-// map.getCanvas() で WebGL フレームを取得し、正方形クロップして表示する。
-// preserveDrawingBuffer: true が必要（map 初期化時に設定済み）。
-// setInterval より idle イベントの方が軽量（地図が動いたときだけ更新）。
-let _bmLiveCanvas = null; // OffscreenCanvas（再利用）
-let _bmPrevBlobUrl = null;
-function _updateBmLiveThumbnail() {
-  const activeCard = document.querySelector('#basemap-cards .bm-card.active');
-  if (!activeCard) return;
-  let img = activeCard.querySelector('img.bm-live');
-  if (!img) {
-    img = document.createElement('img');
-    img.className = 'bm-card-img bm-live';
-    img.alt = '';
-    activeCard.prepend(img); // static thumb の前（上）に挿入
-  }
-  try {
-    const mapCanvas = map.getCanvas();
-    const S  = Math.min(mapCanvas.width, mapCanvas.height);
-    const ox = (mapCanvas.width  - S) / 2;
-    const oy = (mapCanvas.height - S) / 2;
-    if (!_bmLiveCanvas || _bmLiveCanvas.width !== S) {
-      _bmLiveCanvas = new OffscreenCanvas(S, S);
-    }
-    _bmLiveCanvas.getContext('2d').drawImage(mapCanvas, ox, oy, S, S, 0, 0, S, S);
-    _bmLiveCanvas.convertToBlob({ type: 'image/jpeg', quality: 0.7 }).then(blob => {
-      const url = URL.createObjectURL(blob);
-      if (_bmPrevBlobUrl) URL.revokeObjectURL(_bmPrevBlobUrl);
-      _bmPrevBlobUrl = url;
-      img.src = url;
-    });
-  } catch { /* preserveDrawingBuffer 未対応環境などではスキップ */ }
-}
-map.on('idle', _updateBmLiveThumbnail);
 
 // ---- サイドバーナビゲーション ----
 let _sidebarCurrentPanel = 'sim';
