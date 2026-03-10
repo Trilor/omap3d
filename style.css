@@ -430,6 +430,63 @@ body {
   width: 100%;
 }
 
+/* ---- ベースマップカードグリッド ---- */
+.setting-row.bm-row {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+  padding: 6px 8px;
+}
+.bm-cards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  width: 100%;
+}
+.bm-card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  background: none;
+  border: 2px solid #d0d0d0;
+  border-radius: 6px;
+  padding: 0;
+  cursor: pointer;
+  overflow: hidden;
+  transition: border-color 0.15s;
+}
+.bm-card:hover  { border-color: var(--primary-light, #93c5fd); }
+.bm-card.active { border-color: var(--primary, #2563eb); box-shadow: 0 0 0 1px var(--primary, #2563eb); }
+.bm-card-img {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  display: block;
+}
+/* プレースホルダー: OriLibre */
+.bm-orilibre {
+  background: linear-gradient(135deg, #a8d080 0%, #8fbc6a 40%, #c4dfa0 70%, #7aad58 100%);
+}
+/* プレースホルダー: CS立体図 */
+.bm-cs1m  { background: linear-gradient(135deg, #999 0%, #ddd 40%, #bbb 60%, #888 100%); }
+.bm-cs05m { background: linear-gradient(135deg, #888 0%, #ccc 40%, #aaa 60%, #777 100%); }
+.bm-card-label {
+  font-size: 9px;
+  padding: 2px 1px;
+  text-align: center;
+  color: #333;
+  line-height: 1.2;
+  background: #f0f0f0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bm-card.active .bm-card-label {
+  background: var(--primary, #2563eb);
+  color: #fff;
+  font-weight: 600;
+}
+
 .setting-slider {
   flex: 1;
   min-width: 0;
