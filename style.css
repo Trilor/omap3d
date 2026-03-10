@@ -479,7 +479,7 @@ body {
   text-overflow: ellipsis;
 }
 .bm-card.active .bm-card-label {
-  background: rgba(37, 99, 235, 0.75);
+  background: color-mix(in srgb, var(--primary) 75%, transparent);
   font-weight: 600;
 }
 .bm-thumb-actions {
