@@ -3999,6 +3999,13 @@ async function captureAllBasemapThumbs() {
     // zoom18 で16枚以上になると4秒では足りず白くなるため、CS系は15秒に拡張。
     const idleTimeout = key.startsWith('cs-') ? 15000 : 4000;
     await waitForMapIdle(idleTimeout);
+    // idle後にフレームバッファへの最終描画を確実に完了させる
+    // （idleはタイルロード完了を示すが、描画はその後のrAFで行われる場合がある）
+    // CS立体図はTF.js GPU演算で遅延するため特に重要
+    await new Promise(r => {
+      map.once('render', r);
+      map.triggerRepaint();
+    });
 
     const out = document.createElement('canvas');
     out.width = ORILIBRE_THUMB_SIZE;
