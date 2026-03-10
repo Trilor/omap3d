@@ -468,17 +468,6 @@ body {
   object-fit: cover;
   display: block;
 }
-/* OriLibre: assets/bm-orilibre.png があれば表示、なければグラデーション */
-.bm-orilibre {
-  background-image:
-    url("assets/bm-orilibre.png"),
-    linear-gradient(135deg, #a8d080 0%, #8fbc6a 40%, #c4dfa0 70%, #7aad58 100%);
-  background-size: cover, cover;
-  background-position: center, center;
-}
-/* プレースホルダー: CS立体図 */
-.bm-cs1m  { background: linear-gradient(135deg, #999 0%, #ddd 40%, #bbb 60%, #888 100%); }
-.bm-cs05m { background: linear-gradient(135deg, #888 0%, #ccc 40%, #aaa 60%, #777 100%); }
 /* ラベル: 画像下部に半透明の帯をオーバーレイ */
 .bm-card-label {
   position: absolute;

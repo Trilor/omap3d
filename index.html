@@ -217,33 +217,37 @@ Oシミュレーターモードの仮想ジョイスティック（左手移動�
             <span class="setting-label">ベースマップ</span>
             <div id="basemap-cards" class="bm-cards">
               <button class="bm-card active" data-key="orilibre">
-                <div class="bm-card-img bm-orilibre"></div>
+                <img class="bm-card-img" src="assets/basemap/orilibre.png" alt="">
                 <span class="bm-card-label">OriLibre</span>
               </button>
               <button class="bm-card" data-key="gsi-std">
-                <img class="bm-card-img" src="https://cyberjapandata.gsi.go.jp/xyz/std/9/449/202.png" loading="lazy" alt="">
+                <img class="bm-card-img" src="assets/basemap/gsi-std.png" alt="">
                 <span class="bm-card-label">標準地図</span>
               </button>
               <button class="bm-card" data-key="gsi-pale">
-                <img class="bm-card-img" src="https://cyberjapandata.gsi.go.jp/xyz/pale/9/449/202.png" loading="lazy" alt="">
+                <img class="bm-card-img" src="assets/basemap/gsi-pale.png" alt="">
                 <span class="bm-card-label">淡色地図</span>
               </button>
               <button class="bm-card" data-key="gsi-photo">
-                <img class="bm-card-img" src="https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/9/449/202.jpg" loading="lazy" alt="">
+                <img class="bm-card-img" src="assets/basemap/gsi-photo.png" alt="">
                 <span class="bm-card-label">航空写真</span>
               </button>
               <button class="bm-card" data-key="osm">
-                <img class="bm-card-img" src="https://tile.openstreetmap.org/9/449/202.png" loading="lazy" alt="">
+                <img class="bm-card-img" src="assets/basemap/osm.png" alt="">
                 <span class="bm-card-label">OSM</span>
               </button>
               <button class="bm-card" data-key="cs-1m">
-                <div class="bm-card-img bm-cs1m"></div>
+                <img class="bm-card-img" src="assets/basemap/cs-1m.png" alt="">
                 <span class="bm-card-label">CS 1m</span>
               </button>
               <button class="bm-card" data-key="cs-0.5m">
-                <div class="bm-card-img bm-cs05m"></div>
+                <img class="bm-card-img" src="assets/basemap/cs-0.5m.png" alt="">
                 <span class="bm-card-label">CS 0.5m</span>
               </button>
+            </div>
+            <div class="bm-thumb-actions">
+              <button id="btn-orilibre-thumb" class="bm-thumb-btn" type="button">OriLibreサムネ生成</button>
+              <span class="bm-thumb-note">現在の表示範囲から正方形で取得</span>
             </div>
           </div>
           <div class="setting-row overlay-stacked">

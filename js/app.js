@@ -4030,8 +4030,6 @@ async function captureAllBasemapThumbs() {
   }
 }
 
-loadOriLibreThumb();
-loadBasemapThumbs();
 const btnOriLibreThumb = document.getElementById('btn-orilibre-thumb');
 if (btnOriLibreThumb) btnOriLibreThumb.addEventListener('click', captureAllBasemapThumbs);
 
