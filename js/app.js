@@ -17,6 +17,8 @@ import {
 let oriLibreLayers = [];
 let currentBasemap = 'orilibre';
 let oriLibreCachedStyle = null; // isomizer構築完了後のスタイルをキャッシュ（読図マップ用）
+let _globeBgEl = null;
+let _updateGlobeBg = null;
 
 /*
   ========================================================
@@ -30,6 +32,8 @@ const map = new maplibregl.Map({
 
   container: 'map',
   attributionControl: false,
+  preserveDrawingBuffer: true, // サムネイル生成時の map.getCanvas() 読み取りに必要
+  preserveDrawingBuffer: true,
   style: {
     version: 8,
     // OriLibreのisomizerがベクタースタイルを動的に注入するための基本設定
@@ -814,9 +818,14 @@ map.on('load', async () => {
   map.setProjection({ type: 'globe' });
 
   // ズーム7以下（globe表示時）は宇宙空間を黒背景で表現する
-  const _globeBgEl = document.getElementById('map');
-  const _updateGlobeBg = () => { _globeBgEl.style.backgroundColor = map.getZoom() < 7 ? '#000' : '#dbeff9'; };
+  _globeBgEl = document.getElementById('map');
+  _updateGlobeBg = () => {
+    if (!_globeBgEl) return;
+    const highZoomColor = simActive ? '#dbeff9' : '#fff';
+    _globeBgEl.style.backgroundColor = map.getZoom() < 7 ? '#000' : highZoomColor;
+  };
   map.on('zoom', _updateGlobeBg);
+  _updateGlobeBg();
 
   // ⑤ テレインマスタ → フレームの順で自動読み込みする
   autoLoadTerrains();
@@ -3895,6 +3904,127 @@ document.getElementById('basemap-cards').addEventListener('click', (e) => {
   switchBasemap(card.dataset.key);
 });
 
+// ---- OriLibre サムネイル生成（正方形） ----
+const ORILIBRE_THUMB_KEY = 'orilibre-thumb';
+const ORILIBRE_THUMB_SIZE = 256;
+const BASEMAP_THUMB_KEYS = [
+  'orilibre', 'gsi-std', 'gsi-pale', 'gsi-photo', 'osm', 'cs-1m', 'cs-0.5m'
+];
+
+function applyOriLibreThumb(dataUrl) {
+  const el = document.querySelector('.bm-orilibre');
+  if (!el) return;
+  el.style.backgroundImage = `url("${dataUrl}")`;
+  el.style.backgroundSize = 'cover';
+  el.style.backgroundPosition = 'center';
+}
+
+function loadOriLibreThumb() {
+  const dataUrl = localStorage.getItem(ORILIBRE_THUMB_KEY);
+  if (dataUrl) applyOriLibreThumb(dataUrl);
+}
+
+function setBasemapCardThumb(key, dataUrl) {
+  const card = document.querySelector(`#basemap-cards .bm-card[data-key="${key}"]`);
+  if (!card) return;
+  const img = card.querySelector('img.bm-card-img');
+  if (img) {
+    img.src = dataUrl;
+    return;
+  }
+  const box = card.querySelector('.bm-card-img');
+  if (!box) return;
+  box.style.backgroundImage = `url("${dataUrl}")`;
+  box.style.backgroundSize = 'cover';
+  box.style.backgroundPosition = 'center';
+}
+
+function loadBasemapThumbs() {
+  BASEMAP_THUMB_KEYS.forEach((key) => {
+    const dataUrl = localStorage.getItem(`bm-thumb-${key}`);
+    if (dataUrl) setBasemapCardThumb(key, dataUrl);
+  });
+}
+
+function downloadDataUrl(dataUrl, filename) {
+  const a = document.createElement('a');
+  a.href = dataUrl;
+  a.download = filename;
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+function waitForMapIdle(timeoutMs = 3500) {
+  return new Promise((resolve) => {
+    let done = false;
+    const timer = setTimeout(() => {
+      if (done) return;
+      done = true;
+      resolve();
+    }, timeoutMs);
+    map.once('idle', () => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      resolve();
+    });
+  });
+}
+
+async function captureAllBasemapThumbs() {
+  const btn = document.getElementById('btn-orilibre-thumb');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = '生成中...';
+  }
+
+  const prevBasemap = currentBasemap;
+  const prevActive = document.querySelector('#basemap-cards .bm-card.active');
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+
+  const canvas = map.getCanvas();
+  const size = Math.min(canvas.width, canvas.height);
+  const sx = Math.round((canvas.width - size) / 2);
+  const sy = Math.round((canvas.height - size) / 2);
+
+  for (const key of BASEMAP_THUMB_KEYS) {
+    switchBasemap(key);
+    document.querySelectorAll('#basemap-cards .bm-card').forEach(c => c.classList.remove('active'));
+    const card = document.querySelector(`#basemap-cards .bm-card[data-key="${key}"]`);
+    if (card) card.classList.add('active');
+
+    await waitForMapIdle(4000);
+
+    const out = document.createElement('canvas');
+    out.width = ORILIBRE_THUMB_SIZE;
+    out.height = ORILIBRE_THUMB_SIZE;
+    const ctx = out.getContext('2d');
+    ctx.drawImage(canvas, sx, sy, size, size, 0, 0, ORILIBRE_THUMB_SIZE, ORILIBRE_THUMB_SIZE);
+
+    const dataUrl = out.toDataURL('image/png');
+    setBasemapCardThumb(key, dataUrl);
+    localStorage.setItem(`bm-thumb-${key}`, dataUrl);
+    if (key === 'orilibre') localStorage.setItem(ORILIBRE_THUMB_KEY, dataUrl);
+    downloadDataUrl(dataUrl, `basemap-${key}-${stamp}.png`);
+  }
+
+  if (prevBasemap) switchBasemap(prevBasemap);
+  document.querySelectorAll('#basemap-cards .bm-card').forEach(c => c.classList.remove('active'));
+  if (prevActive) prevActive.classList.add('active');
+
+  if (btn) {
+    btn.disabled = false;
+    btn.textContent = 'OriLibreサムネ生成';
+  }
+}
+
+loadOriLibreThumb();
+loadBasemapThumbs();
+const btnOriLibreThumb = document.getElementById('btn-orilibre-thumb');
+if (btnOriLibreThumb) btnOriLibreThumb.addEventListener('click', captureAllBasemapThumbs);
+
 // ---- サイドバーナビゲーション ----
 let _sidebarCurrentPanel = 'sim';
 let _sidebarOpen = true;
@@ -4041,6 +4171,7 @@ function toggleSimMode() {
 function startSimMode() {
   simActive = true;
   simTargetZoom = SIM_ZOOM;
+  if (_updateGlobeBg) _updateGlobeBg();
 
   // ① 通常の地図操作を全て無効化
   map.dragPan.disable();
@@ -4089,6 +4220,7 @@ function startSimMode() {
    ---------------------------------------------------------------- */
 function stopSimMode() {
   simActive = false;
+  if (_updateGlobeBg) _updateGlobeBg();
 
   // ループ停止
   if (simAnimFrame) { cancelAnimationFrame(simAnimFrame); simAnimFrame = null; }
@@ -6630,4 +6762,3 @@ document.getElementById('import-decide-btn').addEventListener('click', () => {
     });
   });
 })();
-
