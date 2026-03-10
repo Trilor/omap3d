@@ -3362,93 +3362,68 @@ function updateMagneticNorth() {
     document.getElementById('sel-magnetic-north-interval').selectedIndex = 0;
   }
 
-  // 視野中心の磁気偏角（基点の磁東方向配置に使用）
-  const centerDeclination = geomag.field(center.lat, center.lng).declination;
-
-  // ビューポートの対角線半分（km）をカバー範囲として使用（1.3倍の余裕）
-  const viewWidth  = turf.distance(
-    turf.point([bounds.getWest(), center.lat]),
-    turf.point([bounds.getEast(), center.lat]),
-    { units: 'kilometers' }
-  );
+  // ビューポートの縦幅（km）からステップ距離を決定
+  // 縦幅を15分割を基準に、広域は最大100km・拡大時は最小0.5km
   const viewHeight = turf.distance(
     turf.point([center.lng, bounds.getSouth()]),
     turf.point([center.lng, bounds.getNorth()]),
     { units: 'kilometers' }
   );
-  const halfExtentKm = Math.hypot(viewWidth, viewHeight) / 2 * 1.3;
+  const stepKm = Math.min(100, Math.max(0.5, viewHeight / 15));
 
-  // ステップ距離を動的決定：半範囲を15分割を基準に、広域は最大100km・拡大時は最小0.5km
-  // 例）halfExtent=1000km → step=67km（約15分割）、halfExtent=2km → step=0.5km（最小値）
-  const stepKm = Math.min(100, Math.max(0.5, halfExtentKm / 15));
+  // フェイルセーフ：最大ステップ数（無限ループ防止）
+  const MAX_STEPS = 400;
 
-  // フェイルセーフ：1方向あたりの最大ステップ数（無限ループ防止）
-  const MAX_STEPS = 300;
-
-  // 打ち切り境界（Bounds + 1ステップ分バッファ：線を画面端まで確実に伸ばす）
-  // zoom ≤ 3 では地球全域をカバーするため経度・緯度の上限を地球の端まで拡張
-  const bufDeg = stepKm / 100; // 概算：1km ≈ 0.01°
+  // 打ち切り緯度境界（Bounds + 1ステップ分バッファ）
+  // zoom ≤ 3（全球）では南極〜北極まで
   const isGlobal = map.getZoom() <= 3;
-  const minLng = isGlobal ? -180 : bounds.getWest()  - bufDeg;
-  const maxLng = isGlobal ?  180 : bounds.getEast()  + bufDeg;
-  const minLat = isGlobal ?  -90 : bounds.getSouth() - bufDeg;
-  const maxLat = isGlobal ?   90 : bounds.getNorth() + bufDeg;
+  const bufDeg   = stepKm / 100; // 概算：1km ≈ 0.01°
+  const minLat   = isGlobal ? -89.9 : bounds.getSouth() - bufDeg;
+  const maxLat   = isGlobal ?  89.9 : bounds.getNorth() + bufDeg;
 
-  // 基点を磁東方向に均等配置（視野中心の偏角で近似）
-  // zoom > 3 は最大30本/側に制限してフレームレートを保護する
-  // zoom ≤ 3 では地球全域をカバーするためキャップなし（間隔が広いため本数は多くても軽い）
-  const perpBearing = centerDeclination + 90; // 磁北の右90° = 磁東
-  const nHalfRaw    = Math.ceil(halfExtentKm / intervalKm);
-  const nHalf       = map.getZoom() <= 3 ? nHalfRaw : Math.min(30, nHalfRaw);
-  const centerPt    = turf.point([center.lng, center.lat]);
+  // ── 絶対座標グリッド方式 ──
+  // 赤道上の固定経度グリッドを基点にする。地図を動かしても線の位置が変わらない。
+  // dLng: 赤道での intervalKm に対応する経度幅（度）
+  const EQ_KM_PER_DEG = Math.PI * 6371 / 180; // ≈ 111.195 km/deg（赤道）
+  const dLng = intervalKm / EQ_KM_PER_DEG;
+
+  // ビューポートをカバーする経度範囲のグリッドインデックス
+  const westLng  = isGlobal ? -180 : bounds.getWest()  - bufDeg;
+  const eastLng  = isGlobal ?  180 : bounds.getEast()  + bufDeg;
+  const startIdx = Math.floor(westLng / dLng);
+  const endIdx   = Math.ceil (eastLng / dLng);
 
   /**
-   * 基点座標から1方向へ多角線座標を生成する。
+   * 開始座標から磁北方向（北向き）へ多角線座標を生成する。
    * 各ステップで現在地点の geomag 偏角を再計算して軌道修正する。
-   * @param {number[]} startCoords [lng, lat]
-   * @param {boolean}  towardNorth true=磁北方向, false=磁南方向
+   * 南端→北端の1方向のみ歩くことで従来の南北2方向歩行より計算量を削減する。
+   * @param {number[]} startCoords [lng, lat]（ビューポート南端付近）
    * @returns {number[][]} 座標配列（startCoords を先頭に含む）
    */
-  function walkMagneticLine(startCoords, towardNorth) {
+  function walkMagneticLine(startCoords) {
     const pts = [startCoords];
     let lng = startCoords[0];
     let lat = startCoords[1];
     for (let s = 0; s < MAX_STEPS; s++) {
       // 現在地点の偏角を WMM で再計算（緯度を ±89.9° にクランプして極付近の発散を防ぐ）
-      const decl    = geomag.field(Math.max(-89.9, Math.min(89.9, lat)), lng).declination;
-      const bearing = towardNorth ? decl : (decl + 180 + 360) % 360;
-      const next    = turf.destination(turf.point([lng, lat]), stepKm, bearing, { units: 'kilometers' });
+      const decl = geomag.field(Math.max(-89.9, Math.min(89.9, lat)), lng).declination;
+      const next = turf.destination(turf.point([lng, lat]), stepKm, decl, { units: 'kilometers' });
       lng = next.geometry.coordinates[0];
       lat = next.geometry.coordinates[1];
       pts.push([lng, lat]);
-      // Bounds を超えたら打ち切り（1点はみ出すことで端まで線を引く）
-      // zoom ≤ 3 のグローバルモードでは磁北線は南北方向に進むため緯度のみで判定する。
-      // 経度も判定すると turf が返す座標が ±180° を超えた場合に即打ち切りになる。
-      if (isGlobal) {
-        if (lat < minLat || lat > maxLat) break;
-      } else {
-        if (lng < minLng || lng > maxLng || lat < minLat || lat > maxLat) break;
-      }
+      // 北端を超えたら打ち切り（緯度のみで判定：経度は全球を巡回するため判定しない）
+      if (lat > maxLat) break;
     }
     return pts;
   }
 
   const features = [];
-  for (let i = -nHalf; i <= nHalf; i++) {
-    const base   = turf.destination(centerPt, intervalKm * i, perpBearing, { units: 'kilometers' });
-    const basePt = base.geometry.coordinates;
-
-    // 基点から磁北・磁南それぞれに向かって多角線を生成
-    const northPts = walkMagneticLine(basePt, true);  // [basePt, n1, n2, ...]
-    const southPts = walkMagneticLine(basePt, false); // [basePt, s1, s2, ...]
-
-    // 南端 → 基点 → 北端 の順に結合して1本の LineString にする
-    // southPts.slice(1).reverse() = [sN,...,s1]  |  northPts = [basePt, n1,...,nM]
-    const coords = [
-      ...southPts.slice(1).reverse(),
-      ...northPts,
-    ];
-
+  for (let i = startIdx; i <= endIdx; i++) {
+    // 固定経度グリッドのビューポート南端を開始点にして北向きに歩く。
+    // 開始緯度を南端に固定することで東西パン時に線がズレない。
+    // 南北パン時も偏角変化が微小なため実用上は線が固定に見える。
+    const startLat = Math.max(-89.9, minLat);
+    const coords = walkMagneticLine([i * dLng, startLat]);
     if (coords.length >= 2) {
       features.push(turf.lineString(coords));
     }
