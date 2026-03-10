@@ -3308,6 +3308,64 @@ function updateSliderGradient(input, color) {
 // ユーザーが手動で設定した磁北線間隔（m）。zoom > 10 のときに使用する。
 let userMagneticInterval = 300;
 
+// ── グローバル（zoom ≤ 3）用 固定磁北線キャッシュ ──
+// 起動後に一度だけ計算し、zoom ≤ 3 の間は再計算なしで使い回す。
+// 赤道（lat=0）を起点に 500km 間隔で全球に 80 本配置。
+const GLOBAL_MAG_INTERVAL_KM = 500;                          // 赤道での線間隔
+const GLOBAL_MAG_EQ_KM_DEG   = Math.PI * 6371 / 180;        // ≈ 111.195 km/deg
+const GLOBAL_MAG_DLNG        = GLOBAL_MAG_INTERVAL_KM / GLOBAL_MAG_EQ_KM_DEG; // ≈ 4.49°
+const GLOBAL_MAG_STEP_KM     = 100;                          // ウォーク時のステップ距離
+let   _globalMagneticLines   = null;                         // キャッシュ（null = 未計算）
+
+/**
+ * zoom ≤ 3 用の固定磁北線セットを計算してキャッシュする。
+ * 2 回目以降はキャッシュを返すだけ。
+ * 赤道を起点に GLOBAL_MAG_DLNG 間隔で全球 80 本を生成する。
+ */
+function buildGlobalMagneticLines() {
+  if (_globalMagneticLines) return _globalMagneticLines;
+
+  const startI = Math.floor(-180 / GLOBAL_MAG_DLNG);
+  const endI   = Math.ceil ( 180 / GLOBAL_MAG_DLNG);
+  const features = [];
+
+  for (let i = startI; i <= endI; i++) {
+    const lng0 = i * GLOBAL_MAG_DLNG;
+
+    // 赤道から北極（89°）まで歩く
+    const northPts = [[lng0, 0]];
+    let lng = lng0, lat = 0;
+    for (let s = 0; s < 120; s++) {
+      const decl = geomag.field(Math.min(89, Math.max(-89, lat)), lng).declination;
+      const next = turf.destination(turf.point([lng, lat]), GLOBAL_MAG_STEP_KM, decl, { units: 'kilometers' });
+      lng = next.geometry.coordinates[0];
+      lat = next.geometry.coordinates[1];
+      northPts.push([lng, lat]);
+      if (lat > 89) break;
+    }
+
+    // 赤道から南方向（-70° まで: それ以上は geomag が不安定）
+    const southPts = [[lng0, 0]];
+    lng = lng0; lat = 0;
+    for (let s = 0; s < 80; s++) {
+      const decl    = geomag.field(Math.min(89, Math.max(-89, lat)), lng).declination;
+      const bearing = (decl + 180 + 360) % 360;
+      const next    = turf.destination(turf.point([lng, lat]), GLOBAL_MAG_STEP_KM, bearing, { units: 'kilometers' });
+      lng = next.geometry.coordinates[0];
+      lat = next.geometry.coordinates[1];
+      southPts.push([lng, lat]);
+      if (lat < -70) break;
+    }
+
+    // 南端 → 赤道 → 北端 の順に結合して 1 本の LineString にする
+    const coords = [...southPts.slice(1).reverse(), ...northPts];
+    if (coords.length >= 2) features.push(turf.lineString(coords));
+  }
+
+  _globalMagneticLines = turf.featureCollection(features);
+  return _globalMagneticLines;
+}
+
 // zoom レベルに応じた有効な磁北線間隔（m）を返す
 // 各ズームで画面内に約 7〜15 本表示されることを目安に設定。
 // 広域ズーム（z≤4）では間隔を大きくして本数を抑えつつ画面全体をカバーする。
@@ -3352,6 +3410,20 @@ function updateMagneticNorth() {
   const center = map.getCenter();
   const bounds = map.getBounds();
 
+  // zoom ≤ 3: 固定グローバル磁北線キャッシュを使用（再計算なし）
+  if (map.getZoom() <= 3) {
+    const data = buildGlobalMagneticLines();
+    _lastMagneticNorthData = data;
+    map.getSource('magnetic-north').setData(data);
+    // UI表示（500km 固定）
+    const optCurrent = document.getElementById('opt-magnetic-north-current');
+    if (optCurrent) {
+      optCurrent.textContent = '500 km';
+      document.getElementById('sel-magnetic-north-interval').selectedIndex = 0;
+    }
+    return;
+  }
+
   // zoom レベルに応じた有効間隔を取得し、セレクト先頭オプションに反映
   const intervalM  = getEffectiveMagneticInterval();
   const intervalKm = intervalM / 1000;
@@ -3381,10 +3453,9 @@ function updateMagneticNorth() {
 
   // 打ち切り緯度境界（Bounds + 1ステップ分バッファ）
   // ±70° でクランプ：それ以上は geomag の偏角が不安定になり線が暴走するため
-  const isGlobal = map.getZoom() <= 3;
-  const bufDeg   = stepKm / 100;
-  const minLat   = Math.max(-70, isGlobal ? -70 : bounds.getSouth() - bufDeg);
-  const maxLat   = Math.min( 89.9, isGlobal ? 89.9 : bounds.getNorth() + bufDeg);
+  const bufDeg = stepKm / 100;
+  const minLat = Math.max(-70, bounds.getSouth() - bufDeg);
+  const maxLat = Math.min( 89.9, bounds.getNorth() + bufDeg);
 
   // ── 絶対座標グリッド方式 ──
   // 経度グリッドを赤道基準の固定値にし、東西パンで線がズレないようにする。
@@ -3395,8 +3466,8 @@ function updateMagneticNorth() {
   const refLat = Math.round(center.lat); // 最近傍整数度にスナップした基準緯度
 
   // ビューポートをカバーする経度範囲のグリッドインデックス
-  const westLng  = isGlobal ? -180 : bounds.getWest()  - bufDeg;
-  const eastLng  = isGlobal ?  180 : bounds.getEast()  + bufDeg;
+  const westLng  = bounds.getWest()  - bufDeg;
+  const eastLng  = bounds.getEast()  + bufDeg;
   const startIdx = Math.floor(westLng / dLng);
   const endIdx   = Math.ceil (eastLng / dLng);
 
