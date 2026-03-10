@@ -4461,9 +4461,7 @@ function onPcSimLocked() {
   document.getElementById('pc-sim-hint').style.display = hintOn ? 'block' : 'none';
   document.getElementById('pc-sim-crosshair').style.display = 'block';
 
-  // PCシムでは maplibregl.Marker の terrain 投影ズレを避けるため
-  // CSS fixed 要素を使用（マーカーは使わない）
-  document.getElementById('pc-sim-pos-dot').style.display = 'block';
+  addSimPosMarker();
   // 読図マップは初回 openPcReadMap() 時に遅延初期化（非表示コンテナでのWebGL失敗を防ぐ）
 
   // ⑤ イベントリスナー登録
@@ -4489,8 +4487,7 @@ function stopPcSim() {
   closePcReadMap();
   if (pcSimReadMap) { pcSimReadMap.remove(); pcSimReadMap = null; }
 
-  // PCシム用 CSS ドットを非表示
-  document.getElementById('pc-sim-pos-dot').style.display = 'none';
+  removeSimPosMarker();
 
   // キー状態・補正値リセット
   Object.keys(pcSimKeys).forEach(k => { pcSimKeys[k] = false; });
@@ -4570,17 +4567,14 @@ function setCameraFromPlayer() {
     { exaggerated: false }
   ) ?? h;
 
-  // カメラ距離に比例したマージン（近距離では小さく、遠距離では最大8m）
-  const backMargin = Math.min(8, Math.max(0.5, pcCamDistM * 0.1));
   const cameraAlt = Math.max(
-    h + Math.max(0.5, pcCamDistM * Math.cos(pitchRad)),
-    backH + backMargin   // カメラが後方地形より必ずbackMargin上に位置するよう保証
+    h + Math.max(1, pcCamDistM * Math.cos(pitchRad)),
+    backH + 8   // カメラが後方地形より必ず8m上に位置するよう保証
   );
 
-  // ズームキャップを24に拡張（1m近接時にもズームインが効くよう）
-  const targetZoom = Math.max(12, Math.min(24, Math.log2(
+  const targetZoom = Math.max(12, Math.min(22, Math.log2(
     H * 2 * Math.PI * R * Math.cos(lat_rad) /
-    (1024 * Math.tan(fov_rad / 2) * Math.max(0.5, cameraAlt))
+    (1024 * Math.tan(fov_rad / 2) * Math.max(1, cameraAlt))
   )));
 
   map.jumpTo({
@@ -4719,7 +4713,7 @@ function pcSimLoop(timestamp) {
       `rotate(${-pcBearing}deg)`;
   }
 
-  // ── 位置ドットは CSS fixed なので更新不要 ──
+  updateSimPosMarker(pcPlayerLng, pcPlayerLat);
 
   pcSimAnimFrame = requestAnimationFrame(pcSimLoop);
 }
