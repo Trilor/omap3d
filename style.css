@@ -435,9 +435,9 @@ body {
   gap: 4px;
   width: 100%;
 }
-/* オーバーレイカードは2枚なので2列 */
+/* オーバーレイカードはベースマップと同じ4列 */
 #overlay-cards.bm-cards {
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(4, 1fr);
 }
 /* 正方形カード: 検索ボックスと同じ box-shadow スタイル */
 .bm-card {
@@ -484,7 +484,6 @@ body {
 }
 .bm-card.active .bm-card-label {
   background: color-mix(in srgb, var(--primary) 75%, transparent);
-  font-weight: 600;
 }
 .bm-thumb-actions {
   display: flex;
