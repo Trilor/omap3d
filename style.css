@@ -72,17 +72,17 @@ body {
 #sidebar-icon-bar {
   width: 48px;
   height: 100%;
-  background: var(--primary);
+  background: #F6F6F6;
   display: flex;
   flex-direction: column;
   align-items: center;
   padding: 0;
   gap: 2px;
   flex-shrink: 0;
-  box-shadow: 2px 0 6px rgba(0,0,0,0.15);
+  box-shadow: 2px 0 6px rgba(0,0,0,0.10);
 }
 
-/* ロゴ */
+/* ロゴ（TD）: メインカラーを維持 */
 #sidebar-logo {
   width: 48px;
   height: 44px;
@@ -93,7 +93,7 @@ body {
   font-weight: 900;
   color: #fff;
   letter-spacing: -0.03em;
-  background: rgba(0,0,0,0.15);
+  background: var(--primary);
   flex-shrink: 0;
   margin-bottom: 4px;
   user-select: none;
@@ -105,7 +105,7 @@ body {
   height: 52px;
   border: none;
   background: transparent;
-  color: rgba(255,255,255,0.65);
+  color: #888;
   border-radius: 6px;
   cursor: pointer;
   display: flex;
@@ -132,23 +132,17 @@ body {
   opacity: 0.9;
 }
 .sidebar-nav-btn:hover {
-  background: rgba(255,255,255,0.18);
-  color: #fff;
+  background: rgba(0,0,0,0.07);
+  color: #444;
 }
+/* アクティブ時: メインカラー背景 + 白テキスト */
 .sidebar-nav-btn.active {
-  background: rgba(255,255,255,0.28);
+  background: var(--primary);
   color: #fff;
 }
-/* アクティブ時の左ボーダー（VS Code風） */
+/* 左ボーダーは不要（背景色で強調するため削除） */
 .sidebar-nav-btn.active::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 8px;
-  bottom: 8px;
-  width: 3px;
-  background: #fff;
-  border-radius: 0 2px 2px 0;
+  display: none;
 }
 
 /* パネルコンテンツ */
@@ -2866,15 +2860,9 @@ label.setting-label {
   }
   .nav-label { display: block; font-size: 9px; }
 
-  /* アクティブインジケーター → 上端ボーダーに */
+  /* アクティブインジケーター: PC同様に背景色で表現（ボーダー不要） */
   .sidebar-nav-btn.active::before {
-    top: 0;
-    bottom: auto;
-    left: 25%;
-    right: 25%;
-    width: auto;
-    height: 3px;
-    border-radius: 0 0 3px 3px;
+    display: none;
   }
 
   /* ── ボトムシート ── */
@@ -2995,12 +2983,7 @@ label.setting-label {
    ファイル末尾に置くことで既存の color: #fff を上書き
    ============================================================ */
 
-/* 通常ナビボタン: 少し透過（muted） */
-.sidebar-nav-btn {
-  color: var(--on-primary-muted);
-}
 /* primary 背景上で白/黒を切り替える全要素 */
-.sidebar-nav-btn:hover,
 .sidebar-nav-btn.active,
 .sidebar-section-header,
 .panel-btn-primary,
