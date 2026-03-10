@@ -2020,11 +2020,11 @@ function buildFrameEntryEl(frame) {
     // スライダー
     const sliderEl = ctrl.querySelector(`#fslider-${frame.id}`);
     const valEl    = ctrl.querySelector(`#fval-${frame.id}`);
-    updateSliderGradient(sliderEl, '#4a7c59');
+    updateSliderGradient(sliderEl, '#2563eb');
     sliderEl.addEventListener('input', () => {
       frame.opacity = parseInt(sliderEl.value) / 100;
       valEl.textContent = sliderEl.value + '%';
-      updateSliderGradient(sliderEl, '#4a7c59');
+      updateSliderGradient(sliderEl, '#2563eb');
       if (frame.layerId && map.getLayer(frame.layerId)) {
         map.setPaintProperty(frame.layerId, 'raster-opacity', toRasterOpacity(frame.opacity));
       }
@@ -2137,7 +2137,7 @@ function showFrameClickPopup(lngLat, frameIds) {
         const p = f?.properties ?? {};
         const dot = f?.images.length > 0 ? '●' : '○';
         return `<li class="frame-overlap-item" onclick="_selectOverlapFrame('${fid}')" data-fid="${fid}">
-          <span style="color:${f?.images.length > 0 ? '#4a7c59' : '#bbb'}">${dot}</span>
+          <span style="color:${f?.images.length > 0 ? '#2563eb' : '#bbb'}">${dot}</span>
           <span>${escHtml(p.event_name ?? fid)}</span>
           ${(() => { const _t = terrainMap.get(p.terrain_id); return _t?.terrain_type ? `<span class="frame-badge ${_t.terrain_type}" style="font-size:9px">${escHtml(MAP_TYPE_JA[_t.terrain_type] ?? _t.terrain_type)}</span>` : ''; })()}
         </li>`;
@@ -2268,12 +2268,12 @@ function renderKmzList() {
     // スライダー：透明度
     const sliderEl = rowEl.querySelector(`#slider-kmz-${entry.id}`);
     const valEl = rowEl.querySelector(`#val-kmz-${entry.id}`);
-    updateSliderGradient(sliderEl, '#4a7c59');
+    updateSliderGradient(sliderEl, '#2563eb');
 
     sliderEl.addEventListener('input', () => {
       entry.opacity = parseInt(sliderEl.value) / 100;
       valEl.textContent = sliderEl.value + '%';
-      updateSliderGradient(sliderEl, '#4a7c59');
+      updateSliderGradient(sliderEl, '#2563eb');
 
       if (entry.visible && map.getLayer(entry.layerId)) {
         map.setPaintProperty(entry.layerId, 'raster-opacity', toRasterOpacity(entry.opacity));
@@ -2392,7 +2392,7 @@ function updateSeekBarGradient() {
   const max = parseFloat(bar.max) || 1;
   const pct = (parseFloat(bar.value) / max) * 100;
   bar.style.background =
-    `linear-gradient(to right, #4a7c59 ${pct}%, #d0d0d0 ${pct}%)`;
+    `linear-gradient(to right, #2563eb ${pct}%, #d0d0d0 ${pct}%)`;
 }
 
 /* ========================================================
@@ -3575,12 +3575,12 @@ map.on('zoomend', updateCsVisibility);
 // ---- CS立体図 透明度スライダー（全国・地域別共通） ----
 const sliderCs = document.getElementById('slider-cs');
 const valCs = document.getElementById('val-cs');
-updateSliderGradient(sliderCs, '#4a7c59');
+updateSliderGradient(sliderCs, '#2563eb');
 
 sliderCs.addEventListener('input', () => {
   const v = parseFloat(sliderCs.value);
   valCs.textContent = Math.round(v * 100) + '%';
-  updateSliderGradient(sliderCs, '#4a7c59');
+  updateSliderGradient(sliderCs, '#2563eb');
   if (map.getLayer('cs-relief-layer')) {
     map.setPaintProperty('cs-relief-layer', 'raster-opacity', v);
   }
@@ -3988,7 +3988,7 @@ map.once('idle', () => { updateSidebarWidth(); });
 // スライダーの初期値をUIに反映（値を設定してからグラデーションを更新する）
 sliderCs.value = CS_INITIAL_OPACITY;
 valCs.textContent = Math.round(CS_INITIAL_OPACITY * 100) + '%';
-updateSliderGradient(sliderCs, '#4a7c59'); // 値変更後に再計算
+updateSliderGradient(sliderCs, '#2563eb'); // 値変更後に再計算
 
 
 sliderExaggeration.value = TERRAIN_EXAGGERATION;
@@ -5533,7 +5533,7 @@ function _syncScaleUI() {
   const valEl = document.getElementById('import-scale-adj-val');
   if (el)    el.value = Math.min(110, Math.max(90, _importScaleVal));
   if (valEl) valEl.textContent = _importScaleVal.toFixed(1) + '%';
-  if (el) updateSliderGradient(el, '#4a7c59');
+  if (el) updateSliderGradient(el, '#2563eb');
 }
 
 // ---- _importBaseScaleCoords × _importScaleVal → _importCoords を再計算（Turf.js） ----
@@ -5921,8 +5921,8 @@ function _openImportOverlay(imgUrl, onLoad) {
   if (rotEl) { rotEl.value = '0'; document.getElementById('import-rotation-val').textContent = '0.00'; }
   _syncScaleUI();
   _updateFixedPointStatus();
-  if (opEl) updateSliderGradient(opEl, '#4a7c59');
-  if (rotEl) updateSliderGradient(rotEl, '#4a7c59');
+  if (opEl) updateSliderGradient(opEl, '#2563eb');
+  if (rotEl) updateSliderGradient(rotEl, '#2563eb');
   document.getElementById('import-overlay').classList.add('visible');
 
   if (_previewMap) { _previewMap.remove(); _previewMap = null; }
@@ -6246,7 +6246,7 @@ document.getElementById('import-bg-select').addEventListener('change', (e) => {
 // 回転スライダー → プレビュー再計算
 document.getElementById('import-rotation').addEventListener('input', (e) => {
   document.getElementById('import-rotation-val').textContent = parseFloat(e.target.value).toFixed(2);
-  updateSliderGradient(e.target, '#4a7c59');
+  updateSliderGradient(e.target, '#2563eb');
   // KMZモードと画像モードで処理を分岐
   if (_importBaseCoords) {
     _applyKmzTransform();
@@ -6282,7 +6282,7 @@ function _applyRotationAdj(delta) {
   const newVal = Math.min(2, Math.max(-2, parseFloat(rotEl.value) + delta));
   rotEl.value = newVal;
   document.getElementById('import-rotation-val').textContent = newVal.toFixed(2);
-  updateSliderGradient(rotEl, '#4a7c59');
+  updateSliderGradient(rotEl, '#2563eb');
   if (_importBaseCoords) { _applyKmzTransform(); } else { _updateImportRotation(); }
 }
 document.getElementById('import-rotation-minus').addEventListener('click', () => _applyRotationAdj(-0.05));
@@ -6293,7 +6293,7 @@ document.getElementById('import-rotation-reset').addEventListener('click', () =>
   _importSaveState();
   rotEl.value = '0';
   document.getElementById('import-rotation-val').textContent = '0.00';
-  updateSliderGradient(rotEl, '#4a7c59');
+  updateSliderGradient(rotEl, '#2563eb');
   if (_importBaseCoords) { _applyKmzTransform(); } else { _updateImportRotation(); }
 });
 
@@ -6354,7 +6354,7 @@ document.getElementById('import-redo-btn').addEventListener('click', _importRedo
 document.getElementById('import-opacity').addEventListener('input', (e) => {
   const opacity = parseInt(e.target.value, 10) / 100;
   document.getElementById('import-opacity-val').textContent = e.target.value;
-  updateSliderGradient(e.target, '#4a7c59');
+  updateSliderGradient(e.target, '#2563eb');
   if (_previewMap && _previewMap.getLayer('_import-layer')) {
     _previewMap.setPaintProperty('_import-layer', 'raster-opacity', opacity);
   }
