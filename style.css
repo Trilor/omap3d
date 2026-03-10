@@ -2259,7 +2259,7 @@ label.setting-label {
    出典パネルが開いたとき JS が .above-attrib クラスを付与し出典の上に移動する */
 #scale-ctrl-container {
   position: absolute;
-  left: var(--sidebar-w, 296px); /* 出典コンテナと同じ左端（左パネルに被らない） */
+  left: calc(var(--sidebar-w, 296px) + 10px); /* 左パネル右端から10px */
   bottom: 10px;
   z-index: 19;
   transition: bottom 0.2s ease;
