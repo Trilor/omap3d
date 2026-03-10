@@ -443,48 +443,88 @@ body {
   gap: 4px;
   width: 100%;
 }
+/* 正方形カード: 検索ボックスと同じ box-shadow スタイル */
 .bm-card {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
+  position: relative;
+  display: block;
+  aspect-ratio: 1 / 1;
   background: none;
-  border: 2px solid #d0d0d0;
+  border: none;
   border-radius: 6px;
   padding: 0;
   cursor: pointer;
   overflow: hidden;
-  transition: border-color 0.15s;
+  box-shadow: 0 0 0 2px rgba(0,0,0,.10);
+  transition: box-shadow 0.15s;
 }
-.bm-card:hover  { border-color: var(--primary-light, #93c5fd); }
-.bm-card.active { border-color: var(--primary, #2563eb); box-shadow: 0 0 0 1px var(--primary, #2563eb); }
+.bm-card:hover  { box-shadow: 0 0 0 2px var(--primary-light, #93c5fd); }
+.bm-card.active { box-shadow: 0 0 0 2px var(--primary, #2563eb); }
+/* サムネイル: カード全面を覆う */
 .bm-card-img {
+  position: absolute;
+  inset: 0;
   width: 100%;
-  aspect-ratio: 1 / 1;
+  height: 100%;
   object-fit: cover;
   display: block;
 }
-/* プレースホルダー: OriLibre */
+/* OriLibre: assets/bm-orilibre.png があれば表示、なければグラデーション */
 .bm-orilibre {
-  background: linear-gradient(135deg, #a8d080 0%, #8fbc6a 40%, #c4dfa0 70%, #7aad58 100%);
+  background-image:
+    url("assets/bm-orilibre.png"),
+    linear-gradient(135deg, #a8d080 0%, #8fbc6a 40%, #c4dfa0 70%, #7aad58 100%);
+  background-size: cover, cover;
+  background-position: center, center;
 }
 /* プレースホルダー: CS立体図 */
 .bm-cs1m  { background: linear-gradient(135deg, #999 0%, #ddd 40%, #bbb 60%, #888 100%); }
 .bm-cs05m { background: linear-gradient(135deg, #888 0%, #ccc 40%, #aaa 60%, #777 100%); }
+/* ラベル: 画像下部に半透明の帯をオーバーレイ */
 .bm-card-label {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
   font-size: 9px;
-  padding: 2px 1px;
+  padding: 2px 3px;
   text-align: center;
-  color: #333;
-  line-height: 1.2;
-  background: #f0f0f0;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.50);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  line-height: 1.3;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .bm-card.active .bm-card-label {
-  background: var(--primary, #2563eb);
-  color: #fff;
+  background: rgba(37, 99, 235, 0.75);
   font-weight: 600;
+}
+.bm-thumb-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  margin-top: 2px;
+}
+.bm-thumb-btn {
+  border: 1px solid #c8c8c8;
+  background: #f7f7f7;
+  color: #333;
+  border-radius: 4px;
+  padding: 3px 8px;
+  font-size: 10px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.bm-thumb-btn:hover { background: #efefef; border-color: #b0b0b0; }
+.bm-thumb-btn:disabled { opacity: 0.6; cursor: default; }
+.bm-thumb-note {
+  font-size: 9px;
+  color: #888;
+  line-height: 1.2;
 }
 
 .setting-slider {
