@@ -2136,7 +2136,8 @@ label.setting-label {
   margin: 0 1px;
 }
 
-/* 十字照準（Pointer Lock 中に画面中央に表示） */
+/* 十字照準（Pointer Lock 中に画面中央に表示）
+   mix-blend-mode: difference + 白 = 背景の補色を自動計算して常に視認できる */
 #pc-sim-crosshair {
   display: none;
   position: fixed;
@@ -2145,22 +2146,40 @@ label.setting-label {
   transform: translate(-50%, -50%);
   z-index: 25;
   pointer-events: none;
-  width: 16px;
-  height: 16px;
+  width: 20px;
+  height: 20px;
+  mix-blend-mode: difference;
 }
 #pc-sim-crosshair::before,
 #pc-sim-crosshair::after {
   content: '';
   position: absolute;
-  background: rgba(255, 255, 255, 0.85);
+  background: #ffffff; /* difference blend で背景の補色として表示 */
 }
 #pc-sim-crosshair::before { /* 横線 */
-  width: 16px; height: 2px;
-  top: 7px; left: 0;
+  width: 20px; height: 2px;
+  top: 9px; left: 0;
 }
 #pc-sim-crosshair::after { /* 縦線 */
-  width: 2px; height: 16px;
-  top: 0; left: 7px;
+  width: 2px; height: 20px;
+  top: 0; left: 9px;
+}
+
+/* PCシム: 現在位置ドット（CSS fixed — maplibregl.Marker の terrain 投影ズレを回避） */
+#pc-sim-pos-dot {
+  display: none;
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 24; /* 十字線の下 */
+  pointer-events: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #e63030;
+  border: 3px solid rgba(255,255,255,0.9);
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.35), 0 2px 6px rgba(0,0,0,0.5);
 }
 
 /* セットアップ時の開始地点クロスヘア（シミュレーション未開始時に常時表示） */

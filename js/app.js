@@ -4461,7 +4461,9 @@ function onPcSimLocked() {
   document.getElementById('pc-sim-hint').style.display = hintOn ? 'block' : 'none';
   document.getElementById('pc-sim-crosshair').style.display = 'block';
 
-  addSimPosMarker(); // 3D現在位置マーカーは常時ON
+  // PCシムでは maplibregl.Marker の terrain 投影ズレを避けるため
+  // CSS fixed 要素を使用（マーカーは使わない）
+  document.getElementById('pc-sim-pos-dot').style.display = 'block';
   // 読図マップは初回 openPcReadMap() 時に遅延初期化（非表示コンテナでのWebGL失敗を防ぐ）
 
   // ⑤ イベントリスナー登録
@@ -4487,8 +4489,8 @@ function stopPcSim() {
   closePcReadMap();
   if (pcSimReadMap) { pcSimReadMap.remove(); pcSimReadMap = null; }
 
-  // 3D現在位置マーカーを削除
-  removeSimPosMarker();
+  // PCシム用 CSS ドットを非表示
+  document.getElementById('pc-sim-pos-dot').style.display = 'none';
 
   // キー状態・補正値リセット
   Object.keys(pcSimKeys).forEach(k => { pcSimKeys[k] = false; });
@@ -4717,8 +4719,7 @@ function pcSimLoop(timestamp) {
       `rotate(${-pcBearing}deg)`;
   }
 
-  // ── 3D現在位置マーカー更新 ──
-  updateSimPosMarker(pcPlayerLng, pcPlayerLat);
+  // ── 位置ドットは CSS fixed なので更新不要 ──
 
   pcSimAnimFrame = requestAnimationFrame(pcSimLoop);
 }
