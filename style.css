@@ -8,6 +8,13 @@
    すべての要素（検索ボックス・縮尺・出典など）が同時にスムーズに追従する */
 :root {
   transition: --sidebar-w 0.15s ease;
+
+  /* ===== テーマカラー ===== */
+  --primary:        #2563eb;  /* メインカラー（ビビッドブルー）*/
+  --primary-hover:  #1d4ed8;  /* ホバー・押下状態（一段暗め）*/
+  --primary-dark:   #1e40af;  /* さらに暗いアクセント */
+  --primary-light:  #eff4ff;  /* 極薄背景・ハイライト用 */
+  --primary-alpha:  rgba(37, 99, 235, 0.12); /* 半透明オーバーレイ */
 }
 
 /*
@@ -61,7 +68,7 @@ body {
 #sidebar-icon-bar {
   width: 48px;
   height: 100%;
-  background: #4a7c59;
+  background: var(--primary);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -168,7 +175,7 @@ body {
 
 /* セクションヘッダー */
 .sidebar-section-header {
-  background: #4a7c59;
+  background: var(--primary);
   color: #fff;
   padding: 0 12px;
   height: 44px;
@@ -231,7 +238,7 @@ body {
   transition: background 0.12s;
   margin-bottom: 2px;
 }
-.sim-map-item:hover { background: #f0f8f3; }
+.sim-map-item:hover { background: var(--primary-light); }
 .sim-map-item.active { background: #e6f2ea; }
 .sim-map-dot {
   width: 8px;
@@ -243,8 +250,8 @@ body {
   transition: background 0.12s, border-color 0.12s;
 }
 .sim-map-item.active .sim-map-dot {
-  background: #4a7c59;
-  border-color: #3a6449;
+  background: var(--primary);
+  border-color: var(--primary-hover);
 }
 .sim-map-name {
   flex: 1;
@@ -255,7 +262,7 @@ body {
   white-space: nowrap;
   min-width: 0;
 }
-.sim-map-item.active .sim-map-name { font-weight: 600; color: #2e7d32; }
+.sim-map-item.active .sim-map-name { font-weight: 600; color: var(--primary-dark); }
 .sim-map-fly-btn {
   flex-shrink: 0;
   background: none;
@@ -268,7 +275,7 @@ body {
   line-height: 1.4;
   transition: background 0.12s, color 0.12s;
 }
-.sim-map-fly-btn:hover { background: #4a7c59; color: #fff; border-color: #4a7c59; }
+.sim-map-fly-btn:hover { background: var(--primary); color: #fff; border-color: var(--primary); }
 .sim-readmap-empty {
   font-size: 11px;
   color: #aaa;
@@ -290,8 +297,8 @@ body {
   width: 100%;
   padding: 6px 10px;
   background: #fff;
-  color: #4a7c59;
-  border: 1.5px solid #4a7c59;
+  color: var(--primary);
+  border: 1.5px solid var(--primary);
   border-radius: 4px;
   font-size: 12px;
   font-weight: 600;
@@ -300,7 +307,7 @@ body {
   transition: background 0.15s, color 0.15s;
   margin-bottom: 6px;
 }
-#map-import-btn-top:hover { background: #4a7c59; color: #fff; }
+#map-import-btn-top:hover { background: var(--primary); color: #fff; }
 
 /* カタログから選択ボタン */
 #sim-open-catalog-btn {
@@ -387,7 +394,7 @@ body {
   height: 13px;
   flex-shrink: 0;
   cursor: pointer;
-  accent-color: #4a7c59;
+  accent-color: var(--primary);
 }
 
 .setting-label {
@@ -588,7 +595,7 @@ body {
   box-shadow: 0 1px 2px rgba(0,0,0,0.25);
 }
 .toggle-switch input:checked + .toggle-slider {
-  background: #4a7c59;
+  background: var(--primary);
 }
 .toggle-switch input:checked + .toggle-slider::before {
   transform: translateX(12px);
@@ -627,8 +634,8 @@ label.setting-label {
 
 /* ---- シミュレーター設定セクションヘッダ ---- */
 .panel-section.sim-section > summary {
-  background: #eaf0ec;
-  color: #3a6449;
+  background: var(--primary-light);
+  color: var(--primary-hover);
 }
 
 /* オーバーレイ 2段組みレイアウト */
@@ -698,7 +705,7 @@ label.setting-label {
   -webkit-appearance: none;
   appearance: none;
   border-radius: 2px;
-  background: linear-gradient(to right, #4a7c59 var(--pct, 60%), #d0d0d0 var(--pct, 60%));
+  background: linear-gradient(to right, var(--primary) var(--pct, 60%), #d0d0d0 var(--pct, 60%));
   outline: none;
 }
 .opacity-row input[type="range"]:disabled,
@@ -727,7 +734,7 @@ label.setting-label {
 
 .opacity-row input[type="range"]::-webkit-slider-thumb:hover,
 .overlay-ctrl-bottom input[type="range"]::-webkit-slider-thumb:hover {
-  border-color: #4a7c59;
+  border-color: var(--primary);
 }
 
 .opacity-val {
@@ -746,8 +753,8 @@ label.setting-label {
   margin: 6px 10px;
   padding: 6px 12px;
   background: #fff;
-  color: #4a7c59;
-  border: 1.5px solid #4a7c59;
+  color: var(--primary);
+  border: 1.5px solid var(--primary);
   border-radius: 4px;
   font-size: 12px;
   font-weight: 600;
@@ -758,7 +765,7 @@ label.setting-label {
   letter-spacing: 0.02em;
 }
 .panel-btn-outline:hover {
-  background: #4a7c59;
+  background: var(--primary);
   color: #fff;
 }
 
@@ -768,7 +775,7 @@ label.setting-label {
   width: calc(100% - 20px);
   margin: 6px 10px 8px;
   padding: 7px 12px;
-  background: #4a7c59;
+  background: var(--primary);
   color: #fff;
   border: none;
   border-radius: 4px;
@@ -780,15 +787,15 @@ label.setting-label {
   text-align: center;
   letter-spacing: 0.04em;
 }
-.panel-btn-primary:hover { background: #3a6449; }
+.panel-btn-primary:hover { background: var(--primary-hover); }
 
 #map-import-btn-top {
   display: block;
   width: 100%;
   padding: 7px 12px;
   background: #fff;
-  color: #4a7c59;
-  border: 1.5px solid #4a7c59;
+  color: var(--primary);
+  border: 1.5px solid var(--primary);
   border-radius: 4px;
   font-size: 12px;
   font-weight: 600;
@@ -798,7 +805,7 @@ label.setting-label {
   text-align: center;
   letter-spacing: 0.02em;
 }
-#map-import-btn-top:hover { background: #4a7c59; color: #fff; }
+#map-import-btn-top:hover { background: var(--primary); color: #fff; }
 
 /* ===== 地図カタログ ===== */
 
@@ -829,7 +836,7 @@ label.setting-label {
   outline: none;
 }
 .catalog-search-wrap input:focus {
-  border-color: #4a7c59;
+  border-color: var(--primary);
   background: #fff;
 }
 
@@ -896,8 +903,8 @@ label.setting-label {
   border: 1.5px solid #bbb;
 }
 .frame-status-dot.has-image {
-  background: #4a7c59;
-  border-color: #3a6449;
+  background: var(--primary);
+  border-color: var(--primary-hover);
 }
 
 /* 大会名テキスト */
@@ -921,7 +928,7 @@ label.setting-label {
   flex-shrink: 0;
 }
 .frame-badge.sprint   { background: #fff3e0; color: #c77700; border: 1px solid #f0c060; }
-.frame-badge.forest   { background: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
+.frame-badge.forest   { background: #e8f5e9; color: var(--primary-dark); border: 1px solid #a5d6a7; }
 .frame-badge.subtype  { background: #f5f5f5; color: #666;    border: 1px solid #ddd; }
 
 /* ===== Miller Columns ブラウザ ===== */
@@ -942,12 +949,12 @@ label.setting-label {
   overflow-x: auto;
 }
 .miller-bc-root { color: #888; font-size: 10px; cursor: default; white-space: nowrap; }
-.miller-bc-root.clickable { color: #4a7c59; cursor: pointer; font-weight: 600; }
+.miller-bc-root.clickable { color: var(--primary); cursor: pointer; font-weight: 600; }
 .miller-bc-root.clickable:hover { text-decoration: underline; }
 .miller-bc-sep { color: #bbb; margin: 0 1px; flex-shrink: 0; }
 .miller-bc-item {
   cursor: pointer;
-  color: #4a7c59;
+  color: var(--primary);
   font-weight: 600;
   position: relative;
   flex-shrink: 0;
@@ -975,8 +982,8 @@ label.setting-label {
   color: #333;
   white-space: nowrap;
 }
-.miller-bc-dropdown-item:hover { background: #f0f8f3; }
-.miller-bc-dropdown-item.current { color: #4a7c59; font-weight: 700; }
+.miller-bc-dropdown-item:hover { background: var(--primary-light); }
+.miller-bc-dropdown-item.current { color: var(--primary); font-weight: 700; }
 
 /* 3列コンテナ */
 .miller-wrap {
@@ -1028,8 +1035,8 @@ label.setting-label {
   gap: 2px;
   min-width: 0;
 }
-.miller-item:hover { background: #f0f8f3; color: #2e7d32; }
-.miller-item.selected { background: #4a7c59; color: #fff; }
+.miller-item:hover { background: var(--primary-light); color: var(--primary-dark); }
+.miller-item.selected { background: var(--primary); color: #fff; }
 .miller-item.disabled { color: #bbb; cursor: default; font-style: italic; }
 .miller-item-name {
   flex: 1;
@@ -1112,8 +1119,8 @@ label.setting-label {
   transition: background 0.12s, color 0.12s, border-color 0.12s;
   letter-spacing: 0.02em;
 }
-.type-chip.active { background: #4a7c59; color: #fff; border-color: #4a7c59; }
-.type-chip:hover:not(.active) { background: #e8f0ea; border-color: #4a7c59; color: #4a7c59; }
+.type-chip.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+.type-chip:hover:not(.active) { background: var(--primary-light); border-color: var(--primary); color: var(--primary); }
 
 
 /* 都道府県グループ（3段ツリーの最上位） */
@@ -1147,9 +1154,9 @@ label.setting-label {
   transition: background 0.12s, color 0.12s, border-color 0.12s;
 }
 .frame-img-pick-btn:hover {
-  background: #4a7c59;
+  background: var(--primary);
   color: #fff;
-  border-color: #4a7c59;
+  border-color: var(--primary);
 }
 
 /* フレームコントロール（プルダウン＋スライダー）— 画像ありの時のみ表示 */
@@ -1196,7 +1203,7 @@ label.setting-label {
   display: block;
   width: 100%;
   padding: 6px 10px;
-  background: #4a7c59;
+  background: var(--primary);
   color: #fff;
   border: none;
   border-radius: 4px;
@@ -1205,7 +1212,7 @@ label.setting-label {
   cursor: pointer;
   text-align: center;
 }
-.frame-popup-upload:hover { background: #3a6449; }
+.frame-popup-upload:hover { background: var(--primary-hover); }
 
 /* 重なり時の選択メニュー */
 .frame-overlap-list { list-style: none; margin: 0; padding: 0; }
@@ -1218,7 +1225,7 @@ label.setting-label {
   align-items: center;
   gap: 6px;
 }
-.frame-overlap-item:hover { background: #f0f8f3; }
+.frame-overlap-item:hover { background: var(--primary-light); }
 .frame-overlap-item:last-child { border-bottom: none; }
 
 
@@ -1243,7 +1250,7 @@ label.setting-label {
   flex-direction: column;
 }
 .imgw-modal-header {
-  background: #4a7c59;
+  background: var(--primary);
   color: #fff;
   padding: 12px 16px;
   border-radius: 8px 8px 0 0;
@@ -1283,7 +1290,7 @@ label.setting-label {
   justify-content: center;
   width: 19px;
   height: 19px;
-  background: #4a7c59;
+  background: var(--primary);
   color: #fff;
   border-radius: 50%;
   font-size: 11px;
@@ -1295,8 +1302,8 @@ label.setting-label {
   width: 100%;
   padding: 9px 12px;
   background: #fff;
-  color: #4a7c59;
-  border: 1.5px dashed #4a7c59;
+  color: var(--primary);
+  border: 1.5px dashed var(--primary);
   border-radius: 5px;
   font-size: 12px;
   font-weight: 600;
@@ -1304,15 +1311,15 @@ label.setting-label {
   text-align: center;
   transition: background 0.15s;
 }
-.imgw-pick-btn:hover { background: #f0f8f3; }
+.imgw-pick-btn:hover { background: var(--primary-light); }
 .imgw-pick-btn.has-files {
   border-style: solid;
-  background: #f0f8f3;
+  background: var(--primary-light);
 }
 .imgw-file-list {
   margin-top: 6px;
   font-size: 11px;
-  color: #3a6449;
+  color: var(--primary-hover);
   line-height: 1.6;
 }
 .imgw-file-item::before { content: '✓ '; font-weight: 700; }
@@ -1340,7 +1347,7 @@ label.setting-label {
 }
 .imgw-place-btn {
   padding: 9px 24px;
-  background: #4a7c59;
+  background: var(--primary);
   color: #fff;
   border: none;
   border-radius: 5px;
@@ -1350,7 +1357,7 @@ label.setting-label {
   transition: background 0.15s, opacity 0.15s;
 }
 .imgw-place-btn:disabled { opacity: 0.38; cursor: not-allowed; }
-.imgw-place-btn:not(:disabled):hover { background: #3a6449; }
+.imgw-place-btn:not(:disabled):hover { background: var(--primary-hover); }
 
 /* 地名検索 */
 /* ===== 統合検索ボックス（常時表示・サイドバー幅に連動） ===== */
@@ -1387,7 +1394,7 @@ label.setting-label {
   outline: none;
 }
 #unified-search-input:focus {
-  box-shadow: 0 0 0 2px #4a7c59;
+  box-shadow: 0 0 0 2px var(--primary);
 }
 #unified-search-clear {
   position: absolute;
@@ -1440,7 +1447,7 @@ label.setting-label {
   flex-shrink: 0;
 }
 .result-type-sprint { background: #fff3e0; color: #c77700; }
-.result-type-forest { background: #e8f5e9; color: #2e7d32; }
+.result-type-forest { background: #e8f5e9; color: var(--primary-dark); }
 
 #place-search-wrap {
   padding: 8px 10px;
@@ -1469,7 +1476,7 @@ label.setting-label {
   outline: none;
 }
 #place-search-input:focus {
-  border-color: #4a7c59;
+  border-color: var(--primary);
   background: #fff;
 }
 #place-search-clear {
@@ -1583,12 +1590,12 @@ label.setting-label {
   inset: 0;
   z-index: 100;
   background: rgba(74, 124, 89, 0.12);
-  border: 4px dashed #4a7c59;
+  border: 4px dashed var(--primary);
   align-items: center;
   justify-content: center;
   font-size: 20px;
   font-weight: bold;
-  color: #4a7c59;
+  color: var(--primary);
   pointer-events: none;
 }
 
@@ -1731,9 +1738,9 @@ label.setting-label {
 }
 
 #view-toggle-btn.active-first {
-  background: #4a7c59;
+  background: var(--primary);
   color: #fff;
-  border-color: #4a7c59;
+  border-color: var(--primary);
 }
 
 /* ---- タイムラインパネル（画面下部） ---- */
@@ -1762,7 +1769,7 @@ label.setting-label {
   height: 32px;
   border-radius: 50%;
   border: none;
-  background: #4a7c59;
+  background: var(--primary);
   color: #fff;
   font-size: 14px;
   cursor: pointer;
@@ -1773,7 +1780,7 @@ label.setting-label {
 }
 
 #play-pause-btn:hover {
-  background: #3a6349;
+  background: var(--primary-hover);
 }
 
 #timeline-controls {
@@ -1791,7 +1798,7 @@ label.setting-label {
   -webkit-appearance: none;
   appearance: none;
   border-radius: 2px;
-  background: linear-gradient(to right, #4a7c59 0%, #d0d0d0 0%);
+  background: linear-gradient(to right, var(--primary) 0%, #d0d0d0 0%);
   outline: none;
 }
 
@@ -1802,7 +1809,7 @@ label.setting-label {
   height: 14px;
   border-radius: 50%;
   background: #fff;
-  border: 2px solid #4a7c59;
+  border: 2px solid var(--primary);
   cursor: pointer;
 }
 
@@ -1845,7 +1852,7 @@ label.setting-label {
   width: calc(100% - 20px);
   margin: 6px 10px 8px;
   padding: 7px 12px;
-  background: #4a7c59;
+  background: var(--primary);
   color: #fff;
   border: none;
   border-radius: 4px;
@@ -1857,7 +1864,7 @@ label.setting-label {
   text-align: center;
   transition: background 0.15s;
 }
-#sim-toggle-btn:hover { background: #3a6449; }
+#sim-toggle-btn:hover { background: var(--primary-hover); }
 #sim-toggle-btn.sim-active { background: #b33a2a; }
 #sim-toggle-btn.sim-active:hover { background: #962d20; }
 
@@ -1991,7 +1998,7 @@ label.setting-label {
   width: calc(100% - 20px);
   margin: 6px 10px 8px;
   padding: 7px 12px;
-  background: #4a7c59;
+  background: var(--primary);
   color: #fff;
   border: none;
   border-radius: 4px;
@@ -2003,7 +2010,7 @@ label.setting-label {
   text-align: center;
   transition: background 0.15s;
 }
-#pc-sim-toggle-btn:hover { background: #3a6449; }
+#pc-sim-toggle-btn:hover { background: var(--primary-hover); }
 #pc-sim-toggle-btn.pc-sim-active { background: #b33a2a; }
 #pc-sim-toggle-btn.pc-sim-active:hover { background: #962d20; }
 
@@ -2339,7 +2346,7 @@ label.setting-label {
   justify-content: space-between;
   padding: 6px 10px;
   flex-shrink: 0;
-  background: #4a7c59;
+  background: var(--primary);
   color: #fff;
   font-size: 12px;
   font-weight: bold;
@@ -2385,9 +2392,9 @@ label.setting-label {
 .import-tab:hover { background: #e4e4e4; color: #333; }
 .import-tab.active {
   background: #fff;
-  color: #4a7c59;
+  color: var(--primary);
   font-weight: bold;
-  box-shadow: inset 0 -2px 0 #4a7c59;
+  box-shadow: inset 0 -2px 0 var(--primary);
 }
 
 /* ボディ：プレビューマップ + コントロール */
@@ -2503,7 +2510,7 @@ label.setting-label {
   outline: none;
 }
 .import-ctrl-select:focus, .import-ctrl-input:focus {
-  border-color: #4a7c59;
+  border-color: var(--primary);
 }
 .import-ctrl-hint {
   font-size: 11px;
@@ -2518,7 +2525,7 @@ label.setting-label {
   -webkit-appearance: none;
   appearance: none;
   border-radius: 2px;
-  background: linear-gradient(to right, #4a7c59 var(--pct, 20%), #d0d0d0 var(--pct, 20%));
+  background: linear-gradient(to right, var(--primary) var(--pct, 20%), #d0d0d0 var(--pct, 20%));
   outline: none;
 }
 .import-ctrl-slider::-webkit-slider-thumb {
@@ -2532,7 +2539,7 @@ label.setting-label {
   cursor: pointer;
 }
 .import-ctrl-slider::-webkit-slider-thumb:hover {
-  border-color: #4a7c59;
+  border-color: var(--primary);
 }
 #import-image-only-ctrl {
   display: flex;
@@ -2552,7 +2559,7 @@ label.setting-label {
   border-top: 1px solid #d8d8d8;
 }
 #import-decide-btn {
-  background: #4a7c59;
+  background: var(--primary);
   color: #fff;
   border: none;
   border-radius: 3px;
@@ -2563,7 +2570,7 @@ label.setting-label {
   cursor: pointer;
   transition: background 0.15s;
 }
-#import-decide-btn:hover { background: #3a6449; }
+#import-decide-btn:hover { background: var(--primary-hover); }
 #import-cancel-btn {
   background: #fff;
   color: #555;
@@ -2614,7 +2621,7 @@ label.setting-label {
 .import-ctrl-section-title {
   font-size: 10px;
   font-weight: bold;
-  color: #4a7c59;
+  color: var(--primary);
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -2640,9 +2647,9 @@ label.setting-label {
 .import-rotation-adj-btn:hover { background: #e0e0e0; }
 .import-rotation-adj-btn:active { background: #d0d0d0; }
 .import-rotation-adj-btn.active {
-  background: #e8f2eb;
-  border-color: #4a7c59;
-  color: #2f5c3d;
+  background: var(--primary-light);
+  border-color: var(--primary);
+  color: var(--primary-dark);
 }
 
 /* ============================================================
@@ -2755,7 +2762,7 @@ label.setting-label {
     transition: background 0.15s, width 0.15s;
   }
   #sheet-handle:active .sheet-handle-bar {
-    background: rgba(74,124,89,0.55);
+    background: rgba(37, 99, 235, 0.55);
     width: 52px;
   }
 
@@ -2781,7 +2788,7 @@ label.setting-label {
   }
   #sheet-mini-start-btn {
     padding: 6px 16px;
-    background: #4a7c59;
+    background: var(--primary);
     color: #fff;
     border: none;
     border-radius: 6px;
