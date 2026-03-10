@@ -279,6 +279,70 @@ body {
   text-align: center;
 }
 
+/* 読図地図タブ: セクション見出し */
+.readmap-section-hd {
+  font-size: 10px;
+  font-weight: 700;
+  color: #999;
+  letter-spacing: 0.06em;
+  padding: 10px 10px 4px;
+  text-transform: uppercase;
+}
+
+/* 読図地図タブ: スマートスロット */
+#readmap-smart-slots {
+  padding: 0 10px 6px;
+}
+.readmap-slot-hint {
+  font-size: 11px;
+  color: #aaa;
+  padding: 8px 4px;
+  text-align: center;
+  line-height: 1.6;
+}
+.readmap-slot {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  margin-bottom: 6px;
+  border: 1.5px dashed #ccc;
+  border-radius: 6px;
+  background: #fafafa;
+}
+.readmap-slot.readmap-slot-filled {
+  border-style: solid;
+  border-color: var(--primary);
+  background: var(--primary-light, #f4f8e4);
+}
+.readmap-slot-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #333;
+}
+.readmap-slot-img {
+  font-size: 10px;
+  color: #666;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.readmap-slot-btn {
+  display: block;
+  width: 100%;
+  padding: 5px 8px;
+  background: #fff;
+  color: var(--primary);
+  border: 1.5px solid var(--primary);
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+  transition: background 0.15s, color 0.15s;
+}
+.readmap-slot-btn:hover { background: var(--primary); color: var(--on-primary, #fff); }
+
 /* 読図地図タブ: 案内テキスト */
 .readmap-info-note {
   margin: 10px 10px 6px;

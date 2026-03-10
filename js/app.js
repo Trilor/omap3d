@@ -1983,6 +1983,50 @@ function renderMillerColumns() {
   }
 
   updateMillerBreadcrumb();
+
+  // 読図地図タブのスマートスロットを同期
+  renderReadmapSlots();
+}
+
+// ---- 読図地図タブ: スマートスロット（枠への自動配置UI）を描画する ----
+function renderReadmapSlots() {
+  const container = document.getElementById('readmap-smart-slots');
+  if (!container) return;
+  container.innerHTML = '';
+
+  if (mapFrames.length === 0) {
+    container.innerHTML = '<div class="readmap-slot-hint">テレインタブでGeoJSONを読み込むと<br>枠への自動配置スロットが表示されます</div>';
+    return;
+  }
+  if (!millerTerrain) {
+    container.innerHTML = '<div class="readmap-slot-hint">テレインタブで走る場所を選ぶと、<br>位置合わせ不要のアップロード枠が出現します</div>';
+    return;
+  }
+
+  const frames = mapFrames.filter(f => f.properties?.terrain_id === millerTerrain);
+  if (frames.length === 0) {
+    container.innerHTML = '<div class="readmap-slot-hint">このテレインには大会枠データがありません</div>';
+    return;
+  }
+
+  frames.forEach(frame => {
+    const hasImg    = frame.images.length > 0;
+    const eventName = frame.properties?.event_name ?? '（名称なし）';
+
+    const slot = document.createElement('div');
+    slot.className = 'readmap-slot' + (hasImg ? ' readmap-slot-filled' : '');
+    slot.innerHTML = `
+      <div class="readmap-slot-label">${escHtml(eventName)}</div>
+      ${hasImg ? `<div class="readmap-slot-img">📄 ${escHtml(frame.images[frame.images.length - 1].name)}</div>` : ''}
+      <button class="readmap-slot-btn" data-frame-id="${escHtml(frame.id)}">
+        ${hasImg ? '🔄 画像を変更' : '📷 画像を選択して自動配置'}
+      </button>
+    `;
+    slot.querySelector('.readmap-slot-btn').addEventListener('click', () => {
+      openFrameImgPicker(frame.id);
+    });
+    container.appendChild(slot);
+  });
 }
 
 // ---- フレームエントリの DOM 要素を構築する ----
