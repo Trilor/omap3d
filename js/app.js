@@ -4242,12 +4242,13 @@ function applyContourInterval(intervalM) {
   const hasDem1a  = newUrlDem1a && map.getSource('contour-source-dem1a');
   const hasLake   = newUrlLake  && map.getSource('contour-source-lake');
   if (!hasQchizu && !hasDem5a && !hasDem1a && !hasLake) return;
-  // visibility を変えずに直接 setTiles（旧タイルは新タイルが届くまで表示され続けるが、
-  // 一旦 none にすると他レイヤーのタイル生成タイミングと干渉してフリックが起きるため廃止）
+  // visibility:none で一旦消すとフリックが起きるため、表示を維持したまま setTiles のみ実行
   if (hasQchizu) map.getSource('contour-source').setTiles([newUrl]);
   if (hasDem5a)  map.getSource('contour-source-dem5a').setTiles([newUrlDem5a]);
   if (hasDem1a)  map.getSource('contour-source-dem1a').setTiles([newUrlDem1a]);
   if (hasLake)   map.getSource('contour-source-lake').setTiles([newUrlLake]);
+  // 初期 visibility:none で追加されるため、ここで visible に設定する（フリック防止のため none は経由しない）
+  if (chkContour.checked) setAllContourVisibility('visible');
   lastAppliedContourInterval = intervalM;
 }
 
