@@ -844,7 +844,7 @@ map.on('load', async () => {
     type: 'raster',
     source: 'color-relief',
     layout: { visibility: 'none' },
-    paint: { 'raster-opacity': CS_INITIAL_OPACITY, 'raster-fade-duration': 300 },
+    paint: { 'raster-opacity': CS_INITIAL_OPACITY, 'raster-fade-duration': 0 },
   });
 
   // CS立体図（ブラウザ生成・Q地図DEMから動的生成）
@@ -3861,8 +3861,7 @@ document.getElementById('overlay-cards').addEventListener('click', (e) => {
   currentOverlay = card.dataset.key;
   updateCsVisibility();
   // 色別標高図選択時はタイルを即座にリクエスト（visibility:none 中はMapLibreがフェッチしないため）
-  // _crShowVersion をインクリメントして URL を変え、setTiles() の同一URL判定による no-op を防ぐ
-  if (currentOverlay === 'color-relief') { _crShowVersion++; applyColorReliefTiles(); }
+  if (currentOverlay === 'color-relief') applyColorReliefTiles();
 });
 
 // （chk-overlay 削除のため、トグルイベントリスナーは不要）
@@ -3949,15 +3948,11 @@ function updateGradientTrack() {
 let _crTileTimer = null;
 
 // タイル URL を更新して地図に反映
-// カスタムプロトコルは idle 状態でタイルが届いても自動再描画しないため、
-// パネル表示のたびに URL を変えて強制リフェッチするためのバージョンカウンタ
-let _crShowVersion = 0;
-// 2 秒間 100ms ごとに triggerRepaint() を送り続ける（シンプルで確実な方式）
 let _crRepaintTimer = null;
 function applyColorReliefTiles() {
   if (!map.getSource('color-relief')) return;
   map.getSource('color-relief').setTiles([
-    `dem2relief://${COLOR_RELIEF_DEM_BASE}/{z}/{x}/{y}.webp?min=${crMin}&max=${crMax}&_v=${_crShowVersion}`
+    `dem2relief://${COLOR_RELIEF_DEM_BASE}/{z}/{x}/{y}.webp?min=${crMin}&max=${crMax}`
   ]);
   clearTimeout(_crRepaintTimer);
   let remaining = 20; // 20 × 100ms = 2 秒
