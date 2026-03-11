@@ -3899,34 +3899,56 @@ function syncColorReliefUI() {
   if (maxInput) maxInput.value = crMax;
 }
 
-// ハイライト帯を更新し MapLibre ソース URL を再生成する
+// パレット定義（protocols.js の DEM2RELIEF_PALETTE と同色）
+const CR_PALETTE = [
+  { t: 0.00, r: 22,  g: 42,  b: 59  },
+  { t: 0.08, r: 43,  g: 94,  b: 126 },
+  { t: 0.18, r: 79,  g: 179, b: 169 },
+  { t: 0.35, r: 142, g: 201, b: 138 },
+  { t: 0.55, r: 224, g: 212, b: 126 },
+  { t: 0.72, r: 200, g: 160, b: 90  },
+  { t: 0.88, r: 158, g: 122, b: 60  },
+  { t: 1.00, r: 255, g: 255, b: 255 },
+];
+
+// バーのグラデーションを動的に更新する
+// min より左は最初の色、max より右は最後の色でベタ塗り、間は全パレットグラデーション
+function updateGradientTrack() {
+  const track     = document.querySelector('.cr-gradient-track');
+  const minSlider = document.getElementById('cr-min-slider');
+  if (!track || !minSlider) return;
+
+  const tMin  = parseFloat(minSlider.min);
+  const tMax  = parseFloat(minSlider.max);
+  const range = tMax - tMin || 1;
+
+  const L = Math.max(0, Math.min(1, (crMin - tMin) / range)) * 100; // 左つまみ位置(%)
+  const R = Math.max(0, Math.min(1, (crMax - tMin) / range)) * 100; // 右つまみ位置(%)
+
+  const c0 = `rgb(${CR_PALETTE[0].r},${CR_PALETTE[0].g},${CR_PALETTE[0].b})`;
+  const c1 = `rgb(${CR_PALETTE[CR_PALETTE.length-1].r},${CR_PALETTE[CR_PALETTE.length-1].g},${CR_PALETTE[CR_PALETTE.length-1].b})`;
+
+  const stops = [];
+  // 左端〜min: 最初の色でベタ塗り
+  stops.push(`${c0} 0%`);
+  stops.push(`${c0} ${L.toFixed(2)}%`);
+  // min〜max: 全パレットグラデーション
+  for (const p of CR_PALETTE) {
+    const pos = (L + p.t * (R - L)).toFixed(2);
+    stops.push(`rgb(${p.r},${p.g},${p.b}) ${pos}%`);
+  }
+  // max〜右端: 最後の色でベタ塗り
+  stops.push(`${c1} ${R.toFixed(2)}%`);
+  stops.push(`${c1} 100%`);
+
+  track.style.background = `linear-gradient(to right, ${stops.join(', ')})`;
+}
+
+// グラデーション更新と MapLibre ソース URL 再生成
 function updateColorReliefSource() {
   syncColorReliefUI();
+  updateGradientTrack();
 
-  // スライダーの現在 range を取得してハイライト帯の位置を計算
-  const minSlider  = document.getElementById('cr-min-slider');
-  if (!minSlider) return;
-  const totalMin   = parseFloat(minSlider.min);
-  const totalMax   = parseFloat(minSlider.max);
-  const totalRange = totalMax - totalMin || 1;
-
-  // range input のつまみは左右端で「thumbSize/2」分だけ内側にオフセットされる。
-  // 実際のつまみ中心位置: ratio * (100% - thumbSize) + thumbSize/2
-  // これにより単純な % 計算とのズレを補正する。
-  const thumbSize  = 16; // CSS .cr-range::-webkit-slider-thumb の width と一致させること
-  const leftRatio  = Math.max(0, Math.min(1, (crMin - totalMin) / totalRange));
-  const rightRatio = Math.max(0, Math.min(1, (crMax - totalMin) / totalRange));
-  const dRatio     = rightRatio - leftRatio;
-
-  // left  = leftRatio  * (100% - thumbSize) + thumbSize/2
-  // width = dRatio     * (100% - thumbSize)
-  const highlight = document.getElementById('cr-range-highlight');
-  if (highlight) {
-    highlight.style.left  = `calc(${leftRatio * 100}% - ${leftRatio  * thumbSize - thumbSize / 2}px)`;
-    highlight.style.width = `calc(${dRatio    * 100}% - ${dRatio     * thumbSize}px)`;
-  }
-
-  // MapLibre ソース URL を更新してタイルを再取得させ、即座に再描画する
   if (map.getSource('color-relief')) {
     map.getSource('color-relief').setTiles([
       `dem2relief://${COLOR_RELIEF_DEM_BASE}/{z}/{x}/{y}.webp?min=${crMin}&max=${crMax}`

@@ -3190,53 +3190,32 @@ label.setting-label {
 .cr-dual-track {
   position: relative;
   width: 100%;
-  height: 28px;
+  height: 24px; /* バー 7px + 余白 2px + 三角 11px + 余白 4px */
 }
 
-/* グラデーション背景バー */
+/* グラデーション背景バー（background は JS が動的に設定） */
 .cr-gradient-track {
   position: absolute;
-  top: 50%;
+  top: 0;
   left: 0;
   right: 0;
-  height: 6px;
-  transform: translateY(-50%);
+  height: 7px;
   border-radius: 3px;
-  /* パレット定義と同じ配色 */
-  background: linear-gradient(
-    to right,
-    #162a3b  0%,
-    #2b5e7e  8%,
-    #4fb3a9 18%,
-    #8ec98a 35%,
-    #e0d47e 55%,
-    #c8a05a 72%,
-    #9e7a3c 88%,
-    #ffffff 100%
-  );
-  pointer-events: none;
-}
-
-/* 選択範囲ハイライト（JS で left/width を動的に更新） */
-.cr-range-highlight {
-  position: absolute;
-  top: 50%;
-  height: 6px;
-  transform: translateY(-50%);
-  border-radius: 3px;
-  /* 同じグラデーション: highlightの位置に応じて background-position で調整 */
-  outline: 2px solid rgba(255,255,255,0.6);
+  /* 初期フォールバック（JS 上書き前） */
+  background: linear-gradient(to right,
+    #162a3b 0%, #2b5e7e 8%, #4fb3a9 18%, #8ec98a 35%,
+    #e0d47e 55%, #c8a05a 72%, #9e7a3c 88%, #ffffff 100%);
   pointer-events: none;
 }
 
 /* レンジ入力共通: トラック透明・つまみのみ操作可能 */
+/* コンテナ上端(y=0)から配置し、トラック高さ=コンテナ高さにする */
 .cr-range {
   position: absolute;
-  top: 50%;
+  top: 0;
   left: 0;
-  transform: translateY(-50%);
   width: 100%;
-  height: 16px; /* つまみと同じ高さにして垂直中央を一致させる */
+  height: 100%;
   margin: 0;
   padding: 0;
   -webkit-appearance: none;
@@ -3246,47 +3225,51 @@ label.setting-label {
   outline: none;
 }
 
-/* WebKit/Blink: トラック非表示 */
+/* WebKit/Blink: トラック非表示（フル高さ）*/
 .cr-range::-webkit-slider-runnable-track {
   background: transparent;
-  height: 16px;
+  height: 100%;
 }
 
-/* WebKit/Blink: つまみ */
+/* WebKit/Blink: 三角つまみ（バー直下に ▲）
+   コンテナ高さ = 24px、バー高さ = 7px
+   つまみ高さ = 11px → 上端を y≈9 に配置
+   トラック中心 = 12px → margin-top = (9+5.5) - 12 = 2.5px ≈ 3px */
 .cr-range::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: #fff;
-  border: 2px solid #555;
-  cursor: pointer;
-  pointer-events: auto;
+  width: 12px;
+  height: 11px;
+  border-radius: 0;
+  background: #444;
+  border: none;
   box-shadow: none;
-  transition: border-color 0.15s;
+  cursor: ew-resize;
+  pointer-events: auto;
+  clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
+  margin-top: 3px;
+  transition: background 0.15s;
 }
 .cr-range::-webkit-slider-thumb:hover {
-  border-color: var(--primary, #2563eb);
-  box-shadow: 0 0 0 3px rgba(37,99,235,0.2);
+  background: var(--primary, #2563eb);
 }
 
 /* Firefox: トラック非表示 */
 .cr-range::-moz-range-track {
   background: transparent;
-  height: 16px;
+  height: 100%;
 }
 
-/* Firefox: つまみ */
+/* Firefox: 三角つまみ */
 .cr-range::-moz-range-thumb {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: #fff;
-  border: 2px solid #555;
-  cursor: pointer;
-  pointer-events: auto;
+  width: 12px;
+  height: 11px;
+  border-radius: 0;
+  background: #444;
+  border: none;
   box-shadow: none;
+  cursor: ew-resize;
+  clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
 }
 
 /* 色別標高図カード: グラデーションサムネイル */
