@@ -3193,10 +3193,11 @@ label.setting-label {
 /* レンジ入力共通: トラック透明・つまみのみ操作可能 */
 .cr-range {
   position: absolute;
-  top: 0;
+  top: 50%;
   left: 0;
+  transform: translateY(-50%);
   width: 100%;
-  height: 100%;
+  height: 20px;
   margin: 0;
   -webkit-appearance: none;
   appearance: none;
