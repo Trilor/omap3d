@@ -3860,6 +3860,8 @@ document.getElementById('overlay-cards').addEventListener('click', (e) => {
   card.classList.add('active');
   currentOverlay = card.dataset.key;
   updateCsVisibility();
+  // 色別標高図選択時はタイルを即座にリクエスト（visibility:none 中はMapLibreがフェッチしないため）
+  if (currentOverlay === 'color-relief') applyColorReliefTiles();
 });
 
 // （chk-overlay 削除のため、トグルイベントリスナーは不要）
