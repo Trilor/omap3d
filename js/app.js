@@ -847,7 +847,7 @@ map.on('load', async () => {
     // 初回レンダリング時に draw_raster.ts で TypeError が発生するため、
     // 常に visible を維持し opacity=0 で非表示制御する
     layout: { visibility: 'visible' },
-    paint: { 'raster-opacity': 0, 'raster-fade-duration': 0 },
+    paint: { 'raster-opacity': 0, 'raster-fade-duration': 0, 'raster-opacity-transition': { duration: 0, delay: 0 } },
   });
 
   // CS立体図（ブラウザ生成・Q地図DEMから動的生成）
