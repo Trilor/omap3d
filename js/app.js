@@ -3875,25 +3875,47 @@ const COLOR_RELIEF_DEM_BASE = 'mapdata.qchizu.xyz/03_dem/52_gsi/all_2025/1_02';
 let crMin = 0;
 let crMax = 500;
 
-// ハイライト帯と数値ラベルを更新してソース URL を再生成する
-function updateColorReliefSource() {
+// crMin/crMax をスライダーの range に収まるよう動的拡張し、全UIを同期
+function syncColorReliefUI() {
   const minSlider = document.getElementById('cr-min-slider');
-  const totalMin  = parseFloat(minSlider.min);
-  const totalMax  = parseFloat(minSlider.max);
-  const totalRange = totalMax - totalMin;
+  const maxSlider = document.getElementById('cr-max-slider');
+  const minInput  = document.getElementById('cr-min-input');
+  const maxInput  = document.getElementById('cr-max-input');
+  if (!minSlider || !maxSlider) return;
 
-  // ハイライト帯の位置・幅を計算（% 単位）
-  const leftPct  = ((crMin - totalMin) / totalRange) * 100;
-  const rightPct = ((crMax - totalMin) / totalRange) * 100;
+  // crMin/crMax がスライダー range を超えていたら動的に拡張
+  const sMin = parseFloat(minSlider.min);
+  const sMax = parseFloat(minSlider.max);
+  if (crMin < sMin) { minSlider.min = maxSlider.min = String(crMin - 100); }
+  if (crMax > sMax) { minSlider.max = maxSlider.max = String(crMax + 100); }
+
+  // スライダーつまみ位置を同期
+  minSlider.value = crMin;
+  maxSlider.value = crMax;
+
+  // 数値入力欄を同期
+  if (minInput) minInput.value = crMin;
+  if (maxInput) maxInput.value = crMax;
+}
+
+// ハイライト帯を更新し MapLibre ソース URL を再生成する
+function updateColorReliefSource() {
+  syncColorReliefUI();
+
+  // スライダーの現在 range を取得してハイライト帯の位置を % で計算
+  const minSlider  = document.getElementById('cr-min-slider');
+  if (!minSlider) return;
+  const totalMin   = parseFloat(minSlider.min);
+  const totalMax   = parseFloat(minSlider.max);
+  const totalRange = totalMax - totalMin || 1;
+
+  const leftPct  = Math.max(0, ((crMin - totalMin) / totalRange) * 100);
+  const rightPct = Math.min(100, ((crMax - totalMin) / totalRange) * 100);
   const highlight = document.getElementById('cr-range-highlight');
   if (highlight) {
-    highlight.style.left  = leftPct  + '%';
+    highlight.style.left  = leftPct + '%';
     highlight.style.width = (rightPct - leftPct) + '%';
   }
-
-  // 数値ラベル更新（単位は HTML 側の固定テキストで表示しないため数値のみ）
-  document.getElementById('cr-min-val').textContent = crMin;
-  document.getElementById('cr-max-val').textContent = crMax;
 
   // MapLibre ソース URL を更新してタイルを再取得させ、即座に再描画する
   if (map.getSource('color-relief')) {
@@ -3904,27 +3926,43 @@ function updateColorReliefSource() {
   }
 }
 
-// 初期ハイライト表示
+// 双方向バインディング初期化
 (function initColorReliefSlider() {
   const minSlider = document.getElementById('cr-min-slider');
   const maxSlider = document.getElementById('cr-max-slider');
+  const minInput  = document.getElementById('cr-min-input');
+  const maxInput  = document.getElementById('cr-max-input');
   if (!minSlider || !maxSlider) return;
 
+  // ── スライダー → 数値入力・地図 ──
   minSlider.addEventListener('input', () => {
-    // min が max を追い越さないようにクランプ
     crMin = Math.min(parseInt(minSlider.value, 10), crMax - 10);
-    minSlider.value = crMin;
     updateColorReliefSource();
   });
-
   maxSlider.addEventListener('input', () => {
-    // max が min を下回らないようにクランプ
     crMax = Math.max(parseInt(maxSlider.value, 10), crMin + 10);
-    maxSlider.value = crMax;
     updateColorReliefSource();
   });
 
-  // 初期ハイライト位置を反映
+  // ── 数値入力 → スライダー・地図 ──
+  if (minInput) {
+    minInput.addEventListener('input', () => {
+      const v = parseInt(minInput.value, 10);
+      if (isNaN(v)) return;
+      crMin = Math.min(v, crMax - 10);
+      updateColorReliefSource();
+    });
+  }
+  if (maxInput) {
+    maxInput.addEventListener('input', () => {
+      const v = parseInt(maxInput.value, 10);
+      if (isNaN(v)) return;
+      crMax = Math.max(v, crMin + 10);
+      updateColorReliefSource();
+    });
+  }
+
+  // 初期状態を反映
   updateColorReliefSource();
 })();
 
@@ -3932,7 +3970,7 @@ function updateColorReliefSource() {
 // 表示中のタイルを DEM デコードして min/max 標高を取得し、スライダーに反映する
 async function autoFitColorRelief() {
   const btn = document.getElementById('cr-autofit-btn');
-  if (btn) { btn.disabled = true; btn.textContent = '取得中…'; }
+  if (btn) { btn.disabled = true; btn.textContent = '取得中…'; btn.style.minWidth = btn.offsetWidth + 'px'; }
 
   try {
     const bounds = map.getBounds();
@@ -4019,19 +4057,14 @@ async function autoFitColorRelief() {
     const newMin = Math.floor(globalMin / step) * step;
     const newMax = Math.ceil(globalMax  / step) * step;
 
-    crMin = Math.max(newMin, -500);
-    crMax = Math.min(newMax,  4000);
+    crMin = newMin;
+    crMax = newMax;
     if (crMax <= crMin) crMax = crMin + step;
 
-    // スライダー値も同期
-    const minSlider = document.getElementById('cr-min-slider');
-    const maxSlider = document.getElementById('cr-max-slider');
-    if (minSlider) minSlider.value = crMin;
-    if (maxSlider) maxSlider.value = crMax;
-
+    // syncColorReliefUI が範囲拡張・スライダー・数値入力を一括同期する
     updateColorReliefSource();
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = '自動'; }
+    if (btn) { btn.disabled = false; btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg> 自動'; }
   }
 }
 
