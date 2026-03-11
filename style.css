@@ -3223,12 +3223,19 @@ label.setting-label {
   background: transparent;
   pointer-events: none;
   outline: none;
+  /* Windows のシステムアクセントカラーが進捗フィルに適用されるのを防ぐ */
+  accent-color: transparent;
+  color: transparent;
 }
 
 /* WebKit/Blink: トラック非表示 */
 .cr-range::-webkit-slider-runnable-track {
+  -webkit-appearance: none;
+  appearance: none;
   background: transparent;
   height: 14px;
+  border: none;
+  color: transparent;
 }
 
 /* WebKit/Blink: 三角つまみ（バー下端の少し下に頂点）
