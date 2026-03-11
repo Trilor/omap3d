@@ -836,7 +836,7 @@ map.on('load', async () => {
     tiles: ['dem2relief://mapdata.qchizu.xyz/03_dem/52_gsi/all_2025/1_02/{z}/{x}/{y}.webp?min=0&max=500&_init=1'],
     tileSize: 256,
     minzoom: 5,
-    maxzoom: 17,
+    maxzoom: 14, // Q地図DEMタイルの提供上限。これ以上のズームはオーバーズームで補完
     attribution: '',
   });
   map.addLayer({
