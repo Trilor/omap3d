@@ -844,7 +844,7 @@ map.on('load', async () => {
     type: 'raster',
     source: 'color-relief',
     layout: { visibility: 'none' },
-    paint: { 'raster-opacity': 1.0, 'raster-fade-duration': 0 },
+    paint: { 'raster-opacity': CS_INITIAL_OPACITY, 'raster-fade-duration': 0 },
   });
 
   // CS立体図（ブラウザ生成・Q地図DEMから動的生成）
@@ -3943,17 +3943,32 @@ function updateGradientTrack() {
   track.style.background = `linear-gradient(to right, ${stops.join(', ')})`;
 }
 
-// グラデーション更新と MapLibre ソース URL 再生成
+// タイル再フェッチのデバウンスタイマー
+let _crTileTimer = null;
+
+// タイル URL を更新して地図に反映（即時または遅延）
+function applyColorReliefTiles() {
+  if (!map.getSource('color-relief')) return;
+  map.getSource('color-relief').setTiles([
+    `dem2relief://${COLOR_RELIEF_DEM_BASE}/{z}/{x}/{y}.webp?min=${crMin}&max=${crMax}`
+  ]);
+  map.triggerRepaint();
+}
+
+// ドラッグ中は UI のみ即座に更新し、タイル再フェッチはデバウンス（300ms）
+function updateColorReliefUI() {
+  syncColorReliefUI();
+  updateGradientTrack();
+  clearTimeout(_crTileTimer);
+  _crTileTimer = setTimeout(applyColorReliefTiles, 300);
+}
+
+// 確定時（ドラッグ終了・数値入力・自動フィット）はタイルを即座に更新
 function updateColorReliefSource() {
   syncColorReliefUI();
   updateGradientTrack();
-
-  if (map.getSource('color-relief')) {
-    map.getSource('color-relief').setTiles([
-      `dem2relief://${COLOR_RELIEF_DEM_BASE}/{z}/{x}/{y}.webp?min=${crMin}&max=${crMax}`
-    ]);
-    map.triggerRepaint();
-  }
+  clearTimeout(_crTileTimer);
+  applyColorReliefTiles();
 }
 
 // 双方向バインディング初期化
@@ -3964,17 +3979,25 @@ function updateColorReliefSource() {
   const maxInput  = document.getElementById('cr-max-input');
   if (!minSlider || !maxSlider) return;
 
-  // ── スライダー → 数値入力・地図 ──
+  // ── スライダー: ドラッグ中は UI のみ即時更新、離したときにタイル確定 ──
   minSlider.addEventListener('input', () => {
+    crMin = Math.min(parseInt(minSlider.value, 10), crMax - 10);
+    updateColorReliefUI();
+  });
+  minSlider.addEventListener('change', () => {
     crMin = Math.min(parseInt(minSlider.value, 10), crMax - 10);
     updateColorReliefSource();
   });
   maxSlider.addEventListener('input', () => {
     crMax = Math.max(parseInt(maxSlider.value, 10), crMin + 10);
+    updateColorReliefUI();
+  });
+  maxSlider.addEventListener('change', () => {
+    crMax = Math.max(parseInt(maxSlider.value, 10), crMin + 10);
     updateColorReliefSource();
   });
 
-  // ── 数値入力 → スライダー・地図 ──
+  // ── 数値入力 → スライダー・地図（確定時即時反映） ──
   if (minInput) {
     minInput.addEventListener('input', () => {
       const v = parseInt(minInput.value, 10);
