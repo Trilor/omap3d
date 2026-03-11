@@ -4036,20 +4036,24 @@ function updateColorReliefSource() {
 
 // ---- 色別標高図: 表示範囲から自動フィット ----
 // 画面内を 8×8 グリッドでサンプリング。
-// map.queryTerrainElevation() はロード済み地形タイルから同期取得するためネットワーク不要。
+// スクリーン座標ベースで等間隔サンプリング。
+// getBounds() の lng/lat 均等分割より描画済みキャンバス領域に忠実で
+// テレインタイルが確実にロードされているエリアのみを対象にできる。
+// exaggerated:false で地形誇張の影響を受けない実際の標高値を取得する。
 function autoFitColorRelief() {
   const GRID = 20; // 20×20 = 400 点
-  const bounds = map.getBounds();
-  const sw = bounds.getSouthWest();
-  const ne = bounds.getNorthEast();
+  const canvas = map.getCanvas();
+  const w = canvas.width;
+  const h = canvas.height;
 
   let globalMin = Infinity, globalMax = -Infinity;
 
   for (let r = 0; r < GRID; r++) {
     for (let c = 0; c < GRID; c++) {
-      const lng = sw.lng + (ne.lng - sw.lng) * (c + 0.5) / GRID;
-      const lat = sw.lat + (ne.lat - sw.lat) * (r + 0.5) / GRID;
-      const elev = map.queryTerrainElevation({ lng, lat });
+      const px = (c + 0.5) / GRID * w;
+      const py = (r + 0.5) / GRID * h;
+      const lngLat = map.unproject([px, py]);
+      const elev = map.queryTerrainElevation(lngLat, { exaggerated: false });
       if (elev == null) continue;
       if (elev < globalMin) globalMin = elev;
       if (elev > globalMax) globalMax = elev;
