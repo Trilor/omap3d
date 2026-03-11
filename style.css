@@ -3190,7 +3190,8 @@ label.setting-label {
 .cr-dual-track {
   position: relative;
   width: 100%;
-  height: 24px; /* バー 7px + 余白 2px + 三角 11px + 余白 4px */
+  height: 26px;
+  overflow: visible; /* つまみが左右端を超えても表示できるよう */
 }
 
 /* グラデーション背景バー（background は JS が動的に設定） */
@@ -3200,7 +3201,7 @@ label.setting-label {
   left: 0;
   right: 0;
   height: 7px;
-  border-radius: 3px;
+  border-radius: 0; /* 長方形 */
   /* 初期フォールバック（JS 上書き前） */
   background: linear-gradient(to right,
     #0006fb 0%, #0092fb 17%, #00e7fb 33%, #8af708 50%,
@@ -3208,13 +3209,12 @@ label.setting-label {
   pointer-events: none;
 }
 
-/* レンジ入力共通: トラック透明・つまみのみ操作可能 */
-/* コンテナ上端(y=0)から配置し、トラック高さ=コンテナ高さにする */
+/* レンジ入力共通: 左右に -6px（つまみ幅の半分）拡張してつまみが端まで届くようにする */
 .cr-range {
   position: absolute;
   top: 0;
-  left: 0;
-  width: 100%;
+  left: -6px;
+  width: calc(100% + 12px);
   height: 100%;
   margin: 0;
   padding: 0;
@@ -3231,10 +3231,11 @@ label.setting-label {
   height: 100%;
 }
 
-/* WebKit/Blink: 三角つまみ（バー直下に ▲）
-   コンテナ高さ = 24px、バー高さ = 7px
-   つまみ高さ = 11px → 上端を y≈9 に配置
-   トラック中心 = 12px → margin-top = (9+5.5) - 12 = 2.5px ≈ 3px */
+/* WebKit/Blink: 三角つまみ（バー直下に ▲、頂点はバー下端より少し下）
+   コンテナ高さ = 26px、バー高さ = 7px
+   つまみ高さ = 11px、頂点をバー下端(7px)の 2px 下(y=9)に配置したい
+   → 頂点 Y = 9, つまみ中心 Y = 9 + 5.5 = 14.5
+   トラック中心 = 13 → margin-top = 14.5 - 13 = 1.5 ≈ 2px */
 .cr-range::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
@@ -3247,7 +3248,7 @@ label.setting-label {
   cursor: ew-resize;
   pointer-events: auto;
   clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
-  margin-top: 3px;
+  margin-top: 2px;
   transition: background 0.15s;
 }
 .cr-range::-webkit-slider-thumb:hover {
