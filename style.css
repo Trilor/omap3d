@@ -3150,41 +3150,47 @@ label.setting-label {
 }
 
 /* スライダー行: [min入力] [トラック] [max入力] を横並び */
-.cr-slider-row {
+/* 数値表示エリア（ラベル行中央） */
+.cr-range-display {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 2px;
+  flex: 1;
+  justify-content: center;
+}
+.cr-range-sep {
+  font-size: 11px;
+  color: #777;
+  padding: 0 1px;
 }
 
-/* 数値直接入力欄 */
+/* 数値直接入力欄: テキスト風インライン */
 .cr-num-input {
-  width: 52px;
-  flex-shrink: 0;
-  padding: 3px 4px;
+  width: 40px;
+  padding: 1px 3px;
   font-size: 11px;
   font-variant-numeric: tabular-nums;
   text-align: center;
-  background: rgba(255,255,255,0.07);
-  border: 1px solid rgba(255,255,255,0.25);
-  border-radius: 4px;
-  color: #e0e0e0;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(255,255,255,0.25);
+  border-radius: 0;
+  color: #ccc;
   outline: none;
-  /* スピンボタン非表示 */
   -moz-appearance: textfield;
   appearance: textfield;
 }
 .cr-num-input::-webkit-inner-spin-button,
 .cr-num-input::-webkit-outer-spin-button { display: none; }
 .cr-num-input:focus {
-  border-color: var(--primary-light, #93c5fd);
-  background: rgba(255,255,255,0.12);
+  border-bottom-color: var(--primary-light, #93c5fd);
+  color: #fff;
 }
 
-/* グラデーショントラック + 2つのレンジ入力を重ねるコンテナ */
+/* グラデーショントラック + 2つのレンジ入力を重ねるコンテナ（全幅） */
 .cr-dual-track {
   position: relative;
-  flex: 1;
-  min-width: 0;
+  width: 100%;
   height: 28px;
 }
 
