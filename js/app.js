@@ -405,9 +405,20 @@ function buildDem1aContourTileUrl(intervalM) {
 const LAKE_ELEV_PREFIX = 'https://lake-elevation.internal/tiles/';
 const _origFetch = window.fetch.bind(window);
 
+// nodata NumPNG（1×1 ピクセル、全て nodata）を返す — 404 の代わりに使い mlcontour のエラーを防ぐ
+async function _nodataNumPngResponse() {
+  const cv = new OffscreenCanvas(1, 1);
+  const ctx = cv.getContext('2d');
+  const img = ctx.createImageData(1, 1);
+  img.data[0] = 128; img.data[1] = 0; img.data[2] = 0; img.data[3] = 255;
+  ctx.putImageData(img, 0, 0);
+  const blob = await cv.convertToBlob({ type: 'image/png' });
+  return new Response(blob, { headers: { 'Content-Type': 'image/png' } });
+}
+
 async function synthesizeLakeElevationTile(url) {
   const m = url.match(/\/(\d+)\/(\d+)\/(\d+)\.png$/);
-  if (!m) return new Response(null, { status: 404 });
+  if (!m) return _nodataNumPngResponse();
   const [, z, x, y] = m;
 
   async function fetchNumPngData(src) {
@@ -426,7 +437,7 @@ async function synthesizeLakeElevationTile(url) {
     fetchNumPngData(`${LAKEDEPTH_BASE}/${z}/${x}/${y}.png`),
     fetchNumPngData(`${LAKEDEPTH_STANDARD_BASE}/${z}/${x}/${y}.png`),
   ]);
-  if (!lData || !lsData) return new Response(null, { status: 404 });
+  if (!lData || !lsData) return _nodataNumPngResponse();
 
   const { width, height } = lData;
   const cv = new OffscreenCanvas(width, height);
@@ -836,7 +847,7 @@ map.on('load', async () => {
     tiles: ['dem2relief://mapdata.qchizu.xyz/03_dem/52_gsi/all_2025/1_02/{z}/{x}/{y}.webp?min=0&max=500&_init=1'],
     tileSize: 256,
     minzoom: 5,
-    maxzoom: 15, // Q地図DEMタイルの提供上限（terrain-demと同値）。これ以上のズームはオーバーズームで補完
+    maxzoom: 14, // Q地図DEMタイルの提供上限よりひとつ下。これ以上のズームはオーバーズームで補完
     attribution: '',
   });
   map.addLayer({
