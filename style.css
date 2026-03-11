@@ -3236,8 +3236,9 @@ label.setting-label {
   left: 0;
   transform: translateY(-50%);
   width: 100%;
-  height: 20px;
+  height: 16px; /* つまみと同じ高さにして垂直中央を一致させる */
   margin: 0;
+  padding: 0;
   -webkit-appearance: none;
   appearance: none;
   background: transparent;
@@ -3248,7 +3249,7 @@ label.setting-label {
 /* WebKit/Blink: トラック非表示 */
 .cr-range::-webkit-slider-runnable-track {
   background: transparent;
-  height: 100%;
+  height: 16px;
 }
 
 /* WebKit/Blink: つまみ */
@@ -3262,18 +3263,18 @@ label.setting-label {
   border: 2px solid #555;
   cursor: pointer;
   pointer-events: auto;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.4);
-  transition: border-color 0.15s, box-shadow 0.15s;
+  box-shadow: none;
+  transition: border-color 0.15s;
 }
 .cr-range::-webkit-slider-thumb:hover {
   border-color: var(--primary, #2563eb);
-  box-shadow: 0 0 0 3px rgba(37,99,235,0.25), 0 1px 4px rgba(0,0,0,0.4);
+  box-shadow: 0 0 0 3px rgba(37,99,235,0.2);
 }
 
 /* Firefox: トラック非表示 */
 .cr-range::-moz-range-track {
   background: transparent;
-  height: 100%;
+  height: 16px;
 }
 
 /* Firefox: つまみ */
@@ -3285,7 +3286,7 @@ label.setting-label {
   border: 2px solid #555;
   cursor: pointer;
   pointer-events: auto;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+  box-shadow: none;
 }
 
 /* 色別標高図カード: グラデーションサムネイル */
