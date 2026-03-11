@@ -3957,14 +3957,12 @@ function applyColorReliefTiles() {
     `dem2relief://${COLOR_RELIEF_DEM_BASE}/{z}/{x}/{y}.webp?min=${crMin}&max=${crMax}`
   ]);
   clearTimeout(_crRepaintTimer);
-  // setTiles() 直後に triggerRepaint() を呼ぶと、タイルがまだゼロ枚の状態で
-  // レンダリングされ全画面が一瞬消えるため、最初のフレームは遅延させる
   let remaining = 20; // 20 × 100ms = 2 秒
   const repaint = () => {
     map.triggerRepaint();
     if (--remaining > 0) _crRepaintTimer = setTimeout(repaint, 100);
   };
-  _crRepaintTimer = setTimeout(repaint, 100);
+  repaint();
 }
 
 // ドラッグ中は UI のみ即座に更新し、タイル再フェッチはデバウンス（300ms）
@@ -4042,7 +4040,8 @@ function updateColorReliefSource() {
 // テレインタイルが確実にロードされているエリアのみを対象にできる。
 // exaggerated:false で地形誇張の影響を受けない実際の標高値を取得する。
 function autoFitColorRelief() {
-  const GRID = 20; // 20×20 = 400 点
+  // 低ズームでは地形タイルの同時リクエスト数を抑えるためグリッドを縮小
+  const GRID = map.getZoom() <= 9 ? 10 : 20; // 10×10=100点 or 20×20=400点
   const canvas = map.getCanvas();
   const w = canvas.width;
   const h = canvas.height;
