@@ -4053,18 +4053,14 @@ function autoFitColorRelief() {
       const py = (r + 0.5) / GRID * h;
       const lngLat = map.unproject([px, py]);
       const elev = map.queryTerrainElevation(lngLat, { exaggerated: false });
-      // null（テレイン無効）と 0 を除外する
-      // 0 は「海域ピクセル」と「未ロードタイルのデフォルト値」どちらも 0 を返すため除外
-      // min=0 固定なのでこれらを除外しても正確なフィットが得られる
-      if (elev == null || elev === 0) continue;
+      if (elev == null) continue;
       if (elev < globalMin) globalMin = elev;
       if (elev > globalMax) globalMax = elev;
     }
   }
 
-  if (!isFinite(globalMin) || !isFinite(globalMax)) return; // 有効な陸地データなし
+  if (!isFinite(globalMin) || !isFinite(globalMax)) return;
 
-  // 10m 単位に丸め、最低 10m の幅を確保（最小値は 0 以上）
   const step = 10;
   crMin = Math.max(0, Math.floor(globalMin / step) * step);
   crMax = Math.ceil(globalMax  / step) * step;
