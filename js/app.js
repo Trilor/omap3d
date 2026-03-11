@@ -3765,8 +3765,7 @@ function updateRegionalAttribution() {
     attrEl.id = 'regional-cs-attr';
     attrInner.appendChild(attrEl);
   }
-  const _overlayOn  = document.getElementById('chk-overlay')?.checked;
-  const _csOverlay  = _overlayOn ? currentOverlay : 'none';
+  const _csOverlay  = currentOverlay;
   const _csBasemap  = currentBasemap;
   const _csKey      = _csOverlay !== 'none' ? _csOverlay : _csBasemap;
   const csRegionalOn = _csKey === 'cs-0.5m' && map.getZoom() >= 17;
@@ -3812,15 +3811,15 @@ function updatePlateauAttribution() {
 
 // ---- CS立体図 オーバーレイ制御 ----
 // 0.5m モードはズーム17以上で地域CSを表示し、ズーム17未満は1mに自動フォールバック
-let currentOverlay = 'cs-1m'; // 選択中のオーバーレイキー
+let currentOverlay = 'none'; // 選択中のオーバーレイキー（'none' = オーバーレイなし）
 
 function updateCsVisibility() {
   const basemap    = currentBasemap;
-  const overlayOn  = document.getElementById('chk-overlay').checked;
-  const overlay    = overlayOn ? currentOverlay : 'none';
+  const overlayOn  = currentOverlay !== 'none';
+  const overlay    = currentOverlay;
 
   // 色別標高図の表示制御（他のオーバーレイとは排他）
-  const showColorRelief = overlayOn && overlay === 'color-relief';
+  const showColorRelief = overlay === 'color-relief';
   if (map.getLayer('color-relief-layer')) {
     map.setLayoutProperty('color-relief-layer', 'visibility', showColorRelief ? 'visible' : 'none');
   }
@@ -3848,6 +3847,7 @@ function updateCsVisibility() {
     }
   });
 
+  // なし選択時はスライダーを無効化
   document.getElementById('slider-cs').disabled = !overlayOn;
   updateRegionalAttribution();
 }
@@ -3862,7 +3862,7 @@ document.getElementById('overlay-cards').addEventListener('click', (e) => {
   updateCsVisibility();
 });
 
-document.getElementById('chk-overlay').addEventListener('change', updateCsVisibility);
+// （chk-overlay 削除のため、トグルイベントリスナーは不要）
 
 // ズーム17の境界を跨いだとき 0.5m ↔ 1m を自動切替
 map.on('zoomend', updateCsVisibility);
@@ -4052,6 +4052,10 @@ sliderCs.addEventListener('input', () => {
       map.setPaintProperty(layer.layerId, 'raster-opacity', v);
     }
   });
+  // 色別標高図も透明度スライダーに連動
+  if (map.getLayer('color-relief-layer')) {
+    map.setPaintProperty('color-relief-layer', 'raster-opacity', v);
+  }
 });
 
 

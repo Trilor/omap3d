@@ -3250,6 +3250,24 @@ label.setting-label {
 }
 
 /* 色別標高図カード: グラデーションサムネイル */
+/* 「なし」カード: チェッカーパターン + 斜め線 */
+.bm-card-none-bg {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background-color: #1e1e1e;
+  background-image:
+    repeating-linear-gradient(
+      -45deg,
+      transparent 0px, transparent 5px,
+      rgba(255,255,255,0.06) 5px, rgba(255,255,255,0.06) 6px
+    );
+}
+/* なし選択時はラベル帯を赤みがかった色で強調 */
+.bm-card.active[data-key="none"] .bm-card-label {
+  background: rgba(150, 60, 60, 0.75);
+}
+
 .bm-card-gradient {
   position: absolute;
   inset: 0;
