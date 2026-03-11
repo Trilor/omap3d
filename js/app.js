@@ -4039,41 +4039,66 @@ function updateColorReliefSource() {
 // getBounds() の lng/lat 均等分割より描画済みキャンバス領域に忠実で
 // テレインタイルが確実にロードされているエリアのみを対象にできる。
 // exaggerated:false で地形誇張の影響を受けない実際の標高値を取得する。
-function autoFitColorRelief() {
-  const GRID = 20; // 20×20 = 400 点
-  const canvas = map.getCanvas();
-  const w = canvas.width;
-  const h = canvas.height;
+// ズームレベル別の標高上限テーブル（低ズーム時フォールバック用）
+const CR_ZOOM_MAX_ELEV = [
+  [6,  3000],
+  [7,  2500],
+  [8,  2000],
+  [9,  1500],
+];
 
-  let nonZeroMin = Infinity, nonZeroMax = -Infinity; // 非ゼロ（陸地）
-  let allMin = Infinity,     allMax = -Infinity;     // フォールバック用（0 含む）
+function autoFitColorRelief() {
+  const zoom = map.getZoom();
+  const step = 10;
+
+  // ---- 低ズーム（≤9）: 画面中央の 3×3 = 9点を軽量サンプリング ----
+  if (zoom <= 9) {
+    const canvas = map.getCanvas();
+    const w = canvas.width, h = canvas.height;
+    // 画面中央 33%〜67% の範囲のみサンプリング（海辺の端を避ける）
+    // 画面中央 33%〜67% の範囲を 3×3 = 9点サンプリング（海辺の端を避ける）
+    const GRID = 3;
+    let sampledMax = -Infinity;
+    for (let r = 0; r < GRID; r++) {
+      for (let c = 0; c < GRID; c++) {
+        const lngLat = map.unproject([
+          w * (1/3 + (c + 0.5) / GRID / 3),
+          h * (1/3 + (r + 0.5) / GRID / 3)
+        ]);
+        const elev = map.queryTerrainElevation(lngLat, { exaggerated: false });
+        if (elev != null && elev > 0 && elev > sampledMax) sampledMax = elev;
+      }
+    }
+    // 有効な標高が取れた場合はそれを最大値に、取れなければズームテーブルで決定
+    const fallbackMax = (CR_ZOOM_MAX_ELEV.find(([z]) => zoom <= z) ?? [0, 1000])[1];
+    crMin = 0;
+    crMax = isFinite(sampledMax) ? Math.ceil(sampledMax / step) * step : fallbackMax;
+    if (crMax <= 0) crMax = fallbackMax;
+    updateColorReliefSource();
+    return;
+  }
+
+  // ---- 高ズーム（>9）: 20×20 = 400点でフルサンプリング ----
+  const GRID = 20;
+  const canvas = map.getCanvas();
+  const w = canvas.width, h = canvas.height;
+  let nonZeroMin = Infinity, nonZeroMax = -Infinity;
 
   for (let r = 0; r < GRID; r++) {
     for (let c = 0; c < GRID; c++) {
-      const px = (c + 0.5) / GRID * w;
-      const py = (r + 0.5) / GRID * h;
-      const lngLat = map.unproject([px, py]);
+      const lngLat = map.unproject([(c + 0.5) / GRID * w, (r + 0.5) / GRID * h]);
       const elev = map.queryTerrainElevation(lngLat, { exaggerated: false });
-      if (elev == null) continue;
-      if (elev < allMin) allMin = elev;
-      if (elev > allMax) allMax = elev;
-      // 0 は海域ピクセル or 未ロードタイルのデフォルト値のため非ゼロのみ別集計
-      if (elev !== 0) {
-        if (elev < nonZeroMin) nonZeroMin = elev;
-        if (elev > nonZeroMax) nonZeroMax = elev;
-      }
+      // 0 は海域ピクセルまたは未ロードタイルのデフォルト値のため除外
+      if (elev == null || elev === 0) continue;
+      if (elev < nonZeroMin) nonZeroMin = elev;
+      if (elev > nonZeroMax) nonZeroMax = elev;
     }
   }
 
-  // 非ゼロサンプルがあれば陸地優先、なければ全データ（低ズーム時フォールバック）
-  const globalMin = isFinite(nonZeroMin) ? nonZeroMin : allMin;
-  const globalMax = isFinite(nonZeroMax) ? nonZeroMax : allMax;
-  if (!isFinite(globalMin) || !isFinite(globalMax)) return;
+  if (!isFinite(nonZeroMin) || !isFinite(nonZeroMax)) return;
 
-  // 10m 単位に丸め、最低 10m の幅を確保（最小値は 0 以上）
-  const step = 10;
-  crMin = Math.max(0, Math.floor(globalMin / step) * step);
-  crMax = Math.ceil(globalMax  / step) * step;
+  crMin = Math.max(0, Math.floor(nonZeroMin / step) * step);
+  crMax = Math.ceil(nonZeroMax / step) * step;
   if (crMax <= crMin) crMax = crMin + step;
 
   updateColorReliefSource();
