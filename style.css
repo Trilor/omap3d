@@ -3068,31 +3068,31 @@ label.setting-label {
 
 /* ============================================================
    スクリーンショット カスタムコントロール（右上 MapLibre コントロール群）
+   MapLibre 標準と同じ構造: button > span.maplibregl-ctrl-icon
+   アイコンは background-image で指定（zoom/geolocate と同一方式）
    ============================================================ */
 
-/* ボタン自体のサイズ・中央寄せ（既存 maplibregl-ctrl-group のスタイルを継承） */
+/* ボタンサイズ・インタラクション（maplibregl-ctrl-group の兄弟ボタンと同じ） */
 .maplibregl-ctrl-screenshot {
-  display: flex;
-  align-items: center;
-  justify-content: center;
   width: 29px;
   height: 29px;
   padding: 0;
   background: transparent;
   border: none;
   cursor: pointer;
-  color: #404040;
-  transition: color 0.15s, background-color 0.15s;
 }
-.maplibregl-ctrl-screenshot:hover {
-  background-color: rgba(0, 0, 0, 0.05);
-  color: #000;
-}
-.maplibregl-ctrl-screenshot:active {
-  background-color: rgba(0, 0, 0, 0.12);
-}
-.maplibregl-ctrl-screenshot svg {
-  pointer-events: none;
+.maplibregl-ctrl-screenshot:hover  { background-color: rgba(0,0,0,0.05); }
+.maplibregl-ctrl-screenshot:active { background-color: rgba(0,0,0,0.12); }
+
+/* 印刷アイコン: SVG data URI（black fill、29×29 viewBox） */
+.maplibregl-ctrl-screenshot .maplibregl-ctrl-icon {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 29 29'%3E%3Cpath fill='%23333' d='M10 7h9v4h-9V7zm-3 4H4a2 2 0 00-2 2v6a2 2 0 002 2h3v2a1 1 0 001 1h12a1 1 0 001-1v-2h3a2 2 0 002-2v-6a2 2 0 00-2-2h-3V7a1 1 0 00-1-1H8a1 1 0 00-1 1v4zm2 8v-3h11v5H9v-2zm11-7a1 1 0 110 2 1 1 0 010-2z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 22px 22px;
+  width: 29px;
+  height: 29px;
+  display: block;
 }
 
 /* ============================================================
