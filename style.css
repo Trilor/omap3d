@@ -3190,7 +3190,7 @@ label.setting-label {
 .cr-dual-track {
   position: relative;
   width: 100%;
-  height: 26px;
+  height: 25px;
   overflow: visible; /* つまみが左右端を超えても表示できるよう */
 }
 
@@ -3209,13 +3209,13 @@ label.setting-label {
   pointer-events: none;
 }
 
-/* レンジ入力共通: 左右に -6px（つまみ幅の半分）拡張してつまみが端まで届くようにする */
+/* レンジ入力共通: バー下端(7px)の 2px 下(y=9)から開始し、つまみが端まで届くよう左右 -6px 拡張 */
 .cr-range {
   position: absolute;
-  top: 0;
+  top: 9px;
   left: -6px;
   width: calc(100% + 12px);
-  height: 100%;
+  height: 14px;
   margin: 0;
   padding: 0;
   -webkit-appearance: none;
@@ -3225,17 +3225,15 @@ label.setting-label {
   outline: none;
 }
 
-/* WebKit/Blink: トラック非表示（フル高さ）*/
+/* WebKit/Blink: トラック非表示 */
 .cr-range::-webkit-slider-runnable-track {
   background: transparent;
-  height: 100%;
+  height: 14px;
 }
 
-/* WebKit/Blink: 三角つまみ（バー直下に ▲、頂点はバー下端より少し下）
-   コンテナ高さ = 26px、バー高さ = 7px
-   つまみ高さ = 11px、頂点をバー下端(7px)の 2px 下(y=9)に配置したい
-   → 頂点 Y = 9, つまみ中心 Y = 9 + 5.5 = 14.5
-   トラック中心 = 13 → margin-top = 14.5 - 13 = 1.5 ≈ 2px */
+/* WebKit/Blink: 三角つまみ（バー下端の少し下に頂点）
+   input top = 9px, height = 14px → トラック中心 = 9 + 7 = 16px
+   thumb height = 11px → thumb top = 16 - 5.5 = 10.5px (先端) = バー下端(7px)の 3.5px 下 */
 .cr-range::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
@@ -3248,7 +3246,6 @@ label.setting-label {
   cursor: ew-resize;
   pointer-events: auto;
   clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
-  margin-top: 2px;
   transition: background 0.15s;
 }
 .cr-range::-webkit-slider-thumb:hover {
