@@ -843,8 +843,11 @@ map.on('load', async () => {
     id: 'color-relief-layer',
     type: 'raster',
     source: 'color-relief',
-    layout: { visibility: 'none' },
-    paint: { 'raster-opacity': CS_INITIAL_OPACITY, 'raster-fade-duration': 0 },
+    // visibility:none で追加すると WebGL シェーダーが未初期化のまま残り
+    // 初回レンダリング時に draw_raster.ts で TypeError が発生するため、
+    // 常に visible を維持し opacity=0 で非表示制御する
+    layout: { visibility: 'visible' },
+    paint: { 'raster-opacity': 0, 'raster-fade-duration': 0 },
   });
 
   // CS立体図（ブラウザ生成・Q地図DEMから動的生成）
@@ -3818,10 +3821,11 @@ function updateCsVisibility() {
   const overlayOn  = currentOverlay !== 'none';
   const overlay    = currentOverlay;
 
-  // 色別標高図の表示制御（他のオーバーレイとは排他）
+  // 色別標高図の表示制御（visibility ではなく opacity で切替 — WebGL 初期化を常時維持するため）
   const showColorRelief = overlay === 'color-relief';
   if (map.getLayer('color-relief-layer')) {
-    map.setLayoutProperty('color-relief-layer', 'visibility', showColorRelief ? 'visible' : 'none');
+    const crOpacity = showColorRelief ? parseFloat(document.getElementById('slider-cs').value) : 0;
+    map.setPaintProperty('color-relief-layer', 'raster-opacity', crOpacity);
   }
   // スライダーはカード選択だけで表示（オーバーレイトグルのON/OFFに依存しない）
   const crCtrls = document.getElementById('color-relief-controls');
@@ -4085,8 +4089,8 @@ sliderCs.addEventListener('input', () => {
       map.setPaintProperty(layer.layerId, 'raster-opacity', v);
     }
   });
-  // 色別標高図も透明度スライダーに連動
-  if (map.getLayer('color-relief-layer')) {
+  // 色別標高図: 選択中のときのみ opacity を更新（非表示時は 0 を維持）
+  if (currentOverlay === 'color-relief' && map.getLayer('color-relief-layer')) {
     map.setPaintProperty('color-relief-layer', 'raster-opacity', v);
   }
 });
