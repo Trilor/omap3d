@@ -3903,19 +3903,27 @@ function syncColorReliefUI() {
 function updateColorReliefSource() {
   syncColorReliefUI();
 
-  // スライダーの現在 range を取得してハイライト帯の位置を % で計算
+  // スライダーの現在 range を取得してハイライト帯の位置を計算
   const minSlider  = document.getElementById('cr-min-slider');
   if (!minSlider) return;
   const totalMin   = parseFloat(minSlider.min);
   const totalMax   = parseFloat(minSlider.max);
   const totalRange = totalMax - totalMin || 1;
 
-  const leftPct  = Math.max(0, ((crMin - totalMin) / totalRange) * 100);
-  const rightPct = Math.min(100, ((crMax - totalMin) / totalRange) * 100);
+  // range input のつまみは左右端で「thumbSize/2」分だけ内側にオフセットされる。
+  // 実際のつまみ中心位置: ratio * (100% - thumbSize) + thumbSize/2
+  // これにより単純な % 計算とのズレを補正する。
+  const thumbSize  = 16; // CSS .cr-range::-webkit-slider-thumb の width と一致させること
+  const leftRatio  = Math.max(0, Math.min(1, (crMin - totalMin) / totalRange));
+  const rightRatio = Math.max(0, Math.min(1, (crMax - totalMin) / totalRange));
+  const dRatio     = rightRatio - leftRatio;
+
+  // left  = leftRatio  * (100% - thumbSize) + thumbSize/2
+  // width = dRatio     * (100% - thumbSize)
   const highlight = document.getElementById('cr-range-highlight');
   if (highlight) {
-    highlight.style.left  = leftPct + '%';
-    highlight.style.width = (rightPct - leftPct) + '%';
+    highlight.style.left  = `calc(${leftRatio * 100}% - ${leftRatio  * thumbSize - thumbSize / 2}px)`;
+    highlight.style.width = `calc(${dRatio    * 100}% - ${dRatio     * thumbSize}px)`;
   }
 
   // MapLibre ソース URL を更新してタイルを再取得させ、即座に再描画する
