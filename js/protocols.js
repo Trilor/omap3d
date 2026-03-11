@@ -449,59 +449,76 @@ function _dem2reliefColor(t) {
   };
 }
 
+// DEM データが存在しない（404・CORS・nodata）タイルのフォールバック用 1×1 透明 PNG
+// プロトコルが undefined や例外を返すと MapLibre の WebGL テクスチャバインドがクラッシュするため
+// いかなる場合も有効な ArrayBuffer を返すことでレンダリングループを保護する
+const _TRANSPARENT_PNG_B64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
+function _transparentPngBuffer() {
+  const bin = atob(_TRANSPARENT_PNG_B64);
+  const buf = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+  return buf.buffer;
+}
+
 maplibregl.addProtocol('dem2relief', async (params, abortController) => {
-  // URLスキームを https:// に置換して URL オブジェクトを生成
-  const rawUrl = params.url.replace(/^dem2relief:\/\//, 'https://');
-  let urlObj;
-  try { urlObj = new URL(rawUrl); } catch { throw new Error('dem2relief: invalid URL'); }
+  try {
+    // URLスキームを https:// に置換して URL オブジェクトを生成
+    const rawUrl = params.url.replace(/^dem2relief:\/\//, 'https://');
+    const urlObj = new URL(rawUrl);
 
-  // クエリパラメータから min/max を取得（デフォルト 0〜3000m）
-  const min = parseFloat(urlObj.searchParams.get('min') ?? '0');
-  const max = parseFloat(urlObj.searchParams.get('max') ?? '3000');
-  const range = max - min || 1; // ゼロ除算を防ぐ
+    // クエリパラメータから min/max を取得（デフォルト 0〜3000m）
+    const min = parseFloat(urlObj.searchParams.get('min') ?? '0');
+    const max = parseFloat(urlObj.searchParams.get('max') ?? '3000');
+    const range = max - min || 1; // ゼロ除算を防ぐ
 
-  // z/x/y の抽出（クエリパラメータを除いたパス部分から取得）
-  const m = urlObj.pathname.match(/\/(\d+)\/(\d+)\/(\d+)\.\w+/);
-  if (!m) throw new Error('dem2relief: URL format invalid');
-  const [, z, x, y] = m;
+    // z/x/y の抽出（クエリパラメータを除いたパス部分から取得）
+    const m = urlObj.pathname.match(/\/(\d+)\/(\d+)\/(\d+)\.\w+/);
+    if (!m) return { data: _transparentPngBuffer() };
+    const [, z, x, y] = m;
 
-  // 合成 DEM ビットマップを取得（Q地図 > 陸域統合 > 湖水深 の優先順）
-  const bitmap = await fetchCompositeDemBitmap(z, x, y, abortController.signal);
-  if (!bitmap) throw new Error('dem2relief: no DEM data');
+    // 合成 DEM ビットマップを取得（Q地図 > 陸域統合 > 湖水深 の優先順）
+    // データなし（海域・範囲外・404・CORS）の場合は透明タイルを返す
+    const bitmap = await fetchCompositeDemBitmap(z, x, y, abortController.signal);
+    if (!bitmap) return { data: _transparentPngBuffer() };
 
-  // NumPNG → RGB 色別標高図へ変換
-  const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
-  const ctx    = canvas.getContext('2d');
-  ctx.drawImage(bitmap, 0, 0);
-  bitmap.close();
+    // NumPNG → RGB 色別標高図へ変換
+    const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+    const ctx    = canvas.getContext('2d');
+    ctx.drawImage(bitmap, 0, 0);
+    bitmap.close();
 
-  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  const data = imageData.data;
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const data = imageData.data;
 
-  for (let i = 0; i < data.length; i += 4) {
-    const r = data[i], g = data[i + 1], b = data[i + 2], a = data[i + 3];
+    for (let i = 0; i < data.length; i += 4) {
+      const r = data[i], g = data[i + 1], b = data[i + 2], a = data[i + 3];
 
-    // nodata（R=128, G=0, B=0）または透明ピクセルは透明で出力
-    if ((r === 128 && g === 0 && b === 0) || a !== 255) {
-      data[i] = 0; data[i + 1] = 0; data[i + 2] = 0; data[i + 3] = 0;
-      continue;
+      // nodata（R=128, G=0, B=0）または透明ピクセルは透明で出力
+      if ((r === 128 && g === 0 && b === 0) || a !== 255) {
+        data[i] = 0; data[i + 1] = 0; data[i + 2] = 0; data[i + 3] = 0;
+        continue;
+      }
+
+      // NumPNG → 標高（メートル）変換: 24bit 符号付き整数 × 0.01m
+      const bits24 = (r << 16) | (g << 8) | b;
+      const height = ((bits24 << 8) >> 8) * 0.01;
+
+      // 相対正規化: min〜max を 0.0〜1.0 にクランプ（範囲外は端の色で塗る）
+      const t = Math.max(0, Math.min(1, (height - min) / range));
+
+      // パレット補間で RGB を決定し書き込み
+      const col = _dem2reliefColor(t);
+      data[i] = col.r; data[i + 1] = col.g; data[i + 2] = col.b; data[i + 3] = 255;
     }
 
-    // NumPNG → 標高（メートル）変換: 24bit 符号付き整数 × 0.01m
-    const bits24 = (r << 16) | (g << 8) | b;
-    const height = ((bits24 << 8) >> 8) * 0.01;
+    ctx.putImageData(imageData, 0, 0);
+    const blob = await canvas.convertToBlob({ type: 'image/png' });
+    return { data: await blob.arrayBuffer() };
 
-    // 相対正規化: min〜max を 0.0〜1.0 にクランプ（範囲外は端の色で塗る）
-    const t = Math.max(0, Math.min(1, (height - min) / range));
-
-    // パレット補間で RGB を決定し書き込み
-    const col = _dem2reliefColor(t);
-    data[i] = col.r; data[i + 1] = col.g; data[i + 2] = col.b; data[i + 3] = 255;
+  } catch {
+    // いかなるエラーでも透明タイルを返してレンダリングループを保護する
+    return { data: _transparentPngBuffer() };
   }
-
-  ctx.putImageData(imageData, 0, 0);
-  const blob = await canvas.convertToBlob({ type: 'image/png' });
-  return { data: await blob.arrayBuffer() };
 });
 
 export { fetchCompositeDemBitmap };
