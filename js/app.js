@@ -4008,22 +4008,26 @@ function updateColorReliefSource() {
     updateColorReliefSource();
   });
 
-  // ── 数値入力 → スライダー・地図（確定時即時反映） ──
+  // ── 数値入力 → スライダー・地図（フォーカス離脱・Enter 確定時のみ反映・入力中は補正しない） ──
+  const applyMinInput = () => {
+    const v = parseInt(minInput.value, 10);
+    if (isNaN(v)) { minInput.value = crMin; return; }
+    crMin = Math.min(v, crMax - 10);
+    updateColorReliefSource();
+  };
+  const applyMaxInput = () => {
+    const v = parseInt(maxInput.value, 10);
+    if (isNaN(v)) { maxInput.value = crMax; return; }
+    crMax = Math.max(v, crMin + 10);
+    updateColorReliefSource();
+  };
   if (minInput) {
-    minInput.addEventListener('input', () => {
-      const v = parseInt(minInput.value, 10);
-      if (isNaN(v)) return;
-      crMin = Math.min(v, crMax - 10);
-      updateColorReliefSource();
-    });
+    minInput.addEventListener('change', applyMinInput);
+    minInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') applyMinInput(); });
   }
   if (maxInput) {
-    maxInput.addEventListener('input', () => {
-      const v = parseInt(maxInput.value, 10);
-      if (isNaN(v)) return;
-      crMax = Math.max(v, crMin + 10);
-      updateColorReliefSource();
-    });
+    maxInput.addEventListener('change', applyMaxInput);
+    maxInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') applyMaxInput(); });
   }
 
   // 初期状態を反映
