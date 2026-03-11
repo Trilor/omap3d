@@ -833,7 +833,7 @@ map.on('load', async () => {
   // min/max パラメータはスライダー操作時に setTiles() で動的更新する
   map.addSource('color-relief', {
     type: 'raster',
-    tiles: ['dem2relief://mapdata.qchizu.xyz/03_dem/52_gsi/all_2025/1_02/{z}/{x}/{y}.webp?min=0&max=500'],
+    tiles: ['dem2relief://mapdata.qchizu.xyz/03_dem/52_gsi/all_2025/1_02/{z}/{x}/{y}.webp?min=0&max=500&_init=1'],
     tileSize: 256,
     minzoom: 5,
     maxzoom: 17,
