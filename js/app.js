@@ -3949,35 +3949,21 @@ function updateGradientTrack() {
 let _crTileTimer = null;
 
 // タイル URL を更新して地図に反映
-// カスタムプロトコルのタイルは MapLibre の idle 判定に追跡されないため
-// sourcedata イベントでロード完了を直接検知し triggerRepaint() を呼ぶ
-let _crSrcHandler = null;
+// カスタムプロトコルは idle 状態でタイルが届いても自動再描画しないため、
+// 2 秒間 100ms ごとに triggerRepaint() を送り続ける（シンプルで確実な方式）
+let _crRepaintTimer = null;
 function applyColorReliefTiles() {
   if (!map.getSource('color-relief')) return;
-
-  // 前回のリスナーをクリア
-  if (_crSrcHandler) { map.off('sourcedata', _crSrcHandler); _crSrcHandler = null; }
-
   map.getSource('color-relief').setTiles([
     `dem2relief://${COLOR_RELIEF_DEM_BASE}/{z}/{x}/{y}.webp?min=${crMin}&max=${crMax}`
   ]);
-
-  // タイルが 1 枚届くたびに再描画し、全タイルロード完了でリスナーを解除
-  _crSrcHandler = (e) => {
-    if (e.sourceId !== 'color-relief') return;
+  clearTimeout(_crRepaintTimer);
+  let remaining = 20; // 20 × 100ms = 2 秒
+  const repaint = () => {
     map.triggerRepaint();
-    if (e.isSourceLoaded) {
-      map.off('sourcedata', _crSrcHandler);
-      _crSrcHandler = null;
-    }
+    if (--remaining > 0) _crRepaintTimer = setTimeout(repaint, 100);
   };
-  map.on('sourcedata', _crSrcHandler);
-  // 安全のため 5 秒後に強制解除
-  setTimeout(() => {
-    if (_crSrcHandler) { map.off('sourcedata', _crSrcHandler); _crSrcHandler = null; }
-  }, 5000);
-
-  map.triggerRepaint();
+  repaint();
 }
 
 // ドラッグ中は UI のみ即座に更新し、タイル再フェッチはデバウンス（300ms）
