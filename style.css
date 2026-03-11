@@ -3067,6 +3067,35 @@ label.setting-label {
 }
 
 /* ============================================================
+   スクリーンショット カスタムコントロール（右上 MapLibre コントロール群）
+   ============================================================ */
+
+/* ボタン自体のサイズ・中央寄せ（既存 maplibregl-ctrl-group のスタイルを継承） */
+.maplibregl-ctrl-screenshot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 29px;
+  height: 29px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: #404040;
+  transition: color 0.15s, background-color 0.15s;
+}
+.maplibregl-ctrl-screenshot:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+  color: #000;
+}
+.maplibregl-ctrl-screenshot:active {
+  background-color: rgba(0, 0, 0, 0.12);
+}
+.maplibregl-ctrl-screenshot svg {
+  pointer-events: none;
+}
+
+/* ============================================================
    色別標高図（dem2relief）— グラデーション背景付きデュアルレンジスライダー
    ============================================================ */
 
