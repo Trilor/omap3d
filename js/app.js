@@ -3885,10 +3885,10 @@ function syncColorReliefUI() {
   const maxInput  = document.getElementById('cr-max-input');
   if (!minSlider || !maxSlider) return;
 
-  // 下限は -500 固定、上限は crMax に応じて動的拡張
-  minSlider.min = maxSlider.min = '-500';
+  // 下限は 0 固定、上限は crMax に応じて動的拡張
+  minSlider.min = maxSlider.min = '0';
   const sMax = parseFloat(minSlider.max);
-  crMin = Math.max(crMin, -500);
+  crMin = Math.max(crMin, 0);
   if (crMax > sMax) { minSlider.max = maxSlider.max = String(crMax + 100); }
 
   // スライダーつまみ位置を同期
@@ -4045,7 +4045,8 @@ function autoFitColorRelief() {
   const w = canvas.width;
   const h = canvas.height;
 
-  let globalMin = Infinity, globalMax = -Infinity;
+  const elevations = [];
+  let zeroCount = 0;
 
   for (let r = 0; r < GRID; r++) {
     for (let c = 0; c < GRID; c++) {
@@ -4054,16 +4055,28 @@ function autoFitColorRelief() {
       const lngLat = map.unproject([px, py]);
       const elev = map.queryTerrainElevation(lngLat, { exaggerated: false });
       if (elev == null) continue;
-      if (elev < globalMin) globalMin = elev;
-      if (elev > globalMax) globalMax = elev;
+      elevations.push(elev);
+      if (elev === 0) zeroCount++;
     }
   }
 
-  if (!isFinite(globalMin) || !isFinite(globalMax)) return; // データなし
+  if (elevations.length === 0) return; // データなし
 
-  // 10m 単位に丸め、最低 10m の幅を確保
+  // 海域（DEM未カバー）は 0 を返すため、0 が過半数を占める場合は
+  // 0 の点を除いて陸地のみで範囲を決める（海主体の画面で 0-10m になるバグ対策）
+  const useLand = zeroCount > elevations.length * 0.5;
+  const samples = useLand ? elevations.filter(e => e !== 0) : elevations;
+  if (samples.length === 0) return;
+
+  let globalMin = Infinity, globalMax = -Infinity;
+  for (const e of samples) {
+    if (e < globalMin) globalMin = e;
+    if (e > globalMax) globalMax = e;
+  }
+
+  // 10m 単位に丸め、最低 10m の幅を確保（最小値は 0 以上）
   const step = 10;
-  crMin = Math.floor(globalMin / step) * step;
+  crMin = Math.max(0, Math.floor(globalMin / step) * step);
   crMax = Math.ceil(globalMax  / step) * step;
   if (crMax <= crMin) crMax = crMin + step;
 
