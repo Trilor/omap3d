@@ -3885,11 +3885,10 @@ function syncColorReliefUI() {
   const maxInput  = document.getElementById('cr-max-input');
   if (!minSlider || !maxSlider) return;
 
-  // crMin/crMax がスライダー range を超えていたら動的に拡張
-  const sMin = parseFloat(minSlider.min);
+  // 下限は -500 固定、上限は crMax に応じて動的拡張
+  minSlider.min = maxSlider.min = '-500';
   const sMax = parseFloat(minSlider.max);
-  // 下限は -500 固定（海底・干拓地など負の標高に対応）
-  if (crMin < sMin) { minSlider.min = maxSlider.min = '-500'; crMin = Math.max(crMin, -500); }
+  crMin = Math.max(crMin, -500);
   if (crMax > sMax) { minSlider.max = maxSlider.max = String(crMax + 100); }
 
   // スライダーつまみ位置を同期
