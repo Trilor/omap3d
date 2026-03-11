@@ -3954,7 +3954,14 @@ function applyColorReliefTiles() {
   map.getSource('color-relief').setTiles([
     `dem2relief://${COLOR_RELIEF_DEM_BASE}/{z}/{x}/{y}.webp?min=${crMin}&max=${crMax}`
   ]);
-  map.triggerRepaint();
+  // カスタムプロトコルのタイルはロード完了後も idle 状態では自動再描画されないため、
+  // ソースがロード済みになるまで rAF で triggerRepaint() を継続する
+  const keepAlive = () => {
+    if (!map.getSource('color-relief')) return;
+    map.triggerRepaint();
+    if (!map.isSourceLoaded('color-relief')) requestAnimationFrame(keepAlive);
+  };
+  requestAnimationFrame(keepAlive);
 }
 
 // ドラッグ中は UI のみ即座に更新し、タイル再フェッチはデバウンス（300ms）
