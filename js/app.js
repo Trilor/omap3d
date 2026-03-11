@@ -52,7 +52,7 @@ const map = new maplibregl.Map({
         tiles: [TERRAIN_URL],
         tileSize: 256,
         minzoom: 1,
-        maxzoom: 17,
+        maxzoom: 15,
         encoding: 'terrarium',
         attribution: '',
       }
