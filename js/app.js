@@ -4038,7 +4038,7 @@ function updateColorReliefSource() {
 // 画面内を 8×8 グリッドでサンプリング。
 // map.queryTerrainElevation() はロード済み地形タイルから同期取得するためネットワーク不要。
 function autoFitColorRelief() {
-  const GRID = 8; // 8×8 = 64 点
+  const GRID = 20; // 20×20 = 400 点
   const bounds = map.getBounds();
   const sw = bounds.getSouthWest();
   const ne = bounds.getNorthEast();
