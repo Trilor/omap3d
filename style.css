@@ -3203,8 +3203,8 @@ label.setting-label {
   border-radius: 3px;
   /* 初期フォールバック（JS 上書き前） */
   background: linear-gradient(to right,
-    #162a3b 0%, #2b5e7e 8%, #4fb3a9 18%, #8ec98a 35%,
-    #e0d47e 55%, #c8a05a 72%, #9e7a3c 88%, #ffffff 100%);
+    #0006fb 0%, #0092fb 17%, #00e7fb 33%, #8af708 50%,
+    #f2f90b 67%, #f28a09 83%, #f2480b 100%);
   pointer-events: none;
 }
 
@@ -3287,14 +3287,13 @@ label.setting-label {
   bottom: 0;
   background: linear-gradient(
     135deg,
-    #162a3b  0%,
-    #2b5e7e 20%,
-    #4fb3a9 40%,
-    #8ec98a 55%,
-    #e0d47e 70%,
-    #c8a05a 82%,
-    #9e7a3c 92%,
-    #ffffff 100%
+    #0006fb  0%,
+    #0092fb 17%,
+    #00e7fb 33%,
+    #8af708 50%,
+    #f2f90b 67%,
+    #f28a09 83%,
+    #f2480b 100%
   );
   border-radius: inherit;
 }
