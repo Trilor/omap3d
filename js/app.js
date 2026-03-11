@@ -4242,17 +4242,12 @@ function applyContourInterval(intervalM) {
   const hasDem1a  = newUrlDem1a && map.getSource('contour-source-dem1a');
   const hasLake   = newUrlLake  && map.getSource('contour-source-lake');
   if (!hasQchizu && !hasDem5a && !hasDem1a && !hasLake) return;
-  // MapLibreは高ズーム時に「新タイルが届くまで旧タイルを保持」するため、
-  // 一旦 visibility:none で旧タイルを即座に消去してからURLを切り替える
-  setAllContourVisibility('none');
+  // visibility を変えずに直接 setTiles（旧タイルは新タイルが届くまで表示され続けるが、
+  // 一旦 none にすると他レイヤーのタイル生成タイミングと干渉してフリックが起きるため廃止）
   if (hasQchizu) map.getSource('contour-source').setTiles([newUrl]);
   if (hasDem5a)  map.getSource('contour-source-dem5a').setTiles([newUrlDem5a]);
   if (hasDem1a)  map.getSource('contour-source-dem1a').setTiles([newUrlDem1a]);
   if (hasLake)   map.getSource('contour-source-lake').setTiles([newUrlLake]);
-  requestAnimationFrame(() => {
-    if (!chkContour.checked) return;
-    setAllContourVisibility('visible');
-  });
   lastAppliedContourInterval = intervalM;
 }
 
