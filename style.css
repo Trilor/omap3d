@@ -10,11 +10,11 @@
   transition: --sidebar-w 0.15s ease;
 
   /* ===== テーマカラー ===== */
-  --primary:        #F5A623;  /* メインカラー（TeleDropアンバーオレンジ）*/
-  --primary-hover:  #E09010;  /* ホバー・押下状態（一段暗め）*/
-  --primary-dark:   #C07800;  /* さらに暗いアクセント */
-  --primary-light:  #FFF8E6;  /* 極薄背景・ハイライト用 */
-  --primary-alpha:  rgba(245, 166, 35, 0.12); /* 半透明オーバーレイ */
+  --primary:        #25556f;  /* メインカラー */
+  --primary-hover:  #1d4459;  /* ホバー・押下状態（一段暗め）*/
+  --primary-dark:   #153345;  /* さらに暗いアクセント */
+  --primary-light:  #eaf1f5;  /* 極薄背景・ハイライト用 */
+  --primary-alpha:  rgba(37, 85, 111, 0.12); /* 半透明オーバーレイ */
 
   /* 主要背景色（--primary）上のテキスト色（開発用トグルで白⇔黒切り替え） */
   --on-primary:       #ffffff;
