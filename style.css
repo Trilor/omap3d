@@ -10,11 +10,11 @@
   transition: --sidebar-w 0.15s ease;
 
   /* ===== テーマカラー ===== */
-  --primary:        #9bbb1d;  /* メインカラー（オリエンテーリンググリーン）*/
-  --primary-hover:  #849f19;  /* ホバー・押下状態（一段暗め）*/
-  --primary-dark:   #6d8314;  /* さらに暗いアクセント */
-  --primary-light:  #f4f8e4;  /* 極薄背景・ハイライト用 */
-  --primary-alpha:  rgba(155, 187, 29, 0.12); /* 半透明オーバーレイ */
+  --primary:        #F5A623;  /* メインカラー（TeleDropアンバーオレンジ）*/
+  --primary-hover:  #E09010;  /* ホバー・押下状態（一段暗め）*/
+  --primary-dark:   #C07800;  /* さらに暗いアクセント */
+  --primary-light:  #FFF8E6;  /* 極薄背景・ハイライト用 */
+  --primary-alpha:  rgba(245, 166, 35, 0.12); /* 半透明オーバーレイ */
 
   /* 主要背景色（--primary）上のテキスト色（開発用トグルで白⇔黒切り替え） */
   --on-primary:       #ffffff;
@@ -81,21 +81,22 @@ body {
   flex-shrink: 0;
 }
 
-/* ロゴ（TD）: メインカラーを維持 */
+/* ロゴ（SVGアイコン）*/
 #sidebar-logo {
   width: 48px;
   height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 13px;
-  font-weight: 900;
-  color: #fff;
-  letter-spacing: -0.03em;
-  background: var(--primary);
+  background: #fff;
   flex-shrink: 0;
   margin-bottom: 4px;
   user-select: none;
+}
+#sidebar-logo img {
+  width: 30px;
+  height: 30px;
+  display: block;
 }
 
 /* ナビゲーションボタン */
