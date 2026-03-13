@@ -2141,9 +2141,19 @@ function buildTreeNodeEl(frame) {
   flyBtn.title = 'この枠へ移動';
   flyBtn.textContent = '→';
 
+  const printBtn = document.createElement('button');
+  printBtn.className = 'tree-node-fly-btn tree-node-print-btn';
+  printBtn.title = '枠に合わせてスクリーンショット';
+  printBtn.textContent = '🖨';
+  printBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    captureFrameShot(frame);
+  });
+
   headerEl.appendChild(iconEl);
   headerEl.appendChild(labelEl);
   headerEl.appendChild(flyBtn);
+  headerEl.appendChild(printBtn);
   nodeEl.appendChild(headerEl);
 
   // 子ノードエリア
@@ -4489,6 +4499,38 @@ document.getElementById('basemap-cards').addEventListener('click', (e) => {
   card.classList.add('active');
   switchBasemap(card.dataset.key);
 });
+
+// ---- 枠スクリーンショット ----
+// 指定した枠の bounding box にカメラをフィットさせ、idle 後に PNG ダウンロード
+function captureFrameShot(frame) {
+  const coords = frame.coordinates; // [[lng,lat], ...]
+  const lngs = coords.map(c => c[0]);
+  const lats  = coords.map(c => c[1]);
+  const bounds = [
+    [Math.min(...lngs), Math.min(...lats)],
+    [Math.max(...lngs), Math.max(...lats)],
+  ];
+
+  // 現在の pitch / bearing を保存して 2D（真上）に一時切り替え
+  const prevPitch   = map.getPitch();
+  const prevBearing = map.getBearing();
+
+  map.easeTo({ pitch: 0, bearing: 0, duration: 0 });
+  map.fitBounds(bounds, { padding: 10, duration: 0 });
+
+  map.once('idle', () => {
+    const canvas = map.getCanvas();
+    const link   = document.createElement('a');
+    const safeName = (frame.properties.event_name ?? frame.properties.name ?? 'frame')
+      .replace(/[\\/:*?"<>|]/g, '_');
+    link.download = `teledrop_${safeName}.png`;
+    link.href     = canvas.toDataURL('image/png');
+    link.click();
+
+    // pitch / bearing を復元
+    map.easeTo({ pitch: prevPitch, bearing: prevBearing, duration: 300 });
+  });
+}
 
 // ---- 枠 GeoJSON エクスポート ----
 function exportFramesAsGeoJson() {
