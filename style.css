@@ -172,8 +172,8 @@ body {
 
 /* セクションヘッダー */
 .sidebar-section-header {
-  background: var(--primary);
-  color: #fff;
+  background: #f6f6f6;
+  color: var(--primary);
   padding: 0 12px;
   height: 44px;
   font-size: 13px;
