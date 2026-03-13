@@ -133,7 +133,7 @@ body {
 }
 .sidebar-nav-btn:hover {
   background: rgba(0,0,0,0.07);
-  color: #444;
+  color: #fff;
 }
 /* アクティブ時: メインカラー背景 + 白テキスト */
 .sidebar-nav-btn.active {
