@@ -199,6 +199,31 @@ function captureScreenshot() {
     '同意して画像を保存しますか？';
   if (!confirm(WARNING)) return;
 
+  // 2D出力のため、3D terrain と 3D建物レイヤーを一時的に無効化する
+  const hadTerrain  = !!map.getTerrain();
+  const hadBuilding = !!map.getLayer('building-3d');
+
+  if (hadTerrain)  map.setTerrain(null);
+  if (hadBuilding) map.removeLayer('building-3d');
+
+  // 再描画完了を待ってからキャプチャ → 完了後に元の状態へ復元
+  const doCapture = () => {
+    _doCapture();
+    if (hadTerrain)  map.setTerrain({ source: 'terrain-dem', exaggeration: TERRAIN_EXAGGERATION });
+    if (hadBuilding) updateBuildingLayer();
+  };
+
+  // 3D要素を無効化した場合は map が再描画されるのを待つ。
+  // 何も変化がなければそのまま即時キャプチャ。
+  if (hadTerrain || hadBuilding) {
+    map.once('idle', doCapture);
+  } else {
+    doCapture();
+  }
+}
+
+/** マップキャンバスをPNG画像として保存する（ウォーターマーク付き） */
+function _doCapture() {
   const mapCanvas = map.getCanvas();
   const w = mapCanvas.width;
   const h = mapCanvas.height;
