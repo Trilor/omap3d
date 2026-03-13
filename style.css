@@ -214,19 +214,30 @@ body {
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: #c8c8c8 transparent;
+  padding-top: 12px;
 }
 
 /* ========================================================
    フレームツリー
    ======================================================== */
+/* カード: フレームツリー＋その他の地図 / GPX軌跡 */
+.terrain-detail-card {
+  background: #f8f9fa;
+  border-radius: 6px;
+  margin: 0 8px 16px;
+  overflow: hidden;
+  border: 1px solid #e4e8ec;
+}
+
 /* 選択テレイン見出し行 */
 .terrain-selected-hd {
   display: flex;
   align-items: center;
   gap: 6px;
   padding: 6px 10px 5px;
-  background: #f0f0f0;
+  border-left: 4px solid var(--primary);
   border-bottom: 1px solid #e0e0e0;
+  background: #fff;
   font-size: 12px;
   font-weight: 700;
   color: #333;
@@ -332,10 +343,15 @@ body {
   min-width: 0;
 }
 .tree-child-drop-hint {
-  padding: 5px 10px 5px 26px;
+  margin: 4px 10px;
+  padding: 8px 10px;
   font-size: 10px;
-  color: #bbb;
+  color: #aaa;
   font-style: italic;
+  text-align: center;
+  border: 1px dashed #ccc;
+  border-radius: 4px;
+  background: #fafafa;
 }
 
 /* その他の地図・GPX 共通アップロードボタン */
@@ -598,13 +614,13 @@ body {
 
 /* summary がセクションヘッダ代わり */
 .panel-section>summary {
-  background: #f0f0f0;
-  border-top: 1px solid #d8d8d8;
-  border-bottom: 1px solid #d8d8d8;
-  padding: 6px 10px;
+  background: none;
+  border-top: 1px solid #e4e8ec;
+  border-left: 4px solid var(--primary);
+  padding: 7px 10px 7px 10px;
   font-size: 12px;
   font-weight: bold;
-  color: #555;
+  color: #333;
   letter-spacing: 0.02em;
   list-style: none;
   cursor: pointer;
@@ -1248,6 +1264,20 @@ label.setting-label {
 .frame-badge.forest   { background: #e8f5e9; color: var(--primary-dark); border: 1px solid #a5d6a7; }
 .frame-badge.subtype  { background: #f5f5f5; color: #666;    border: 1px solid #ddd; }
 
+/* GeoJSONボタン（チップスの直下） */
+.geojson-load-btn-top {
+  display: block;
+  width: calc(100% - 20px);
+  margin: 4px 10px 8px;
+}
+
+/* Millerブラウザ全体スクロール */
+.miller-scroll-wrap {
+  max-height: 250px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
 /* ===== Miller Columns ブラウザ ===== */
 #miller-browser { border-bottom: 1px solid #e0e0e0; }
 
@@ -1305,7 +1335,6 @@ label.setting-label {
 /* 3列コンテナ */
 .miller-wrap {
   display: flex;
-  border-bottom: 1px solid #e0e0e0;
   height: 210px;
 }
 
