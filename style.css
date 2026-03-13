@@ -88,7 +88,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #fff;
+  background: #f6f6f6;
   flex-shrink: 0;
   margin-bottom: 4px;
   user-select: none;
