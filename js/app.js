@@ -4406,6 +4406,35 @@ document.getElementById('basemap-cards').addEventListener('click', (e) => {
   switchBasemap(card.dataset.key);
 });
 
+// ---- 枠 GeoJSON エクスポート ----
+function exportFramesAsGeoJson() {
+  // 手動配置で追加した枠（mapFrames）を GeoJSON FeatureCollection として出力する
+  const targets = mapFrames.filter(f => f.id.startsWith('img-import-'));
+  if (targets.length === 0) { alert('エクスポートできる枠がありません。\n先に地図画像を位置合わせして読み込んでください。'); return; }
+  const fc = {
+    type: 'FeatureCollection',
+    features: targets.map(f => ({
+      type: 'Feature',
+      id: f.id,
+      properties: { ...f.properties },
+      geometry: {
+        type: 'Polygon',
+        coordinates: [[...f.coordinates, f.coordinates[0]]],
+      },
+    })),
+  };
+  const blob = new Blob([JSON.stringify(fc, null, 2)], { type: 'application/geo+json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'frames.geojson';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(a.href);
+}
+
+document.getElementById('btn-export-frames-geojson')?.addEventListener('click', exportFramesAsGeoJson);
+
 // ---- サムネイル生成関連 ----
 
 // ---- OriLibre サムネイル生成（正方形） ----
@@ -7090,13 +7119,43 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
-// 決定ボタン → メインマップにレイヤーを追加してモーダルを閉じる
+// 決定ボタン → メインマップにレイヤーを追加・枠を作成してモーダルを閉じる
 document.getElementById('import-decide-btn').addEventListener('click', () => {
   if (!_importCoords || !_importImgUrl) return;
   const uid     = `img-import-${Date.now()}`;
+  const name    = _importImgFile?.name ?? '手動配置地図';
   const keepUrl = _importImgUrl;
   _importImgUrl = null; // closeImportModal での revoke を防ぐ
-  addImageLayerToMap(uid + '-src', uid + '-layer', keepUrl, _importCoords, 1.0);
+
+  // 画像をメインマップに追加（表示）
+  addImageLayerToMap(uid + '-src', uid + '-layer', keepUrl, _importCoords, OMAP_INITIAL_OPACITY);
+
+  // kmzList UI に登録
+  const lngs = _importCoords.map(c => c[0]);
+  const lats  = _importCoords.map(c => c[1]);
+  kmzLayers.push({
+    id: kmzCounter++, name,
+    sourceId: uid + '-src', layerId: uid + '-layer',
+    objectUrl: keepUrl,
+    visible: true, opacity: OMAP_INITIAL_OPACITY,
+    bbox: { west: Math.min(...lngs), east: Math.max(...lngs),
+            south: Math.min(...lats), north: Math.max(...lats) },
+  });
+  renderKmzList();
+
+  // 枠を mapFrames に追加して地図上に描画
+  mapFrames.push({
+    id: uid,
+    properties: { name },
+    coordinates: _importCoords.map(c => [...c]),
+    opacity: OMAP_INITIAL_OPACITY,
+    images: [{ id: uid, name, url: keepUrl }],
+    activeImageId: uid,
+    sourceId: uid + '-src',
+    layerId:  uid + '-layer',
+  });
+  updateFrameGeoJsonSource();
+
   closeImportModal(false);
 });
 
