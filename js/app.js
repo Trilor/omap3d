@@ -4088,19 +4088,19 @@ function updateColorReliefSource() {
 
   // ── スライダー: ドラッグ中は UI のみ即時更新、離したときにタイル確定 ──
   minSlider.addEventListener('input', () => {
-    crMin = Math.min(parseInt(minSlider.value, 10), crMax - 5);
+    crMin = Math.min(parseInt(minSlider.value, 10), crMax);
     updateColorReliefUI();
   });
   minSlider.addEventListener('change', () => {
-    crMin = Math.min(parseInt(minSlider.value, 10), crMax - 5);
+    crMin = Math.min(parseInt(minSlider.value, 10), crMax);
     updateColorReliefSource();
   });
   maxSlider.addEventListener('input', () => {
-    crMax = Math.max(parseInt(maxSlider.value, 10), crMin + 5);
+    crMax = Math.max(parseInt(maxSlider.value, 10), crMin);
     updateColorReliefUI();
   });
   maxSlider.addEventListener('change', () => {
-    crMax = Math.max(parseInt(maxSlider.value, 10), crMin + 5);
+    crMax = Math.max(parseInt(maxSlider.value, 10), crMin);
     updateColorReliefSource();
   });
 
@@ -4108,13 +4108,13 @@ function updateColorReliefSource() {
   const applyMinInput = () => {
     const v = parseInt(minInput.value, 10);
     if (isNaN(v)) { minInput.value = crMin; return; }
-    crMin = Math.min(v, crMax - 5);
+    crMin = Math.min(v, crMax);
     updateColorReliefSource();
   };
   const applyMaxInput = () => {
     const v = parseInt(maxInput.value, 10);
     if (isNaN(v)) { maxInput.value = crMax; return; }
-    crMax = Math.max(v, crMin + 5);
+    crMax = Math.max(v, crMin);
     updateColorReliefSource();
   };
   if (minInput) {
