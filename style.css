@@ -3247,7 +3247,6 @@ label.setting-label {
 
 /* primary 背景上で白/黒を切り替える全要素 */
 .sidebar-nav-btn.active,
-.sidebar-section-header,
 .panel-btn-primary,
 .panel-btn-outline:hover,
 .sim-map-fly-btn:hover,
