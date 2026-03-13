@@ -2036,10 +2036,6 @@ function renderMillerColumns() {
   const regions  = getAvailableRegions(frames);
   const prefs    = millerRegion  ? getAvailablePrefs(frames, millerRegion)      : [];
   const terrains = millerPref    ? getAvailableTerrains(frames, millerPref)      : [];
-  const frameList = millerTerrain
-    ? [...frames.filter(f => f.properties.terrain_id === millerTerrain)]
-        .sort((a, b) => (b.properties.event_date ?? '').localeCompare(a.properties.event_date ?? ''))
-    : [];
 
   // 地方列
   const regionCol = resetCol('miller-col-region');
@@ -2111,25 +2107,8 @@ function renderMillerColumns() {
     }
   }
 
-  // フレーム一覧（テレイン選択時のみ表示）
-  const frameListEl = document.getElementById('miller-frame-list');
-  if (frameListEl) {
-    frameListEl.innerHTML = '';
-    if (millerTerrain) {
-      if (frameList.length === 0) {
-        frameListEl.innerHTML = '<div class="miller-empty">該当する大会なし</div>';
-      } else {
-        const t  = terrainMap.get(millerTerrain);
-        const hd = document.createElement('div');
-        hd.className = 'miller-frame-hd';
-        hd.textContent = t?.name ?? millerTerrain;
-        frameListEl.appendChild(hd);
-        for (const frame of frameList) {
-          frameListEl.appendChild(buildFrameEntryEl(frame));
-        }
-      }
-    }
-  }
+  // 下部フレームツリーを更新
+  renderFrameTree();
 
   // 検索/フィルター中に選択状態がフレームゼロになった場合は空メッセージ表示
   if (frames.length === 0 && mapFrames.length > 0) {
@@ -2192,7 +2171,204 @@ function renderReadmapSlots() {
   });
 }
 
-// ---- フレームエントリの DOM 要素を構築する ----
+// ========================================================
+// フレームツリー（下部エリア）
+// ========================================================
+
+// FRAME_COLOR_EXPR と同ロジックで枠の色を返す
+function getFrameColor(frame) {
+  const p       = frame.properties;
+  const subtype = (p.terrain_subtype ?? '').toLowerCase();
+  const type    = (p.terrain_type    ?? '').toLowerCase();
+  if (subtype === 'stadium') return '#7c3fff';
+  if (type    === 'forest')  return '#c8a000';
+  if (type    === 'sprint')  return '#ff7700';
+  return '#888888';
+}
+
+// フレームツリー全体を再描画する
+function renderFrameTree() {
+  const treeEl  = document.getElementById('frame-tree-list');
+  const hdEl    = document.getElementById('terrain-selected-hd');
+  const nameEl  = document.getElementById('terrain-selected-name');
+  if (!treeEl) { renderOtherMapsTree(); return; }
+  treeEl.innerHTML = '';
+
+  if (!millerTerrain) {
+    if (hdEl) hdEl.style.display = 'none';
+    const hint = document.createElement('div');
+    hint.className = 'tree-empty-hint';
+    hint.textContent = '上のリストからテレインを選択してください';
+    treeEl.appendChild(hint);
+    renderOtherMapsTree();
+    return;
+  }
+
+  if (hdEl) hdEl.style.display = '';
+  const t = terrainMap.get(millerTerrain);
+  if (nameEl) nameEl.textContent = t?.name ?? millerTerrain;
+
+  const frames = mapFrames
+    .filter(f => f.properties.terrain_id === millerTerrain)
+    .sort((a, b) => (b.properties.event_date ?? '').localeCompare(a.properties.event_date ?? ''));
+
+  if (frames.length === 0) {
+    const hint = document.createElement('div');
+    hint.className = 'tree-empty-hint';
+    hint.textContent = 'このテレインの枠データはありません';
+    treeEl.appendChild(hint);
+  } else {
+    frames.forEach(frame => treeEl.appendChild(buildTreeNodeEl(frame)));
+  }
+  renderOtherMapsTree();
+}
+
+// 親ノード（枠）の DOM を構築する
+function buildTreeNodeEl(frame) {
+  const color = getFrameColor(frame);
+  const p     = frame.properties;
+  const label = p.event_name ?? p.name ?? '（名称なし）';
+
+  const nodeEl = document.createElement('div');
+  nodeEl.className = 'frame-tree-node';
+  nodeEl.dataset.frameId = frame.id;
+
+  // ヘッダー行（ドラッグターゲット）
+  const headerEl = document.createElement('div');
+  headerEl.className = 'tree-node-header';
+
+  const iconEl = document.createElement('span');
+  iconEl.className = 'tree-node-icon-sq';
+  iconEl.style.cssText = `background:${color};border-color:${color}`;
+
+  const labelEl = document.createElement('span');
+  labelEl.className = 'tree-node-label';
+  labelEl.title = label;
+  labelEl.textContent = label;
+
+  const flyBtn = document.createElement('button');
+  flyBtn.className = 'tree-node-fly-btn';
+  flyBtn.title = 'この枠へ移動';
+  flyBtn.textContent = '→';
+
+  headerEl.appendChild(iconEl);
+  headerEl.appendChild(labelEl);
+  headerEl.appendChild(flyBtn);
+  nodeEl.appendChild(headerEl);
+
+  // 子ノードエリア
+  const childrenEl = document.createElement('div');
+  childrenEl.className = 'tree-node-children';
+  nodeEl.appendChild(childrenEl);
+
+  // 子ノードを描画（画像追加後に再描画可能）
+  function refreshChildren() {
+    childrenEl.innerHTML = '';
+    if (frame.images.length === 0) {
+      const hint = document.createElement('div');
+      hint.className = 'tree-child-drop-hint';
+      hint.textContent = '🖼 ここに大会地図をドロップ';
+      childrenEl.appendChild(hint);
+    } else {
+      frame.images.forEach(img => {
+        const childEl = document.createElement('div');
+        childEl.className = 'tree-child-item' + (img.id === frame.activeImageId ? ' active' : '');
+        childEl.dataset.imgId = img.id;
+        const iconSpan = document.createElement('span');
+        iconSpan.textContent = '🗺️';
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'tree-child-name';
+        nameSpan.title = img.name;
+        nameSpan.textContent = img.name.replace(/\.(jpg|jpeg|png|kmz)$/i, '');
+        childEl.appendChild(iconSpan);
+        childEl.appendChild(nameSpan);
+        childEl.addEventListener('click', () => {
+          switchFrameImage(frame.id, img.id);
+          childrenEl.querySelectorAll('.tree-child-item').forEach(el => el.classList.remove('active'));
+          childEl.classList.add('active');
+        });
+        childrenEl.appendChild(childEl);
+      });
+      const hint = document.createElement('div');
+      hint.className = 'tree-child-drop-hint';
+      hint.textContent = '+ 追加の地図をドロップ';
+      childrenEl.appendChild(hint);
+    }
+  }
+  refreshChildren();
+
+  // 枠ノードへのドラッグ＆ドロップ（画像を枠座標にプリセットしてモーダルを開く）
+  headerEl.addEventListener('dragover', e => { e.preventDefault(); headerEl.classList.add('drag-over'); });
+  headerEl.addEventListener('dragleave', () => headerEl.classList.remove('drag-over'));
+  headerEl.addEventListener('drop', async e => {
+    e.preventDefault();
+    headerEl.classList.remove('drag-over');
+    const files = Array.from(e.dataTransfer.files).filter(f => /\.(jpe?g|png|kmz)$/i.test(f.name));
+    for (const file of files) {
+      if (/\.kmz$/i.test(file.name)) {
+        await openImportModalFromKmz(file);
+      } else {
+        // 枠の4隅座標をプリセットしてモーダルを開く
+        openImportModalWithCoords(URL.createObjectURL(file), frame.coordinates, file.name);
+      }
+    }
+  });
+
+  // 移動ボタン
+  flyBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    const lngs = frame.coordinates.map(c => c[0]);
+    const lats  = frame.coordinates.map(c => c[1]);
+    map.fitBounds(
+      [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
+      { padding: 60, duration: 600 }
+    );
+  });
+
+  return nodeEl;
+}
+
+// 「その他の地図」ノードの子要素（kmzLayers）を再描画する
+function renderOtherMapsTree() {
+  const otherEl = document.getElementById('frame-tree-other-children');
+  if (!otherEl) return;
+  otherEl.innerHTML = '';
+
+  if (kmzLayers.length === 0) {
+    const hint = document.createElement('div');
+    hint.className = 'tree-child-drop-hint';
+    hint.textContent = '🖼 枠がない地図をドロップ、または ＋ で追加';
+    otherEl.appendChild(hint);
+    return;
+  }
+
+  kmzLayers.forEach(entry => {
+    const shortName = entry.name.replace(/\.(jpg|jpeg|png|kmz)$/i, '');
+    const childEl = document.createElement('div');
+    childEl.className = 'tree-child-item';
+    const iconSpan = document.createElement('span');
+    iconSpan.textContent = '🗺️';
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'tree-child-name';
+    nameSpan.title = entry.name;
+    nameSpan.textContent = shortName;
+    childEl.appendChild(iconSpan);
+    childEl.appendChild(nameSpan);
+    childEl.addEventListener('click', () => {
+      if (entry.bbox) {
+        const pw = document.getElementById('sidebar')?.offsetWidth ?? 300;
+        map.fitBounds(
+          [[entry.bbox.west, entry.bbox.south], [entry.bbox.east, entry.bbox.north]],
+          { padding: { top: 60, bottom: 60, left: pw + 30, right: 60 }, duration: 600 }
+        );
+      }
+    });
+    otherEl.appendChild(childEl);
+  });
+}
+
+// ---- フレームエントリの DOM 要素を構築する（詳細コントロール付き・互換性のため保持）----
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function buildFrameEntryEl(frame) {
   const p         = frame.properties;
   const hasImages = frame.images.length > 0;
@@ -2498,6 +2674,8 @@ function renderKmzList() {
 
   // シミュレータータブの読図地図リストも同期して更新
   renderSimReadmapList();
+  // 「その他の地図」ツリーも更新
+  renderOtherMapsTree();
 }
 
 
@@ -3272,6 +3450,22 @@ mapImportInputTop.addEventListener('change', async (e) => {
   }
   e.target.value = '';
 });
+
+// 「その他の地図」ドロップターゲット（手動位置合わせの受け皿）
+const otherMapsDropTarget = document.getElementById('other-maps-drop-target');
+if (otherMapsDropTarget) {
+  otherMapsDropTarget.addEventListener('dragover', e => { e.preventDefault(); otherMapsDropTarget.classList.add('drag-over'); });
+  otherMapsDropTarget.addEventListener('dragleave', () => otherMapsDropTarget.classList.remove('drag-over'));
+  otherMapsDropTarget.addEventListener('drop', async e => {
+    e.preventDefault();
+    otherMapsDropTarget.classList.remove('drag-over');
+    const files = Array.from(e.dataTransfer.files).filter(f => /\.(jpe?g|png|kmz)$/i.test(f.name));
+    for (const file of files) {
+      if (/\.kmz$/i.test(file.name)) await openImportModalFromKmz(file);
+      else openImportModal(file);
+    }
+  });
+}
 
 // GPXファイル選択ボタン
 const gpxFileInput = document.getElementById('gpx-file-input');
@@ -7155,6 +7349,7 @@ document.getElementById('import-decide-btn').addEventListener('click', () => {
     layerId:  uid + '-layer',
   });
   updateFrameGeoJsonSource();
+  renderFrameTree();
 
   closeImportModal(false);
 });
