@@ -2239,7 +2239,7 @@ function buildTreeNodeEl(frame) {
 
   const iconEl = document.createElement('span');
   iconEl.className = 'tree-node-icon-sq';
-  iconEl.style.cssText = `background:${color};border-color:${color}`;
+  iconEl.style.cssText = `background:transparent;border-color:${color}`;
 
   const labelEl = document.createElement('span');
   labelEl.className = 'tree-node-label';
