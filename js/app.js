@@ -2080,12 +2080,26 @@ function renderFrameTree() {
   if (!treeEl) { renderOtherMapsTree(); return; }
   treeEl.innerHTML = '';
 
+  // 手動配置枠（terrain_id: 'manual'）は常に先頭に表示
+  const manualFrames = mapFrames
+    .filter(f => f.properties.terrain_id === 'manual')
+    .sort((a, b) => (b.properties.event_date ?? '').localeCompare(a.properties.event_date ?? ''));
+  if (manualFrames.length > 0) {
+    const manualHd = document.createElement('div');
+    manualHd.className = 'tree-section-hd';
+    manualHd.textContent = '手動配置枠';
+    treeEl.appendChild(manualHd);
+    manualFrames.forEach(frame => treeEl.appendChild(buildTreeNodeEl(frame)));
+  }
+
   if (!millerTerrain) {
     if (hdEl) hdEl.style.display = 'none';
-    const hint = document.createElement('div');
-    hint.className = 'tree-empty-hint';
-    hint.textContent = '上のリストからテレインを選択してください';
-    treeEl.appendChild(hint);
+    if (manualFrames.length === 0) {
+      const hint = document.createElement('div');
+      hint.className = 'tree-empty-hint';
+      hint.textContent = '上のリストからテレインを選択してください';
+      treeEl.appendChild(hint);
+    }
     renderOtherMapsTree();
     return;
   }
