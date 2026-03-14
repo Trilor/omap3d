@@ -4617,7 +4617,8 @@ function exportFramesAsGeoJson() {
     features: targets.map(f => ({
       type: 'Feature',
       id: f.id,
-      properties: { ...f.properties },
+      // terrain_id を付与することで再インポート時にフレーム形式として認識される
+      properties: { ...f.properties, terrain_id: 'manual' },
       geometry: {
         type: 'Polygon',
         coordinates: [[...f.coordinates, f.coordinates[0]]],
