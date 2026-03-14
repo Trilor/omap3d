@@ -1507,22 +1507,18 @@ function addImageLayerToMap(sourceId, layerId, imageUrl, coordinates, opacity) {
       'raster-resampling':    'linear',
     },
   });
-  // GPX 軌跡レイヤーの下・枠線の下・塗りの上に配置する
-  if (map.getLayer('gpx-track-outline')) {
+  // オーバーレイ（色別標高図・CS立体図）の下、ベースマップの上に配置する
+  // → オーバーレイが常に地図画像より前面に表示される
+  const overlayAnchor = ['color-relief-layer', 'cs-relief-layer']
+    .find(id => map.getLayer(id));
+  if (overlayAnchor) {
+    map.moveLayer(layerId, overlayAnchor);
+  } else if (map.getLayer('gpx-track-outline')) {
     map.moveLayer(layerId, 'gpx-track-outline');
   } else if (map.getLayer('frames-outline')) {
     map.moveLayer(layerId, 'frames-outline');
   } else {
     map.moveLayer(layerId);
-  }
-  // frames-fill が画像レイヤーより上にある場合（画像が先に追加されたケース）は下に移動
-  if (map.getLayer('frames-fill')) {
-    const styleLayers = map.getStyle().layers.map(l => l.id);
-    const fillIdx  = styleLayers.indexOf('frames-fill');
-    const imgIdx   = styleLayers.indexOf(layerId);
-    if (fillIdx > imgIdx && fillIdx >= 0 && imgIdx >= 0) {
-      map.moveLayer('frames-fill', layerId);
-    }
   }
 }
 
@@ -2156,6 +2152,24 @@ function buildTreeNodeEl(frame) {
   headerEl.appendChild(printBtn);
   nodeEl.appendChild(headerEl);
 
+  // 不透明度・表示コントロール行
+  nodeEl.appendChild(_makeLayerCtrlRow(
+    true,
+    Math.round((frame.opacity ?? 0.8) * 100),
+    (visible) => {
+      if (map.getLayer(frame.layerId)) {
+        map.setPaintProperty(frame.layerId, 'raster-opacity',
+          visible ? toRasterOpacity(frame.opacity) : 0);
+      }
+    },
+    (pct) => {
+      frame.opacity = pct / 100;
+      if (map.getLayer(frame.layerId)) {
+        map.setPaintProperty(frame.layerId, 'raster-opacity', toRasterOpacity(frame.opacity));
+      }
+    }
+  ));
+
   // 子ノードエリア
   const childrenEl = document.createElement('div');
   childrenEl.className = 'tree-node-children';
@@ -2228,6 +2242,46 @@ function buildTreeNodeEl(frame) {
   return nodeEl;
 }
 
+// ---- レイヤーコントロール行（トグル＋不透明度スライダー）の共通ヘルパー ----
+// onToggle(visible: boolean), onOpacity(pct: number) を受け取り DOM を返す
+function _makeLayerCtrlRow(initialVisible, initialPct, onToggle, onOpacity) {
+  const row = document.createElement('div');
+  row.className = 'tree-child-ctrl-row';
+
+  // トグルスイッチ
+  const toggleLabel = document.createElement('label');
+  toggleLabel.className = 'toggle-switch toggle-sm';
+  const toggleInput = document.createElement('input');
+  toggleInput.type = 'checkbox';
+  toggleInput.checked = initialVisible;
+  const toggleSliderEl = document.createElement('span');
+  toggleSliderEl.className = 'toggle-slider';
+  toggleLabel.appendChild(toggleInput);
+  toggleLabel.appendChild(toggleSliderEl);
+  toggleInput.addEventListener('change', () => onToggle(toggleInput.checked));
+
+  // 不透明度スライダー
+  const slider = document.createElement('input');
+  slider.type = 'range';
+  slider.className = 'setting-slider tree-opacity-slider';
+  slider.min = '0'; slider.max = '100'; slider.step = '1';
+  slider.value = String(initialPct);
+
+  const valLabel = document.createElement('span');
+  valLabel.className = 'tree-opacity-val';
+  valLabel.textContent = initialPct + '%';
+
+  slider.addEventListener('input', () => {
+    valLabel.textContent = slider.value + '%';
+    onOpacity(parseInt(slider.value, 10));
+  });
+
+  row.appendChild(toggleLabel);
+  row.appendChild(slider);
+  row.appendChild(valLabel);
+  return row;
+}
+
 // 「その他の地図」ノードの子要素（kmzLayers）を再描画する
 function renderOtherMapsTree() {
   const otherEl = document.getElementById('frame-tree-other-children');
@@ -2244,6 +2298,8 @@ function renderOtherMapsTree() {
 
   kmzLayers.forEach(entry => {
     const shortName = entry.name.replace(/\.(jpg|jpeg|png|kmz)$/i, '');
+
+    // 名前行
     const childEl = document.createElement('div');
     childEl.className = 'tree-child-item';
     const iconSpan = document.createElement('span');
@@ -2264,6 +2320,25 @@ function renderOtherMapsTree() {
       }
     });
     otherEl.appendChild(childEl);
+
+    // コントロール行（トグル + 不透明度スライダー）
+    otherEl.appendChild(_makeLayerCtrlRow(
+      entry.visible !== false,
+      Math.round((entry.opacity ?? 0.8) * 100),
+      (visible) => {
+        entry.visible = visible;
+        if (map.getLayer(entry.layerId)) {
+          map.setPaintProperty(entry.layerId, 'raster-opacity',
+            visible ? toRasterOpacity(entry.opacity) : 0);
+        }
+      },
+      (pct) => {
+        entry.opacity = pct / 100;
+        if (map.getLayer(entry.layerId) && entry.visible !== false) {
+          map.setPaintProperty(entry.layerId, 'raster-opacity', toRasterOpacity(entry.opacity));
+        }
+      }
+    ));
   });
 }
 
