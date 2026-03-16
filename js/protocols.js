@@ -283,17 +283,25 @@ maplibregl.addProtocol('csdem', async (params, abortController) => {
   ));
   if (!bitmaps[4]) return { data: _transparentPngBuffer() }; // 中央タイルが取得できなければ透明タイルを返す
 
-  // タイルサイズを中央タイルから動的検出（256px または 512px タイルに対応）
-  const tileSize = bitmaps[4].width;
+  // CS立体図はガウシアン平滑化により高周波成分が除去されるため、
+  // 512px タイルでも 256px にダウンスケールして処理することで品質を保ちつつ
+  // TF.js 演算量を 1/4 に削減する（256px = 旧来と同一の処理速度）
+  const tileSize = 256;
+  const scaledBitmaps = bitmaps.map(bmp => {
+    if (!bmp || bmp.width === tileSize) return bmp; // 既に 256px ならそのまま
+    const tmp = new OffscreenCanvas(tileSize, tileSize);
+    tmp.getContext('2d').drawImage(bmp, 0, 0, tileSize, tileSize);
+    bmp.close(); // 元の 512px ImageBitmap を解放
+    return tmp;  // OffscreenCanvas（drawImage 可・close 不要）
+  });
 
-  // ピクセル解像度（m/pixel）― qchizu-project/protocolUtils.calculatePixelResolution
-  // py は常に 256px タイル基準の座標系で計算し、pixelLength を (256/tileSize) で補正する
+  // ピクセル解像度（m/pixel）― 256px タイル基準
   const L = 85.05112878;
-  const py = 256 * tileY + 128; // 256px タイル基準で固定（512px タイルでも地理座標は同一）
+  const py = 256 * tileY + 128;
   const lat = (180 / Math.PI) * Math.asin(
     Math.tanh((-Math.PI / (1 << (zoomLevel + 7))) * py + Math.atanh(Math.sin(L * Math.PI / 180)))
   );
-  const pixelLength = 156543.04 * Math.cos(lat * Math.PI / 180) / (1 << zoomLevel) * (256 / tileSize);
+  const pixelLength = 156543.04 * Math.cos(lat * Math.PI / 180) / (1 << zoomLevel);
 
   // NumPNG → 標高（GSJ/Q地図形式, u=0.01m）
   const toHeight = (r, g, b, a) => {
@@ -311,7 +319,7 @@ maplibregl.addProtocol('csdem', async (params, abortController) => {
   // ── ② マージキャンバスに描画 ──
   const mergedCanvas = new OffscreenCanvas(mergedSize, mergedSize);
   const mc = mergedCanvas.getContext('2d');
-  bitmaps.forEach((bmp, idx) => {
+  scaledBitmaps.forEach((bmp, idx) => {
     if (!bmp) return;
     const col = idx % 3, row = Math.floor(idx / 3);
     let sx, sy, sw, sh, dx, dy;
@@ -326,7 +334,7 @@ maplibregl.addProtocol('csdem', async (params, abortController) => {
       dy = row === 2 ? tileSize + buffer : row * buffer;
     }
     mc.drawImage(bmp, sx, sy, sw, sh, dx, dy, sw, sh);
-    bmp.close();
+    if (typeof bmp.close === 'function') bmp.close(); // ImageBitmap のみ close（OffscreenCanvas は不要）
   });
 
   // ── ③ 標高配列生成（Float32Array — Array より高速） ──
