@@ -4068,19 +4068,6 @@ document.getElementById('overlay-cards').addEventListener('click', (e) => {
 // ズーム17の境界を跨いだとき 0.5m ↔ 1m を自動切替
 map.on('zoomend', updateCsVisibility);
 
-// Q地図1m等高線のキャッシュ問題対策:
-// worker:false（メインスレッド）のため新ズームのタイル生成が遅く、古いキャッシュが残りやすい。
-// idle 後に setTiles() でリフレッシュ（zoomend 直後は処理中 ArrayBuffer があり
-// 二重転送による DataCloneError が発生するため idle まで待つ）。
-map.on('zoomend', () => {
-  if (contourDemMode !== 'q1m') return;
-  map.once('idle', () => {
-    const src = map.getSource('contour-source');
-    if (src) src.setTiles([buildContourTileUrl(userContourInterval)]);
-    const lakeSrc = map.getSource('contour-source-lake');
-    if (lakeSrc) lakeSrc.setTiles([buildLakeContourTileUrl(userContourInterval)]);
-  });
-});
 
 // ---- 色別標高図 デュアルレンジスライダー ----
 // DEM タイルベース URL（プロトコルを除いたパス部分）
