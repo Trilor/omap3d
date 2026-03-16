@@ -205,8 +205,11 @@ const DEM1A_CONTOUR_LAYER_IDS = ['contour-regular-dem1a', 'contour-index-dem1a']
 // contourDemMode に従い Q地図 / DEM5A / DEM1A を排他表示する。
 // vis='none' のときは全レイヤー非表示（interval 切り替え時の一時的なフラッシュに使用）。
 function setAllContourVisibility(vis) {
-  const qVis    = (vis === 'visible' && contourDemMode === 'q1m')   ? 'visible' : 'none';
-  const dem5aVis = (vis === 'visible' && contourDemMode === 'dem5a') ? 'visible' : 'none';
+  // q1m モードで z<=14 は DEM5A を代理表示（Q地図1mは高ズーム専用）
+  const z = map.getZoom();
+  const q1mLowZoom = contourDemMode === 'q1m' && z <= 14;
+  const qVis     = (vis === 'visible' && contourDemMode === 'q1m' && !q1mLowZoom) ? 'visible' : 'none';
+  const dem5aVis = (vis === 'visible' && (contourDemMode === 'dem5a' || q1mLowZoom)) ? 'visible' : 'none';
   const dem1aVis = (vis === 'visible' && contourDemMode === 'dem1a') ? 'visible' : 'none';
   for (const id of contourLayerIds)         if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', qVis);
   for (const id of DEM5A_CONTOUR_LAYER_IDS) if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', dem5aVis);
@@ -4509,6 +4512,12 @@ selContour.addEventListener('change', () => {
       selContour.selectedIndex = 0;
     }
   }
+});
+
+// q1m モード時、z14/15 の境界をまたいだときに Q地図 ↔ DEM5A を自動切替
+map.on('zoomend', () => {
+  if (contourDemMode !== 'q1m' || !chkContour.checked) return;
+  setAllContourVisibility('visible');
 });
 
 // ---- 等高線 DEMソース切り替え ----
