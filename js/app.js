@@ -196,7 +196,7 @@ const contourLayerIds = ['contour-regular', 'contour-index'];
 // 湖水深等高線レイヤーIDリスト（等高線トグルに連動）
 let seamlessContourLayerIds = [];
 // DEMソースモード: 'q1m'（Q地図1m）/ 'dem5a'（DEM5A 5m）/ 'dem1a'（地理院DEM1A 1m）
-let contourDemMode = 'dem5a'; // Q地図1m休止中のためDEM5A 5mをデフォルトに変更
+let contourDemMode = 'q1m';
 // DEM5A・DEM1A 専用レイヤーID
 const DEM5A_CONTOUR_LAYER_IDS = ['contour-regular-dem5a', 'contour-index-dem5a'];
 const DEM1A_CONTOUR_LAYER_IDS = ['contour-regular-dem1a', 'contour-index-dem1a'];
@@ -737,7 +737,7 @@ map.on('load', async () => {
     tiles: ['dem2relief://mapdata.qchizu.xyz/03_dem/52_gsi/all_2026/1_01/{z}/{x}/{y}.webp?min=0&max=500&_init=1'],
     tileSize: 512,
     minzoom: 5,
-    maxzoom: 14, // Q地図DEMタイルの提供上限よりひとつ下。これ以上のズームはオーバーズームで補完
+    maxzoom: 15, // Q地図DEMタイルの提供上限(16)よりひとつ下。これ以上のズームはオーバーズームで補完
     attribution: '',
   });
   map.addLayer({
