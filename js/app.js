@@ -755,7 +755,7 @@ map.on('load', async () => {
   map.addSource('cs-relief', {
     type: 'raster',
     tiles: [CS_RELIEF_URL],
-    tileSize: 256,
+    tileSize: 512,
     minzoom: 5,
     maxzoom: 16,
     attribution: '',
