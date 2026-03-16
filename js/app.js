@@ -3965,7 +3965,7 @@ function updateRegionalAttribution() {
   const _csOverlay  = currentOverlay;
   const _csBasemap  = currentBasemap;
   const _csKey      = _csOverlay !== 'none' ? _csOverlay : _csBasemap;
-  const csRegionalOn = _csKey === 'cs-0.5m' && map.getZoom() >= 17;
+  const csRegionalOn = (_csKey === 'cs' || _csKey === 'cs-0.5m') && map.getZoom() >= 17;
   if (!csRegionalOn) {
     attrEl.innerHTML = '';
     _lastAttrKey = null;
@@ -4032,11 +4032,10 @@ function updateCsVisibility() {
               : null;
 
   const z = map.getZoom();
-  const csRes   = csKey?.replace('cs-', '');
-  // z>=17 かつ 0.5m 選択時は 1m を下敷きにして 0.5m を上に重ねる（プログレッシブ表示）
-  // 0.5m タイルが読み込まれると 1m を覆うため、読み込み中は 1m がフォールバックとして見える
-  const show1m  = !!csKey && (csRes === '1m' || csRes === '0.5m');
-  const show05m = !!csKey && csRes === '0.5m' && z >= 17;
+  // 'cs'（統合キー）または旧 'cs-0.5m'（ベースマップ用に残存）はプログレッシブ表示
+  // z>=17 で 1m を下敷きにした上に 0.5m を重ねる。旧 'cs-1m' は 1m のみ。
+  const show1m  = !!csKey && csKey !== 'none';
+  const show05m = !!csKey && csKey !== 'cs-1m' && z >= 17;
 
   if (map.getLayer('cs-relief-layer')) {
     map.setLayoutProperty('cs-relief-layer', 'visibility', show1m ? 'visible' : 'none');
