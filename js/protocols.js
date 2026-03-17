@@ -390,8 +390,10 @@ maplibregl.addProtocol('csdem', async (params, abortController) => {
   }
 
   // ── ⑥ CS立体図 5レイヤー合成（tf.tidy で中間テンソルを自動解放） ──
+  // 曲率は 1/pixelLength² に比例するため、ramp の感度を pixelLength^2 でスケール
+  // 基準: pixelLength=0.489m (地域0.5m DEM z18) で cc=1.1 → K = 1.1 * 0.489² ≈ 0.263
   const cc = pixelLength < 68
-    ? Math.max(pixelLength / 2, 1.1)
+    ? Math.max(0.263 / (pixelLength * pixelLength), 0.1)
     : 0.188 * Math.pow(pixelLength, 1.232);
 
   const csRittaizuTensor = tf.tidy(() => {
