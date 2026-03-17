@@ -3591,7 +3591,7 @@ label.setting-label {
 /* 右下ピル（地図移動/ズーム時） */
 #map-tile-loading {
   position: fixed;
-  bottom: 36px;
+  bottom: 42px;
   right: 10px;
   z-index: 200;
   display: flex;
