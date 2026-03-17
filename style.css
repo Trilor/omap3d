@@ -3547,12 +3547,19 @@ label.setting-label {
 .compass-needle-group {
   transform-box: view-box;
   transform-origin: 32px 32px;
-  animation: magnetic-spin 2s cubic-bezier(0.5, -0.35, 0.5, 1.35) infinite;
+  animation: magnetic-spin 5s linear infinite;
 }
 
 @keyframes magnetic-spin {
-  0%   { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  /* 時計回りに1周・北で減速停止 */
+  0%   { transform: rotate(0deg);   animation-timing-function: ease-in-out; }
+  40%  { transform: rotate(360deg); }
+  /* 北で停止 */
+  50%  { transform: rotate(360deg); animation-timing-function: ease-in-out; }
+  /* 反時計回りに1周・北で減速停止 */
+  90%  { transform: rotate(0deg); }
+  /* 北で停止 */
+  100% { transform: rotate(0deg); }
 }
 
 /* 中央モーダル（オーバーレイ選択時） */
