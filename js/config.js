@@ -208,6 +208,8 @@ export const RASTER_BASEMAPS = {
                  attr: '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">地理院タイル</a>' },
   'gsi-pale':  { url: 'https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png',          maxzoom: 18,
                  attr: '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">地理院タイル</a>' },
+  'gsi-blank': { url: 'https://cyberjapandata.gsi.go.jp/xyz/blank/{z}/{x}/{y}.png',         maxzoom: 14,
+                 attr: '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">地理院タイル</a>' },
   'gsi-photo': { url: 'https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg', maxzoom: 18,
                  attr: '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">地理院タイル</a>' },
   'osm':       { url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',                     maxzoom: 19,
