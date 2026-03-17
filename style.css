@@ -3554,15 +3554,11 @@ label.setting-label {
 @keyframes magnetic-spin {
   /* CW: -20°(西) → 380°(東) / 加速→バウンス停止 */
   0%   { transform: rotate(-20deg); animation-timing-function: ease-in; }
-  22%  { transform: rotate(180deg); animation-timing-function: cubic-bezier(0.34, 1.4, 0.64, 1); }
-  44%  { transform: rotate(380deg); }  /* 北20°東で停止 */
-  /* 停止 */
-  50%  { transform: rotate(380deg); animation-timing-function: ease-in; }
+  25%  { transform: rotate(180deg); animation-timing-function: cubic-bezier(0.34, 1.4, 0.64, 1); }
+  50%  { transform: rotate(380deg); animation-timing-function: ease-in; }  /* 北20°東・即反転 */
   /* CCW: 380°(東) → -20°(西) / 加速→バウンス停止 */
-  72%  { transform: rotate(180deg); animation-timing-function: cubic-bezier(0.34, 1.4, 0.64, 1); }
-  94%  { transform: rotate(-20deg); }  /* 北20°西で停止 */
-  /* 停止 */
-  100% { transform: rotate(-20deg); }
+  75%  { transform: rotate(180deg); animation-timing-function: cubic-bezier(0.34, 1.4, 0.64, 1); }
+  100% { transform: rotate(-20deg); }  /* 北20°西・即反転 */
 }
 
 /* 中央モーダル（オーバーレイ選択時） */
