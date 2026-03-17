@@ -3528,10 +3528,42 @@ label.setting-label {
   border-radius: inherit;
 }
 
-/* ---- CS立体図 読み込み中インジケーター ---- */
-#cs-loading {
+/* ---- 汎用ローディングインジケーター ---- */
+
+/* コンパス針（スピナー中央に重ねる） */
+.compass-needle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: block;
+}
+
+/* スピナー共通（小・デフォルト） */
+.map-loading-spinner {
+  position: relative;
+  width: 22px;
+  height: 22px;
+  border: 2px solid #e0e0e0;
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: compass-spin 1.2s linear infinite;
+  flex-shrink: 0;
+}
+/* スピナー大（中央モーダル用） */
+.map-loading-spinner--lg {
+  width: 36px;
+  height: 36px;
+  border-width: 3px;
+}
+
+@keyframes compass-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* 中央モーダル（オーバーレイ選択時） */
+#map-loading {
   position: fixed;
-  /* 見えている地図の中央: サイドバー幅の半分だけ右にオフセット */
   top: 50%;
   left: calc(50% + var(--sidebar-w, 296px) / 2);
   transform: translate(-50%, -50%);
@@ -3549,29 +3581,9 @@ label.setting-label {
   color: #333;
   pointer-events: none;
 }
-.cs-loading-spinner {
-  position: relative;
-  width: 36px;
-  height: 36px;
-  border: 3px solid #e0e0e0;
-  border-top-color: var(--primary);
-  border-radius: 50%;
-  animation: cs-spin 1.2s linear infinite;
-  flex-shrink: 0;
-}
-.cs-compass-needle {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  display: block;
-}
-@keyframes cs-spin {
-  to { transform: rotate(360deg); }
-}
 
-/* CS立体図 地図移動中タイル生成インジケーター（右下・小） */
-#cs-tile-loading {
+/* 右下ピル（地図移動/ズーム時） */
+#map-tile-loading {
   position: fixed;
   bottom: 36px;
   right: 10px;
@@ -3588,14 +3600,4 @@ label.setting-label {
   font-size: 12px;
   color: #333;
   pointer-events: none;
-}
-.cs-tile-loading-spinner {
-  position: relative;
-  width: 22px;
-  height: 22px;
-  border: 2px solid #e0e0e0;
-  border-top-color: var(--primary);
-  border-radius: 50%;
-  animation: cs-spin 1.2s linear infinite;
-  flex-shrink: 0;
 }

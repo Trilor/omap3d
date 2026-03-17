@@ -4049,34 +4049,34 @@ function updateCsVisibility() {
   updateRegionalAttribution();
 }
 
-// CS立体図 読み込み中インジケーター（中央・オーバーレイ選択時）
-const _csLoadingEl = document.getElementById('cs-loading');
-let _csLoadingIdleRegistered = false;
+// 読み込み中インジケーター（中央・オーバーレイ選択時）
+const _mapLoadingEl = document.getElementById('map-loading');
+let _mapLoadingIdleRegistered = false;
 
-function showCsLoading() {
-  if (_csLoadingEl) _csLoadingEl.style.display = 'flex';
-  if (_csLoadingIdleRegistered) return;
-  _csLoadingIdleRegistered = true;
-  map.once('idle', hideCsLoading);
+function showMapLoading() {
+  if (_mapLoadingEl) _mapLoadingEl.style.display = 'flex';
+  if (_mapLoadingIdleRegistered) return;
+  _mapLoadingIdleRegistered = true;
+  map.once('idle', hideMapLoading);
 }
-function hideCsLoading() {
-  _csLoadingIdleRegistered = false;
-  if (_csLoadingEl) _csLoadingEl.style.display = 'none';
+function hideMapLoading() {
+  _mapLoadingIdleRegistered = false;
+  if (_mapLoadingEl) _mapLoadingEl.style.display = 'none';
 }
 
-// CS立体図 タイル生成インジケーター（右下・地図移動/ズーム時）
-const _csTileLoadingEl = document.getElementById('cs-tile-loading');
-let _csTileLoadingIdleRegistered = false;
+// タイル生成インジケーター（右下・地図移動/ズーム時）
+const _mapTileLoadingEl = document.getElementById('map-tile-loading');
+let _mapTileLoadingIdleRegistered = false;
 
-function showCsTileLoading() {
-  if (_csTileLoadingEl) _csTileLoadingEl.style.display = 'flex';
-  if (_csTileLoadingIdleRegistered) return;
-  _csTileLoadingIdleRegistered = true;
-  map.once('idle', hideCsTileLoading);
+function showMapTileLoading() {
+  if (_mapTileLoadingEl) _mapTileLoadingEl.style.display = 'flex';
+  if (_mapTileLoadingIdleRegistered) return;
+  _mapTileLoadingIdleRegistered = true;
+  map.once('idle', hideMapTileLoading);
 }
-function hideCsTileLoading() {
-  _csTileLoadingIdleRegistered = false;
-  if (_csTileLoadingEl) _csTileLoadingEl.style.display = 'none';
+function hideMapTileLoading() {
+  _mapTileLoadingIdleRegistered = false;
+  if (_mapTileLoadingEl) _mapTileLoadingEl.style.display = 'none';
 }
 
 // CS立体図レイヤーが現在表示中かどうか
@@ -4086,7 +4086,7 @@ function isCsLayerVisible() {
 }
 
 map.on('movestart', () => {
-  if (isCsLayerVisible()) showCsTileLoading();
+  if (isCsLayerVisible()) showMapTileLoading();
 });
 
 // オーバーレイカードのクリックハンドラー
@@ -4098,8 +4098,8 @@ document.getElementById('overlay-cards').addEventListener('click', (e) => {
   currentOverlay = card.dataset.key;
   updateCsVisibility();
   // CS立体図選択時はローディング表示（idle で非表示）
-  if (currentOverlay === 'cs') showCsLoading();
-  else hideCsLoading();
+  if (currentOverlay === 'cs') showMapLoading();
+  else hideMapLoading();
   // 色別標高図選択時はタイルを即座にリクエスト（visibility:none 中はMapLibreがフェッチしないため）
   if (currentOverlay === 'color-relief') applyColorReliefTiles();
 });
