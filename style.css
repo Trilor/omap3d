@@ -3638,6 +3638,69 @@ label.setting-label {
   color: #555;
   font-weight: 500;
 }
+/* カスケードステップ */
+.export-dialog-step {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.export-dialog-step-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+/* 地方・都道府県のピルボタン群 */
+.export-pill-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.export-pill-btn {
+  padding: 5px 12px;
+  border-radius: 20px;
+  border: 1px solid #d0d0d0;
+  background: #f5f5f5;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  color: #333;
+  transition: background 0.12s, border-color 0.12s;
+  white-space: nowrap;
+}
+.export-pill-btn:hover { background: #e8e8e8; }
+.export-pill-btn.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+/* テレイン一覧（縦リスト） */
+.export-item-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 160px;
+  overflow-y: auto;
+}
+.export-item-btn {
+  padding: 7px 12px;
+  border-radius: 7px;
+  border: 1px solid #e0e0e0;
+  background: #fafafa;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  color: #333;
+  text-align: left;
+  transition: background 0.12s, border-color 0.12s;
+}
+.export-item-btn:hover { background: #f0f0f0; }
+.export-item-btn.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
 .export-dialog-input {
   font-size: 14px;
   padding: 7px 10px;

@@ -4672,35 +4672,157 @@ function captureFrameShot(frame) {
 }
 
 // ---- 枠 GeoJSON エクスポート ----
-// 都道府県・テレイン名の入力ダイアログを Promise で返す（キャンセルなら null）
+// 地方→都道府県→テレインの3段カスケードダイアログ。
+// 解決値: { pref, terrainId, terrainName, isNew } または null（キャンセル）
 function promptTerrainInfo() {
   return new Promise(resolve => {
-    const dialog   = document.getElementById('export-terrain-dialog');
-    const prefSel  = document.getElementById('export-pref-select');
-    const nameInp  = document.getElementById('export-terrain-name');
-    const okBtn    = document.getElementById('export-dialog-ok');
-    const cancelBtn = document.getElementById('export-dialog-cancel');
+    const dialog      = document.getElementById('export-terrain-dialog');
+    const regionList  = document.getElementById('export-region-list');
+    const prefRow     = document.getElementById('export-pref-row');
+    const prefList    = document.getElementById('export-pref-list');
+    const terrainRow  = document.getElementById('export-terrain-row');
+    const terrainList = document.getElementById('export-terrain-list');
+    const nameInp     = document.getElementById('export-terrain-name');
+    const okBtn       = document.getElementById('export-dialog-ok');
+    const cancelBtn   = document.getElementById('export-dialog-cancel');
+
+    // 状態リセット
+    let selRegion = null, selPref = null, selTerrainId = null, selTerrainName = null;
+    regionList.innerHTML = '';
+    prefRow.style.display = 'none';
+    prefList.innerHTML = '';
+    terrainRow.style.display = 'none';
+    terrainList.innerHTML = '';
+    nameInp.style.display = 'none';
     nameInp.value = '';
+    okBtn.disabled = true;
     dialog.style.display = 'flex';
-    nameInp.focus();
+
+    function updateOk() {
+      const nameOk = selTerrainId === '__new__' ? nameInp.value.trim() !== '' : selTerrainId !== null;
+      okBtn.disabled = !nameOk;
+    }
+
+    // Step1: 地方ピルを生成
+    for (const region of Object.keys(REGION_PREF_MAP)) {
+      const btn = document.createElement('button');
+      btn.className = 'export-pill-btn';
+      btn.textContent = region;
+      btn.type = 'button';
+      btn.addEventListener('click', () => {
+        // 地方選択
+        regionList.querySelectorAll('.export-pill-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        selRegion = region;
+        selPref = null; selTerrainId = null; selTerrainName = null;
+
+        // Step2: 都道府県を展開
+        prefList.innerHTML = '';
+        const prefs = REGION_PREF_MAP[region];
+        if (prefs.length === 0) {
+          // 海外など都道府県なし → テレイン選択へ直行（その他のみ）
+          prefRow.style.display = 'none';
+          buildTerrainList(null);
+        } else {
+          prefRow.style.display = '';
+          terrainRow.style.display = 'none';
+          terrainList.innerHTML = '';
+          nameInp.style.display = 'none';
+          okBtn.disabled = true;
+          for (const pref of prefs) {
+            const pb = document.createElement('button');
+            pb.className = 'export-pill-btn';
+            pb.textContent = pref;
+            pb.type = 'button';
+            pb.addEventListener('click', () => {
+              prefList.querySelectorAll('.export-pill-btn').forEach(b => b.classList.remove('active'));
+              pb.classList.add('active');
+              selPref = pref;
+              selTerrainId = null; selTerrainName = null;
+              buildTerrainList(pref);
+            });
+            prefList.appendChild(pb);
+          }
+        }
+      });
+      regionList.appendChild(btn);
+    }
+
+    // Step3: テレイン一覧を生成（pref=null なら海外扱い）
+    function buildTerrainList(pref) {
+      terrainRow.style.display = '';
+      terrainList.innerHTML = '';
+      nameInp.style.display = 'none';
+      nameInp.value = '';
+      selTerrainId = null; selTerrainName = null;
+      okBtn.disabled = true;
+
+      // terrainMap から該当都道府県のテレインを列挙
+      const matched = [];
+      for (const [tid, tdata] of terrainMap.entries()) {
+        if (pref === null || tdata.prefecture === pref) {
+          matched.push({ id: tid, name: tdata.name });
+        }
+      }
+      matched.sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+
+      for (const t of matched) {
+        const ib = document.createElement('button');
+        ib.className = 'export-item-btn';
+        ib.textContent = t.name;
+        ib.type = 'button';
+        ib.addEventListener('click', () => {
+          terrainList.querySelectorAll('.export-item-btn').forEach(b => b.classList.remove('active'));
+          ib.classList.add('active');
+          selTerrainId = t.id;
+          selTerrainName = t.name;
+          nameInp.style.display = 'none';
+          nameInp.value = '';
+          updateOk();
+        });
+        terrainList.appendChild(ib);
+      }
+
+      // 「その他（新規）」
+      const newBtn = document.createElement('button');
+      newBtn.className = 'export-item-btn';
+      newBtn.textContent = 'その他（新規）';
+      newBtn.type = 'button';
+      newBtn.addEventListener('click', () => {
+        terrainList.querySelectorAll('.export-item-btn').forEach(b => b.classList.remove('active'));
+        newBtn.classList.add('active');
+        selTerrainId = '__new__';
+        selTerrainName = null;
+        nameInp.style.display = '';
+        nameInp.value = '';
+        nameInp.focus();
+        updateOk();
+      });
+      terrainList.appendChild(newBtn);
+    }
+
+    nameInp.addEventListener('input', updateOk);
+
     function finish(result) {
       dialog.style.display = 'none';
       okBtn.removeEventListener('click', onOk);
       cancelBtn.removeEventListener('click', onCancel);
-      nameInp.removeEventListener('keydown', onKey);
       resolve(result);
     }
     function onOk() {
-      const pref = prefSel.value;
-      const name = nameInp.value.trim();
-      if (!name) { nameInp.focus(); return; }
-      finish({ pref, name });
+      if (okBtn.disabled) return;
+      const pref = selPref ?? '海外';
+      if (selTerrainId === '__new__') {
+        const name = nameInp.value.trim();
+        if (!name) { nameInp.focus(); return; }
+        finish({ pref, terrainId: null, terrainName: name, isNew: true });
+      } else {
+        finish({ pref, terrainId: selTerrainId, terrainName: selTerrainName, isNew: false });
+      }
     }
     function onCancel() { finish(null); }
-    function onKey(e) { if (e.key === 'Enter') onOk(); if (e.key === 'Escape') onCancel(); }
     okBtn.addEventListener('click', onOk);
     cancelBtn.addEventListener('click', onCancel);
-    nameInp.addEventListener('keydown', onKey);
   });
 }
 
@@ -4709,11 +4831,11 @@ async function exportFramesAsGeoJson() {
   const targets = mapFrames.filter(f => f.id.startsWith('img-import-'));
   if (targets.length === 0) { alert('エクスポートできる枠がありません。\n先に地図画像を位置合わせして読み込んでください。'); return; }
 
-  // 都道府県・テレイン名を入力させる
   const info = await promptTerrainInfo();
   if (!info) return; // キャンセル
 
-  const terrainId = `terrain_manual_${Date.now()}`;
+  // 既存テレインを再利用するか、新規作成するか
+  const terrainId = info.isNew ? `terrain_manual_${Date.now()}` : info.terrainId;
 
   // 全枠の座標からバウンディングボックスを生成してテレイン geometry とする
   const allCoords = targets.flatMap(f => f.coordinates);
@@ -4722,21 +4844,43 @@ async function exportFramesAsGeoJson() {
   const minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
   const minLat = Math.min(...lats), maxLat = Math.max(...lats);
 
-  const terrainFeature = {
-    type: 'Feature',
-    id: terrainId,
-    properties: {
-      name: info.name,
-      prefecture: info.pref,
-      terrain_type: 'sprint',
-      terrain_subtype: null,
-      description: '',
-    },
-    geometry: {
-      type: 'Polygon',
-      coordinates: [[[minLng, maxLat], [maxLng, maxLat], [maxLng, minLat], [minLng, minLat], [minLng, maxLat]]],
-    },
-  };
+  // 既存テレインの場合はその geometry を再利用（または bbox で上書き）
+  let terrainFeature;
+  if (info.isNew) {
+    terrainFeature = {
+      type: 'Feature',
+      id: terrainId,
+      properties: {
+        name: info.terrainName,
+        prefecture: info.pref,
+        terrain_type: 'sprint',
+        terrain_subtype: null,
+        description: '',
+      },
+      geometry: {
+        type: 'Polygon',
+        coordinates: [[[minLng, maxLat], [maxLng, maxLat], [maxLng, minLat], [minLng, minLat], [minLng, maxLat]]],
+      },
+    };
+  } else {
+    // 既存テレインの情報を terrainMap から取得してそのまま出力（移植性のため）
+    const existing = terrainMap.get(terrainId);
+    terrainFeature = {
+      type: 'Feature',
+      id: terrainId,
+      properties: {
+        name: existing?.name ?? info.terrainName,
+        prefecture: existing?.prefecture ?? info.pref,
+        terrain_type: existing?.terrain_type ?? 'sprint',
+        terrain_subtype: existing?.terrain_subtype ?? null,
+        description: existing?.description ?? '',
+      },
+      geometry: existing?.geometry ?? {
+        type: 'Polygon',
+        coordinates: [[[minLng, maxLat], [maxLng, maxLat], [maxLng, minLat], [minLng, minLat], [minLng, maxLat]]],
+      },
+    };
+  }
 
   const fc = {
     type: 'FeatureCollection',
@@ -4757,7 +4901,7 @@ async function exportFramesAsGeoJson() {
   const blob = new Blob([JSON.stringify(fc, null, 2)], { type: 'application/geo+json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `${info.name}.geojson`;
+  a.download = `${info.terrainName}.geojson`;
   document.body.appendChild(a);
   a.click();
   a.remove();
