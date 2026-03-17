@@ -3530,35 +3530,29 @@ label.setting-label {
 
 /* ---- 汎用ローディングインジケーター ---- */
 
-/* コンパス針（スピナー中央に重ねる） */
-.compass-needle {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  display: block;
-}
-
-/* スピナー共通（小・デフォルト） */
-.map-loading-spinner {
-  position: relative;
-  width: 22px;
-  height: 22px;
-  border: 2px solid #e0e0e0;
-  border-top-color: var(--primary);
-  border-radius: 50%;
-  animation: compass-spin 1.2s linear infinite;
+/* コンパスSVG（小・デフォルト） */
+.compass-spinner {
+  width: 28px;
+  height: 28px;
   flex-shrink: 0;
 }
-/* スピナー大（中央モーダル用） */
-.map-loading-spinner--lg {
-  width: 36px;
-  height: 36px;
-  border-width: 3px;
+/* コンパスSVG（大・中央モーダル用） */
+.compass-spinner--lg {
+  width: 48px;
+  height: 48px;
+  margin-bottom: 4px;
 }
 
-@keyframes compass-spin {
-  to { transform: rotate(360deg); }
+/* 針グループ: SVGビューボックス中心(32,32)を軸に回転 */
+.compass-needle-group {
+  transform-box: view-box;
+  transform-origin: 32px 32px;
+  animation: magnetic-spin 1.5s cubic-bezier(0.68, -0.55, 0.265, 1.55) infinite;
+}
+
+@keyframes magnetic-spin {
+  0%   { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 
 /* 中央モーダル（オーバーレイ選択時） */
@@ -3571,14 +3565,16 @@ label.setting-label {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
-  background: rgba(255, 255, 255, 0.88);
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(4px);
   border-radius: 12px;
-  padding: 18px 28px;
-  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.15);
-  font-size: 13px;
-  color: #333;
+  padding: 24px 32px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  font-size: 14px;
+  font-weight: 500;
+  color: #475569;
+  letter-spacing: 0.03em;
   pointer-events: none;
 }
 
@@ -3592,12 +3588,12 @@ label.setting-label {
   flex-direction: row;
   align-items: center;
   gap: 7px;
-  background: rgba(255, 255, 255, 0.88);
+  background: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(4px);
   border-radius: 20px;
   padding: 5px 10px 5px 6px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
   font-size: 12px;
-  color: #333;
+  color: #475569;
   pointer-events: none;
 }
