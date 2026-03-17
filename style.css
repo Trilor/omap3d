@@ -3547,19 +3547,23 @@ label.setting-label {
 .compass-needle-group {
   transform-box: view-box;
   transform-origin: 32px 32px;
-  animation: magnetic-spin 5s linear infinite;
+  animation: magnetic-spin 5.5s linear infinite;
 }
 
 @keyframes magnetic-spin {
-  /* 時計回りに1周・北で減速停止 */
-  0%   { transform: rotate(0deg);   animation-timing-function: ease-in-out; }
-  40%  { transform: rotate(360deg); }
-  /* 北で停止 */
-  50%  { transform: rotate(360deg); animation-timing-function: ease-in-out; }
-  /* 反時計回りに1周・北で減速停止 */
-  90%  { transform: rotate(0deg); }
-  /* 北で停止 */
-  100% { transform: rotate(0deg); }
+  /* CW: 加速フェーズ */
+  0%   { transform: rotate(20deg);  animation-timing-function: ease-in; }
+  /* CW: 減速→北を少し超えた東(380°=20°)でバウンス停止 */
+  20%  { transform: rotate(200deg); animation-timing-function: cubic-bezier(0.34, 1.4, 0.64, 1); }
+  45%  { transform: rotate(380deg); }
+  /* 停止 */
+  50%  { transform: rotate(380deg); animation-timing-function: ease-in; }
+  /* CCW: 加速フェーズ */
+  /* CCW: 減速→北を少し超えた東(20°)でバウンス停止 */
+  70%  { transform: rotate(200deg); animation-timing-function: cubic-bezier(0.34, 1.4, 0.64, 1); }
+  95%  { transform: rotate(20deg);  }
+  /* 停止 */
+  100% { transform: rotate(20deg); }
 }
 
 /* 中央モーダル（オーバーレイ選択時） */
