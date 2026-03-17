@@ -3547,11 +3547,12 @@ label.setting-label {
 .compass-needle-group {
   transform-box: view-box;
   transform-origin: 32px 32px;
-  animation: magnetic-spin 1.5s cubic-bezier(0.68, -0.55, 0.265, 1.55) infinite;
+  animation: magnetic-spin 2.4s linear infinite;
 }
 
 @keyframes magnetic-spin {
-  0%   { transform: rotate(0deg); }
+  0%   { transform: rotate(0deg);   animation-timing-function: ease-in; }
+  50%  { transform: rotate(180deg); animation-timing-function: ease-out; }
   100% { transform: rotate(360deg); }
 }
 
