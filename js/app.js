@@ -4672,27 +4672,92 @@ function captureFrameShot(frame) {
 }
 
 // ---- 枠 GeoJSON エクスポート ----
-function exportFramesAsGeoJson() {
+// 都道府県・テレイン名の入力ダイアログを Promise で返す（キャンセルなら null）
+function promptTerrainInfo() {
+  return new Promise(resolve => {
+    const dialog   = document.getElementById('export-terrain-dialog');
+    const prefSel  = document.getElementById('export-pref-select');
+    const nameInp  = document.getElementById('export-terrain-name');
+    const okBtn    = document.getElementById('export-dialog-ok');
+    const cancelBtn = document.getElementById('export-dialog-cancel');
+    nameInp.value = '';
+    dialog.style.display = 'flex';
+    nameInp.focus();
+    function finish(result) {
+      dialog.style.display = 'none';
+      okBtn.removeEventListener('click', onOk);
+      cancelBtn.removeEventListener('click', onCancel);
+      nameInp.removeEventListener('keydown', onKey);
+      resolve(result);
+    }
+    function onOk() {
+      const pref = prefSel.value;
+      const name = nameInp.value.trim();
+      if (!name) { nameInp.focus(); return; }
+      finish({ pref, name });
+    }
+    function onCancel() { finish(null); }
+    function onKey(e) { if (e.key === 'Enter') onOk(); if (e.key === 'Escape') onCancel(); }
+    okBtn.addEventListener('click', onOk);
+    cancelBtn.addEventListener('click', onCancel);
+    nameInp.addEventListener('keydown', onKey);
+  });
+}
+
+async function exportFramesAsGeoJson() {
   // 手動配置で追加した枠（mapFrames）を GeoJSON FeatureCollection として出力する
   const targets = mapFrames.filter(f => f.id.startsWith('img-import-'));
   if (targets.length === 0) { alert('エクスポートできる枠がありません。\n先に地図画像を位置合わせして読み込んでください。'); return; }
+
+  // 都道府県・テレイン名を入力させる
+  const info = await promptTerrainInfo();
+  if (!info) return; // キャンセル
+
+  const terrainId = `terrain_manual_${Date.now()}`;
+
+  // 全枠の座標からバウンディングボックスを生成してテレイン geometry とする
+  const allCoords = targets.flatMap(f => f.coordinates);
+  const lngs = allCoords.map(c => c[0]);
+  const lats  = allCoords.map(c => c[1]);
+  const minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
+  const minLat = Math.min(...lats), maxLat = Math.max(...lats);
+
+  const terrainFeature = {
+    type: 'Feature',
+    id: terrainId,
+    properties: {
+      name: info.name,
+      prefecture: info.pref,
+      terrain_type: 'sprint',
+      terrain_subtype: null,
+      description: '',
+    },
+    geometry: {
+      type: 'Polygon',
+      coordinates: [[[minLng, maxLat], [maxLng, maxLat], [maxLng, minLat], [minLng, minLat], [minLng, maxLat]]],
+    },
+  };
+
   const fc = {
     type: 'FeatureCollection',
-    features: targets.map(f => ({
-      type: 'Feature',
-      id: f.id,
-      // terrain_id を付与することで再インポート時にフレーム形式として認識される
-      properties: { ...f.properties, terrain_id: 'manual' },
-      geometry: {
-        type: 'Polygon',
-        coordinates: [[...f.coordinates, f.coordinates[0]]],
-      },
-    })),
+    features: [
+      // テレイン feature を先頭に含める → インポート時に terrainMap に自動登録される
+      terrainFeature,
+      ...targets.map(f => ({
+        type: 'Feature',
+        id: f.id,
+        properties: { ...f.properties, terrain_id: terrainId },
+        geometry: {
+          type: 'Polygon',
+          coordinates: [[...f.coordinates, f.coordinates[0]]],
+        },
+      })),
+    ],
   };
   const blob = new Blob([JSON.stringify(fc, null, 2)], { type: 'application/geo+json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = 'frames.geojson';
+  a.download = `${info.name}.geojson`;
   document.body.appendChild(a);
   a.click();
   a.remove();
