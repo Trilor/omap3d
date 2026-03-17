@@ -4482,9 +4482,11 @@ function updateContourAutoInterval() {
     optContourCurrent.textContent = intervalM + ' m';
     selContour.selectedIndex = 0;
   }
-  // 前回と同じ間隔なら setTiles は不要
-  if (intervalM !== lastAppliedContourInterval) {
-    applyContourInterval(intervalM);
+  // z0-z13 の等高線間隔は buildContourThresholds 内で固定値としてURLに埋め込み済みのため、
+  // ズームレベルが変わっても URL は変化しない → setTiles を呼ばない。
+  // z≤7 から復帰した場合（lastAppliedContourInterval === null）のみ再適用する。
+  if (lastAppliedContourInterval === null) {
+    applyContourInterval(userContourInterval);
   }
 }
 
