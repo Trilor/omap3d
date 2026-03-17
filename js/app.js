@@ -7457,8 +7457,8 @@ document.getElementById('import-decide-btn').addEventListener('click', () => {
   function sh() {
     return {
       min:  MIN_H,
-      mid:  Math.round(window.innerHeight * 0.42),
-      full: window.innerHeight - NAV_H,
+      mid:  Math.round(window.innerHeight * 0.50),
+      full: window.innerHeight - NAV_H - 28,
     };
   }
 
