@@ -1620,7 +1620,7 @@ function updateFrameGeoJsonSource() {
     const firstImgLayerId = existingStyleLayers.find(id => imageLayerIds.has(id));
     map.addLayer({
       id: 'frames-fill', type: 'fill', source: 'frames-src',
-      paint: { 'fill-color': FRAME_COLOR_EXPR, 'fill-opacity': 0.12 },
+      paint: { 'fill-color': FRAME_COLOR_EXPR, 'fill-opacity': 0.001 },
     }, firstImgLayerId); // undefined なら末尾に追加（画像なし時）
   }
 
@@ -5012,7 +5012,7 @@ async function exportFramesAsGeoJson() {
   const blob = new Blob([JSON.stringify(fc, null, 2)], { type: 'application/geo+json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `${info.eventName}.geojson`;
+  a.download = `${info.pref}_${info.terrainName}_${info.eventName}.geojson`;
   document.body.appendChild(a);
   a.click();
   a.remove();
