@@ -48,12 +48,9 @@ maplibregl.addProtocol('pmtiles', pmtilesProtocol.tile.bind(pmtilesProtocol));
 // 地形(gsjdem://)は null で全合成。等高線は DEMソース選択に従い排他使用。
 async function fetchCompositeDemBitmap(z, x, y, signal, regionalDemBase = null, regionalDemExt = 'png', demMode = null) {
   const useQ    = demMode !== 'dem5a' && demMode !== 'land'; // Q地図: 陸域統合DEM/DEM5A単独時は除外
-  // ── 5mDEM（DEM5A）旧コード: 陸域統合DEM に差し替えのためコメントアウト ──────────────────
-  // const useS = demMode === 'dem5a' || !demMode; // DEM5A を使う（dem5a または full composite）
-  // const sUrl = useS ? `${DEM5A_BASE}/${z}/${x}/${y}.png` : null;
-  // ── 陸域統合DEM（産総研）: 5mDEM の代替。URL は {z}/{y}/{x} 順（y・x 逆転） ───────────
-  const useS    = demMode === 'dem5a'; // DEM5A は等高線等の明示指定時のみ（現在は dead code）
-  const useLand = !demMode || demMode === 'land'; // 陸域統合DEM: null（全合成）または 'land' 単独
+  // DEM5A（国土地理院 5mDEM）: 産総研陸域統合DEM は z=14 までのため、z=15 のフォールバックとして全合成時も有効化
+  const useS    = !demMode || demMode === 'dem5a'; // 全合成(null)・dem5a 明示時に使用
+  const useLand = !demMode || demMode === 'land';  // 陸域統合DEM（産総研 z=14 まで）: null または 'land' 単独
   const sUrl    = useS ? `${DEM5A_BASE}/${z}/${x}/${y}.png` : null;
   const landUrl = useLand ? `${LAND_DEM_BASE}/${z}/${y}/${x}.png` : null; // y・x 逆順
 
