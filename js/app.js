@@ -2078,26 +2078,12 @@ function renderFrameTree() {
   if (!treeEl) { renderOtherMapsTree(); return; }
   treeEl.innerHTML = '';
 
-  // 手動配置枠（terrain_id: 'manual'）は常に先頭に表示
-  const manualFrames = mapFrames
-    .filter(f => f.properties.terrain_id === 'manual')
-    .sort((a, b) => (b.properties.event_date ?? '').localeCompare(a.properties.event_date ?? ''));
-  if (manualFrames.length > 0) {
-    const manualHd = document.createElement('div');
-    manualHd.className = 'tree-section-hd';
-    manualHd.textContent = '手動配置枠';
-    treeEl.appendChild(manualHd);
-    manualFrames.forEach(frame => treeEl.appendChild(buildTreeNodeEl(frame)));
-  }
-
   if (!millerTerrain) {
     if (hdEl) hdEl.style.display = 'none';
-    if (manualFrames.length === 0) {
-      const hint = document.createElement('div');
-      hint.className = 'tree-empty-hint';
-      hint.textContent = '上のリストからテレインを選択してください';
-      treeEl.appendChild(hint);
-    }
+    const hint = document.createElement('div');
+    hint.className = 'tree-empty-hint';
+    hint.textContent = '上のリストからテレインを選択してください';
+    treeEl.appendChild(hint);
     renderOtherMapsTree();
     return;
   }
@@ -2116,131 +2102,132 @@ function renderFrameTree() {
     hint.textContent = 'このテレインの枠データはありません';
     treeEl.appendChild(hint);
   } else {
-    frames.forEach(frame => treeEl.appendChild(buildTreeNodeEl(frame)));
+    // event_name でグループ化（日付降順で挿入済みのため先頭が最新）
+    const groupMap = new Map(); // eventName → { date, frames[] }
+    for (const frame of frames) {
+      const en = frame.properties.event_name ?? '（名称なし）';
+      if (!groupMap.has(en)) {
+        groupMap.set(en, { date: frame.properties.event_date ?? '', frames: [] });
+      }
+      groupMap.get(en).frames.push(frame);
+    }
+    let isFirst = true;
+    for (const [eventName, group] of groupMap) {
+      treeEl.appendChild(buildEventGroupEl(eventName, group.date, group.frames, isFirst));
+      isFirst = false;
+    }
   }
   renderOtherMapsTree();
 }
 
-// 親ノード（枠）の DOM を構築する
-function buildTreeNodeEl(frame) {
+// イベントグループ（アコーディオン）の DOM を構築する
+function buildEventGroupEl(eventName, eventDate, frames, initialOpen = true) {
+  const groupEl = document.createElement('div');
+  groupEl.className = 'event-group';
+
+  // グループヘッダー
+  const hdEl = document.createElement('div');
+  hdEl.className = 'event-group-hd';
+
+  const toggleEl = document.createElement('span');
+  toggleEl.className = 'event-group-toggle';
+  toggleEl.textContent = initialOpen ? '▼' : '▶';
+
+  const nameEl = document.createElement('span');
+  nameEl.className = 'event-group-name';
+  nameEl.textContent = eventName;
+  nameEl.title = eventName;
+
+  hdEl.appendChild(toggleEl);
+  hdEl.appendChild(nameEl);
+
+  if (eventDate) {
+    const dateEl = document.createElement('span');
+    dateEl.className = 'event-group-date';
+    dateEl.textContent = eventDate;
+    hdEl.appendChild(dateEl);
+  }
+
+  groupEl.appendChild(hdEl);
+
+  // グループ本体（折りたたみ可）
+  const bodyEl = document.createElement('div');
+  bodyEl.className = 'event-group-body';
+  if (!initialOpen) bodyEl.style.display = 'none';
+
+  frames.forEach((frame, idx) => bodyEl.appendChild(buildFrameRowEl(frame, idx)));
+  groupEl.appendChild(bodyEl);
+
+  // アコーディオン開閉
+  hdEl.addEventListener('click', () => {
+    const open = bodyEl.style.display !== 'none';
+    bodyEl.style.display = open ? 'none' : '';
+    toggleEl.textContent = open ? '▶' : '▼';
+  });
+
+  return groupEl;
+}
+
+// コンパクトなフレーム行（1行）の DOM を構築する
+function buildFrameRowEl(frame, index) {
   const color = getFrameColor(frame);
   const p     = frame.properties;
-  const label = p.event_name ?? p.name ?? '（名称なし）';
+  // コース名: course_name > name（event_name と異なる場合）> コース N
+  const label = p.course_name
+    ?? (p.name && p.name !== p.event_name ? p.name : null)
+    ?? `コース ${index + 1}`;
 
-  const nodeEl = document.createElement('div');
-  nodeEl.className = 'frame-tree-node';
-  nodeEl.dataset.frameId = frame.id;
+  const wrapEl = document.createElement('div');
+  wrapEl.className = 'frame-row-wrap';
 
-  // ヘッダー行（ドラッグターゲット）
-  const headerEl = document.createElement('div');
-  headerEl.className = 'tree-node-header';
+  const rowEl = document.createElement('div');
+  rowEl.className = 'frame-row';
+  rowEl.dataset.frameId = frame.id;
 
+  // 表示チェックボックス
+  const visChk = document.createElement('input');
+  visChk.type = 'checkbox';
+  visChk.className = 'frame-row-vis';
+  visChk.checked = true;
+  visChk.title = '表示/非表示';
+  visChk.addEventListener('change', e => {
+    e.stopPropagation();
+    if (map.getLayer(frame.layerId)) {
+      map.setPaintProperty(frame.layerId, 'raster-opacity',
+        visChk.checked ? toRasterOpacity(frame.opacity) : 0);
+    }
+  });
+
+  // 枠色アイコン
   const iconEl = document.createElement('span');
   iconEl.className = 'tree-node-icon-sq';
   iconEl.style.cssText = `background:transparent;border-color:${color}`;
 
+  // ラベル
   const labelEl = document.createElement('span');
-  labelEl.className = 'tree-node-label';
-  labelEl.title = label;
+  labelEl.className = 'frame-row-label';
   labelEl.textContent = label;
+  labelEl.title = label;
 
+  // 不透明度スライダー
+  const slider = document.createElement('input');
+  slider.type = 'range';
+  slider.className = 'setting-slider frame-row-slider';
+  slider.min = '0'; slider.max = '100'; slider.step = '1';
+  slider.value = String(Math.round((frame.opacity ?? 0.8) * 100));
+  slider.addEventListener('click', e => e.stopPropagation());
+  slider.addEventListener('input', () => {
+    frame.opacity = parseInt(slider.value, 10) / 100;
+    if (map.getLayer(frame.layerId) && visChk.checked) {
+      map.setPaintProperty(frame.layerId, 'raster-opacity', toRasterOpacity(frame.opacity));
+    }
+  });
+
+  // 移動ボタン →
   const flyBtn = document.createElement('button');
-  flyBtn.className = 'tree-node-fly-btn';
+  flyBtn.className = 'frame-row-btn';
   flyBtn.title = 'この枠へ移動';
   flyBtn.textContent = '→';
-
-  const printBtn = document.createElement('button');
-  printBtn.className = 'tree-node-fly-btn tree-node-print-btn';
-  printBtn.title = '枠に合わせてスクリーンショット';
-  printBtn.textContent = '🖨';
-  printBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    captureFrameShot(frame);
-  });
-
-  headerEl.appendChild(iconEl);
-  headerEl.appendChild(labelEl);
-  headerEl.appendChild(flyBtn);
-  headerEl.appendChild(printBtn);
-  nodeEl.appendChild(headerEl);
-
-  // 不透明度・表示コントロール行
-  nodeEl.appendChild(_makeLayerCtrlRow(
-    true,
-    Math.round((frame.opacity ?? 0.8) * 100),
-    (visible) => {
-      if (map.getLayer(frame.layerId)) {
-        map.setPaintProperty(frame.layerId, 'raster-opacity',
-          visible ? toRasterOpacity(frame.opacity) : 0);
-      }
-    },
-    (pct) => {
-      frame.opacity = pct / 100;
-      if (map.getLayer(frame.layerId)) {
-        map.setPaintProperty(frame.layerId, 'raster-opacity', toRasterOpacity(frame.opacity));
-      }
-    }
-  ));
-
-  // 子ノードエリア
-  const childrenEl = document.createElement('div');
-  childrenEl.className = 'tree-node-children';
-  nodeEl.appendChild(childrenEl);
-
-  // 子ノードを描画（画像追加後に再描画可能）
-  function refreshChildren() {
-    childrenEl.innerHTML = '';
-    if (frame.images.length === 0) {
-      const hint = document.createElement('div');
-      hint.className = 'tree-child-drop-hint';
-      hint.textContent = '🖼 ここに大会地図をドロップ';
-      childrenEl.appendChild(hint);
-    } else {
-      frame.images.forEach(img => {
-        const childEl = document.createElement('div');
-        childEl.className = 'tree-child-item' + (img.id === frame.activeImageId ? ' active' : '');
-        childEl.dataset.imgId = img.id;
-        const iconSpan = document.createElement('span');
-        iconSpan.textContent = '🗺️';
-        const nameSpan = document.createElement('span');
-        nameSpan.className = 'tree-child-name';
-        nameSpan.title = img.name;
-        nameSpan.textContent = img.name.replace(/\.(jpg|jpeg|png|kmz)$/i, '');
-        childEl.appendChild(iconSpan);
-        childEl.appendChild(nameSpan);
-        childEl.addEventListener('click', () => {
-          switchFrameImage(frame.id, img.id);
-          childrenEl.querySelectorAll('.tree-child-item').forEach(el => el.classList.remove('active'));
-          childEl.classList.add('active');
-        });
-        childrenEl.appendChild(childEl);
-      });
-      const hint = document.createElement('div');
-      hint.className = 'tree-child-drop-hint';
-      hint.textContent = '+ 追加の地図をドロップ';
-      childrenEl.appendChild(hint);
-    }
-  }
-  refreshChildren();
-
-  // 枠ノードへのドラッグ＆ドロップ（画像を枠座標にプリセットしてモーダルを開く）
-  headerEl.addEventListener('dragover', e => { e.preventDefault(); headerEl.classList.add('drag-over'); });
-  headerEl.addEventListener('dragleave', () => headerEl.classList.remove('drag-over'));
-  headerEl.addEventListener('drop', async e => {
-    e.preventDefault();
-    headerEl.classList.remove('drag-over');
-    const files = Array.from(e.dataTransfer.files).filter(f => /\.(jpe?g|png|kmz)$/i.test(f.name));
-    for (const file of files) {
-      if (/\.kmz$/i.test(file.name)) {
-        await openImportModalFromKmz(file);
-      } else {
-        // 枠の4隅座標をプリセットしてモーダルを開く
-        openImportModalWithCoords(URL.createObjectURL(file), frame.coordinates, file.name);
-      }
-    }
-  });
-
-  // 移動ボタン
   flyBtn.addEventListener('click', e => {
     e.stopPropagation();
     const lngs = frame.coordinates.map(c => c[0]);
@@ -2251,7 +2238,85 @@ function buildTreeNodeEl(frame) {
     );
   });
 
-  return nodeEl;
+  // スクリーンショットボタン
+  const printBtn = document.createElement('button');
+  printBtn.className = 'frame-row-btn';
+  printBtn.title = '枠に合わせてスクリーンショット';
+  printBtn.textContent = '🖨';
+  printBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    captureFrameShot(frame);
+  });
+
+  // 地図読込ボタン（クリックでファイル選択、ドロップもできる）
+  const loadBtn = document.createElement('button');
+  loadBtn.className = 'frame-row-btn frame-row-load-btn' + (frame.images.length > 0 ? ' has-image' : '');
+  loadBtn.title = frame.images.length > 0 ? '地図を追加読込' : '地図を読み込む';
+  loadBtn.textContent = '📎';
+  loadBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.jpg,.jpeg,.png,.kmz';
+    input.multiple = true;
+    input.addEventListener('change', async () => {
+      for (const file of Array.from(input.files ?? [])) {
+        if (/\.kmz$/i.test(file.name)) {
+          await openImportModalFromKmz(file);
+        } else {
+          openImportModalWithCoords(URL.createObjectURL(file), frame.coordinates, file.name);
+        }
+      }
+    });
+    input.click();
+  });
+
+  rowEl.appendChild(visChk);
+  rowEl.appendChild(iconEl);
+  rowEl.appendChild(labelEl);
+  rowEl.appendChild(slider);
+  rowEl.appendChild(flyBtn);
+  rowEl.appendChild(printBtn);
+  rowEl.appendChild(loadBtn);
+
+  // ドラッグ＆ドロップ（行全体がターゲット）
+  rowEl.addEventListener('dragover', e => { e.preventDefault(); rowEl.classList.add('drag-over'); });
+  rowEl.addEventListener('dragleave', () => rowEl.classList.remove('drag-over'));
+  rowEl.addEventListener('drop', async e => {
+    e.preventDefault();
+    rowEl.classList.remove('drag-over');
+    const files = Array.from(e.dataTransfer.files).filter(f => /\.(jpe?g|png|kmz)$/i.test(f.name));
+    for (const file of files) {
+      if (/\.kmz$/i.test(file.name)) {
+        await openImportModalFromKmz(file);
+      } else {
+        openImportModalWithCoords(URL.createObjectURL(file), frame.coordinates, file.name);
+      }
+    }
+  });
+
+  wrapEl.appendChild(rowEl);
+
+  // 画像サブリスト（2枚以上の時だけ表示）
+  if (frame.images.length > 1) {
+    const imgListEl = document.createElement('div');
+    imgListEl.className = 'frame-row-imglist';
+    frame.images.forEach(img => {
+      const item = document.createElement('div');
+      item.className = 'frame-row-imgitem' + (img.id === frame.activeImageId ? ' active' : '');
+      item.textContent = img.name.replace(/\.(jpg|jpeg|png|kmz)$/i, '');
+      item.title = img.name;
+      item.addEventListener('click', () => {
+        switchFrameImage(frame.id, img.id);
+        imgListEl.querySelectorAll('.frame-row-imgitem').forEach(el => el.classList.remove('active'));
+        item.classList.add('active');
+      });
+      imgListEl.appendChild(item);
+    });
+    wrapEl.appendChild(imgListEl);
+  }
+
+  return wrapEl;
 }
 
 // ---- レイヤーコントロール行（トグル＋不透明度スライダー）の共通ヘルパー ----
