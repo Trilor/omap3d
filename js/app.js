@@ -193,6 +193,9 @@ map.addControl(new _exp.MaplibreExportControl({
 // 等高線レイヤーIDリスト（isomizer完了後に収集）
 // Q地図1m 等高線レイヤーID（DEM5A・DEM1A と同じ固定定数方式）
 const contourLayerIds = ['contour-regular', 'contour-index'];
+const COLOR_CONTOUR_Q_IDS    = ['color-contour-regular', 'color-contour-index'];
+const COLOR_CONTOUR_DEM5A_IDS = ['color-contour-regular-dem5a', 'color-contour-index-dem5a'];
+const COLOR_CONTOUR_DEM1A_IDS = ['color-contour-regular-dem1a', 'color-contour-index-dem1a'];
 // 湖水深等高線レイヤーIDリスト（等高線トグルに連動）
 let seamlessContourLayerIds = [];
 // DEMソースモード: 'q1m'（Q地図1m）/ 'dem5a'（DEM5A 5m）/ 'dem1a'（地理院DEM1A 1m）
@@ -213,6 +216,21 @@ function setAllContourVisibility(vis) {
   for (const id of DEM1A_CONTOUR_LAYER_IDS) if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', dem1aVis);
   // 湖水深は DEM モードに関わらず等高線トグルに従う
   for (const id of seamlessContourLayerIds) if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', vis);
+}
+
+// 色別等高線の line-color 式を生成（DEM2RELIEF_PALETTE に対応したMapLibre補間式）
+// min/max は色別標高図の crMin/crMax と共有する
+function buildColorContourExpr(min, max) {
+  const range = (max - min) || 1;
+  return ['interpolate', ['linear'], ['get', 'ele'],
+    min + 0.00 * range, '#0006FB',
+    min + 0.17 * range, '#0092FB',
+    min + 0.33 * range, '#00E7FB',
+    min + 0.50 * range, '#8AF708',
+    min + 0.67 * range, '#F2F90B',
+    min + 0.83 * range, '#F28A09',
+    min + 1.00 * range, '#F2480B',
+  ];
 }
 
 // 等高線間隔ごとのzoom threshold設定を生成
@@ -716,6 +734,33 @@ map.on('load', async () => {
      ...contourLayerIds,
     ].forEach(id => { if (map.getLayer(id)) map.moveLayer(id); });
     console.log('等高線レイヤー追加完了（Q地図 + DEM5A + DEM1A + 湖水深）');
+  }
+
+  // 色別等高線レイヤー（オーバーレイ「色別等高線」選択時に表示）
+  // 各 DEM ソースに対応した 3 セットを追加し、contourDemMode に応じて排他表示する
+  {
+    const colorExpr = buildColorContourExpr(crMin, crMax);
+    const addColorContourPair = (suffix, sourceId) => {
+      if (!map.getSource(sourceId)) return;
+      map.addLayer({
+        id: `color-contour-regular${suffix}`,
+        type: 'line', source: sourceId, 'source-layer': 'contours',
+        filter: ['!=', ['get', 'level'], 1],
+        layout: { visibility: 'none', 'line-join': 'round', 'line-cap': 'round' },
+        paint: { 'line-color': colorExpr, 'line-width': 0.9, 'line-opacity': 1.0 },
+      });
+      map.addLayer({
+        id: `color-contour-index${suffix}`,
+        type: 'line', source: sourceId, 'source-layer': 'contours',
+        filter: ['==', ['get', 'level'], 1],
+        layout: { visibility: 'none', 'line-join': 'round', 'line-cap': 'round' },
+        paint: { 'line-color': colorExpr, 'line-width': 1.8, 'line-opacity': 1.0 },
+      });
+    };
+    addColorContourPair('', 'contour-source');
+    addColorContourPair('-dem5a', 'contour-source-dem5a');
+    addColorContourPair('-dem1a', 'contour-source-dem1a');
+    console.log('色別等高線レイヤー追加完了');
   }
 
   /*
@@ -4048,8 +4093,24 @@ function updateCsVisibility() {
   const crCtrls = document.getElementById('color-relief-controls');
   if (crCtrls) crCtrls.style.display = (currentOverlay === 'color-relief') ? '' : 'none';
 
+  // 色別等高線の表示制御（contourDemMode に応じて排他表示）
+  const showColorContour = overlay === 'color-contour';
+  const ccBaseVis = showColorContour ? 'visible' : 'none';
+  COLOR_CONTOUR_Q_IDS.forEach(id => {
+    if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility',
+      (ccBaseVis === 'visible' && contourDemMode === 'q1m') ? 'visible' : 'none');
+  });
+  COLOR_CONTOUR_DEM5A_IDS.forEach(id => {
+    if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility',
+      (ccBaseVis === 'visible' && contourDemMode === 'dem5a') ? 'visible' : 'none');
+  });
+  COLOR_CONTOUR_DEM1A_IDS.forEach(id => {
+    if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility',
+      (ccBaseVis === 'visible' && contourDemMode === 'dem1a') ? 'visible' : 'none');
+  });
+
   // CS立体図: color-relief 選択時は非表示
-  const csOverlay = showColorRelief ? 'none' : overlay;
+  const csOverlay = (showColorRelief || showColorContour) ? 'none' : overlay;
   const csKey = csOverlay !== 'none' ? csOverlay
               : basemap.startsWith('cs-') ? basemap
               : null;
@@ -4217,6 +4278,14 @@ function updateGradientTrack() {
 // タイル再フェッチのデバウンスタイマー
 let _crTileTimer = null;
 
+// 色別等高線の line-color を crMin/crMax に合わせて再設定
+function updateColorContourColors() {
+  const expr = buildColorContourExpr(crMin, crMax);
+  [...COLOR_CONTOUR_Q_IDS, ...COLOR_CONTOUR_DEM5A_IDS, ...COLOR_CONTOUR_DEM1A_IDS].forEach(id => {
+    if (map.getLayer(id)) map.setPaintProperty(id, 'line-color', expr);
+  });
+}
+
 // タイル URL を更新して地図に反映
 let _crRepaintTimer = null;
 function applyColorReliefTiles() {
@@ -4237,6 +4306,7 @@ function applyColorReliefTiles() {
 function updateColorReliefUI() {
   syncColorReliefUI();
   updateGradientTrack();
+  updateColorContourColors();
   clearTimeout(_crTileTimer);
   _crTileTimer = setTimeout(applyColorReliefTiles, 300);
 }
@@ -4245,6 +4315,7 @@ function updateColorReliefUI() {
 function updateColorReliefSource() {
   syncColorReliefUI();
   updateGradientTrack();
+  updateColorContourColors();
   clearTimeout(_crTileTimer);
   applyColorReliefTiles();
 }
@@ -4573,6 +4644,8 @@ selContourDem.addEventListener('change', () => {
   if (chkContour.checked) {
     setAllContourVisibility('visible');
   }
+  // 色別等高線オーバーレイ選択中の場合はソース切り替えに追従
+  if (currentOverlay === 'color-contour') updateCsVisibility();
   // 地形は常に全ソース合成のため DEMソース切り替えに連動しない
 });
 
