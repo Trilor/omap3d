@@ -1816,42 +1816,11 @@ function makeBcSep() {
   return sep;
 }
 
-// ---- パンくず: ドロップダウン付きリンクを生成する ----
+// ---- パンくず: テキスト表示のみ（クリック・ドロップダウンなし） ----
 function makeBcDropdown(level, current) {
-  const frames  = getFilteredFrames();
-  const options = level === 'region'
-    ? getAvailableRegions(frames)
-    : getAvailablePrefs(frames, millerRegion);
-
   const wrap = document.createElement('span');
   wrap.className = 'miller-bc-item';
   wrap.textContent = current;
-
-  wrap.addEventListener('click', (e) => {
-    e.stopPropagation();
-    // 既存のドロップダウンを全て閉じる
-    document.querySelectorAll('.miller-bc-dropdown').forEach(el => el.remove());
-    const dd = document.createElement('div');
-    dd.className = 'miller-bc-dropdown';
-    for (const opt of options) {
-      const item = document.createElement('div');
-      item.className = 'miller-bc-dropdown-item' + (opt === current ? ' current' : '');
-      item.textContent = opt;
-      item.addEventListener('click', (e2) => {
-        e2.stopPropagation();
-        dd.remove();
-        if (level === 'region') selectMillerRegion(opt);
-        else selectMillerPref(opt);
-      });
-      dd.appendChild(item);
-    }
-    wrap.appendChild(dd);
-    // 外側クリックで自動クローズ
-    setTimeout(() => {
-      document.addEventListener('click', () => dd.remove(), { once: true });
-    }, 0);
-  });
-
   return wrap;
 }
 
@@ -1863,16 +1832,7 @@ function updateMillerBreadcrumb() {
 
   // ルート（全国）
   const root = document.createElement('span');
-  if (millerRegion) {
-    root.className = 'miller-bc-root clickable';
-    root.addEventListener('click', () => {
-      millerRegion = null; millerPref = null; millerTerrain = null;
-      selectTerrain(null);
-      renderMillerColumns();
-    });
-  } else {
-    root.className = 'miller-bc-root';
-  }
+  root.className = 'miller-bc-root';
   root.textContent = '全国';
   bc.appendChild(root);
 
