@@ -6103,9 +6103,12 @@ function setCameraFromPlayer() {
     backH + Math.max(1, Math.min(8, pcCamDistM * 0.3)) // 後方地形マージンをカメラ距離に比例させる
   );
 
+  // zoom 計算は地形面からのカメラ相対高度（pcCamDistM * cos(pitch)）を基準にする。
+  // cameraAlt（絶対標高）を使うと山岳地では数十mになり高ズームに届かなくなるため。
+  const relativeAlt = Math.max(0.3, pcCamDistM * Math.cos(pitchRad));
   const targetZoom = Math.max(12, Math.min(map.getMaxZoom(), Math.log2(
     H * 2 * Math.PI * R * Math.cos(lat_rad) /
-    (1024 * Math.tan(fov_rad / 2) * Math.max(0.3, cameraAlt))
+    (1024 * Math.tan(fov_rad / 2) * relativeAlt)
   )));
 
   map.jumpTo({
