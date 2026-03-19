@@ -4436,21 +4436,30 @@ sliderCs.addEventListener('input', () => {
 
 
 // ---- deck.gl 遅延ロード（PLATEAU LOD2 選択時のみ読み込む）----
+// deck.gl v9 は luma.gl v9 の頂点属性バリデーション (size: 1) で PLATEAU b3dm が読めない
+// ため、安定動作する v8.9 系を使用する。
 const PLATEAU_LOD2_URL =
   'https://assets.cms.plateau.reearth.io/assets/13/c46d11-e56e-4515-97ef-fde8f98786e1' +
   '/26100_kyoto-shi_city_2023_citygml_1_op_bldg_3dtiles_26103_sakyo-ku_lod2_no_texture/tileset.json';
 
 let _deckOverlay = null; // deck.MapboxOverlay インスタンス（初回のみ生成）
 
-function _loadDeckGl() {
-  if (window.deck) return Promise.resolve();
+// deck.gl v8.9 + loaders.gl v3 を動的に読み込む
+function _loadScript(url) {
   return new Promise((resolve, reject) => {
     const s = document.createElement('script');
-    s.src = 'https://unpkg.com/deck.gl@9/dist.min.js';
+    s.src = url;
     s.onload = resolve;
-    s.onerror = () => reject(new Error('deck.gl の読み込みに失敗しました'));
+    s.onerror = () => reject(new Error(`スクリプトの読み込みに失敗: ${url}`));
     document.head.appendChild(s);
   });
+}
+
+async function _loadDeckGl() {
+  if (window.deck) return;
+  // loaders.gl 3D Tiles を先に読み込み、次に deck.gl 本体
+  await _loadScript('https://unpkg.com/@loaders.gl/3d-tiles@3.4.14/dist/dist.min.js');
+  await _loadScript('https://unpkg.com/deck.gl@8.9.35/dist.min.js');
 }
 
 function _initDeckOverlay() {
@@ -4472,9 +4481,16 @@ async function _applyDeckLod2(visible) {
         new deck.Tile3DLayer({
           id: 'plateau-lod2',
           data: PLATEAU_LOD2_URL,
+          loader: window.loaders?.Tiles3DLoader,
           opacity: 0.8,
-          pointSize: 2,
-          getPointColor: [180, 180, 180],
+          pointSize: 1,
+          // PLATEAU は楕円体高のため地形とずれる → onTileLoad で高度補正
+          onTileLoad: (tile) => {
+            if (tile.content?.cartographicOrigin) {
+              const o = tile.content.cartographicOrigin;
+              tile.content.cartographicOrigin = new Float64Array([o[0], o[1], o[2] - 40]);
+            }
+          },
         }),
       ],
     });
