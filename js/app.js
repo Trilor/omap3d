@@ -4072,7 +4072,7 @@ function updatePlateauAttribution() {
   const plateauLink = ' | <a href="https://www.mlit.go.jp/plateau/open-data/" target="_blank">国土交通省3D都市モデルPLATEAU</a>';
   attrEl.innerHTML = !buildingOn ? ''
     : mode === 'plateau'     ? plateauLink + '（<a href="https://github.com/shiwaku/mlit-plateau-bldg-pmtiles" target="_blank">shiwaku</a>加工）'
-    : mode === 'plateau-lod2' ? plateauLink + '（京都市左京区 LOD2）'
+    : mode === 'plateau-lod2' ? plateauLink + '（京都市左京区 LOD2 2024）'
     : '';
 }
 
@@ -4439,8 +4439,8 @@ sliderCs.addEventListener('input', () => {
 // deck.gl v9 は luma.gl v9 の頂点属性バリデーション (size: 1) で PLATEAU b3dm が読めない
 // ため、安定動作する v8.9 系を使用する。
 const PLATEAU_LOD2_URL =
-  'https://assets.cms.plateau.reearth.io/assets/13/c46d11-e56e-4515-97ef-fde8f98786e1' +
-  '/26100_kyoto-shi_city_2023_citygml_1_op_bldg_3dtiles_26103_sakyo-ku_lod2_no_texture/tileset.json';
+  'https://assets.cms.plateau.reearth.io/assets/e9/114ee3-8a65-4d3f-8494-11e8ffcf3dc5' +
+  '/26100_kyoto-shi_city_2024_citygml_1_op_bldg_3dtiles_26103_sakyo-ku_lod2/tileset.json';
 
 let _deckOverlay = null; // deck.MapboxOverlay インスタンス（初回のみ生成）
 
