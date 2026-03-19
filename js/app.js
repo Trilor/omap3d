@@ -4485,7 +4485,15 @@ async function _applyDeckLod2(visible) {
           loader: window.loaders?.Tiles3DLoader,
           opacity: 1.0,
           pointSize: 1,
-          onTilesetLoad: () => hideMapLoading(), // タイルセット読み込み完了でくるくるを非表示
+          onTilesetLoad: (tileset) => {
+            // tileset.json 解析完了後も個別タイル(b3dm)が生成中のため
+            // isLoaded が true になるまで rAF でポーリングし続ける
+            const waitUntilLoaded = () => {
+              if (tileset.isLoaded) { hideMapLoading(); return; }
+              requestAnimationFrame(waitUntilLoaded);
+            };
+            requestAnimationFrame(waitUntilLoaded);
+          },
           // PLATEAU は楕円体高のため地形とずれる → onTileLoad で高度補正
           onTileLoad: (tile) => {
             if (tile.content?.cartographicOrigin) {
