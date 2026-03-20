@@ -991,6 +991,12 @@ const gpxChaseKeys = {
 let _gpxCachedTerrainH = 0;
 // 前フレームの進行方向（端点など bearing=0 になる箇所の補完用）
 let _lastGpxBearing = 0;
+// bearing / zoom のローパスフィルタ値（カクカク防止）
+let _smoothedGpxBearing = 0;
+let _smoothedGpxZoom    = 15;
+// bearing 平滑化の時定数（秒）。大きいほど滑らかで遅延が増す
+const GPX_BEARING_TC = 0.35;
+const GPX_ZOOM_TC    = 0.15;
 
 
 /* ========================================================
@@ -2945,6 +2951,16 @@ async function loadGpx(file) {
     ) ?? 0;
     _lastGpxBearing  = 0;
     gpxBearingOffset = 0;
+    // ローパスフィルタ値を先頭セグメントの bearing でスナップ初期化
+    if (points.length >= 2) {
+      _smoothedGpxBearing = turf.bearing(
+        turf.point([points[0].lng, points[0].lat]),
+        turf.point([points[1].lng, points[1].lat])
+      );
+    } else {
+      _smoothedGpxBearing = 0;
+    }
+    _smoothedGpxZoom = 15;
 
     // 再生中ならキャンセルする
     if (gpxAnimFrameId) {
@@ -3152,10 +3168,10 @@ function interpolateGpxPosition(t) {
         Zoom 15〜16, Pitch 45〜50, Bearing = 0（北固定）
     両モードとも Center は現在地座標に追従する
     ======================================================== */
-function updateCamera(pos) {
+function updateCamera(pos, elapsed) {
   if (gpxViewMode === '3d') {
     // 3D 追尾視点：setCameraFromPlayer() と同じロジックで GPX 位置を追尾
-    updateCameraChase(pos);
+    updateCameraChase(pos, elapsed);
   } else {
     // 2D 俯瞰視点：北向き固定・現在地を追従
     map.easeTo({
@@ -3173,7 +3189,18 @@ function updateCamera(pos) {
     setCameraFromPlayer() と同じロジックを GPX 位置で実行する。
     pcCamDistM・pcPitch を共有することで PC シムの設定値がそのまま反映される。
     ======================================================== */
-function updateCameraChase(pos) {
+function updateCameraChase(pos, elapsed) {
+  // ── bearing のローパスフィルタ（カクカク防止） ──────────────────────
+  // GPS 記録間隔が粗いと bearing がセグメント境界で突変するため、
+  // 指数平滑化で滑らかに追従させる。時定数 GPX_BEARING_TC 秒。
+  // ユーザーの矢印キーによる gpxBearingOffset は平滑化後に加算するため
+  // レスポンスを損なわない。
+  const dt = Math.max(0, elapsed ?? 16) / 1000; // 実経過時間（秒）
+  const bearingAlpha = 1 - Math.exp(-dt / GPX_BEARING_TC);
+  // 角度の最短経路で差分を求めて wraparound を回避する
+  const bearingDelta = ((pos.bearing - _smoothedGpxBearing + 540) % 360) - 180;
+  _smoothedGpxBearing = (_smoothedGpxBearing + bearingDelta * bearingAlpha + 360) % 360;
+
   // 地形標高取得（タイル未読み込み時はキャッシュ維持）
   const rawH = map.queryTerrainElevation(
     { lng: pos.lng, lat: pos.lat }, { exaggerated: false }
@@ -3182,15 +3209,15 @@ function updateCameraChase(pos) {
   const h = _gpxCachedTerrainH;
 
   const H       = map.getCanvas().height || 600;
-  const fov_rad = 0.6435; // PC シムと同じ FOV
+  const fov_rad = 0.6435;
   const R       = 6371008.8;
   const lat_rad = pos.lat * Math.PI / 180;
 
   // GPX 独自のピッチ・カメラ距離を使用（PC シムとは独立）
   const pitchDeg = Math.max(0, Math.min(map.getMaxPitch(), gpxChasePitch));
   const pitchRad = pitchDeg * Math.PI / 180;
-  // 進行方向 + bearingOffset でカメラの向きを決定
-  const camBearing = (pos.bearing + gpxBearingOffset + 360) % 360;
+  // 平滑化済み進行方向 + ユーザーオフセット
+  const camBearing = (_smoothedGpxBearing + gpxBearingOffset + 360) % 360;
 
   // 後方地点の地形高度を取得してカメラのめり込みを防止
   const backDistKm = gpxCamDistM * Math.sin(pitchRad) / 1000;
@@ -3202,18 +3229,19 @@ function updateCameraChase(pos) {
     { exaggerated: false }
   ) ?? h;
 
-  // カメラズームを地形面からの相対高度で計算（PC シムと同じ式）
-  const relativeAlt = Math.max(0.3, gpxCamDistM * Math.cos(pitchRad));
+  // zoom のローパスフィルタ（距離変更時に滑らかに変化）
+  const zoomAlpha = 1 - Math.exp(-dt / GPX_ZOOM_TC);
   const targetZoom = Math.max(12, Math.min(map.getMaxZoom(), Math.log2(
     H * 2 * Math.PI * R * Math.cos(lat_rad) /
-    (1024 * Math.tan(fov_rad / 2) * relativeAlt)
+    (1024 * Math.tan(fov_rad / 2) * Math.max(0.3, gpxCamDistM * Math.cos(pitchRad)))
   )));
+  _smoothedGpxZoom += (targetZoom - _smoothedGpxZoom) * zoomAlpha;
 
   map.jumpTo({
     center:  [pos.lng, pos.lat],
     bearing: camBearing,
     pitch:   pitchDeg,
-    zoom:    targetZoom,
+    zoom:    _smoothedGpxZoom,
   });
 }
 
@@ -3272,9 +3300,9 @@ function gpxAnimationLoop(timestamp) {
     // 進行方向をキャッシュ（端点で bearing=0 になる箇所の補完）
     if (pos.bearing !== 0) _lastGpxBearing = pos.bearing;
     else pos.bearing = _lastGpxBearing;
-    // 現在地マーカーと視点カメラを更新する
+    // 現在地マーカーと視点カメラを更新する（elapsed を平滑化に使用）
     updateGpxMarker(pos);
-    updateCamera(pos);
+    updateCamera(pos, elapsed);
   }
 
   // まだ再生中であれば次のフレームをリクエストする
@@ -3633,7 +3661,10 @@ document.getElementById('seek-bar').addEventListener('input', (e) => {
 
   const pos = interpolateGpxPosition(gpxCurrentTime);
   if (pos) {
+    // シーク時は bearing をスナップ初期化して遅延なく即時追従させる
+    _smoothedGpxBearing = pos.bearing;
     updateGpxMarker(pos);
+    updateCamera(pos, 16);
   }
 });
 
@@ -6403,7 +6434,11 @@ document.addEventListener('keydown', (e) => {
     updateSeekBarGradient();
     updateTimeDisplay();
     const pos = interpolateGpxPosition(gpxCurrentTime);
-    if (pos) { updateGpxMarker(pos); updateCamera(pos); }
+    if (pos) {
+      _smoothedGpxBearing = pos.bearing; // W/S シーク時もスナップ
+      updateGpxMarker(pos);
+      updateCamera(pos, 16);
+    }
   }
 });
 
