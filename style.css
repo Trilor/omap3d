@@ -2309,14 +2309,52 @@ label.setting-label {
   background: rgba(255, 255, 255, 0.95);
   border: 1px solid #c8c8c8;
   border-radius: 8px;
-  padding: 8px 14px;
+  padding: 6px 14px 8px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
   display: none;
   /* GPX読み込み前は非表示 */
-  align-items: center;
-  gap: 10px;
+  flex-direction: column;
+  gap: 4px;
   min-width: 320px;
   max-width: 90vw;
+}
+#timeline-main-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+/* キーヒント（3D モード時のみ表示） */
+#gpx-key-hint {
+  display: none;
+  font-size: 10px;
+  color: #888;
+  text-align: center;
+  letter-spacing: 0.04em;
+  padding-top: 2px;
+}
+#timeline-panel.gpx-3d #gpx-key-hint { display: block; }
+
+/* 2D/3D 切替ボタン */
+#gpx-3d-btn {
+  flex-shrink: 0;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 4px;
+  border: 1px solid #c8c8c8;
+  background: #f0f0f0;
+  color: #555;
+  font-size: 11px;
+  font-weight: bold;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+#gpx-3d-btn:hover { background: #e0e0e0; color: #333; }
+#gpx-3d-btn.active {
+  background: #d06000;
+  color: #fff;
+  border-color: #d06000;
 }
 
 #play-pause-btn {

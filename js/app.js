@@ -975,8 +975,18 @@ let gpxIsPlaying = false;
 let gpxAnimFrameId = null;
 // 前フレームのタイムスタンプ（差分計算用）
 let gpxLastTimestamp = null;
-// 視点モード: 'third'＝俯瞰 / 'first'＝1人称ドローン / 'chase'＝PCシム追尾
-let gpxViewMode = 'third';
+// 視点モード: '2d'＝俯瞰（上空固定） / '3d'＝PCシム追尾カメラ
+let gpxViewMode = '2d';
+// 3D 追尾カメラ独自パラメータ（PC シムとは独立）
+let gpxChasePitch  = 60;   // ピッチ（deg）
+let gpxCamDistM    = 50;   // カメラ距離（m）
+let gpxBearingOffset = 0;  // 進行方向からの bearing オフセット（deg）
+const GPX_CAM_DIST_MIN = 1;
+const GPX_CAM_DIST_MAX = 500;
+// 矢印キー押下状態（3D モード専用）
+const gpxChaseKeys = {
+  ArrowLeft: false, ArrowRight: false, ArrowUp: false, ArrowDown: false,
+};
 // 追尾カメラ用の地形高度キャッシュ（queryTerrainElevation が null のときに維持）
 let _gpxCachedTerrainH = 0;
 // 前フレームの進行方向（端点など bearing=0 になる箇所の補完用）
@@ -2929,11 +2939,12 @@ async function loadGpx(file) {
     gpxCurrentTime = 0;
     gpxIsPlaying = false;
     gpxLastTimestamp = null;
-    // 追尾カメラ用キャッシュを先頭ポイントの地形高度でリセット
+    // 追尾カメラ用キャッシュ・オフセットをリセット
     _gpxCachedTerrainH = map.queryTerrainElevation(
       { lng: points[0].lng, lat: points[0].lat }, { exaggerated: false }
     ) ?? 0;
-    _lastGpxBearing = 0;
+    _lastGpxBearing  = 0;
+    gpxBearingOffset = 0;
 
     // 再生中ならキャンセルする
     if (gpxAnimFrameId) {
@@ -3142,24 +3153,15 @@ function interpolateGpxPosition(t) {
     両モードとも Center は現在地座標に追従する
     ======================================================== */
 function updateCamera(pos) {
-  if (gpxViewMode === 'chase') {
-    // PC シム追尾視点：setCameraFromPlayer() と同じロジックで GPX 位置を追尾
+  if (gpxViewMode === '3d') {
+    // 3D 追尾視点：setCameraFromPlayer() と同じロジックで GPX 位置を追尾
     updateCameraChase(pos);
-  } else if (gpxViewMode === 'first') {
-    // 1人称（ドローン追従）視点：進行方向に正面を向けて追従する
-    map.easeTo({
-      center: [pos.lng, pos.lat],
-      zoom: 18.5,
-      pitch: 72,
-      bearing: pos.bearing,
-      duration: 100,
-    });
   } else {
-    // 3人称（俯瞰）視点：常に北を向いて現在地を追従する
+    // 2D 俯瞰視点：北向き固定・現在地を追従
     map.easeTo({
       center: [pos.lng, pos.lat],
       zoom: 15.5,
-      pitch: 47,
+      pitch: 0,
       bearing: 0,
       duration: 100,
     });
@@ -3184,22 +3186,24 @@ function updateCameraChase(pos) {
   const R       = 6371008.8;
   const lat_rad = pos.lat * Math.PI / 180;
 
-  // PC シムと同じピッチ・カメラ距離を使用
-  const pitchDeg = Math.max(0, Math.min(map.getMaxPitch(), pcPitch));
+  // GPX 独自のピッチ・カメラ距離を使用（PC シムとは独立）
+  const pitchDeg = Math.max(0, Math.min(map.getMaxPitch(), gpxChasePitch));
   const pitchRad = pitchDeg * Math.PI / 180;
+  // 進行方向 + bearingOffset でカメラの向きを決定
+  const camBearing = (pos.bearing + gpxBearingOffset + 360) % 360;
 
   // 後方地点の地形高度を取得してカメラのめり込みを防止
-  const backDistKm = pcCamDistM * Math.sin(pitchRad) / 1000;
+  const backDistKm = gpxCamDistM * Math.sin(pitchRad) / 1000;
   const backPt = turf.destination(
-    [pos.lng, pos.lat], backDistKm, (pos.bearing + 180) % 360
+    [pos.lng, pos.lat], backDistKm, (camBearing + 180) % 360
   );
   const backH = map.queryTerrainElevation(
     { lng: backPt.geometry.coordinates[0], lat: backPt.geometry.coordinates[1] },
     { exaggerated: false }
   ) ?? h;
 
-  // カメラズームを地形面からの相対高度で計算（PCシムと同じ式）
-  const relativeAlt = Math.max(0.3, pcCamDistM * Math.cos(pitchRad));
+  // カメラズームを地形面からの相対高度で計算（PC シムと同じ式）
+  const relativeAlt = Math.max(0.3, gpxCamDistM * Math.cos(pitchRad));
   const targetZoom = Math.max(12, Math.min(map.getMaxZoom(), Math.log2(
     H * 2 * Math.PI * R * Math.cos(lat_rad) /
     (1024 * Math.tan(fov_rad / 2) * relativeAlt)
@@ -3207,7 +3211,7 @@ function updateCameraChase(pos) {
 
   map.jumpTo({
     center:  [pos.lng, pos.lat],
-    bearing: pos.bearing,
+    bearing: camBearing,
     pitch:   pitchDeg,
     zoom:    targetZoom,
   });
@@ -3229,6 +3233,17 @@ function gpxAnimationLoop(timestamp) {
   // 前フレームとの実経過時間を計算する（ミリ秒）
   const elapsed = gpxLastTimestamp !== null ? timestamp - gpxLastTimestamp : 0;
   gpxLastTimestamp = timestamp;
+
+  // ── 3D モード: 矢印キーによる視点調整（毎フレーム滑らかに更新） ──
+  if (gpxViewMode === '3d') {
+    const dt = Math.max(0, elapsed) / 1000; // 秒
+    const BEARING_RATE = 90; // deg/s
+    const PITCH_RATE   = 60; // deg/s
+    if (gpxChaseKeys.ArrowLeft)  gpxBearingOffset = (gpxBearingOffset - BEARING_RATE * dt + 360) % 360;
+    if (gpxChaseKeys.ArrowRight) gpxBearingOffset = (gpxBearingOffset + BEARING_RATE * dt) % 360;
+    if (gpxChaseKeys.ArrowUp)    gpxChasePitch = Math.min(85, gpxChasePitch + PITCH_RATE * dt);
+    if (gpxChaseKeys.ArrowDown)  gpxChasePitch = Math.max(0,  gpxChasePitch - PITCH_RATE * dt);
+  }
 
   // 再生速度セレクトの値を読み取る（10x, 30x, 60x, 120x）
   const speed = parseInt(document.getElementById('speed-select').value, 10) || 30;
@@ -3295,24 +3310,22 @@ function toggleGpxPlayPause() {
 /* ========================================================
     視点モードを切り替える（1人称 ↔ 3人称）
     ======================================================== */
-function toggleViewMode() {
-  // third → first → chase → third のサイクルで切り替え
-  if (gpxViewMode === 'third')       gpxViewMode = 'first';
-  else if (gpxViewMode === 'first')  gpxViewMode = 'chase';
-  else                               gpxViewMode = 'third';
-
-  const btn = document.getElementById('view-toggle-btn');
-  if (gpxViewMode === 'first') {
-    btn.textContent = '🚁 1人称視点';
-    btn.classList.add('active-first');
-    btn.classList.remove('active-chase');
-  } else if (gpxViewMode === 'chase') {
-    btn.textContent = '🎥 追尾視点';
-    btn.classList.remove('active-first');
-    btn.classList.add('active-chase');
+function toggleGpx3dMode() {
+  gpxViewMode = (gpxViewMode === '2d') ? '3d' : '2d';
+  const btn = document.getElementById('gpx-3d-btn');
+  const panel = document.getElementById('timeline-panel');
+  if (gpxViewMode === '3d') {
+    btn.textContent = '3D';
+    btn.classList.add('active');
+    panel.classList.add('gpx-3d');
+    // 3D に切り替えたとき bearing オフセットをリセット
+    gpxBearingOffset = 0;
   } else {
-    btn.textContent = '🗺 俯瞰視点';
-    btn.classList.remove('active-first', 'active-chase');
+    btn.textContent = '2D';
+    btn.classList.remove('active');
+    panel.classList.remove('gpx-3d');
+    // 2D 復帰時はすべての矢印キーをリセット
+    Object.keys(gpxChaseKeys).forEach(k => { gpxChaseKeys[k] = false; });
   }
 }
 
@@ -3606,7 +3619,7 @@ gpxFileInput.addEventListener('change', async (e) => {
 });
 
 // ---- 視点切り替えボタン ----
-document.getElementById('view-toggle-btn').addEventListener('click', toggleViewMode);
+document.getElementById('gpx-3d-btn').addEventListener('click', toggleGpx3dMode);
 
 // ---- 再生/一時停止ボタン ----
 document.getElementById('play-pause-btn').addEventListener('click', toggleGpxPlayPause);
@@ -6354,6 +6367,7 @@ function onPcSimContextMenu(e) {
    WASD / 矢印 の押下状態を管理し、Space で読図を開閉する
    ---------------------------------------------------------------- */
 document.addEventListener('keydown', (e) => {
+  // PC シムのキー操作
   if (e.code in pcSimKeys) {
     pcSimKeys[e.code] = true;
     if (pcSimActive) e.preventDefault();
@@ -6362,11 +6376,34 @@ document.addEventListener('keydown', (e) => {
     e.preventDefault();
     openPcReadMap();
   }
-  // I キーで距離を縮める（ズームイン）、O キーで距離を伸ばす（ズームアウト）（PCシム中のみ）
-  if (pcSimActive && (e.code === 'KeyI' || e.code === 'KeyO')) {
+  // I/O キー：カメラ距離（PCシム中 or GPX 3D中）
+  if ((pcSimActive || gpxViewMode === '3d') && (e.code === 'KeyI' || e.code === 'KeyO')) {
     e.preventDefault();
-    if (e.code === 'KeyI') pcCamDistM = Math.max(PC_CAM_DIST_MIN, pcCamDistM * 0.7);
-    else                   pcCamDistM = Math.min(PC_CAM_DIST_MAX, pcCamDistM * 1.4);
+    if (pcSimActive) {
+      if (e.code === 'KeyI') pcCamDistM = Math.max(PC_CAM_DIST_MIN, pcCamDistM * 0.7);
+      else                   pcCamDistM = Math.min(PC_CAM_DIST_MAX, pcCamDistM * 1.4);
+    } else {
+      if (e.code === 'KeyI') gpxCamDistM = Math.max(GPX_CAM_DIST_MIN, gpxCamDistM * 0.7);
+      else                   gpxCamDistM = Math.min(GPX_CAM_DIST_MAX, gpxCamDistM * 1.4);
+    }
+  }
+  // GPX 3D モードの矢印キー（PC シム非アクティブ時のみ）
+  if (gpxViewMode === '3d' && !pcSimActive && e.code in gpxChaseKeys) {
+    gpxChaseKeys[e.code] = true;
+    e.preventDefault();
+  }
+  // W/S キー：GPX 再生中に時間を進める/戻す（2D/3D 両モード対応、PCシム非アクティブ時）
+  if (!pcSimActive && gpxTrackPoints.length > 0 && (e.code === 'KeyW' || e.code === 'KeyS')) {
+    e.preventDefault();
+    const SEEK_STEP = 5000; // 5秒
+    if (e.code === 'KeyW') gpxCurrentTime = Math.min(gpxTotalDuration, gpxCurrentTime + SEEK_STEP);
+    else                   gpxCurrentTime = Math.max(0, gpxCurrentTime - SEEK_STEP);
+    const seekBar = document.getElementById('seek-bar');
+    seekBar.value = gpxCurrentTime;
+    updateSeekBarGradient();
+    updateTimeDisplay();
+    const pos = interpolateGpxPosition(gpxCurrentTime);
+    if (pos) { updateGpxMarker(pos); updateCamera(pos); }
   }
 });
 
@@ -6380,6 +6417,7 @@ document.getElementById('sim-zoom-slider').addEventListener('input', function ()
 
 document.addEventListener('keyup', (e) => {
   if (e.code in pcSimKeys) pcSimKeys[e.code] = false;
+  if (e.code in gpxChaseKeys) gpxChaseKeys[e.code] = false;
   if (pcSimActive && e.code === 'Space') closePcReadMap();
 });
 
