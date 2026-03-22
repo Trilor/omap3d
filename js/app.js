@@ -4044,9 +4044,20 @@ function updateMagneticNorth() {
   const dLng   = intervalKm / EQ_KM_PER_DEG;
   const refLat = Math.round(center.lat); // 最近傍整数度にスナップした基準緯度
 
-  // ビューポートをカバーする経度範囲のグリッドインデックス
-  const westLng  = bounds.getWest()  - bufDeg;
-  const eastLng  = bounds.getEast()  + bufDeg;
+  // 磁気偏角による経度ドリフト補正バッファ
+  // refLat（整数度）からビューポート中心まで線がウォークする際、磁気偏角により
+  // 経度方向にドリフトが生じる（日本では南向きウォーク時に東へ最大 ~0.1° ずれる）。
+  // このドリフト量を推定し、grid 生成範囲を東西に拡張して画面全体をカバーする。
+  const declCenter = geomag.field(
+    Math.max(-89.9, Math.min(89.9, center.lat)), center.lng
+  ).declination;
+  const latDiffKm   = Math.abs(refLat - center.lat) * EQ_KM_PER_DEG;
+  const cosLat      = Math.max(0.01, Math.cos(center.lat * Math.PI / 180));
+  const driftLngBuf = Math.abs(Math.sin(declCenter * Math.PI / 180) * latDiffKm / (EQ_KM_PER_DEG * cosLat));
+
+  // ビューポートをカバーする経度範囲のグリッドインデックス（ドリフト補正込み）
+  const westLng  = bounds.getWest()  - bufDeg - driftLngBuf;
+  const eastLng  = bounds.getEast()  + bufDeg + driftLngBuf;
   const startIdx = Math.floor(westLng / dLng);
   const endIdx   = Math.ceil (eastLng / dLng);
 
