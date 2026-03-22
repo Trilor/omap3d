@@ -52,7 +52,6 @@ async function fetchCompositeDemBitmap(z, x, y, signal, regionalDemBase = null, 
   const useS    = !demMode || demMode === 'dem5a'; // 全合成(null)・dem5a 明示時に使用
   const useLand = !demMode || demMode === 'land';  // 陸域統合DEM（産総研 z=14 まで）: null または 'land' 単独
   const sUrl    = useS ? `${DEM5A_BASE}/${z}/${x}/${y}.png` : null;
-  const landUrl = useLand ? `${LAND_DEM_BASE}/${z}/${y}/${x}.png` : null; // y・x 逆順
 
   const qUrl  = useQ ? `${QCHIZU_DEM_BASE}/${z}/${x}/${y}.webp` : null;
   const lUrl  = `${LAKEDEPTH_BASE}/${z}/${x}/${y}.png`;
@@ -71,10 +70,41 @@ async function fetchCompositeDemBitmap(z, x, y, signal, regionalDemBase = null, 
     } catch { return null; }
   }
 
+  // 産総研陸域統合DEM は z=14 が最大ズーム。
+  // z>14 のリクエストでは z=14 の親タイルを取得し、対応するサブ領域を切り出して
+  // タイルサイズにリサイズすることで完全なカバレッジを保証する。
+  // （Q地図・DEM5A が両方ない離島・未測量エリアでも地形が生成されるようにする）
+  async function toImageDataLand() {
+    if (!useLand) return null;
+    const zi = +z, xi = +x, yi = +y;
+    const lz    = Math.min(zi, 14);
+    const shift = zi - lz;                          // 0（z≤14）または 1以上（z>14）
+    const lx = xi >> shift, ly = yi >> shift;
+    try {
+      const r = await fetch(`${LAND_DEM_BASE}/${lz}/${ly}/${lx}.png`, { signal }); // y・x 逆順
+      if (!r.ok) return null;
+      const bm = await createImageBitmap(await r.blob());
+      const ts  = bm.width;
+      const cv  = new OffscreenCanvas(ts, ts);
+      const ctx = cv.getContext('2d');
+      if (shift > 0) {
+        // 親タイル内の対応サブ領域（ss×ss px）を (0,0)-(ts,ts) にリサイズして描画
+        const ss = ts >> shift;
+        const sx = (xi & ((1 << shift) - 1)) * ss;
+        const sy = (yi & ((1 << shift) - 1)) * ss;
+        ctx.drawImage(bm, sx, sy, ss, ss, 0, 0, ts, ts);
+      } else {
+        ctx.drawImage(bm, 0, 0);
+      }
+      bm.close();
+      return ctx.getImageData(0, 0, ts, ts);
+    } catch { return null; }
+  }
+
   const [qData, sData, landData, lData, lsData, rData] = await Promise.all([
     qUrl    ? toImageData(qUrl)    : Promise.resolve(null),
     sUrl    ? toImageData(sUrl)    : Promise.resolve(null),
-    landUrl ? toImageData(landUrl) : Promise.resolve(null),
+    toImageDataLand(),                               // 産総研: z>14 オーバーズーム対応
     toImageData(lUrl), toImageData(lsUrl),
     rUrl    ? toImageData(rUrl)    : Promise.resolve(null),
   ]);
