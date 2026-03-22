@@ -18,7 +18,7 @@ export const DEM5A_BASE       = 'https://cyberjapandata.gsi.go.jp/xyz/dem5a_png'
 export const DEM1A_BASE       = 'https://cyberjapandata.gsi.go.jp/xyz/dem1a_png'; // 基盤地図情報DEM1A {z}/{x}/{y}.png
 export const LAKEDEPTH_BASE          = 'https://cyberjapandata.gsi.go.jp/xyz/lakedepth';          // 湖水深タイル {z}/{x}/{y}.png
 export const LAKEDEPTH_STANDARD_BASE = 'https://cyberjapandata.gsi.go.jp/xyz/lakedepth_standard'; // 基準水面標高タイル {z}/{x}/{y}.png
-export const LAND_DEM_BASE    = 'https://tiles.gsj.jp/tiles/elev/land'; // 陸域統合DEM（産総研）※ {z}/{y}/{x}.png（y・x 逆順）
+export const LAND_DEM_BASE    = 'https://cyberjapandata.gsi.go.jp/xyz/dem_png'; // 基盤地図情報DEM10B（10mメッシュ・全国カバレッジ）{z}/{x}/{y}.png
 
 export const TERRAIN_URL = 'gsjdem://mapdata.qchizu.xyz/03_dem/52_gsi/all_2026/1_01/{z}/{x}/{y}.webp';
 

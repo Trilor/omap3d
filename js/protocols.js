@@ -48,11 +48,11 @@ maplibregl.addProtocol('pmtiles', pmtilesProtocol.tile.bind(pmtilesProtocol));
 // 地形(gsjdem://)は null で全合成。等高線は DEMソース選択に従い排他使用。
 async function fetchCompositeDemBitmap(z, x, y, signal, regionalDemBase = null, regionalDemExt = 'png', demMode = null) {
   const useQ    = demMode !== 'dem5a' && demMode !== 'land'; // Q地図: 陸域統合DEM/DEM5A単独時は除外
-  // DEM5A（国土地理院 5mDEM）: 産総研陸域統合DEM は z=14 までのため、z=15 のフォールバックとして全合成時も有効化
+  // DEM5A（国土地理院 5mDEM）: DEM10B より高解像度だが一部ギャップあり
   const useS    = !demMode || demMode === 'dem5a'; // 全合成(null)・dem5a 明示時に使用
-  const useLand = !demMode || demMode === 'land';  // 陸域統合DEM（産総研 z=14 まで）: null または 'land' 単独
+  const useLand = !demMode || demMode === 'land';  // DEM10B（GSI 10m・全国カバレッジ）: null または 'land' 単独
   const sUrl    = useS    ? `${DEM5A_BASE}/${z}/${x}/${y}.png`         : null;
-  const landUrl = useLand ? `${LAND_DEM_BASE}/${z}/${y}/${x}.png`      : null; // y・x 逆順
+  const landUrl = useLand ? `${LAND_DEM_BASE}/${z}/${x}/${y}.png`      : null; // DEM10B: 標準 {z}/{x}/{y} 順
   const qUrl    = useQ    ? `${QCHIZU_PROXY_BASE}/${z}/${x}/${y}.webp` : null; // CF Workers プロキシ経由
   const lUrl    = `${LAKEDEPTH_BASE}/${z}/${x}/${y}.png`;
   const lsUrl   = `${LAKEDEPTH_STANDARD_BASE}/${z}/${x}/${y}.png`;
@@ -117,7 +117,7 @@ async function fetchCompositeDemBitmap(z, x, y, signal, regionalDemBase = null, 
     }
   }
 
-  // 優先度 中: 陸域統合DEM（5mDEM の代替。産総研提供）
+  // 優先度 中: DEM10B（GSI 10mDEM・全国カバレッジ保証）
   if (landData) {
     const land = landData.data;
     for (let i = 0; i < o.length; i += 4) {
@@ -268,15 +268,15 @@ maplibregl.addProtocol('csdem', async (params, abortController) => {
   const regionalDemExt  = regionalDemBase ? ext : null;
 
   // ズーム別 DEMソース選択:
-  //   z≤14: 陸域統合DEMのみ（Q地図は高精細だが低ズームでは不要・転送量節約）
-  //   z15-16: 陸域統合DEM + Q地図1m合成（Q地図がある範囲は上書き）
-  //   z≥17: 陸域統合DEM + Q地図1m + 地域DEM 0.5m合成（地域DEMが最優先）
+  //   z≤14: DEM10Bのみ（Q地図は高精細だが低ズームでは不要・転送量節約）
+  //   z15-16: DEM10B + Q地図1m合成（Q地図がある範囲は上書き）
+  //   z≥17: DEM10B + Q地図1m + 地域DEM 0.5m合成（地域DEMが最優先）
   const demMode = zoomLevel <= 14 ? 'land' : null;
   // z<17 では地域DEM を使わない（地域DEMは z≥17 の高ズームでのみ有効）
   const effectiveRegionalBase = zoomLevel >= 17 ? regionalDemBase : null;
   const effectiveRegionalExt  = effectiveRegionalBase ? regionalDemExt : null;
 
-  // ── ① 9タイル全て並列fetch（地域DEM優先 → Q地図 → 陸域統合DEM の順で補完） ──
+  // ── ① 9タイル全て並列fetch（地域DEM優先 → Q地図 → DEM10B の順で補完） ──
   // 各タイルを fetchCompositeDemBitmap で取得（地域DEM/Q地図優先・nodata はシームレスで補完）
   const neighborOffsets = [
     [-1, -1], [0, -1], [1, -1], // 0:左上 1:上 2:右上
@@ -492,7 +492,7 @@ maplibregl.addProtocol('dem2relief', async (params, abortController) => {
     const [, z, x, y] = m;
 
     // ズーム別 DEMソース選択:
-    //   z≤14: 陸域統合DEMのみ / z≥15: 陸域統合DEM + Q地図1m合成
+    //   z≤14: DEM10Bのみ / z≥15: DEM10B + Q地図1m合成
     const demMode = +z <= 14 ? 'land' : null;
     // 合成 DEM ビットマップを取得（Q地図 > 陸域統合 > 湖水深 の優先順）
     // データなし（海域・範囲外・404・CORS）の場合は透明タイルを返す
