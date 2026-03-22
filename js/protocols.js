@@ -3,7 +3,7 @@
    MapLibre の addProtocol() でブラウザ内 DEM 変換を実現します
    ================================================================ */
 
-import { QCHIZU_DEM_BASE, DEM5A_BASE, LAKEDEPTH_BASE, LAKEDEPTH_STANDARD_BASE, LAND_DEM_BASE } from './config.js';
+import { QCHIZU_DEM_BASE, QCHIZU_PROXY_BASE, DEM5A_BASE, LAKEDEPTH_BASE, LAKEDEPTH_STANDARD_BASE, LAND_DEM_BASE } from './config.js';
 
 // ================================================================
 // 共通フォールバック: 1×1 透明 PNG の ArrayBuffer
@@ -53,7 +53,7 @@ async function fetchCompositeDemBitmap(z, x, y, signal, regionalDemBase = null, 
   const useLand = !demMode || demMode === 'land';  // 陸域統合DEM（産総研 z=14 まで）: null または 'land' 単独
   const sUrl    = useS ? `${DEM5A_BASE}/${z}/${x}/${y}.png` : null;
 
-  const qUrl  = useQ ? `${QCHIZU_DEM_BASE}/${z}/${x}/${y}.webp` : null;
+  const qUrl  = useQ ? `${QCHIZU_PROXY_BASE}/${z}/${x}/${y}.webp` : null; // CF Workers プロキシ経由（キャッシュ + CORS）
   const lUrl  = `${LAKEDEPTH_BASE}/${z}/${x}/${y}.png`;
   const lsUrl = `${LAKEDEPTH_STANDARD_BASE}/${z}/${x}/${y}.png`;
   const rUrl  = (useQ && regionalDemBase) ? `${regionalDemBase}/${z}/${x}/${y}.${regionalDemExt}` : null;
