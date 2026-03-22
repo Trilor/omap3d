@@ -4253,6 +4253,10 @@ function updateCsVisibility() {
   REGIONAL_CS_LAYERS.forEach(layer => {
     if (map.getLayer(layer.layerId)) {
       map.setLayoutProperty(layer.layerId, 'visibility', show05m ? 'visible' : 'none');
+      if (show05m) {
+        // 表示時にスライダーの現在値を反映（初期値 1.0 のままになるのを防ぐ）
+        map.setPaintProperty(layer.layerId, 'raster-opacity', parseFloat(sliderCs.value));
+      }
     }
   });
 
