@@ -166,15 +166,27 @@ maplibregl.addProtocol('gsjdem', async (params, abortController) => {
 
   // 地形は常に全ソース合成（Q地図+DEM5A+湖水深）で滑らかに描画。DEMソース選択には連動しない。
   const bitmap = await fetchCompositeDemBitmap(z, x, y, abortController.signal);
-  if (!bitmap) return { data: _transparentPngBuffer() };
 
-  // NumPNG → Terrarium 変換
-  const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+  // 出力は常に256×256固定（MapLibre backfillBorder の dimension mismatch を防止）
+  const OUT = 256;
+  const canvas = new OffscreenCanvas(OUT, OUT);
   const ctx = canvas.getContext('2d');
-  ctx.drawImage(bitmap, 0, 0);
+
+  if (!bitmap) {
+    // データなし → Terrarium 0m（R=128,G=0,B=0）で埋めた 256×256 タイルを返す
+    // 1×1透明PNGではなく256×256を返すことで隣接タイルとのサイズ不一致を防ぐ
+    const id = ctx.createImageData(OUT, OUT);
+    for (let i = 0; i < id.data.length; i += 4) { id.data[i] = 128; id.data[i + 3] = 255; }
+    ctx.putImageData(id, 0, 0);
+    const blob0 = await canvas.convertToBlob({ type: 'image/png' });
+    return { data: await blob0.arrayBuffer() };
+  }
+
+  // 常に256×256へリサイズ描画（Q地図512×512 WebPタイルも統一）
+  ctx.drawImage(bitmap, 0, 0, bitmap.width, bitmap.height, 0, 0, OUT, OUT);
   bitmap.close();
 
-  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const imageData = ctx.getImageData(0, 0, OUT, OUT);
   const data = imageData.data;
 
   for (let i = 0; i < data.length; i += 4) {
