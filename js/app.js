@@ -8509,3 +8509,31 @@ document.getElementById('import-decide-btn').addEventListener('click', () => {
     });
   });
 })();
+
+/* ================================================================
+   地図右クリック → Google マップで開くメニュー
+   ================================================================ */
+(function () {
+  const menu   = document.getElementById('map-context-menu');
+  const anchor = document.getElementById('ctx-open-googlemap');
+  if (!menu || !anchor) return;
+
+  // MapLibre の contextmenu イベント（右クリック位置の lngLat を取得）
+  map.on('contextmenu', (e) => {
+    if (pcSimActive) return; // PCシム中は無効
+    const { lng, lat } = e.lngLat;
+    const z = Math.round(map.getZoom());
+    anchor.href = `https://www.google.com/maps/@${lat.toFixed(6)},${lng.toFixed(6)},${z}z`;
+    menu.style.left = `${e.originalEvent.clientX}px`;
+    menu.style.top  = `${e.originalEvent.clientY}px`;
+    menu.style.display = 'block';
+    e.preventDefault();
+  });
+
+  // メニュー外クリック・地図ドラッグで閉じる
+  document.addEventListener('click', () => { menu.style.display = 'none'; });
+  document.addEventListener('contextmenu', (ev) => {
+    if (!ev.target.closest('#map-context-menu')) menu.style.display = 'none';
+  });
+  map.on('movestart', () => { menu.style.display = 'none'; });
+})();
