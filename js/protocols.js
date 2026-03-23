@@ -50,15 +50,18 @@ async function fetchTerrainDemBitmap(z, x, y, signal) {
   const dem5aUrl  = `${DEM5A_BASE}/${z}/${x}/${y}.png`;             // DEM5A:  5mメッシュ・基盤地図情報（maxzoom 15）
   const qUrl      = `${QCHIZU_PROXY_BASE}/${z}/${x}/${y}.webp`;     // Q地図1m: CF Workers プロキシ経由（maxzoom 16）
 
+  // 全ソースを 256×256 に正規化して返す。
+  // Q地図は512×512 WebPのためそのまま合成するとピクセル位置がずれてガタつく原因になる。
+  const TARGET = 256;
   async function toImageData(url) {
     try {
       const r = await fetch(url, { signal });
       if (!r.ok) return null;
       const bm = await createImageBitmap(await r.blob());
-      const cv = new OffscreenCanvas(bm.width, bm.height);
-      cv.getContext('2d').drawImage(bm, 0, 0);
+      const cv = new OffscreenCanvas(TARGET, TARGET);
+      cv.getContext('2d').drawImage(bm, 0, 0, bm.width, bm.height, 0, 0, TARGET, TARGET);
       bm.close();
-      return cv.getContext('2d').getImageData(0, 0, cv.width, cv.height);
+      return cv.getContext('2d').getImageData(0, 0, TARGET, TARGET);
     } catch { return null; }
   }
 
@@ -73,11 +76,10 @@ async function fetchTerrainDemBitmap(z, x, y, signal) {
     return (d[i] === 128 && d[i + 1] === 0 && d[i + 2] === 0) || d[i + 3] !== 255;
   }
 
-  // 合成先を全 nodata で初期化し、低優先度から順に上書き
-  const { width, height: h } = (dem10b ?? dem5a ?? qData);
-  const cv  = new OffscreenCanvas(width, h);
+  // 合成先を全 nodata で初期化し、低優先度から順に上書き（全ソース 256×256 で統一済み）
+  const cv  = new OffscreenCanvas(TARGET, TARGET);
   const ctx = cv.getContext('2d');
-  const out = ctx.createImageData(width, h);
+  const out = ctx.createImageData(TARGET, TARGET);
   const o = out.data;
   for (let i = 0; i < o.length; i += 4) { o[i] = 128; o[i + 3] = 255; } // all nodata
 
