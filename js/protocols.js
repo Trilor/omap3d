@@ -51,7 +51,10 @@ async function fetchTerrainDemBitmap(z, x, y, signal) {
   const qUrl      = `${QCHIZU_PROXY_BASE}/${z}/${x}/${y}.webp`;     // Q地図1m: CF Workers プロキシ経由（maxzoom 16）
 
   // 全ソースを 256×256 に正規化して返す。
-  // Q地図は512×512 WebPのためそのまま合成するとピクセル位置がずれてガタつく原因になる。
+  // Q地図は512×512 WebP のためリサイズが必要。
+  // ★ imageSmoothingEnabled = false（最近傍補間）必須:
+  //   バイリニア補間だと nodata(R=128,G=0,B=0) と有効データ(R≈0) の境界で
+  //   中間値 R≈64 が生成され、NumPNG として約 42000m と解釈されスパイクになる。
   const TARGET = 256;
   async function toImageData(url) {
     try {
@@ -59,9 +62,11 @@ async function fetchTerrainDemBitmap(z, x, y, signal) {
       if (!r.ok) return null;
       const bm = await createImageBitmap(await r.blob());
       const cv = new OffscreenCanvas(TARGET, TARGET);
-      cv.getContext('2d').drawImage(bm, 0, 0, bm.width, bm.height, 0, 0, TARGET, TARGET);
+      const ctx2 = cv.getContext('2d');
+      ctx2.imageSmoothingEnabled = false; // 最近傍補間でnodata汚染を防止
+      ctx2.drawImage(bm, 0, 0, bm.width, bm.height, 0, 0, TARGET, TARGET);
       bm.close();
-      return cv.getContext('2d').getImageData(0, 0, TARGET, TARGET);
+      return ctx2.getImageData(0, 0, TARGET, TARGET);
     } catch { return null; }
   }
 
