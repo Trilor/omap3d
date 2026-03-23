@@ -8527,13 +8527,13 @@ document.getElementById('import-decide-btn').addEventListener('click', () => {
     menu.style.left = `${e.originalEvent.clientX}px`;
     menu.style.top  = `${e.originalEvent.clientY}px`;
     menu.style.display = 'block';
-    e.preventDefault();
+    e.originalEvent.preventDefault();
+    // document の contextmenu リスナーへのバブリングを止めてメニューが即時閉じないようにする
+    e.originalEvent.stopPropagation();
   });
 
-  // メニュー外クリック・地図ドラッグで閉じる
-  document.addEventListener('click', () => { menu.style.display = 'none'; });
-  document.addEventListener('contextmenu', (ev) => {
-    if (!ev.target.closest('#map-context-menu')) menu.style.display = 'none';
-  });
+  // 右クリックメニュー以外のクリック・右クリック・地図ドラッグで閉じる
+  document.addEventListener('click',        () => { menu.style.display = 'none'; });
+  document.addEventListener('contextmenu',  () => { menu.style.display = 'none'; });
   map.on('movestart', () => { menu.style.display = 'none'; });
 })();
