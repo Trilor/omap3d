@@ -4669,13 +4669,17 @@ function applyContourInterval(intervalM) {
   const hasDem1a  = newUrlDem1a && map.getSource('contour-source-dem1a');
   // const hasLake   = newUrlLake  && map.getSource('contour-source-lake');
   if (!hasQchizu && !hasDem5a && !hasDem1a) return;
-  // visibility:none で一旦消すとフリックが起きるため、表示を維持したまま setTiles のみ実行
-  if (hasQchizu) map.getSource('contour-source').setTiles([newUrl]);
-  if (hasDem5a)  map.getSource('contour-source-dem5a').setTiles([newUrlDem5a]);
-  if (hasDem1a)  map.getSource('contour-source-dem1a').setTiles([newUrlDem1a]);
+  // setTiles でタイルキャッシュをクリアして新 URL を設定する。
+  // 空配列を一度セットしてから新 URL をセットすることで、
+  // MapLibre のタイルキャッシュを確実にフラッシュしてタイル再取得を強制する。
+  if (hasQchizu) { map.getSource('contour-source').setTiles([]); map.getSource('contour-source').setTiles([newUrl]); }
+  if (hasDem5a)  { map.getSource('contour-source-dem5a').setTiles([]); map.getSource('contour-source-dem5a').setTiles([newUrlDem5a]); }
+  if (hasDem1a)  { map.getSource('contour-source-dem1a').setTiles([]); map.getSource('contour-source-dem1a').setTiles([newUrlDem1a]); }
   // if (hasLake)   map.getSource('contour-source-lake').setTiles([newUrlLake]);
   // 初期 visibility:none で追加されるため、ここで visible に設定する（フリック防止のため none は経由しない）
   if (chkContour.checked) setAllContourVisibility('visible');
+  // マップがアイドル状態でもレンダーループを確実に起動してタイル再描画を促す
+  map.triggerRepaint();
   lastAppliedContourInterval = intervalM;
 }
 
