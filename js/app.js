@@ -93,10 +93,12 @@ const map = new maplibregl.Map({
 map.addControl(new maplibregl.AttributionControl({
   compact: true,
   customAttribution:
-    '(<a href="https://www.geospatial.jp/ckan/dataset/qchizu_94dem_99gsi" target="_blank">Q地図1mDEM</a>' +
-    ' | <a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">地理院タイル[PNG標高DEM5A/湖水深/基準水面標高]</a>' +
-    ' | <a href="https://www.ngdc.noaa.gov/geomag/WMM/" target="_blank">WMM/NOAA</a>)' +
-    ' を加工して作成',
+    '<a href="https://www.geospatial.jp/ckan/dataset/qchizu_94dem_99gsi" target="_blank" rel="noopener">Q地図1mDEM</a>' +
+    '/<a href="https://maps.gsi.go.jp/development/ichiran.html#dem" target="_blank" rel="noopener">地理院DEM5A</a>' +
+    '/<a href="https://maps.gsi.go.jp/development/ichiran.html#dem" target="_blank" rel="noopener">地理院DEM10B</a>' +
+    'を加工して作成 | ' +
+    '<a href="https://www.ngdc.noaa.gov/geomag/WMM/" target="_blank" rel="noopener">WMM/NOAA</a>' +
+    'を加工して作成',
 }), 'bottom-right');
 
 // 出典パネルの開閉を監視し、縮尺コントロールを出典の上に移動（重なり防止）
