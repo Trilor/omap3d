@@ -2880,7 +2880,7 @@ label.setting-label {
 #scale-ctrl-container {
   position: absolute;
   left: calc(var(--sidebar-w, 296px) + 10px); /* 左パネル右端から10px */
-  bottom: calc(var(--attrib-h, 0px) + 10px);
+  bottom: calc(var(--attrib-h, 0px) + 14px);
   z-index: 19;
   transition: bottom 0.2s ease;
 }
@@ -3546,7 +3546,7 @@ label.setting-label {
      --attrib-h を常時加算するため .above-attrib は不要 */
   #scale-ctrl-container {
     left: 10px;
-    bottom: calc(54px + env(safe-area-inset-bottom, 0px) + var(--attrib-h, 0px) + 10px);
+    bottom: calc(54px + env(safe-area-inset-bottom, 0px) + var(--attrib-h, 0px) + 14px);
   }
 }
 
