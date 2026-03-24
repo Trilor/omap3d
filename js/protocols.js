@@ -355,12 +355,12 @@ maplibregl.addProtocol('csdem', async (params, abortController) => {
 
   // ズーム別 DEMソース選択:
   //   z≤10: DEM10Bのみ（低ズームは解像度差が無意味・最軽量）
-  //   z11-12: DEM10B + DEM5A（中ズーム・Q地図は不要）
-  //   z13-16: DEM10B + DEM5A + Q地図1m（高ズーム・フル合成）
+  //   z11-13: DEM10B + DEM5A（中ズーム・Q地図は不要）
+  //   z14-16: DEM10B + DEM5A + Q地図1m（高ズーム・フル合成）
   //   z≥17: DEM10B + DEM5A + Q地図1m + 地域DEM 0.5m（最高ズーム・地域DEMが最優先）
   const demMode = zoomLevel <= 10 ? 'land'
-                : zoomLevel <= 12 ? 'land+dem5a'
-                : null; // z13以上は全ソース合成
+                : zoomLevel <= 13 ? 'land+dem5a'
+                : null; // z14以上は全ソース合成
   // z<17 では地域DEM を使わない（地域DEMは z≥17 の高ズームでのみ有効）
   const effectiveRegionalBase = zoomLevel >= 17 ? regionalDemBase : null;
   const effectiveRegionalExt  = effectiveRegionalBase ? regionalDemExt : null;
@@ -581,8 +581,8 @@ maplibregl.addProtocol('dem2relief', async (params, abortController) => {
     const [, z, x, y] = m;
 
     // ズーム別 DEMソース選択（csdem:// と同じ基準）:
-    //   z≤10: DEM10Bのみ / z11-12: DEM10B+DEM5A / z≥13: DEM10B+DEM5A+Q地図1m
-    const demMode = +z <= 10 ? 'land' : +z <= 12 ? 'land+dem5a' : null;
+    //   z≤10: DEM10Bのみ / z11-13: DEM10B+DEM5A / z≥14: DEM10B+DEM5A+Q地図1m
+    const demMode = +z <= 10 ? 'land' : +z <= 13 ? 'land+dem5a' : null;
     // 合成 DEM ビットマップを取得（Q地図 > 陸域統合 > 湖水深 の優先順）
     // データなし（海域・範囲外・404・CORS）の場合は透明タイルを返す
     const bitmap = await fetchCompositeDemBitmap(z, x, y, abortController.signal, null, 'png', demMode);
