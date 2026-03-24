@@ -2876,17 +2876,13 @@ label.setting-label {
 }
 
 /* 縮尺コントロール: 左下に配置（検索ボックスとの重なりを回避）
-   出典パネルが開いたとき JS が .above-attrib クラスを付与し出典の上に移動する */
+   --attrib-h は JS の ResizeObserver が常時更新するため、常に出典の上に表示される */
 #scale-ctrl-container {
   position: absolute;
   left: calc(var(--sidebar-w, 296px) + 10px); /* 左パネル右端から10px */
-  bottom: 10px;
+  bottom: calc(var(--attrib-h, 0px) + 10px);
   z-index: 19;
   transition: bottom 0.2s ease;
-}
-/* 出典が開いたとき: --attrib-h に出典の高さをセットして上に逃げる */
-#scale-ctrl-container.above-attrib {
-  bottom: calc(var(--attrib-h, 40px) + 14px);
 }
 .scale-ctrl-select {
   height: 29px;           /* 全画面ボタンと同じ高さ */
@@ -3546,13 +3542,11 @@ label.setting-label {
     bottom: calc(54px + env(safe-area-inset-bottom, 0px)) !important;
   }
 
-  /* 縮尺: ボトムナビの上・モバイルは sidebar-w=0 なので左端に 10px 余白 */
+  /* 縮尺: ボトムナビの上・モバイルは sidebar-w=0 なので左端に 10px 余白
+     --attrib-h を常時加算するため .above-attrib は不要 */
   #scale-ctrl-container {
     left: 10px;
-    bottom: calc(54px + env(safe-area-inset-bottom, 0px) + 10px);
-  }
-  #scale-ctrl-container.above-attrib {
-    bottom: calc(54px + env(safe-area-inset-bottom, 0px) + var(--attrib-h, 40px) + 14px);
+    bottom: calc(54px + env(safe-area-inset-bottom, 0px) + var(--attrib-h, 0px) + 10px);
   }
 }
 
