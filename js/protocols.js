@@ -35,6 +35,45 @@ maplibregl.addProtocol('pmtiles', pmtilesProtocol.tile.bind(pmtilesProtocol));
 
 /*
   ========================================================
+  NumPNG タイル取得ヘルパー（オーバーズーム対応）
+
+  DEM ソースのサーバー側 maxzoom を超えた z でリクエストされた場合、
+  親タイルを取得して対象領域を最近傍補間で切り出し out×out に拡大する。
+  ★ imageSmoothingEnabled=false 必須:
+    RGB に符号付き整数で標高がエンコードされているため、補間すると
+    中間値が誤った標高値として解釈されスパイクが発生する。
+  ========================================================
+*/
+async function fetchNumPng(baseUrl, z, x, y, maxzoom, ext, out, signal) {
+  const cz   = Math.min(z, maxzoom);
+  const diff  = z - cz;                  // オーバーズーム段数
+  const cx   = x >> diff;                // 親タイルの x
+  const cy   = y >> diff;                // 親タイルの y
+  try {
+    const r = await fetch(`${baseUrl}/${cz}/${cx}/${cy}.${ext}`, { signal });
+    if (!r.ok) return null;
+    const bm = await createImageBitmap(await r.blob());
+    const cv  = new OffscreenCanvas(out, out);
+    const ctx = cv.getContext('2d');
+    ctx.imageSmoothingEnabled = false;
+    if (diff === 0) {
+      // オーバーズームなし: そのまま out×out にリサイズ（Q地図 512px→256px など）
+      ctx.drawImage(bm, 0, 0, bm.width, bm.height, 0, 0, out, out);
+    } else {
+      // オーバーズームあり: 親タイルから該当象限を切り出して out×out に拡大
+      const scale   = 1 << diff;
+      const srcSize = bm.width / scale;
+      const srcX    = (x & (scale - 1)) * srcSize;
+      const srcY    = (y & (scale - 1)) * srcSize;
+      ctx.drawImage(bm, srcX, srcY, srcSize, srcSize, 0, 0, out, out);
+    }
+    bm.close();
+    return ctx.getImageData(0, 0, out, out);
+  } catch { return null; }
+}
+
+/*
+  ========================================================
   3D地形用 DEM 合成（Q地図1m > DEM5A > DEM10B）
   q地図 maplibre 版の demTranscoderProtocol.js を参考に実装。
   優先度:
@@ -46,46 +85,20 @@ maplibregl.addProtocol('pmtiles', pmtilesProtocol.tile.bind(pmtilesProtocol));
   ========================================================
 */
 async function fetchTerrainDemBitmap(z, x, y, signal) {
-  const dem10bUrl = `${LAND_DEM_BASE}/${z}/${x}/${y}.png`;         // DEM10B: 10mメッシュ・全国カバレッジ（maxzoom 14）
-  const dem5aUrl  = `${DEM5A_BASE}/${z}/${x}/${y}.png`;             // DEM5A:  5mメッシュ・基盤地図情報（maxzoom 15）
-  const qUrl      = `${QCHIZU_PROXY_BASE}/${z}/${x}/${y}.webp`;     // Q地図1m: CF Workers プロキシ経由（maxzoom 16）
-  // terrain-dem ソースの maxzoom を 15 に設定しているため、
-  // MapLibre は z≤15 のタイルのみ要求し z16+ は自動オーバーズームする。
-  // よって DEM5A(max z15) は常にデータあり、DEM10B(max z14) は z15 で404になるが
-  // DEM5A がカバーするため問題なし。
-
-  // 全ソースを 256×256 に正規化して返す。
-  // Q地図は512×512 WebP のためリサイズが必要。
-  // ★ imageSmoothingEnabled = false（最近傍補間）必須:
-  //   バイリニア補間だと nodata(R=128,G=0,B=0) と有効データ(R≈0) の境界で
-  //   中間値 R≈64 が生成され、NumPNG として約 42000m と解釈されスパイクになる。
-  const TARGET = 256;
+  const T   = 256;                        // 出力タイルサイズ（常に 256×256）
+  const zi  = +z, xi = +x, yi = +y;
 
   // Q地図1m 用タイムアウト付きシグナル（3秒）
   // Q地図1mの提供が不安定な場合でも DEM5A/DEM10B で素早くテレインを返すため。
-  // AbortSignal.any は Chrome116+/Firefox115+ で使用可能。
   const qSignal = (typeof AbortSignal.any === 'function')
     ? AbortSignal.any([signal, AbortSignal.timeout(3000)])
     : signal;
 
-  async function toImageData(url, s = signal) {
-    try {
-      const r = await fetch(url, { signal: s });
-      if (!r.ok) return null;
-      const bm = await createImageBitmap(await r.blob());
-      const cv = new OffscreenCanvas(TARGET, TARGET);
-      const ctx2 = cv.getContext('2d');
-      ctx2.imageSmoothingEnabled = false; // 最近傍補間でnodata汚染を防止
-      ctx2.drawImage(bm, 0, 0, bm.width, bm.height, 0, 0, TARGET, TARGET);
-      bm.close();
-      return ctx2.getImageData(0, 0, TARGET, TARGET);
-    } catch { return null; }
-  }
-
+  // 各 DEM ソースをオーバーズーム対応で取得（maxzoom 超の z は親タイルから切り出し）
   const [dem10b, dem5a, qData] = await Promise.all([
-    toImageData(dem10bUrl),
-    toImageData(dem5aUrl),
-    toImageData(qUrl, qSignal),
+    fetchNumPng(LAND_DEM_BASE,     zi, xi, yi, 14, 'png',  T, signal),   // DEM10B: maxzoom 14
+    fetchNumPng(DEM5A_BASE,        zi, xi, yi, 15, 'png',  T, signal),   // DEM5A:  maxzoom 15
+    fetchNumPng(QCHIZU_PROXY_BASE, zi, xi, yi, 16, 'webp', T, qSignal),  // Q地図1m: maxzoom 16
   ]);
   if (!dem10b && !dem5a && !qData) return null;
 
@@ -146,42 +159,26 @@ async function fetchTerrainDemBitmap(z, x, y, signal) {
 //          'land+dem5a'  → DEM10B + DEM5A（z11-12用）
 //          'dem5a'       → DEM5Aのみ
 async function fetchCompositeDemBitmap(z, x, y, signal, regionalDemBase = null, regionalDemExt = 'png', demMode = null) {
-  const useQ    = demMode === null; // Q地図: 全合成モードのみ使用
-  const useS    = demMode === null || demMode === 'dem5a' || demMode === 'land+dem5a'; // DEM5A: 全合成 or 単独 or land+dem5a
-  const useLand = demMode === null || demMode === 'land' || demMode === 'land+dem5a'; // DEM10B: 全合成 or 単独 or land+dem5a
-  const sUrl    = useS    ? `${DEM5A_BASE}/${z}/${x}/${y}.png`         : null;
-  const landUrl = useLand ? `${LAND_DEM_BASE}/${z}/${x}/${y}.png`      : null;
-  const qUrl    = useQ    ? `${QCHIZU_PROXY_BASE}/${z}/${x}/${y}.webp` : null;
-  // 湖水深タイルはコメントアウト（2026-03-23 廃止）
-  // const lUrl  = `${LAKEDEPTH_BASE}/${z}/${x}/${y}.png`;
-  // const lsUrl = `${LAKEDEPTH_STANDARD_BASE}/${z}/${x}/${y}.png`;
-  const rUrl    = (useQ && regionalDemBase) ? `${regionalDemBase}/${z}/${x}/${y}.${regionalDemExt}` : null;
+  const useQ    = demMode === null;
+  const useS    = demMode === null || demMode === 'dem5a' || demMode === 'land+dem5a';
+  const useLand = demMode === null || demMode === 'land' || demMode === 'land+dem5a';
+  const zi = +z, xi = +x, yi = +y;
+  const T  = 256; // 出力タイルサイズ（256×256 に統一）
 
   // Q地図1m 用タイムアウト付きシグナル（3秒）
-  // Q地図1mの提供が不安定な場合でも他ソースで素早くCS立体図を返すため。
   const qSignal = useQ && (typeof AbortSignal.any === 'function')
     ? AbortSignal.any([signal, AbortSignal.timeout(3000)])
     : signal;
 
-  async function toImageData(url, s = signal) {
-    try {
-      const r = await fetch(url, { signal: s });
-      if (!r.ok) return null;
-      const bm = await createImageBitmap(await r.blob());
-      const cv = new OffscreenCanvas(bm.width, bm.height);
-      cv.getContext('2d').drawImage(bm, 0, 0);
-      bm.close();
-      return cv.getContext('2d').getImageData(0, 0, cv.width, cv.height);
-    } catch { return null; }
-  }
+  // 湖水深タイルはコメントアウト（2026-03-23 廃止）
+  // const lUrl  = `${LAKEDEPTH_BASE}/${z}/${x}/${y}.png`;
 
   const [qData, sData, landData, rData] = await Promise.all([
-    qUrl     ? toImageData(qUrl, qSignal) : Promise.resolve(null),
-    sUrl     ? toImageData(sUrl)          : Promise.resolve(null),
-    landUrl  ? toImageData(landUrl)       : Promise.resolve(null),
+    useQ           ? fetchNumPng(QCHIZU_PROXY_BASE, zi, xi, yi, 16, 'webp', T, qSignal) : Promise.resolve(null),
+    useS           ? fetchNumPng(DEM5A_BASE,         zi, xi, yi, 15, 'png',  T, signal)  : Promise.resolve(null),
+    useLand        ? fetchNumPng(LAND_DEM_BASE,      zi, xi, yi, 14, 'png',  T, signal)  : Promise.resolve(null),
     // 湖水深タイルはコメントアウト（2026-03-23 廃止）
-    // toImageData(lUrl), toImageData(lsUrl),
-    rUrl     ? toImageData(rUrl)          : Promise.resolve(null),
+    regionalDemBase ? fetchNumPng(regionalDemBase,  zi, xi, yi, 18, regionalDemExt, T, signal) : Promise.resolve(null),
   ]);
   if (!qData && !sData && !landData && !rData) return null;
 
@@ -190,7 +187,7 @@ async function fetchCompositeDemBitmap(z, x, y, signal, regionalDemBase = null, 
   }
 
   // 合成先を全 nodata で初期化し、低優先度から順に上書き
-  const { width, height: h } = (qData ?? sData ?? landData ?? rData);
+  const { width, height: h } = (qData ?? sData ?? landData ?? rData); // 全ソース 256×256 に統一済み
   const cv  = new OffscreenCanvas(width, h);
   const ctx = cv.getContext('2d');
   const out = ctx.createImageData(width, h);

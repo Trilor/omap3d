@@ -52,7 +52,7 @@ const map = new maplibregl.Map({
         tiles: [TERRAIN_URL],
         tileSize: 256,
         minzoom: 1,
-        maxzoom: 15, // DEM5A の上限（z15タイルを z16+ で MapLibre がオーバーズーム）
+        maxzoom: 16, // gsjdem プロトコル内でオーバーズーム処理済み（DEM5A/DEM10B の上限超え対応）
         encoding: 'terrarium',
         attribution: '',
       }
