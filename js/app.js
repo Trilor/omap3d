@@ -87,10 +87,9 @@ const map = new maplibregl.Map({
     'AttributionControl.MapFeedback':     'マップのフィードバック',
     'LogoControl.Title':                  'MapLibre',
   },
-  // URL ハッシュに地図状態を自動保存・復元（#map=zoom/lat/lng/bearing/pitch 形式）
-  // 再読込時に同じ位置・向き・傾きで復元される。
-  // hash に文字列を渡すと "#<name>=..." 形式になる（OSM / MapLibre 標準）。
-  hash: 'map',
+  // URL ハッシュに地図状態を自動保存・復元（#zoom/lat/lng/bearing/pitch 形式）
+  // 再読込時に同じ位置・向き・傾きで復元される（MapLibre / OSM 標準形式）。
+  hash: true,
 });
 
 // 出典表示（customAttribution で固定表示、都道府県別CS出典は updateRegionalAttribution で追記）
@@ -8572,7 +8571,7 @@ document.getElementById('import-decide-btn').addEventListener('click', () => {
     const parts = [z, lat4, lng4];
     if (b || p) parts.push(b);
     if (p)      parts.push(p);
-    const url = `${window.location.origin}${window.location.pathname}#map=${parts.join('/')}`;
+    const url = `${window.location.origin}${window.location.pathname}#${parts.join('/')}`;
     navigator.clipboard.writeText(url).then(() => {
       copyBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0"><polyline points="20 6 9 17 4 12"/></svg>コピーしました`;
       setTimeout(() => { menu.style.display = 'none'; }, 800);
