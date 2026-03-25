@@ -53,6 +53,11 @@ body {
   height: 100%;
   background-color: #dbeff9;
 }
+/* MapLibre のデフォルト grab カーソルを矢印に上書き */
+#map .maplibregl-canvas-container,
+#map .maplibregl-canvas-container.maplibregl-interactive {
+  cursor: default !important;
+}
 
 
 /* ---- UIパネル（地理院地図/Q地図スタイル） ---- */
@@ -184,6 +189,30 @@ body {
   align-items: center;
   flex-shrink: 0;
   letter-spacing: 0.02em;
+}
+
+/* パネル閉じるボタン */
+.sidebar-close-btn {
+  margin-left: auto;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  color: #555;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.12s, color 0.12s;
+}
+.sidebar-close-btn:hover {
+  background: rgba(0,0,0,0.12);
+  color: #111;
 }
 
 /* スクロール可能エリア */

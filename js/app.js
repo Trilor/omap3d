@@ -8530,25 +8530,44 @@ document.getElementById('import-decide-btn').addEventListener('click', () => {
 })();
 
 /* ================================================================
-   地図右クリック → Google マップで開くメニュー
+   地図右クリックメニュー
    ================================================================ */
 (function () {
-  const menu   = document.getElementById('map-context-menu');
-  const anchor = document.getElementById('ctx-open-googlemap');
-  if (!menu || !anchor) return;
+  const menu      = document.getElementById('map-context-menu');
+  const anchor    = document.getElementById('ctx-open-googlemap');
+  const copyBtn   = document.getElementById('ctx-copy-link');
+  if (!menu || !anchor || !copyBtn) return;
+
+  let _lat = 0, _lng = 0;
 
   // MapLibre の contextmenu イベント（右クリック位置の lngLat を取得）
   map.on('contextmenu', (e) => {
     if (pcSimActive) return; // PCシム中は無効
-    const { lng, lat } = e.lngLat;
+    ({ lng: _lng, lat: _lat } = e.lngLat);
     const z = map.getZoom().toFixed(1);
-    anchor.href = `https://www.google.com/maps/@${lat.toFixed(6)},${lng.toFixed(6)},${z}z`;
+    anchor.href = `https://www.google.com/maps/@${_lat.toFixed(6)},${_lng.toFixed(6)},${z}z`;
+    copyBtn.textContent = 'この地点のリンクをコピー';
+    // アイコンは SVG 要素なので textContent で消えてしまうため再挿入
+    copyBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>この地点のリンクをコピー`;
     menu.style.left = `${e.originalEvent.clientX}px`;
     menu.style.top  = `${e.originalEvent.clientY}px`;
     menu.style.display = 'block';
     e.originalEvent.preventDefault();
     // document の contextmenu リスナーへのバブリングを止めてメニューが即時閉じないようにする
     e.originalEvent.stopPropagation();
+  });
+
+  // 「この地点のリンクをコピー」: zoom/lat/lng/bearing/pitch を含む URL をクリップボードへ
+  copyBtn.addEventListener('click', () => {
+    const z = map.getZoom().toFixed(2);
+    const b = map.getBearing().toFixed(1);
+    const p = map.getPitch().toFixed(1);
+    const hash = `#map=${z}/${_lat.toFixed(6)}/${_lng.toFixed(6)}/${b}/${p}`;
+    const url = window.location.origin + window.location.pathname + hash;
+    navigator.clipboard.writeText(url).then(() => {
+      copyBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0"><polyline points="20 6 9 17 4 12"/></svg>コピーしました`;
+      setTimeout(() => { menu.style.display = 'none'; }, 800);
+    });
   });
 
   // 右クリックメニュー以外のクリック・右クリック・地図ドラッグで閉じる
