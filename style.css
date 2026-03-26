@@ -98,6 +98,26 @@
   /* ===== スライダー ===== */
   --slider-track: #d0d0d0;  /* スライダー未充填トラック色 */
 
+  /* ===== シャドウ（box-shadow 用 rgba） ===== */
+  --shadow-xs: rgba(0,0,0,0.1);   /* フォーカスリング・極薄シャドウ */
+  --shadow-sm: rgba(0,0,0,0.12);  /* 小パネルシャドウ */
+  --shadow-md: rgba(0,0,0,0.18);  /* 中シャドウ */
+  --shadow-lg: rgba(0,0,0,0.2);   /* 大パネルシャドウ */
+
+  /* ===== オーバーレイ（スクリム・モーダル背景） ===== */
+  --overlay-light: rgba(0,0,0,0.45); /* 薄いスクリム */
+  --overlay-base:  rgba(0,0,0,0.5);  /* 標準スクリム */
+  --overlay-mid:   rgba(0,0,0,0.55); /* 中程度スクリム */
+  --overlay-dark:  rgba(0,0,0,0.65); /* 濃いスクリム */
+
+  /* ===== 白オーバーレイ ===== */
+  --white-subtle:    rgba(255,255,255,0.15); /* 薄い白オーバーレイ（暗背景上のボタン） */
+  --white-border:    rgba(255,255,255,0.25); /* 白枠線（モーダル上） */
+  --white-hover:     rgba(255,255,255,0.3);  /* 白ホバー */
+  --white-strong:    rgba(255,255,255,0.9);  /* 強い白テキスト */
+  --bg-glass:        rgba(255,255,255,0.92); /* 半透明白パネル */
+  --bg-glass-heavy:  rgba(255,255,255,0.95); /* ほぼ不透明白パネル */
+
   /* ===== トランジション ===== */
   --transition:      0.15s;  /* 標準（ボタン・スライダー） */
   --transition-fast: 0.12s;  /* 高速（リスト行ホバー） */
@@ -309,7 +329,7 @@ body {
   transition: background var(--transition-fast), color var(--transition-fast);
 }
 .sidebar-close-btn:hover {
-  background: rgba(0,0,0,0.12);
+  background: var(--shadow-sm);
   color: #111;
 }
 
@@ -985,7 +1005,7 @@ body {
   padding: 0;
   cursor: pointer;
   overflow: hidden;
-  box-shadow: 0 0 0 2px rgba(0,0,0,.10);
+  box-shadow: 0 0 0 2px var(--shadow-xs);
   transition: box-shadow 0.15s;
 }
 .bm-card:hover  { box-shadow: 0 0 0 2px var(--primary-light, #93c5fd); }
@@ -1009,7 +1029,7 @@ body {
   padding: 2px 3px;
   text-align: center;
   color: var(--on-primary);
-  background: rgba(0, 0, 0, 0.50);
+  background: var(--overlay-base);
   backdrop-filter: blur(2px);
   -webkit-backdrop-filter: blur(2px);
   line-height: 1.3;
@@ -1964,11 +1984,11 @@ label.setting-label {
   display: flex;
   align-items: center;
   gap: 6px;
-  background: rgba(255,255,255,0.92);
+  background: var(--bg-glass);
   backdrop-filter: blur(4px);
   border-radius: 6px;
   padding: 4px 8px;
-  box-shadow: 0 1px 6px rgba(0,0,0,0.18);
+  box-shadow: 0 1px 6px var(--shadow-md);
   font-size: var(--font-sm);
   color: var(--text-main);
   user-select: none;
@@ -2035,7 +2055,7 @@ label.setting-label {
   font-size: var(--font-base);
   color: var(--text-main);
   background: var(--bg-surface);
-  box-shadow: 0 0 0 2px rgba(0,0,0,.1);
+  box-shadow: 0 0 0 2px var(--shadow-xs);
   outline: none;
 }
 #unified-search-input:focus {
@@ -2068,7 +2088,7 @@ label.setting-label {
   overflow-y: auto;
   max-height: 280px;
   background: var(--bg-surface);
-  box-shadow: 0 0 0 2px rgba(0,0,0,.1);
+  box-shadow: 0 0 0 2px var(--shadow-xs);
 }
 #unified-search-results:empty {
   display: none;
@@ -2235,7 +2255,7 @@ label.setting-label {
   left: 50%;
   transform: translateX(-50%);
   z-index: 10;
-  background: rgba(0, 0, 0, 0.55);
+  background: var(--overlay-mid);
   color: var(--on-primary);
   font-size: var(--font-sm);
   padding: 5px 14px;
@@ -2343,7 +2363,7 @@ label.setting-label {
   left: 50%;
   transform: translateX(-50%);
   z-index: 10;
-  background: rgba(255, 255, 255, 0.92);
+  background: var(--bg-glass);
   border: 1px solid var(--border-input);
   border-radius: 20px;
   padding: 6px 18px;
@@ -2351,7 +2371,7 @@ label.setting-label {
   font-weight: var(--font-semi);
   color: var(--text-main);
   cursor: pointer;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
+  box-shadow: 0 1px 4px var(--shadow-md);
   display: none;
   /* GPX読み込み前は非表示 */
   white-space: nowrap;
@@ -2380,11 +2400,11 @@ label.setting-label {
   left: 50%;
   transform: translateX(-50%);
   z-index: 10;
-  background: rgba(255, 255, 255, 0.95);
+  background: var(--bg-glass-heavy);
   border: 1px solid var(--border-input);
   border-radius: 8px;
   padding: 6px 14px 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 2px 8px var(--shadow-lg);
   display: none;
   /* GPX読み込み前は非表示 */
   flex-direction: column;
@@ -2554,7 +2574,7 @@ label.setting-label {
   height: 30vmin;
   border-radius: 8px;
   overflow: hidden;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 2px 10px var(--overlay-light);
   pointer-events: none;
 }
 
@@ -2583,7 +2603,7 @@ label.setting-label {
   background: var(--color-marker);
   border: 2px solid #fff;
   border-radius: 50%;
-  box-shadow: 0 0 4px rgba(0,0,0,0.5);
+  box-shadow: 0 0 4px var(--overlay-base);
   pointer-events: none;
   z-index: 2;
 }
@@ -2634,7 +2654,7 @@ label.setting-label {
   display: flex;
   align-items: center;
   gap: 6px;
-  background: rgba(0,0,0,0.45);
+  background: var(--overlay-light);
   padding: 5px 10px;
   border-radius: 20px;
   pointer-events: auto;
@@ -2698,7 +2718,7 @@ label.setting-label {
   left: 50%;
   transform: translateX(-50%);
   z-index: 25;
-  background: rgba(0, 0, 0, 0.65);
+  background: var(--overlay-dark);
   color: var(--on-primary);
   font-size: var(--font-sm);
   padding: 8px 16px;
@@ -2716,7 +2736,7 @@ label.setting-label {
 }
 #pc-sim-hint .hint-action,
 #pc-sim-readmap-label .hint-action {
-  color: rgba(255,255,255,0.9);
+  color: var(--white-strong);
   font-size: var(--font-sm);
   margin-left: 2px;
 }
@@ -2732,7 +2752,7 @@ label.setting-label {
 #pc-sim-hint kbd,
 #pc-sim-readmap-label kbd {
   display: inline-block;
-  background: rgba(255,255,255,0.15);
+  background: var(--white-subtle);
   border: 1px solid rgba(255,255,255,0.35);
   border-bottom-width: 2px;
   border-radius: 3px;
@@ -2791,8 +2811,8 @@ label.setting-label {
   height: 18px;
   border-radius: 50%;
   background: #e63030;
-  border: 3px solid rgba(255,255,255,0.9);
-  box-shadow: 0 0 0 1px rgba(0,0,0,0.35), 0 2px 6px rgba(0,0,0,0.5);
+  border: 3px solid var(--white-strong);
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.35), 0 2px 6px var(--overlay-base);
 }
 
 /* セットアップ時の開始地点クロスヘア（シミュレーション未開始時に常時表示） */
@@ -2805,7 +2825,7 @@ label.setting-label {
   background: var(--color-marker);
   border: 2px solid #fff;
   border-radius: 50%;
-  box-shadow: 0 0 6px rgba(0,0,0,0.55);
+  box-shadow: 0 0 6px var(--overlay-mid);
   pointer-events: none;
   z-index: 30;
   /* カーソル（矢印や手の先端）の少し下に赤丸を表示 */
@@ -2836,7 +2856,7 @@ label.setting-label {
   position: fixed;
   inset: 0;
   z-index: 30;
-  background: rgba(0, 0, 0, 0.55);
+  background: var(--overlay-mid);
   align-items: center;
   justify-content: center;
 }
@@ -2848,8 +2868,8 @@ label.setting-label {
   height: min(80vmin, 640px);
   border-radius: 12px;
   overflow: hidden;
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.65);
-  border: 2px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 0 6px 24px var(--overlay-dark);
+  border: 2px solid var(--white-border);
 }
 #pc-sim-readmap-inner {
   position: absolute;
@@ -2899,8 +2919,8 @@ label.setting-label {
   top: 8px;
   left: 50%;
   transform: translateX(-50%);
-  background: rgba(0,0,0,0.65);
-  color: rgba(255,255,255,0.9);
+  background: var(--overlay-dark);
+  color: var(--white-strong);
   font-size: var(--font-sm);
   padding: 8px 16px;
   border-radius: 16px;
@@ -2930,7 +2950,7 @@ label.setting-label {
 .maplibregl-ctrl-attrib {
   background: var(--bg-surface) !important;
   border-radius: 4px !important;
-  box-shadow: 0 0 0 2px rgba(0,0,0,.1) !important;
+  box-shadow: 0 0 0 2px var(--shadow-xs) !important;
 }
 /*
   展開時: (i)ボタンを position:absolute; bottom:0; right:0 で右下に固定。
@@ -2970,7 +2990,7 @@ label.setting-label {
   border-radius: 4px;
   font-size: var(--font-sm);
   color: var(--text-main);
-  box-shadow: 0 0 0 2px rgba(0,0,0,.1);
+  box-shadow: 0 0 0 2px var(--shadow-xs);
   cursor: pointer;
   outline: none;
   border: none;
@@ -3006,7 +3026,7 @@ label.setting-label {
   position: fixed;
   inset: 0;
   z-index: 50;
-  background: rgba(0, 0, 0, 0.55);
+  background: var(--overlay-mid);
   align-items: center;
   justify-content: center;
 }
@@ -3019,8 +3039,8 @@ label.setting-label {
   height: min(88vh, 720px);
   border-radius: 12px;
   overflow: hidden;
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.65);
-  border: 2px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 0 6px 24px var(--overlay-dark);
+  border: 2px solid var(--white-border);
   background: var(--bg-surface);
   display: flex;
   flex-direction: column;
@@ -3039,7 +3059,7 @@ label.setting-label {
   font-weight: var(--font-bold);
 }
 #import-overlay-close-btn {
-  background: rgba(255,255,255,0.15);
+  background: var(--white-subtle);
   border: none;
   color: var(--on-primary);
   font-size: var(--font-lg);
@@ -3053,7 +3073,7 @@ label.setting-label {
   line-height: 1;
   transition: background var(--transition);
 }
-#import-overlay-close-btn:hover { background: rgba(255,255,255,0.3); }
+#import-overlay-close-btn:hover { background: var(--white-hover); }
 
 /* モードタブ：1タブ + Undo/Redo */
 #import-mode-tabs {
@@ -3329,7 +3349,7 @@ label.setting-label {
   position: fixed;
   inset: 0;
   z-index: 50;
-  background: rgba(0, 0, 0, 0.55);
+  background: var(--overlay-mid);
   align-items: center;
   justify-content: center;
 }
@@ -3341,8 +3361,8 @@ label.setting-label {
   height: min(88vh, 640px);
   border-radius: 12px;
   overflow: hidden;
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.65);
-  border: 2px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 0 6px 24px var(--overlay-dark);
+  border: 2px solid var(--white-border);
   background: var(--bg-surface);
   display: flex;
   flex-direction: column;
@@ -3359,7 +3379,7 @@ label.setting-label {
   font-weight: var(--font-bold);
 }
 #print-overlay-close-btn {
-  background: rgba(255,255,255,0.15);
+  background: var(--white-subtle);
   border: none;
   color: var(--on-primary);
   font-size: var(--font-lg);
@@ -3373,7 +3393,7 @@ label.setting-label {
   line-height: 1;
   transition: background var(--transition);
 }
-#print-overlay-close-btn:hover { background: rgba(255,255,255,0.3); }
+#print-overlay-close-btn:hover { background: var(--white-hover); }
 
 #print-modal-body {
   flex: 1;
@@ -3477,7 +3497,7 @@ label.setting-label {
     padding: 0 4px;
     padding-bottom: env(safe-area-inset-bottom, 0px);
     gap: 0;
-    box-shadow: 0 -1px 0 rgba(0,0,0,0.10), 0 -2px 12px rgba(0,0,0,0.08);
+    box-shadow: 0 -1px 0 var(--shadow-xs), 0 -2px 12px rgba(0,0,0,0.08);
     flex-shrink: 0;
   }
 
@@ -3511,7 +3531,7 @@ label.setting-label {
     width: 100vw;
     height: var(--sheet-height, 72px);
     border-right: none;
-    border-top: 1px solid rgba(0,0,0,0.10);
+    border-top: 1px solid var(--shadow-xs);
     border-radius: 16px 16px 0 0;
     box-shadow: 0 -4px 24px rgba(0,0,0,0.14);
     transition: height 0.32s cubic-bezier(0.4,0,0.2,1);
@@ -3539,7 +3559,7 @@ label.setting-label {
   .sheet-handle-bar {
     width: 40px;
     height: 4px;
-    background: rgba(0,0,0,0.18);
+    background: var(--shadow-md);
     border-radius: 2px;
     transition: background 0.15s, width 0.15s;
   }
@@ -3899,11 +3919,11 @@ label.setting-label {
   flex-direction: column;
   align-items: center;
   gap: 12px;
-  background: rgba(255, 255, 255, 0.95);
+  background: var(--bg-glass-heavy);
   backdrop-filter: blur(4px);
   border-radius: 12px;
   padding: 24px 32px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 8px 24px var(--shadow-sm);
   font-size: var(--font-lg);
   font-weight: 500;
   color: #475569;
@@ -3921,11 +3941,11 @@ label.setting-label {
   flex-direction: row;
   align-items: center;
   gap: 7px;
-  background: rgba(255, 255, 255, 0.95);
+  background: var(--bg-glass-heavy);
   backdrop-filter: blur(4px);
   border-radius: 20px;
   padding: 5px 10px 5px 6px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 2px 8px var(--shadow-sm);
   font-size: var(--font-base);
   color: #475569;
   pointer-events: none;
@@ -3936,7 +3956,7 @@ label.setting-label {
   position: fixed;
   inset: 0;
   z-index: 300;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--overlay-base);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3946,7 +3966,7 @@ label.setting-label {
   border-radius: 12px;
   padding: 24px 28px 20px;
   width: min(92vw, 340px);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 8px 32px var(--shadow-lg);
   display: flex;
   flex-direction: column;
   gap: 16px;
