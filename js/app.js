@@ -4625,7 +4625,7 @@ function updateContourAutoInterval() {
 
 chkContour.addEventListener('change', () => {
   const vis = chkContour.checked ? 'visible' : 'none';
-  setAllContourVisibility(vis);
+  setAllContourVisibility(map, vis);
   selContour.disabled = !chkContour.checked;
   document.querySelector('label[for="chk-contour"]').classList.toggle('disabled', !chkContour.checked);
 });
