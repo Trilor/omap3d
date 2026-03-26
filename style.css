@@ -597,10 +597,6 @@ body {
   white-space: nowrap;
   min-width: 0;
 }
-.frame-row-slider {
-  width: 60px;
-  flex-shrink: 0;
-}
 .frame-row-btn {
   flex-shrink: 0;
   background: none;

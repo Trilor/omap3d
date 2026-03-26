@@ -2023,12 +2023,14 @@ function buildFrameRowEl(frame, index) {
   // 不透明度スライダー
   const slider = document.createElement('input');
   slider.type = 'range';
-  slider.className = 'setting-slider frame-row-slider';
+  slider.className = 'ui-slider';
   slider.min = '0'; slider.max = '100'; slider.step = '1';
   slider.value = String(Math.round((frame.opacity ?? 0.8) * 100));
+  updateSliderGradient(slider);
   slider.addEventListener('click', e => e.stopPropagation());
   slider.addEventListener('input', () => {
     frame.opacity = parseInt(slider.value, 10) / 100;
+    updateSliderGradient(slider);
     if (map.getLayer(frame.layerId) && visChk.checked) {
       map.setPaintProperty(frame.layerId, 'raster-opacity', toRasterOpacity(frame.opacity));
     }
