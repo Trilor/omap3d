@@ -8810,19 +8810,21 @@ function makeCustomSelect(sel) {
 
     // 画面下端に収まらない場合は上方向に展開
     const spaceBelow = window.innerHeight - r.bottom;
-    if (spaceBelow < panelH && r.top > spaceBelow) {
+    const openUp = spaceBelow < panelH && r.top > spaceBelow;
+    if (openUp) {
       panel.style.top = (r.top - panelH - 2) + 'px';
     } else {
       panel.style.top = (r.bottom + 2) + 'px';
     }
     panel.style.left   = r.left + 'px';
     panel.style.minWidth = r.width + 'px';
+    panel.classList.toggle('open-up', openUp);
     panel.classList.add('open');
     // 選択中の項目が見えるようにスクロール
     const selectedItem = panel.querySelector('.selected');
     if (selectedItem) selectedItem.scrollIntoView({ block: 'nearest' });
   }
-  function closePanel() { panel.classList.remove('open'); }
+  function closePanel() { panel.classList.remove('open', 'open-up'); }
 
   // btn / panel の mousedown は document に伝播させない
   // （伝播すると document の closePanel が先に発火し、click のトグル判定がずれる）

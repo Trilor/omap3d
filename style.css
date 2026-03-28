@@ -760,6 +760,8 @@ body {
 }
 .cascade-menu.open,
 .ppi-cascade-menu.open { display: block; }
+.cascade-menu.open-up,
+.ppi-cascade-menu.open-up { box-shadow: 2px -4px 12px rgba(0,0,0,0.15); }
 
 /* ---- 1段目カテゴリ行（右矢印つき） ---- */
 .cascade-cat,
