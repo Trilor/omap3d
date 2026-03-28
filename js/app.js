@@ -5578,6 +5578,10 @@ updatePpiRuler();
       updatePpiSliderBubble(_slider);
       updateScaleDisplay();
       updatePpiRuler();
+      // 手動操作時はプリセット選択を解除
+      const _lbl = document.getElementById('ppi-cascade-label');
+      if (_lbl) _lbl.textContent = 'カスタム';
+      document.querySelectorAll('.ppi-cascade-item').forEach(el => el.classList.remove('selected'));
     });
   }
 }

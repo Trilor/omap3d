@@ -4518,6 +4518,7 @@ label.setting-label {
 }
 .settings-ruler-inner {
   width: 90%;
+  background: #f8f9fa;
   border-radius: 8px;
   overflow: hidden;
   padding: 8px 0 6px;
@@ -4527,11 +4528,21 @@ label.setting-label {
   color: var(--text-ink);
 }
 
-/* PPIヘッダー行（ラベル + 大きな数値） */
+/* ---- PPI 統合グループ ---- */
+.settings-ppi-group {
+  padding: 16px 24px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+/* ヘッダー行: タイトル + 現在値 */
 .settings-ppi-header {
+  display: flex;
   flex-direction: row;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
 }
 .settings-ppi-value-wrap {
   display: flex;
@@ -4549,6 +4560,40 @@ label.setting-label {
   font-size: var(--font-sm);
   color: var(--text-muted);
 }
+
+/* プリセット行 */
+.settings-ppi-preset-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.settings-ppi-preset-label {
+  font-size: var(--font-sm);
+  color: var(--text-sub);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.settings-ppi-preset-row .ppi-cascade-wrap {
+  flex: 1;
+  min-width: 0;
+}
+
+/* スライダー行 */
+.settings-ppi-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-top: 6px;
+}
+.settings-ppi-slider-row .slider-bubble-wrap {
+  flex: 1;
+  min-width: 0;
+}
+.settings-ppi-slider-row .slider-bubble-wrap .ui-slider {
+  width: 100%;
+  display: block;
+}
+
 .settings-item-title-sub {
   display: block;
   font-size: var(--font-xs);
