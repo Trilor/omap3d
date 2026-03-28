@@ -265,7 +265,7 @@ body {
   height: 56px;
   border: none;
   background: transparent;
-  color: var(--text-sub);
+  color: var(--text-main);
   border-radius: 0;
   cursor: pointer;
   display: flex;
@@ -4269,7 +4269,7 @@ label.setting-label {
   height: 56px;
   border: none;
   background: transparent;
-  color: var(--text-sub);
+  color: var(--text-main);
   border-radius: 0;
   cursor: pointer;
   display: flex;
