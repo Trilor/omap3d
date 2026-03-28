@@ -6719,7 +6719,7 @@ function pcSimLoop(timestamp) {
   if (pcSimState.viewMode === 'bird') {
     const BIRD_CLEARANCE_M = 0;   // 地形からの最低クリアランス（m）
     const BIRD_FLOOR_TC    = 20;  // ローパス時定数（秒）
-    const BIRD_ALT_RATE    = 30;  // Q/E 高度変化速度（m/s）
+    const BIRD_ALT_RATE    = getPcSimSpeedKmh() / 3.6;  // Q/E 高度変化速度 = 移動速度と同じ（m/s）
 
     const currentTerrain = map.queryTerrainElevation(
       { lng: pcSimState.playerLng, lat: pcSimState.playerLat }, { exaggerated: false }
