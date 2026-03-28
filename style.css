@@ -3232,7 +3232,6 @@ label.setting-label {
   inset: 0;
   z-index: 50;
   background: var(--overlay-mid);
-  backdrop-filter: blur(4px);
   align-items: center;
   justify-content: center;
 }
@@ -3525,7 +3524,6 @@ label.setting-label {
   inset: 0;
   z-index: 50;
   background: var(--overlay-mid);
-  backdrop-filter: blur(4px);
   align-items: center;
   justify-content: center;
 }
@@ -4304,7 +4302,6 @@ label.setting-label {
   inset: 0;
   z-index: 10000;
   background: var(--overlay-mid);
-  backdrop-filter: blur(4px);
   align-items: center;
   justify-content: center;
 }
@@ -4563,8 +4560,6 @@ label.setting-label {
   padding: 22px 26px 20px;
   width: min(90vw, 280px);
   color: #dde4ed;
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
 }
 
 #pause-hud-title {
