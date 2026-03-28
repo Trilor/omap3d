@@ -5448,7 +5448,10 @@ function findDeviceName(ppi) {
     const idx = parseInt(catEl.dataset.catIdx, 10);
     const sub = subs[idx];
     catEl.addEventListener('mouseenter', () => {
-      subs.forEach(s => { s.style.display = ''; }); // 他を閉じる
+      // 他のカテゴリのサブメニューと .open を閉じる
+      menu.querySelectorAll('.ppi-cascade-cat').forEach(c => c.classList.remove('open'));
+      subs.forEach(s => { s.style.display = ''; });
+      catEl.classList.add('open');
       const r = catEl.getBoundingClientRect();
       sub.style.top  = r.top + 'px';
       sub.style.left = r.right + 'px';
@@ -5458,10 +5461,12 @@ function findDeviceName(ppi) {
     catEl.addEventListener('mouseleave', e => {
       if (sub.contains(e.relatedTarget)) return;
       sub.style.display = '';
+      catEl.classList.remove('open');
     });
     sub.addEventListener('mouseleave', e => {
       if (catEl.contains(e.relatedTarget)) return;
       sub.style.display = '';
+      catEl.classList.remove('open');
     });
   });
 

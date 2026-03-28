@@ -790,8 +790,8 @@ body {
 }
 .cascade-cat + .cascade-cat,
 .ppi-cascade-cat + .ppi-cascade-cat { border-top: 1px solid var(--border-subtle); }
-.cascade-cat:hover,
-.ppi-cascade-cat:hover { background-color: var(--bg-hover-btn); }
+.cascade-cat:hover, .cascade-cat.open,
+.ppi-cascade-cat:hover, .ppi-cascade-cat.open { background-color: var(--bg-hover-btn); }
 .cascade-cat-arrow,
 .ppi-cascade-cat-arrow { display: none; }
 
