@@ -6717,22 +6717,14 @@ function pcSimLoop(timestamp) {
     pcSimState.smoothedSlopeAdj = 0;
   }
 
-  // ── bird mode: Q/E 高度制御 + 飛行基準高度更新 ──────────────────────────
+  // ── bird mode: Q/E 高度制御 + 絶対高度維持 ──────────────────────────────
+  // 飛行高度 = 開始地点地形高 + birdAltM（絶対高度固定、地形に追従しない）
+  // Q=低下 / E=上昇。押さない限り高度は変化しない。
   if (pcSimState.viewMode === 'bird') {
-    const BIRD_CLEARANCE_M = 10;   // 地形から最低限のクリアランス（m）
     const BIRD_ALT_RATE = 30;  // Q/E 高度変化速度（m/s）
-
-    // Q/E: 高度変更（birdAltM を増減）
-    if (pcSimState.keys.KeyQ) pcSimState.birdAltM = Math.min(5000, pcSimState.birdAltM + BIRD_ALT_RATE * dt);
-    if (pcSimState.keys.KeyE) pcSimState.birdAltM = Math.max(10,   pcSimState.birdAltM - BIRD_ALT_RATE * dt);
-
-    const currentTerrain = map.queryTerrainElevation(
-      { lng: pcSimState.playerLng, lat: pcSimState.playerLat }, { exaggerated: false }
-    ) ?? pcSimState.cachedTerrainH;
-
-    const targetH = pcSimState.birdBaseTerrainH + pcSimState.birdAltM;
-    const floorH  = currentTerrain + BIRD_CLEARANCE_M;
-    pcSimState.birdFloorH = Math.max(targetH, floorH);
+    if (pcSimState.keys.KeyQ) pcSimState.birdAltM = Math.max(10,   pcSimState.birdAltM - BIRD_ALT_RATE * dt);
+    if (pcSimState.keys.KeyE) pcSimState.birdAltM = Math.min(5000, pcSimState.birdAltM + BIRD_ALT_RATE * dt);
+    pcSimState.birdFloorH = pcSimState.birdBaseTerrainH + pcSimState.birdAltM;
   }
 
   // ── カメラを配置（プレイヤーを常に画面中央に） ───────────────────
