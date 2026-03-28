@@ -4493,7 +4493,7 @@ label.setting-label {
 
 /* 画面・校正 説明文 */
 .settings-display-desc {
-  padding: 12px 24px;
+  padding: 12px 24px 18px;
   font-size: var(--font-sm);
   color: var(--text-sub);
   line-height: 1.7;
@@ -4507,9 +4507,9 @@ label.setting-label {
   align-items: center;
   gap: 12px;
   padding: 0 24px;
-  height: 36px;
+  height: 48px;
   font-size: var(--font-xs);
-  color: var(--text-muted);
+  color: var(--text-disabled);
   letter-spacing: 0.04em;
   border-bottom: 1px solid var(--border-subtle);
 }
@@ -4523,20 +4523,43 @@ label.setting-label {
 
 /* 定規コンテナ */
 .settings-ruler-wrap {
-  padding: 16px 24px 20px;
+  padding: 16px 24px 24px;
   display: flex;
   justify-content: center;
 }
 .settings-ruler-inner {
-  width: 100%;
-  background: var(--bg-subtle);
-  border-radius: 6px;
+  width: 90%;
+  background: #f8f9fa;
+  border-radius: 8px;
   overflow: hidden;
-  padding: 4px 0;
+  padding: 8px 0 6px;
 }
 .settings-ruler-inner #ppi-ruler {
   display: block;
   color: var(--text-ink);
+}
+
+/* PPIヘッダー行（ラベル + 大きな数値） */
+.settings-ppi-header {
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+}
+.settings-ppi-value-wrap {
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+  flex-shrink: 0;
+}
+.settings-ppi-num {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--primary);
+  line-height: 1;
+}
+.settings-ppi-unit {
+  font-size: var(--font-sm);
+  color: var(--text-muted);
 }
 
 /* =================================================================

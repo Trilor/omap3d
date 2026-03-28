@@ -5544,16 +5544,20 @@ function updatePpiRuler() {
 
 // スライダーつまみの位置に追従してバブルを更新する
 function updatePpiSliderBubble(slider) {
-  const bubble = document.getElementById('ppi-slider-bubble');
-  if (!bubble || !slider) return;
+  const bubble  = document.getElementById('ppi-slider-bubble');
+  const numEl   = document.getElementById('ppi-current-display');
+  if (!slider) return;
   const min    = parseFloat(slider.min);
   const max    = parseFloat(slider.max);
   const val    = parseFloat(slider.value);
   const pct    = (val - min) / (max - min);
   const thumbW = 16; // CSS thumb 幅（ui-slider で指定した値と揃える）
-  const left   = pct * (slider.offsetWidth - thumbW) + thumbW / 2;
-  bubble.style.left = left + 'px';
-  bubble.textContent = Math.round(val) + ' ppi';
+  if (bubble) {
+    const left = pct * (slider.offsetWidth - thumbW) + thumbW / 2;
+    bubble.style.left = left + 'px';
+    bubble.textContent = Math.round(val) + ' ppi';
+  }
+  if (numEl) numEl.textContent = Math.round(val);
 }
 
 updatePpiRuler();
