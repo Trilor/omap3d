@@ -290,8 +290,9 @@ map.on('load', async () => {
   // Q地図 1m 等高線ソース
   // Cloudflare Worker プロキシ経由で CORS を解決し、worker: true（バックグラウンドスレッド）で安定動作させる
   try {
+    // worker: true 使用時は絶対 URL が必要（Worker 内では相対パスが解決されないため）
     contourState.q1mSource = new mlcontour.DemSource({
-      url: `${QCHIZU_PROXY_BASE}/{z}/{x}/{y}.webp`,
+      url: `${location.origin}${QCHIZU_PROXY_BASE}/{z}/{x}/{y}.webp`,
       encoding: 'numpng',
       minzoom: 0,
       maxzoom: 16,
