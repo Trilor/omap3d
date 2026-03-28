@@ -6466,7 +6466,9 @@ function setCameraFromPlayer() {
     // カメラ eye 位置（経度・緯度・高度）から bearing/pitch を指定すると、
     // プレイヤーの上空点 [playerLng, playerLat, h + birdAltM] を中心に
     // カメラが回転するようになる。
-    const birdPitch    = Math.max(0, Math.min(85, pcSimState.pitch));
+    // pitch > 60° は calculateCameraOptionsFromCameraLngLatAltRotation の想定範囲外のため
+    // cos(pitch) がほぼ0になりカメラ高度とプレイヤー高度が一致してcenterが無限遠に飛ぶ
+    const birdPitch    = Math.max(0, Math.min(60, pcSimState.pitch));
     const birdPitchRad = birdPitch * Math.PI / 180;
     const playerAlt    = h + pcSimState.birdAltM;
     const camDist      = pcSimState.camDistM;
