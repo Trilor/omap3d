@@ -6725,7 +6725,7 @@ function pcSimLoop(timestamp) {
   // 通常: ローパスフィルタで地形変化に滑らかに追従
   // Q/E 押下時: ローパスをバイパスしてレート速度で即時変更
   if (pcSimState.viewMode === 'bird') {
-    const BIRD_CLEARANCE_M = 10;  // 地形からの最低クリアランス（m）
+    const BIRD_CLEARANCE_M = 0;   // 地形からの最低クリアランス（m）
     const BIRD_FLOOR_TC    = 20;  // ローパス時定数（秒）
     const BIRD_ALT_RATE    = 30;  // Q/E 高度変化速度（m/s）
 
