@@ -744,8 +744,8 @@ map.on('load', async () => {
   _updateGlobeBg = () => {
     if (!_globeBgEl) return;
     const z = map.getZoom();
-    // t=0: 宇宙（黒）、t=1: 青空。遷移域を9〜13に設定
-    const t = Math.max(0, Math.min(1, (z - 9) / 4));
+    // t=0: 宇宙（黒）、t=1: 青空。カーマン線（100km≒z7）から対流圏（z11）へ遷移
+    const t = Math.max(0, Math.min(1, (z - 7) / 4));
     // 背景色もtに合わせて滑らかに補間（黒→白）
     const highZoomColor = mobileSimState.active ? '#dbeff9' : '#fff';
     _globeBgEl.style.backgroundColor = t <= 0 ? '#000' : t >= 1 ? highZoomColor : _lerpHex('#000000', highZoomColor, t);
