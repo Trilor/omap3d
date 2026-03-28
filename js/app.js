@@ -6736,7 +6736,7 @@ function pcSimLoop(timestamp) {
 
     if (pcSimState.keys.KeyQ || pcSimState.keys.KeyE) {
       // Q/E: レートに従って birdAltM を変化させ、ローパスをバイパスして即時反映
-      if (pcSimState.keys.KeyQ) pcSimState.birdAltM = Math.max(10,   pcSimState.birdAltM - BIRD_ALT_RATE * dt);
+      if (pcSimState.keys.KeyQ) pcSimState.birdAltM = Math.max(0,    pcSimState.birdAltM - BIRD_ALT_RATE * dt);
       if (pcSimState.keys.KeyE) pcSimState.birdAltM = Math.min(5000, pcSimState.birdAltM + BIRD_ALT_RATE * dt);
       pcSimState.birdFloorH = Math.max(pcSimState.birdBaseTerrainH + pcSimState.birdAltM, floorH);
     } else {
