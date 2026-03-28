@@ -5571,6 +5571,7 @@ function updateScaleDisplay() {
   const z = map.getZoom().toFixed(1);
   optCurrentScale.textContent = `1 : ${s.toLocaleString()} (z${z})`;
   selScale.selectedIndex = 0;
+  selScale._csSync?.(); // カスタムセレクトのボタン表示を同期
 }
 
 // 地図の移動・ズームに連動してリアルタイム更新
@@ -8752,6 +8753,7 @@ function makeCustomSelect(sel) {
   function buildItems() {
     panel.innerHTML = '';
     Array.from(sel.options).forEach(opt => {
+      if (opt.style.display === 'none') return; // 非表示オプションはスキップ
       const item = document.createElement('div');
       item.className = 'cascade-item';
       item.dataset.value = opt.value;
