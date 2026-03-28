@@ -5521,15 +5521,17 @@ function updatePpiRuler() {
   const lines = [];
   const texts = [];
 
-  // ベースライン（全幅）と左端縦線
-  lines.push(`<line x1="0" y1="${BASE}" x2="${W}" y2="${BASE}" stroke="currentColor" stroke-width="1.5"/>`);
-  lines.push(`<line x1="0" y1="${BASE - 16}" x2="0" y2="${BASE}" stroke="currentColor" stroke-width="1.5"/>`);
-  // 0 ラベル（左端・左揃え）
-  texts.push(`<text x="3" y="${BASE - 18}" font-size="11" fill="currentColor" font-family="system-ui,sans-serif" font-weight="500" text-anchor="start">0</text>`);
+  // 左端に "0" ラベルが収まるよう小さなオフセット（文字幅の半分程度）を設ける
+  const OX = 5; // 左端オフセット（px）
+  // ベースライン（全幅）と 0 目盛り縦線
+  lines.push(`<line x1="${OX}" y1="${BASE}" x2="${W}" y2="${BASE}" stroke="currentColor" stroke-width="1.5"/>`);
+  lines.push(`<line x1="${OX}" y1="${BASE - 16}" x2="${OX}" y2="${BASE}" stroke="currentColor" stroke-width="1.5"/>`);
+  // 0 ラベル（目盛り中央揃え）
+  texts.push(`<text x="${OX}" y="${BASE - 18}" font-size="11" fill="currentColor" font-family="system-ui,sans-serif" font-weight="500" text-anchor="middle">0</text>`);
 
   // 1mm 刻みで目盛りを描画し、コンテナ幅を超えたら終了（右端でクリップ）
-  for (let mm = 1; mm * pxPerMm <= W + 0.5; mm++) {
-    const x     = mm * pxPerMm;
+  for (let mm = 1; OX + mm * pxPerMm <= W + 0.5; mm++) {
+    const x     = OX + mm * pxPerMm;
     const isCm  = mm % 10 === 0;
     const is5mm = mm % 5 === 0;
     const tickH = isCm ? 16 : is5mm ? 10 : 5;
