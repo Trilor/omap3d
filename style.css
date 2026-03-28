@@ -817,6 +817,8 @@ body {
 .ppi-cascade-item.selected {
   background: var(--bg-surface);
   font-weight: 600;
+  outline: 1.5px solid var(--primary);
+  outline-offset: -1.5px;
 }
 
 /* ---- アイテム右側の補足テキスト（例: PPI値） ---- */
