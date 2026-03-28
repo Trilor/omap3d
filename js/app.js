@@ -757,15 +757,16 @@ map.on('load', async () => {
     const z = map.getZoom();
     const t = Math.max(0, Math.min(1, (z - 7) / 4));
 
-    // z0〜z11で遷移、z11以降は明青+水色で固定
-    const t2 = Math.max(0, Math.min(1, z / 11));
+    // z0〜z22で単調遷移。べき乗カーブで低ズームから素早く明るくなるようにする
+    // （線形だとz11時点でt=0.5止まりで暗すぎるため）
+    const t2 = Math.pow(Math.max(0, Math.min(1, z / 22)), 0.4);
 
-    // 上空: 暗青（z0）→濃紺→深青→明青（z11）
+    // 上空: 暗青（z0）→濃紺→深青→明青（z22）
     const skyColor     = _lerpMulti([[0,'#000510'],[0.3,'#000844'],[0.6,'#002277'],[1,'#0055cc']], t2);
-    // 地平線: 常に上空より薄め。z11で水色
+    // 地平線: 常に上空より薄め。高ズームで水色
     const horizonColor = _lerpMulti([[0,'#001030'],[0.3,'#001a4d'],[0.6,'#1a4499'],[1,'#87ceeb']], t2);
     const bgColor      = horizonColor;
-    const skyHorizonBlend = 0.5;  // 固定（動的にすると明るさが非単調になるため）
+    const skyHorizonBlend = 0.5;
 
     _globeBgEl.style.backgroundColor = bgColor;
     map.setSky({
