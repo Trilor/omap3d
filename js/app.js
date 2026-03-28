@@ -727,26 +727,41 @@ map.on('load', async () => {
 
   // ズーム7以下（globe表示時）は宇宙空間を黒背景で表現する
   _globeBgEl = document.getElementById('map');
+
+  // ズームに応じて空の色を補間するヘルパー
+  function _lerpHex(a, b, t) {
+    const ah = parseInt(a.slice(1), 16), bh = parseInt(b.slice(1), 16);
+    const ar = (ah >> 16) & 0xff, ag = (ah >> 8) & 0xff, ab = ah & 0xff;
+    const br = (bh >> 16) & 0xff, bg = (bh >> 8) & 0xff, bb = bh & 0xff;
+    const r = Math.round(ar + (br - ar) * t);
+    const g = Math.round(ag + (bg - ag) * t);
+    const bl2 = Math.round(ab + (bb - ab) * t);
+    return '#' + [r, g, bl2].map(v => v.toString(16).padStart(2, '0')).join('');
+  }
+
+  // ズームに応じて空と背景を更新する（globe低ズーム→宇宙空間表現）
+  // ズーム5以下: 宇宙（黒）、ズーム10以上: 青空（白→青）、5〜10: 段階遷移
   _updateGlobeBg = () => {
     if (!_globeBgEl) return;
+    const z = map.getZoom();
     const highZoomColor = mobileSimState.active ? '#dbeff9' : '#fff';
-    _globeBgEl.style.backgroundColor = map.getZoom() < 7 ? '#000' : highZoomColor;
+    _globeBgEl.style.backgroundColor = z < 7 ? '#000' : highZoomColor;
+
+    const t = Math.max(0, Math.min(1, (z - 5) / 5));  // 0=宇宙, 1=青空
+    map.setSky({
+      'sky-color':          _lerpHex('#000000', '#0066cc', t),
+      'sky-horizon-blend':  0.8,
+      'horizon-color':      _lerpHex('#000820', '#ffffff', t),
+      'horizon-fog-blend':  0.5,
+      'fog-color':          _lerpHex('#000820', '#ffffff', t),
+      'atmosphere-blend':   0.1 + 0.9 * t,
+    });
   };
   map.on('zoom', _updateGlobeBg);
   _updateGlobeBg();
 
   // ⑤ テレインマスタ → フレームの順で自動読み込みする
   autoLoadTerrains();
-
-  // ⑥ 空のグラデーション（下=白、上=青）
-  map.setSky({
-    'sky-color':           '#0066cc',
-    'sky-horizon-blend':   0.8,
-    'horizon-color':       '#ffffff',
-    'horizon-fog-blend':   0.5,
-    'fog-color':           '#ffffff',
-    'atmosphere-blend':    1.0,
-  });
 
   console.log('3D OMap Viewer 初期化完了（OriLibreベースマップ）');
 });
