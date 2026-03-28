@@ -6461,23 +6461,25 @@ function setCameraFromPlayer() {
   const lat_rad = pcSimState.playerLat * Math.PI / 180;
 
   // ── 鳥瞰モード ──────────────────────────────────────────────────────
-  // terrain mode と全く同じ仕組みを利用する。
-  // MapLibre は terrain 有効時に center 座標の地形高を自動取得してカメラを配置するため、
-  // camDistM に birdAltM を加えるだけでカメラが地形追従しつつ birdAltM 分上に浮く。
+  // terrain mode と全く同じカメラ計算を使い、
+  // elevation で center の仮想標高を h + birdAltM に指定することで
+  // 「birdAltM の標高にある透明テレインの上を走っている」状態を再現する。
+  // zoom（カメラ-プレイヤー間の相対距離）は terrain mode と同一のため
+  // 同じ画角・操作感のまま全体が birdAltM 分上に平行移動される。
   if (pcSimState.viewMode === 'bird') {
-    const birdPitch      = Math.max(0, Math.min(map.getMaxPitch(), pcSimState.pitch));
-    const birdPitchRad   = birdPitch * Math.PI / 180;
-    const virtualCamDist = pcSimState.camDistM + pcSimState.birdAltM;
-    const relativeAlt    = Math.max(0.3, virtualCamDist * Math.cos(birdPitchRad));
-    const targetZoom     = Math.max(10, Math.min(map.getMaxZoom(), Math.log2(
+    const birdPitch    = Math.max(0, Math.min(map.getMaxPitch(), pcSimState.pitch));
+    const birdPitchRad = birdPitch * Math.PI / 180;
+    const relativeAlt  = Math.max(0.3, pcSimState.camDistM * Math.cos(birdPitchRad));
+    const targetZoom   = Math.max(12, Math.min(map.getMaxZoom(), Math.log2(
       H * 2 * Math.PI * R * Math.cos(lat_rad) /
       (1024 * Math.tan(fov_rad / 2) * relativeAlt)
     )));
     map.jumpTo({
-      center:  [pcSimState.playerLng, pcSimState.playerLat],
-      bearing: pcSimState.bearing,
-      pitch:   birdPitch,
-      zoom:    targetZoom,
+      center:    [pcSimState.playerLng, pcSimState.playerLat],
+      bearing:   pcSimState.bearing,
+      pitch:     birdPitch,
+      zoom:      targetZoom,
+      elevation: h + pcSimState.birdAltM,
     });
     return;
   }
