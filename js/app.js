@@ -589,7 +589,7 @@ map.on('load', async () => {
   // min/max パラメータはスライダー操作時に setTiles() で動的更新する
   map.addSource('color-relief', {
     type: 'raster',
-    tiles: [`dem2relief://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp?min=0&max=500&_init=1`],
+    tiles: [`dem2relief://${QCHIZU_DEM_BASE}/{z}/{x}/{y}.webp?min=0&max=500&_init=1`],
     tileSize: 512,
     minzoom: 5,
     maxzoom: 15, // Q地図DEMタイルの提供上限(16)よりひとつ下。これ以上のズームはオーバーズームで補完
@@ -4270,7 +4270,7 @@ let _crRepaintTimer = null;
 function applyColorReliefTiles() {
   if (!map.getSource('color-relief')) return;
   map.getSource('color-relief').setTiles([
-    `dem2relief://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp?min=${crMin}&max=${crMax}`
+    `dem2relief://${QCHIZU_DEM_BASE}/{z}/{x}/{y}.webp?min=${crMin}&max=${crMax}`
   ]);
   clearTimeout(_crRepaintTimer);
   let remaining = 20; // 20 × 100ms = 2 秒

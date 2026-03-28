@@ -11,11 +11,10 @@
 // Q地図 DEM / DEM5A / 湖水深タイルは共に国土地理院 NumPNG 形式（x=2^16R+2^8G+B, u=0.01m）
 // gsjdem:// プロトコルが Q地図 > DEM5A > 湖水深 の優先順で合成し Terrarium 形式に変換する。
 // DEM5A・湖水深タイルは標準の {z}/{x}/{y} 順。
-export const QCHIZU_DEM_BASE  = 'https://qchizu3.xsrv.jp/mapdata/d52001';
-// Cloudflare Pages Functions 経由の CORS プロキシ URL（mlcontour worker: true を可能にするため）
+// Cloudflare Pages Functions 経由の CORS プロキシ URL でアクセスを統一
 // functions/qchizu/[[path]].js が /qchizu/* を https://qchizu3.xsrv.jp/* にプロキシする
-// /qchizu/mapdata/d52001/{z}/{x}/{y}.webp → qchizu3.xsrv.jp/mapdata/d52001/{z}/{x}/{y}.webp
-export const QCHIZU_PROXY_BASE = '/qchizu/mapdata/d52001';
+export const QCHIZU_DEM_BASE  = '/qchizu/mapdata/d52001';
+export const QCHIZU_PROXY_BASE = QCHIZU_DEM_BASE; // 統一済み（後方互換用エイリアス）
 export const DEM5A_BASE       = 'https://cyberjapandata.gsi.go.jp/xyz/dem5a_png'; // 基盤地図情報DEM5A {z}/{x}/{y}.png
 export const DEM1A_BASE       = 'https://cyberjapandata.gsi.go.jp/xyz/dem1a_png'; // 基盤地図情報DEM1A {z}/{x}/{y}.png
 // 湖水深タイルは廃止（2026-03-23 コメントアウト）
@@ -32,7 +31,7 @@ export const TERRAIN_URL = 'gsjdem://terrain/{z}/{x}/{y}.png';
 
 // ★ CS立体図（ブラウザ生成・Q地図DEMから動的生成）
 //   csdem:// プロトコルでQ地図DEMタイルをリアルタイムにCS立体図へ変換します。
-export const CS_RELIEF_URL = `csdem://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp`;
+export const CS_RELIEF_URL = `csdem://${QCHIZU_DEM_BASE}/{z}/{x}/{y}.webp`;
 
 // ★ 地域別CS立体図（0.5mDEM由来・高精度）の定義リスト
 //   在る地域では全国地理院CSタイルよりも高解像度なため、上層に重ねて表示する。

@@ -360,7 +360,8 @@ function _csRampMid(min, max, c0, c1, c2, t) {
 
 maplibregl.addProtocol('csdem', async (params, abortController) => {
   try {
-  const url = params.url.replace('csdem://', 'https://');
+  const _raw = params.url.slice('csdem://'.length);
+  const url = _raw.startsWith('/') ? location.origin + _raw : 'https://' + _raw;
   const m = url.match(/\/(\d+)\/(\d+)\/(\d+)\.(png|webp)$/);
   if (!m) return { data: null };
   const zoomLevel = +m[1], tileX = +m[2], tileY = +m[3], ext = m[4];
@@ -585,7 +586,8 @@ function _dem2reliefColor(t) {
 maplibregl.addProtocol('dem2relief', async (params, abortController) => {
   try {
     // URLスキームを https:// に置換して URL オブジェクトを生成
-    const rawUrl = params.url.replace(/^dem2relief:\/\//, 'https://');
+    const _raw2 = params.url.slice('dem2relief://'.length);
+    const rawUrl = _raw2.startsWith('/') ? location.origin + _raw2 : 'https://' + _raw2;
     const urlObj = new URL(rawUrl);
 
     // クエリパラメータから min/max を取得（デフォルト 0〜3000m）

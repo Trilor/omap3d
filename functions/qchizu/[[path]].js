@@ -10,7 +10,7 @@ export async function onRequest(context) {
 
   // CORSとキャッシュの設定（以前のWorkerと同じ処理）
   headers.set('Access-Control-Allow-Origin', '*');
-  headers.set('Cache-Control', 'public, max-age=86400');
+  headers.set('Cache-Control', 'public, max-age=604800, s-maxage=604800');
 
   return new Response(res.body, {
     status: res.status,
