@@ -3179,30 +3179,31 @@ label.setting-label {
   border-radius: 12px;
   overflow: hidden;
   box-shadow: 0 6px 24px var(--overlay-dark);
-  border: 2px solid var(--white-border);
+  border: 1px solid var(--border-muted);
   background: var(--bg-surface);
   display: flex;
   flex-direction: column;
 }
 
-/* ヘッダー（緑背景 + 白テキスト） */
+/* ヘッダー（白背景 + 濃いグレーテキスト） */
 .modal-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 6px 10px;
+  padding: 10px 14px;
   flex-shrink: 0;
-  background: var(--primary);
-  color: var(--on-primary);
+  background: var(--bg-surface);
+  color: var(--text-dark);
   font-size: var(--font-base);
   font-weight: var(--font-bold);
+  border-bottom: 1px solid var(--border-light);
 }
 
-/* 閉じるボタン（円形・白半透明） */
+/* 閉じるボタン（円形・グレー → ホバーでプライマリ） */
 .modal-close-btn {
-  background: var(--white-subtle);
+  background: transparent;
   border: none;
-  color: var(--on-primary);
+  color: var(--text-muted);
   font-size: var(--font-lg);
   width: 24px;
   height: 24px;
@@ -3212,10 +3213,13 @@ label.setting-label {
   align-items: center;
   justify-content: center;
   line-height: 1;
-  transition: background var(--transition);
+  transition: background var(--transition), color var(--transition);
   flex-shrink: 0;
 }
-.modal-close-btn:hover { background: var(--white-hover); }
+.modal-close-btn:hover {
+  background: var(--primary-light);
+  color: var(--primary);
+}
 
 /* ===================================================================
    地図画像 位置合わせモーダル（読図モードポップアップと同デザイン）
@@ -3228,6 +3232,7 @@ label.setting-label {
   inset: 0;
   z-index: 50;
   background: var(--overlay-mid);
+  backdrop-filter: blur(4px);
   align-items: center;
   justify-content: center;
 }
@@ -3520,6 +3525,7 @@ label.setting-label {
   inset: 0;
   z-index: 50;
   background: var(--overlay-mid);
+  backdrop-filter: blur(4px);
   align-items: center;
   justify-content: center;
 }
