@@ -6685,7 +6685,7 @@ function pcSimLoop(timestamp) {
 
   if (pcSimState.keys.ArrowLeft)  pcSimState.bearing = (pcSimState.bearing - ARROW_BEARING_RATE * dt + 360) % 360;
   if (pcSimState.keys.ArrowRight) pcSimState.bearing = (pcSimState.bearing + ARROW_BEARING_RATE * dt) % 360;
-  if (pcSimState.keys.ArrowUp)    pcSimState.pitch   = Math.min(85, pcSimState.pitch + ARROW_PITCH_RATE * dt);
+  if (pcSimState.keys.ArrowUp)    pcSimState.pitch   = Math.min(84, pcSimState.pitch + ARROW_PITCH_RATE * dt);
   if (pcSimState.keys.ArrowDown)  pcSimState.pitch   = Math.max(0,  pcSimState.pitch - ARROW_PITCH_RATE * dt);
 
   // ── 地形傾斜による自動ピッチ補正（地形追従モードのみ） ──────────────
