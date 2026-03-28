@@ -6462,31 +6462,32 @@ function setCameraFromPlayer() {
 
   // ── 鳥瞰モード ──────────────────────────────────────────────────────
   if (pcSimState.viewMode === 'bird') {
-    // FreeCameraOptions でカメラ eye を直接配置する。
-    // プレイヤーの3D上空点 [playerLng, playerLat, h + birdAltM] を中心に
-    // pitch/bearing に従いカメラを後方上方に置き、setPitchBearing で向きを合わせる。
-    // これにより「上空の自分」を中心にカメラが回転する。
+    // calculateCameraOptionsFromCameraLngLatAltRotation でカメラを正確に配置する。
+    // カメラ eye 位置（経度・緯度・高度）から bearing/pitch を指定すると、
+    // プレイヤーの上空点 [playerLng, playerLat, h + birdAltM] を中心に
+    // カメラが回転するようになる。
     const birdPitch    = Math.max(0, Math.min(85, pcSimState.pitch));
     const birdPitchRad = birdPitch * Math.PI / 180;
-    const playerAlt    = h + pcSimState.birdAltM;  // 地形高 + 飛行高度
+    const playerAlt    = h + pcSimState.birdAltM;
     const camDist      = pcSimState.camDistM;
 
-    // カメラ eye の位置: プレイヤーの後方 sin(pitch)*camDist、上方 cos(pitch)*camDist
+    // カメラ eye 位置: プレイヤー上空点の後方 sin(pitch)*camDist、上方 cos(pitch)*camDist
     const backKm = camDist * Math.sin(birdPitchRad) / 1000;
     const backPt = turf.destination(
       [pcSimState.playerLng, pcSimState.playerLat],
-      Math.max(0, backKm),
+      Math.max(0.00001, backKm),
       (pcSimState.bearing + 180) % 360
     );
     const cameraAlt = playerAlt + Math.max(1, camDist * Math.cos(birdPitchRad));
 
-    const fc = map.getFreeCameraOptions();
-    fc.position = maplibregl.MercatorCoordinate.fromLngLat(
-      { lng: backPt.geometry.coordinates[0], lat: backPt.geometry.coordinates[1] },
-      cameraAlt
+    const camOpts = map.calculateCameraOptionsFromCameraLngLatAltRotation(
+      new maplibregl.LngLat(backPt.geometry.coordinates[0], backPt.geometry.coordinates[1]),
+      cameraAlt,
+      pcSimState.bearing,
+      birdPitch,
+      0
     );
-    fc.setPitchBearing(birdPitch, pcSimState.bearing);
-    map.setFreeCameraOptions(fc);
+    map.jumpTo(camOpts);
     return;
   }
 
