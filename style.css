@@ -147,6 +147,14 @@
   --chevron-size-right: 5px 8px;  /* background-size（右向き） */
   --chevron-inset:      6px;      /* 右端からの距離（background-position） */
   --chevron-pad-r:      20px;     /* 矢印領域分の右パディング */
+
+  /* ===== プルダウン外観（ドロップダウン共通） ===== */
+  /* <select> 要素および .cascade-btn の見た目をここで一元管理。 */
+  /* 個別クラスはサイズ・レイアウトのみ上書きし、外観はここだけ変更すれば全体に反映される。 */
+  --dropdown-bg:     var(--bg-select);   /* 背景色 */
+  --dropdown-border: #b0b8b0;            /* 枠線色 */
+  --dropdown-radius: 4px;                /* 角丸 */
+  --dropdown-color:  var(--text-main);   /* テキスト色 */
 }
 
 /*
@@ -164,9 +172,26 @@ button, input, textarea {
   font-family: inherit;
   font-size: inherit;
 }
+/* ================================================================
+   全 <select> 要素の基本外観 — ここだけ変更すれば全体に反映される
+   個別クラスは background-color / padding / font-size のみ上書きすること。
+   background shorthand で上書きすると chevron が消えるので使わないこと。
+   ================================================================ */
 select {
   font-family: var(--font-family);
+  appearance: none;
+  background-color: var(--dropdown-bg);
+  background-image: var(--chevron-down);
+  background-repeat: no-repeat;
+  background-position: right var(--chevron-inset) center;
+  background-size: var(--chevron-size-down);
+  color: var(--dropdown-color);
+  border: 1px solid var(--dropdown-border);
+  border-radius: var(--dropdown-radius);
+  cursor: pointer;
+  outline: none;
 }
+select:disabled { opacity: 0.5; cursor: default; }
 
 body {
   width: 100vw;
@@ -686,34 +711,45 @@ body {
   user-select: none;
 }
 
-/* ---- カスケードPPIセレクター ---- */
+/* ================================================================
+   カスケードドロップダウン — 汎用定義
+   2段階プルダウンを使う場合は .cascade-* クラスを使用する。
+   既存の .ppi-cascade-* は後方互換エイリアスとして並列定義。
+   新しいカスケードを追加する場合は .cascade-* だけで実装できる。
+   ================================================================ */
+
+/* ---- ラッパー ---- */
+.cascade-wrap,
 .ppi-cascade-wrap {
   position: relative;
   flex: 1;
   min-width: 0;
 }
-/* ベーススタイルは「共通パネルプルダウン」セクションで定義済み */
+
+/* ---- トリガーボタン（外観は「共通パネルプルダウン」セクションの .cascade-btn で定義済み） ---- */
+.cascade-btn,
 .ppi-cascade-btn {
   display: block;
   width: 100%;
   text-align: left;
-  padding: 2px var(--chevron-pad-r) 2px 6px;
-  font-size: var(--font-sm);
-  font-family: inherit;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.cascade-btn:hover,
 .ppi-cascade-btn:hover {
   border-color: #888;
   background-color: var(--bg-hover-btn);
 }
+.cascade-arrow,
 .ppi-cascade-arrow { display: none; }
-/* メニュー本体・サブメニューは body 直下に配置し position:fixed で描画
-   → overflow:hidden の祖先要素をすべて回避できる */
+
+/* ---- 1段目メニュー本体 ----
+   body 直下に配置し position:fixed で描画 → overflow:hidden 祖先を回避 */
+.cascade-menu,
 .ppi-cascade-menu {
   position: fixed;
-  z-index: 9500;
+  z-index: 10100;
   background: var(--bg-panel);
   border: 1px solid var(--border-muted);
   border-radius: 4px;
@@ -722,7 +758,11 @@ body {
   display: none;
   padding: 2px 0;
 }
+.cascade-menu.open,
 .ppi-cascade-menu.open { display: block; }
+
+/* ---- 1段目カテゴリ行（右矢印つき） ---- */
+.cascade-cat,
 .ppi-cascade-cat {
   padding: 5px var(--chevron-pad-r) 5px 10px;
   font-size: var(--font-sm);
@@ -731,12 +771,18 @@ body {
   user-select: none;
   background: var(--chevron-right) no-repeat right var(--chevron-inset) center / var(--chevron-size-right);
 }
+.cascade-cat + .cascade-cat,
 .ppi-cascade-cat + .ppi-cascade-cat { border-top: 1px solid var(--border-subtle); }
+.cascade-cat:hover,
 .ppi-cascade-cat:hover { background-color: var(--bg-hover-btn); }
+.cascade-cat-arrow,
 .ppi-cascade-cat-arrow { display: none; }
+
+/* ---- 2段目サブメニュー ---- */
+.cascade-sub,
 .ppi-cascade-sub {
   position: fixed;
-  z-index: 9501;
+  z-index: 10101;
   background: var(--bg-panel);
   border: 1px solid var(--border-muted);
   border-radius: 4px;
@@ -747,6 +793,9 @@ body {
   display: none;
   padding: 2px 0;
 }
+
+/* ---- 2段目アイテム行 ---- */
+.cascade-item,
 .ppi-cascade-item {
   padding: 5px 10px;
   font-size: var(--font-sm);
@@ -757,8 +806,17 @@ body {
   justify-content: space-between;
   gap: 10px;
 }
+.cascade-item:hover,
 .ppi-cascade-item:hover { background: var(--bg-hover-btn); }
-.ppi-cascade-item.selected { font-weight: var(--font-bold); }
+.cascade-item.selected,
+.ppi-cascade-item.selected {
+  font-weight: var(--font-bold);
+  background: var(--primary-light);
+  color: var(--primary-dark);
+}
+
+/* ---- アイテム右側の補足テキスト（例: PPI値） ---- */
+.cascade-item-sub,
 .ppi-cascade-item-ppi {
   color: var(--text-muted);
   font-size: 10px;
@@ -1054,38 +1112,34 @@ body {
 
 /* ================================================================
    共通パネルプルダウン
-   全プルダウンのベーススタイルをここで一括管理。
-   サイズ・色を変えたい場合はこのブロックだけ編集すれば全体に反映される。
-   対象: .setting-select / #sel-contour-interval / #sel-magnetic-north-interval /
-         #speed-select / .ppi-cascade-btn
+   <select> の外観（chevron・border・radius）は上の「全 <select> 要素の基本外観」で一括定義済み。
+   ここでは各コンテキスト固有のサイズ・レイアウトのみ定義する。
+   .ppi-cascade-btn / .cascade-btn は <button> 要素なので外観をここで定義。
    矢印の形・色は :root の --chevron-* 変数で管理
    ================================================================ */
 
-/* ---- ベーススタイル（外観・色・ボーダー） — 全プルダウン共通 ---- */
-.setting-select,
-#sel-contour-interval,
-#sel-magnetic-north-interval,
-#speed-select,
+/* ---- .cascade-btn / .ppi-cascade-btn — <button> なので外観を個別定義 ---- */
+.cascade-btn,
 .ppi-cascade-btn {
   appearance: none;
-  background: var(--bg-select) var(--chevron-down) no-repeat right var(--chevron-inset) center / var(--chevron-size-down);
-  color: var(--text-main);
-  border: 1px solid #b0b8b0;
-  border-radius: 4px;
+  background-color: var(--dropdown-bg);
+  background-image: var(--chevron-down);
+  background-repeat: no-repeat;
+  background-position: right var(--chevron-inset) center;
+  background-size: var(--chevron-size-down);
+  color: var(--dropdown-color);
+  border: 1px solid var(--dropdown-border);
+  border-radius: var(--dropdown-radius);
   cursor: pointer;
   outline: none;
+  padding: 2px var(--chevron-pad-r) 2px 6px;
+  font-size: var(--font-sm);
+  font-family: var(--font-family);
 }
-/* ---- 無効状態 — 全プルダウン共通 ---- */
-.setting-select:disabled,
-#sel-contour-interval:disabled,
-#sel-magnetic-north-interval:disabled,
-#speed-select:disabled,
-.ppi-cascade-btn:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
+.cascade-btn:disabled,
+.ppi-cascade-btn:disabled { opacity: 0.5; cursor: default; }
 
-/* ---- 個別プロパティ（サイズ・レイアウトのみここで上書き） ---- */
+/* ---- .setting-select — サイズ・レイアウトのみ ---- */
 .setting-select {
   flex: 1;
   min-width: 0;
@@ -1898,12 +1952,8 @@ label.setting-label {
 }
 .frame-img-select {
   width: 100%;
-  padding: 3px 5px;
-  border: 1px solid var(--border-input);
-  border-radius: 3px;
+  padding: 3px var(--chevron-pad-r) 3px 5px;
   font-size: var(--font-sm);
-  color: var(--text-main);
-  background: var(--bg-surface);
   margin-bottom: 3px;
 }
 
@@ -1926,9 +1976,7 @@ label.setting-label {
 }
 .frame-popup-select {
   width: 100%;
-  padding: 4px 6px;
-  border: 1px solid var(--border-input);
-  border-radius: 3px;
+  padding: 4px var(--chevron-pad-r) 4px 6px;
   font-size: var(--font-sm);
   margin-bottom: 6px;
 }
@@ -2064,12 +2112,8 @@ label.setting-label {
 }
 .imgw-crs-select {
   width: 100%;
-  padding: 7px 8px;
-  border: 1px solid var(--border-input);
-  border-radius: 4px;
+  padding: 7px var(--chevron-pad-r) 7px 8px;
   font-size: var(--font-base);
-  color: var(--text-main);
-  background: var(--bg-surface);
 }
 .imgw-modal-footer {
   padding: 12px 16px;
@@ -3072,18 +3116,16 @@ label.setting-label {
 .scale-ctrl-select {
   height: 29px;           /* 全画面ボタンと同じ高さ */
   box-sizing: border-box;
-  padding: 0 8px;
-  background: var(--bg-surface);
+  padding: 0 var(--chevron-pad-r) 0 8px;
+  /* 地図コントロール独自外観: 白地・影・ボーダーなしで select{} を上書き */
+  background-color: var(--bg-surface);
+  border: none;
   border-radius: 4px;
   font-size: var(--font-sm);
-  color: var(--text-main);
   box-shadow: 0 0 0 2px var(--shadow-xs);
-  cursor: pointer;
-  outline: none;
-  border: none;
 }
 .scale-ctrl-select:hover {
-  background: var(--bg-select);
+  background-color: var(--bg-select);
 }
 
 /* スマホ向けパネル最適化 */
@@ -3305,7 +3347,15 @@ label.setting-label {
 .import-slider-side.right {
   text-align: left;
 }
-.import-ctrl-select, .import-ctrl-input {
+/* select は select{} グローバルルールで外観定義済み。サイズのみ */
+.import-ctrl-select {
+  width: 100%;
+  padding: 4px var(--chevron-pad-r) 4px 6px;
+  font-size: var(--font-base);
+}
+.import-ctrl-select:focus { border-color: var(--primary); }
+/* input は select{} の影響を受けないので外観を個別定義 */
+.import-ctrl-input {
   width: 100%;
   background: var(--bg-surface);
   color: var(--text-main);
@@ -3316,9 +3366,7 @@ label.setting-label {
   font-family: inherit;
   outline: none;
 }
-.import-ctrl-select:focus, .import-ctrl-input:focus {
-  border-color: var(--primary);
-}
+.import-ctrl-input:focus { border-color: var(--primary); }
 .import-ctrl-hint {
   font-size: var(--font-sm);
   color: var(--text-muted);
@@ -4119,18 +4167,18 @@ label.setting-label {
 }
 .export-dialog-input {
   font-size: var(--font-lg);
-  padding: 7px 10px;
+  padding: 7px var(--chevron-pad-r) 7px 10px;
+  /* 印刷ダイアログ独自外観: 大きめ角丸・薄灰背景で select{} を上書き */
   border: 1px solid var(--slider-track);
   border-radius: 7px;
-  outline: none;
   font-family: inherit;
   color: var(--text-dark);
-  background: var(--bg-subtle);
+  background-color: var(--bg-subtle);
   transition: border-color 0.15s;
 }
 .export-dialog-input:focus {
   border-color: var(--primary);
-  background: var(--bg-surface);
+  background-color: var(--bg-surface);
 }
 .export-dialog-btns {
   display: flex;
@@ -4338,3 +4386,77 @@ label.setting-label {
   padding: 0;
 }
 .print-ctrl-btn:hover { background-color: rgba(0,0,0,0.05); }
+
+/* ================================================================
+   CustomSelect — JS が生成するカスタムドロップダウンのスタイル
+   ネイティブ <select> の open 状態はブラウザ制御のため CSS で変更不可。
+   makeCustomSelect() が .cascade-* クラスを使ってカスタムUIを構築する。
+   ================================================================ */
+
+/* ---- ラッパー div: レイアウト制御のみ ----
+   元 select のクラスを継承して flex/width 等を引き継ぐ。
+   ビジュアル（背景・枠・影）は内側の .cascade-btn が担当するためここでリセット。
+   !important で元クラスの視覚プロパティを確実に上書きする。 */
+.custom-select-wrap {
+  display: inline-flex;
+  align-items: stretch;
+  box-sizing: border-box;
+  background: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  outline: none !important;
+  cursor: default;
+}
+
+/* ---- トリガーボタン: ラッパー全体を占有 ----
+   外観は .cascade-btn で定義済み。ここではレイアウトと継承のみ。 */
+.custom-select-wrap > .cascade-btn {
+  flex: 1;
+  min-width: 0;
+  font-size: inherit;   /* 元クラスの font-size を引き継ぐ */
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---- ドロップダウンパネル: スクロール制限 ---- */
+.custom-select-menu {
+  max-height: 50vh;
+  overflow-y: auto;
+}
+
+/* ---- ID 別レイアウト調整（ラッパーに data-select-id が設定される） ---- */
+/* #speed-select は flex-shrink:0 が必要（ID が hidden select に残るため wrapper で再定義） */
+.custom-select-wrap[data-select-id="speed-select"] { flex-shrink: 0; }
+
+/* ---- .scale-ctrl-select 専用: 地図コントロール外観をボタンに適用 ---- */
+.custom-select-wrap.scale-ctrl-select { height: 29px; }
+.custom-select-wrap.scale-ctrl-select > .cascade-btn {
+  height: 100%;
+  background-color: var(--bg-surface);
+  border: none;
+  box-shadow: 0 0 0 2px var(--shadow-xs);
+  border-radius: 4px;
+  padding: 0 var(--chevron-pad-r) 0 8px;
+}
+.custom-select-wrap.scale-ctrl-select > .cascade-btn:hover {
+  background-color: var(--bg-select);
+}
+
+/* ---- .export-dialog-input 専用: 印刷ダイアログ外観をボタンに適用 ---- */
+.custom-select-wrap.export-dialog-input > .cascade-btn {
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--slider-track);
+  border-radius: 7px;
+  color: var(--text-dark);
+  font-size: var(--font-lg);
+  padding: 7px var(--chevron-pad-r) 7px 10px;
+  transition: border-color 0.15s;
+}
+.custom-select-wrap.export-dialog-input > .cascade-btn:hover {
+  border-color: var(--primary);
+  background-color: var(--bg-surface);
+}
