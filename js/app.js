@@ -6467,7 +6467,8 @@ function setCameraFromPlayer() {
   // 上空の自分を中心にカメラが回転する。
   // pitch > 60° は同メソッドの想定範囲外で破綻するため 60° に制限する。
   if (pcSimState.viewMode === 'bird') {
-    const birdPitch    = Math.max(0, Math.min(60, pcSimState.pitch));
+    // pitch > 84.3° で内部の dzNormalized < 0.1 ガードが発動して破綻するため 80° に制限
+    const birdPitch    = Math.max(0, Math.min(80, pcSimState.pitch));
     const birdPitchRad = birdPitch * Math.PI / 180;
     const playerAlt    = h + pcSimState.birdAltM;
     const camDist      = pcSimState.camDistM;
