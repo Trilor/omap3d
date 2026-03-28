@@ -3802,24 +3802,12 @@ function updateMagneticNorth() {
     const data = buildGlobalMagneticLines();
     _lastMagneticNorthData = data;
     map.getSource('magnetic-north').setData(data);
-    // UI表示（500km 固定）
-    const optCurrent = document.getElementById('opt-magnetic-north-current');
-    if (optCurrent) {
-      optCurrent.textContent = '500 km';
-      document.getElementById('sel-magnetic-north-interval').selectedIndex = 0;
-    }
     return;
   }
 
-  // zoom レベルに応じた有効間隔を取得し、セレクト先頭オプションに反映
+  // zoom レベルに応じた有効間隔を取得
   const intervalM  = getEffectiveMagneticInterval();
   const intervalKm = intervalM / 1000;
-  const displayText = intervalM >= 1000 ? (intervalM / 1000) + ' km' : intervalM + ' m';
-  const optCurrent = document.getElementById('opt-magnetic-north-current');
-  if (optCurrent) {
-    optCurrent.textContent = displayText;
-    document.getElementById('sel-magnetic-north-interval').selectedIndex = 0;
-  }
 
   // ステップ距離を動的決定：視野の対角を15分割、広域は最大100km・拡大時は最小0.5km
   const viewWidth  = turf.distance(
@@ -4553,7 +4541,6 @@ sliderExaggeration.addEventListener('input', () => {
 // ---- 等高線 チェックボックス ----
 const chkContour = document.getElementById('chk-contour');
 const selContour = document.getElementById('sel-contour-interval');
-const optContourCurrent = document.getElementById('opt-contour-current');
 
 // ユーザーが手動で選んだ等高線間隔（m）。zoom > 15（16以上）のときに使用する。
 let userContourInterval = 5;
@@ -4623,20 +4610,11 @@ function updateContourAutoInterval() {
       setAllContourVisibility(map, 'none');
       contourHiddenByLowZoom = true;
     }
-    if (optContourCurrent) {
-      optContourCurrent.textContent = '非表示';
-      selContour.selectedIndex = 0;
-    }
     lastAppliedContourInterval = null; // zoom上昇時に再描画させる
     return;
   }
   contourHiddenByLowZoom = false; // z>7 に戻ったらフラグをリセット
 
-  const intervalM = getEffectiveContourInterval();
-  if (optContourCurrent) {
-    optContourCurrent.textContent = intervalM + ' m';
-    selContour.selectedIndex = 0;
-  }
   // z0-z13 の等高線間隔は buildContourThresholds 内で固定値としてURLに埋め込み済みのため、
   // ズームレベルが変わっても URL は変化しない → setTiles を呼ばない。
   // z≤7 から復帰した場合（lastAppliedContourInterval === null）のみ再適用する。
@@ -4656,13 +4634,8 @@ chkContour.addEventListener('change', () => {
 selContour.addEventListener('change', () => {
   const val = parseFloat(selContour.value);
   if (val) {
-    // value='' の先頭オプション（auto表示）以外を選んだ場合はユーザー設定として保存
     userContourInterval = val;
     applyContourInterval(val);
-    if (optContourCurrent) {
-      optContourCurrent.textContent = val + ' m';
-      selContour.selectedIndex = 0;
-    }
   }
 });
 
@@ -6696,6 +6669,9 @@ function updateReadmapBgKmzOptions() {
     ...kmzLayers.map(e => `kmz-${e.id}`),
   ]);
   sel.value = validVals.has(currentVal) ? currentVal : 'orilibre';
+
+  // カスタムセレクトUIにオプション変更を反映
+  if (sel._csRefresh) sel._csRefresh();
 }
 
 /* ----------------------------------------------------------------
@@ -8736,3 +8712,137 @@ document.getElementById('import-decide-btn').addEventListener('click', () => {
   document.addEventListener('contextmenu',  () => { menu.style.display = 'none'; });
   map.on('movestart', () => { menu.style.display = 'none'; });
 })();
+
+/* ================================================================
+   CustomSelect — ネイティブ <select> をカスケードメニュー風UIに置き換え
+   ブラウザはネイティブ select の open 状態をCSSで変更できないため、
+   JS でカスタムドロップダウンを構築して .cascade-* クラスで統一する。
+
+   公開API（sel._csRefresh / sel._csSync）:
+     sel._csRefresh()  options が変わった後に呼ぶ（一覧を再構築）
+     sel._csSync()     sel.value を直接書き換えた後に手動同期
+   ================================================================ */
+function makeCustomSelect(sel) {
+  // ---- ラッパー div（レイアウト担当）----
+  // 元 select のクラスをラッパーに移す（flex / width 等のレイアウト CSS を継承する）
+  const wrap = document.createElement('div');
+  wrap.className = (sel.className ? sel.className + ' ' : '') + 'custom-select-wrap';
+  if (sel.id) wrap.setAttribute('data-select-id', sel.id);
+
+  // ---- トリガーボタン（外観担当、.cascade-btn でスタイル済み）----
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'cascade-btn';
+  btn.disabled = sel.disabled;
+
+  // ---- ドロップダウンパネル（body直下に配置して z-index と overflow を回避）----
+  const panel = document.createElement('div');
+  panel.className = 'cascade-menu custom-select-menu';
+
+  // ---- DOM 置き換え ----
+  // select を非表示のまま DOM に保持することで getElementById / .value 等の JS 互換性を維持する
+  sel.style.display = 'none';
+  sel.parentNode.insertBefore(wrap, sel);
+  wrap.appendChild(btn);
+  wrap.appendChild(sel);
+  document.body.appendChild(panel);
+
+  // ---- オプション一覧を構築 ----
+  function buildItems() {
+    panel.innerHTML = '';
+    Array.from(sel.options).forEach(opt => {
+      const item = document.createElement('div');
+      item.className = 'cascade-item';
+      item.dataset.value = opt.value;
+      item.textContent = opt.text;
+      if (opt.disabled) {
+        item.classList.add('disabled');
+        item.style.opacity = '0.4';
+        item.style.pointerEvents = 'none';
+        item.style.cursor = 'default';
+      }
+      panel.appendChild(item);
+    });
+  }
+
+  // ---- ボタン表示テキストと選択状態を同期 ----
+  function syncDisplay() {
+    const opt = sel.options[sel.selectedIndex];
+    btn.textContent = opt ? opt.text : '';
+    btn.disabled = sel.disabled;
+    panel.querySelectorAll('.cascade-item').forEach(item => {
+      item.classList.toggle('selected', item.dataset.value === sel.value);
+    });
+  }
+
+  buildItems();
+  syncDisplay();
+
+  // ---- メニュー開閉 ----
+  function openPanel() {
+    // 他の開いているカスタムセレクトをすべて閉じる
+    document.querySelectorAll('.custom-select-menu.open').forEach(m => {
+      if (m !== panel) m.classList.remove('open');
+    });
+    const r = btn.getBoundingClientRect();
+    // 画面下端に収まらない場合は上方向に展開
+    const spaceBelow = window.innerHeight - r.bottom;
+    const estH = Math.min(panel.scrollHeight || 300, window.innerHeight * 0.5);
+    if (spaceBelow < estH && r.top > spaceBelow) {
+      panel.style.top = (r.top - estH - 2) + 'px';
+    } else {
+      panel.style.top = (r.bottom + 2) + 'px';
+    }
+    panel.style.left   = r.left + 'px';
+    panel.style.minWidth = r.width + 'px';
+    panel.classList.add('open');
+    // 選択中の項目が見えるようにスクロール
+    const selectedItem = panel.querySelector('.selected');
+    if (selectedItem) selectedItem.scrollIntoView({ block: 'nearest' });
+  }
+  function closePanel() { panel.classList.remove('open'); }
+
+  // btn / panel の mousedown は document に伝播させない
+  // （伝播すると document の closePanel が先に発火し、click のトグル判定がずれる）
+  btn.addEventListener('mousedown',   e => e.stopPropagation());
+  panel.addEventListener('mousedown', e => e.stopPropagation());
+  document.addEventListener('mousedown', closePanel);
+
+  btn.addEventListener('click', e => {
+    e.stopPropagation();
+    panel.classList.contains('open') ? closePanel() : openPanel();
+  });
+  panel.addEventListener('click', e => {
+    const item = e.target.closest('.cascade-item:not(.disabled)');
+    if (!item) return;
+    sel.value = item.dataset.value;
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+    closePanel();
+  });
+
+  // ---- programmatic な sel.value 変更を検知して表示を同期 ----
+  // （例: document.getElementById('import-paper-size').value = 'A4'）
+  const proto = HTMLSelectElement.prototype;
+  const origDesc = Object.getOwnPropertyDescriptor(proto, 'value');
+  if (origDesc) {
+    Object.defineProperty(sel, 'value', {
+      get: ()  => origDesc.get.call(sel),
+      set: v   => { origDesc.set.call(sel, v); syncDisplay(); },
+      configurable: true,
+    });
+  }
+  // change イベント経由の変更にも対応（programmatic な dispatchEvent を含む）
+  sel.addEventListener('change', syncDisplay);
+
+  // ---- 公開 API ----
+  sel._csRefresh = () => { buildItems(); syncDisplay(); };
+  sel._csSync    = syncDisplay;
+}
+
+/* すべての <select> 要素をカスタムUIに変換する */
+function initCustomSelects() {
+  document.querySelectorAll('select').forEach(makeCustomSelect);
+}
+
+// DOM 構築完了後に実行（<script type="module"> は defer 相当で DOM 準備済み）
+initCustomSelects();
