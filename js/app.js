@@ -6728,8 +6728,15 @@ function pcSimLoop(timestamp) {
 
     if (pcSimState.keys.KeyQ || pcSimState.keys.KeyE) {
       // Q/E: レートに従って birdAltM を変化させ、ローパスをバイパスして即時反映
-      if (pcSimState.keys.KeyQ) pcSimState.birdAltM = pcSimState.birdAltM - BIRD_ALT_RATE * dt;
-      if (pcSimState.keys.KeyE) pcSimState.birdAltM = Math.min(5000, pcSimState.birdAltM + BIRD_ALT_RATE * dt);
+      if (pcSimState.keys.KeyQ) {
+        pcSimState.birdAltM -= BIRD_ALT_RATE * dt;
+      }
+      if (pcSimState.keys.KeyE) {
+        // 地形制約中（birdAltMが現在地形より低い）の場合はまず地形基準に揃えてから上昇
+        const groundAltM = floorH - pcSimState.birdBaseTerrainH;
+        if (pcSimState.birdAltM < groundAltM) pcSimState.birdAltM = groundAltM;
+        pcSimState.birdAltM = Math.min(5000, pcSimState.birdAltM + BIRD_ALT_RATE * dt);
+      }
       pcSimState.birdFloorH = Math.max(pcSimState.birdBaseTerrainH + pcSimState.birdAltM, floorH);
     } else {
       // 通常: 目標高度へローパスフィルタで追従
