@@ -6462,22 +6462,21 @@ function setCameraFromPlayer() {
 
   // ── 鳥瞰モード ──────────────────────────────────────────────────────
   // terrain mode のカメラ計算をそのまま流用し、
-  // CameraOptions の elevation に h + birdAltM を渡すだけで
-  // カメラ全体を birdAltM 分上に平行移動する。
+  // zoom の基準距離に birdAltM を加算することでカメラを上に平行移動する。
+  // center・bearing・pitch はそのまま（描写上の現在位置は変わらない）。
   if (pcSimState.viewMode === 'bird') {
     const birdPitch    = Math.max(0, Math.min(map.getMaxPitch(), pcSimState.pitch));
     const birdPitchRad = birdPitch * Math.PI / 180;
-    const relativeAlt  = Math.max(0.3, pcSimState.camDistM * Math.cos(birdPitchRad));
+    const relativeAlt  = Math.max(0.3, pcSimState.camDistM * Math.cos(birdPitchRad)) + pcSimState.birdAltM;
     const targetZoom   = Math.max(10, Math.min(map.getMaxZoom(), Math.log2(
       H * 2 * Math.PI * R * Math.cos(lat_rad) /
       (1024 * Math.tan(fov_rad / 2) * relativeAlt)
     )));
     map.jumpTo({
-      center:    [pcSimState.playerLng, pcSimState.playerLat],
-      bearing:   pcSimState.bearing,
-      pitch:     birdPitch,
-      zoom:      targetZoom,
-      elevation: h + pcSimState.birdAltM,  // ← カメラ全体を上空へ平行移動
+      center:  [pcSimState.playerLng, pcSimState.playerLat],
+      bearing: pcSimState.bearing,
+      pitch:   birdPitch,
+      zoom:    targetZoom,
     });
     return;
   }
