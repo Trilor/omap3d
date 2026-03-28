@@ -6461,34 +6461,33 @@ function setCameraFromPlayer() {
   const lat_rad = pcSimState.playerLat * Math.PI / 180;
 
   // ── 鳥瞰モード ──────────────────────────────────────────────────────
-  // ① zoom を camDist*cos(pitch) + birdAltM で計算 → カメラが birdAltM 分上に浮く
-  // ② center を birdAltM*tan(pitch) 前方にずらす → 画面中央がプレイヤー上空点になる
-  //
-  // 導出:
-  //   eye 高度 = h + birdAlt + camDist*cos(pitch)
-  //   eye〜地形面の垂直距離 (= relativeAlt) = birdAlt + camDist*cos(pitch)
-  //   eye〜center の水平距離 = relativeAlt * tan(pitch)
-  //   eye はプレイヤーの後方 camDist*sin(pitch) にある
-  //   → centerのプレイヤーからの前方距離 = relativeAlt*tan - camDist*sin = birdAlt*tan(pitch) ✓
+  // calculateCameraOptionsFromCameraLngLatAltRotation でカメラ eye を直接配置する。
+  // プレイヤーの3D上空点 [playerLng, playerLat, h + birdAltM] を中心に
+  // pitch/bearing に従いカメラを後方上方に置くことで、
+  // 上空の自分を中心にカメラが回転する。
+  // pitch > 60° は同メソッドの想定範囲外で破綻するため 60° に制限する。
   if (pcSimState.viewMode === 'bird') {
-    const birdPitch    = Math.max(0, Math.min(map.getMaxPitch(), pcSimState.pitch));
+    const birdPitch    = Math.max(0, Math.min(60, pcSimState.pitch));
     const birdPitchRad = birdPitch * Math.PI / 180;
-    const birdAlt      = pcSimState.birdAltM;
+    const playerAlt    = h + pcSimState.birdAltM;
+    const camDist      = pcSimState.camDistM;
 
-    // zoom は birdAlt のみで計算（pitch 不依存 → pitch 変化でカメラ高度は変わらない）
-    const targetZoom = Math.max(10, Math.min(map.getMaxZoom(), Math.log2(
-      H * 2 * Math.PI * R * Math.cos(lat_rad) /
-      (1024 * Math.tan(fov_rad / 2) * Math.max(1, birdAlt))
-    )));
+    const backKm = camDist * Math.sin(birdPitchRad) / 1000;
+    const backPt = turf.destination(
+      [pcSimState.playerLng, pcSimState.playerLat],
+      Math.max(0.00001, backKm),
+      (pcSimState.bearing + 180) % 360
+    );
+    const cameraAlt = playerAlt + Math.max(1, camDist * Math.cos(birdPitchRad));
 
-    // center はプレイヤー位置固定（前方補正しない）
-    // → pitch を変えても現在位置は動かない
-    map.jumpTo({
-      center:  [pcSimState.playerLng, pcSimState.playerLat],
-      bearing: pcSimState.bearing,
-      pitch:   birdPitch,
-      zoom:    targetZoom,
-    });
+    const camOpts = map.calculateCameraOptionsFromCameraLngLatAltRotation(
+      new maplibregl.LngLat(backPt.geometry.coordinates[0], backPt.geometry.coordinates[1]),
+      cameraAlt,
+      pcSimState.bearing,
+      birdPitch,
+      0
+    );
+    map.jumpTo(camOpts);
     return;
   }
 
