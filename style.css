@@ -2833,12 +2833,12 @@ label.setting-label {
    ================================================================ */
 
 /* PCシムトグルボタン（シミュレーター設定セクション内） */
-#pc-sim-toggle-btn {
+#pc-sim-toggle-btn,
+#pc-sim-bird-btn {
   display: block;
   width: calc(100% - 20px);
   margin: 6px 10px 8px;
   padding: 7px 12px;
-  background: var(--primary);
   color: var(--on-primary);
   border: none;
   border-radius: 4px;
@@ -2850,9 +2850,20 @@ label.setting-label {
   text-align: center;
   transition: background var(--transition);
 }
+#pc-sim-toggle-btn {
+  background: var(--primary);
+}
 #pc-sim-toggle-btn:hover { background: var(--primary-hover); }
 #pc-sim-toggle-btn.pc-sim-active { background: var(--color-sim-active); }
 #pc-sim-toggle-btn.pc-sim-active:hover { background: var(--color-sim-hover); }
+
+#pc-sim-bird-btn {
+  margin-top: 0;
+  background: #2f9e44;
+}
+#pc-sim-bird-btn:hover { background: #2b8a3e; }
+#pc-sim-bird-btn.pc-sim-active { background: #1f7a33; }
+#pc-sim-bird-btn.pc-sim-active:hover { background: #176329; }
 
 /* 開始地点ヒントテキスト（ボタン下） */
 #pc-sim-start-hint {
@@ -3065,6 +3076,13 @@ label.setting-label {
   filter: drop-shadow(0 0 2px #fff);
   pointer-events: none;
   z-index: 2;
+}
+/* 鳥瞰モード時: ドット・矢印を青に */
+#pc-sim-readmap-overlay.bird-mode #pc-sim-readmap-dot {
+  background: var(--primary);
+}
+#pc-sim-readmap-overlay.bird-mode #pc-sim-readmap-arrow {
+  border-bottom-color: var(--primary);
 }
 /* 読図ラベル */
 #pc-sim-readmap-label {
@@ -4498,15 +4516,21 @@ label.setting-label {
   padding: 14px 24px;
   border-bottom: 1px solid var(--border-subtle);
 }
-.settings-sim-speed-values {
-  gap: 4px;
-}
+.settings-sim-speed-item:last-child { border-bottom: none; }
 
 .settings-sim-speed-ctrl {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding-top: 18px; /* バブルのスペース確保 */
+  padding-top: 38px; /* バッジ高さ + gap 分の余白 */
+}
+/* 読図マップ用: バッジがないので padding-top 不要 */
+.settings-sim-speed-ctrl--select {
+  padding-top: 0;
+}
+/* 通常バブル用（飛行高度スライダー等、badge でなく bubble を使う場合） */
+.settings-sim-speed-ctrl--bubble {
+  padding-top: 22px;
 }
 .settings-sim-speed-ctrl .slider-bubble-wrap {
   position: relative;
@@ -4516,6 +4540,78 @@ label.setting-label {
 .settings-sim-speed-ctrl .slider-bubble-wrap .ui-slider {
   width: 100%;
   display: block;
+  position: relative;
+  z-index: 1; /* 円ドット（.sim-speed-dot-area）の上に thumb を重ねる */
+}
+
+/* ---- バッジ（thumb追随: アイコン + 速度 + ペース） ---- */
+/* thumb追随バッジ: シンプルなテキストのみ */
+.sim-speed-badge {
+  position: absolute;
+  left: calc(var(--pct, 0) * (100% - 12px) + 6px);
+  bottom: calc(100% + 8px);
+  transform: translateX(-50%);
+  font-size: var(--font-md);
+  color: var(--text-muted);
+  white-space: nowrap;
+  pointer-events: none;
+  line-height: 1;
+}
+
+/* ---- スライダー上重ね円ドットエリア ---- */
+.sim-speed-dot-area {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  pointer-events: none;
+}
+.sim-speed-tick {
+  position: absolute;
+  top: 50%;
+  left: calc(var(--tick-pct) * (100% - 12px) + 6px);
+  transform: translate(-50%, -50%);
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--slider-track);
+}
+.sim-speed-tick.tick-active {
+  background: var(--primary);
+}
+.sim-speed-tick-lbl {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  line-height: 1;
+  pointer-events: auto;
+  cursor: pointer;
+}
+.sim-speed-tick.tick-current .sim-speed-tick-lbl {
+  visibility: hidden;
+}
+
+/* ---- モードラベル ---- */
+.sim-speed-tick-area {
+  position: relative;
+  height: 22px;
+  margin-top: 2px;
+  cursor: pointer;
+}
+.sim-speed-mode-lbl {
+  position: absolute;
+  top: 6px;
+  left: calc(var(--lbl-ctr) * (100% - 12px) + 6px);
+  transform: translateX(-50%);
+  font-size: 11px;
+  color: #c8c8c8;
+  white-space: nowrap;
+  line-height: 1;
 }
 
 /* 「または手動で調整」区切り線 */
@@ -4586,6 +4682,43 @@ label.setting-label {
 }
 .settings-ppi-unit {
   font-size: var(--font-sm);
+  color: var(--text-muted);
+}
+
+/* ---- 速度・ペース 2カラム表示 ---- */
+.sim-speed-display {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.sim-speed-block,
+.sim-pace-block {
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+}
+.sim-speed-big {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--primary);
+  line-height: 1;
+}
+.sim-speed-sep {
+  width: 1px;
+  height: 22px;
+  background: var(--border-muted);
+  flex-shrink: 0;
+  align-self: flex-end;
+}
+.sim-pace-big {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text-sub);
+  line-height: 1;
+}
+.sim-metric-unit {
+  font-size: var(--font-xs);
   color: var(--text-muted);
 }
 

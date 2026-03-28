@@ -3551,10 +3551,10 @@ document.getElementById('catalog-search').addEventListener('input', () => {
 });
 
 // ---- map_type チップフィルター ----
-document.querySelectorAll('.type-chip').forEach(chip => {
+document.querySelectorAll('.map-type-chips .type-chip').forEach(chip => {
   chip.addEventListener('click', () => {
     activeTypeFilter = chip.dataset.type;
-    document.querySelectorAll('.type-chip').forEach(c => c.classList.toggle('active', c.dataset.type === activeTypeFilter));
+    document.querySelectorAll('.map-type-chips .type-chip').forEach(c => c.classList.toggle('active', c.dataset.type === activeTypeFilter));
     renderMillerColumns();
   });
 });
@@ -3619,7 +3619,8 @@ document.addEventListener('dragenter', (e) => {
   dragCounter++;
 
   // ファイルがドラッグされているときだけオーバーレイを表示する
-  if (e.dataTransfer.types.includes('Files')) {
+  // relatedTarget が null（ブラウザ外からの drag）かつ Files を含む場合のみ表示
+  if (e.dataTransfer.types.includes('Files') && e.relatedTarget === null) {
     dropOverlay.classList.add('visible');
   }
 });
@@ -3644,6 +3645,8 @@ document.addEventListener('drop', async (e) => {
   dropOverlay.classList.remove('visible');
 
   const allFiles = Array.from(e.dataTransfer.files);
+  // ファイルが含まれない drop（スライダードラッグ等のブラウザ誤検知）は無視する
+  if (allFiles.length === 0) return;
 
   // ファイルを種類別に振り分ける
   const kmzFiles = allFiles.filter(f => /\.kmz$/i.test(f.name));
@@ -3838,18 +3841,21 @@ function updateMagneticNorth() {
   // 緯度の基準点を最近傍整数度にスナップし、南北パンでのズレを最小化する。
   // （0.5° ≈ 55km 以上パンしない限り基準点は変わらない）
   const EQ_KM_PER_DEG = Math.PI * 6371 / 180; // ≈ 111.195 km/deg（赤道）
-  const dLng   = intervalKm / EQ_KM_PER_DEG;
   const refLat = Math.round(center.lat); // 最近傍整数度にスナップした基準緯度
 
-  // 磁気偏角による経度ドリフト補正バッファ
-  // refLat（整数度）からビューポート中心まで線がウォークする際、磁気偏角により
-  // 経度方向にドリフトが生じる（日本では南向きウォーク時に東へ最大 ~0.1° ずれる）。
-  // このドリフト量を推定し、grid 生成範囲を東西に拡張して画面全体をカバーする。
+  // 磁北線の基準点（refLat, center.lng）で偏角 θ を求め、
+  // 線に垂直な方向の間隔が intervalM になるよう経度グリッド間隔を補正する。
+  // 東西方向の実間隔は interval / cosθ に広げる必要がある。
   const declCenter = geomag.field(
     Math.max(-89.9, Math.min(89.9, center.lat)), center.lng
   ).declination;
+  const declAtBase = geomag.field(
+    Math.max(-89.9, Math.min(89.9, refLat)), center.lng
+  ).declination;
   const latDiffKm   = Math.abs(refLat - center.lat) * EQ_KM_PER_DEG;
   const cosLat      = Math.max(0.01, Math.cos(center.lat * Math.PI / 180));
+  const cosTheta    = Math.max(0.01, Math.abs(Math.cos(declAtBase * Math.PI / 180)));
+  const dLng        = intervalKm / (EQ_KM_PER_DEG * cosLat * cosTheta);
   const driftLngBuf = Math.abs(Math.sin(declCenter * Math.PI / 180) * latDiffKm / (EQ_KM_PER_DEG * cosLat));
 
   // ビューポートをカバーする経度範囲のグリッドインデックス（ドリフト補正込み）
@@ -6019,6 +6025,8 @@ const pcSimState = {
   camDistM:        50,         // カメラ ↔ プレイヤー間の距離（m）
   smoothedSlopeAdj: 0,         // 地形傾斜による自動ピッチ補正（deg、ローパスフィルタ済み）
   cachedTerrainH:  0,          // queryTerrainElevation が null のときに使うキャッシュ値
+  viewMode:        'terrain',  // 'terrain'（地形追従）| 'bird'（鳥瞰）
+  birdAltM:        200,        // 鳥瞰モードの地形相対高度（m）
   startLng:        null,       // クリック待ちで記録した開始座標（経度）
   startLat:        null,       // クリック待ちで記録した開始座標（緯度）
   pickingActive:   false,      // クリック待ちモード中か
@@ -6033,14 +6041,35 @@ const PC_CAM_DIST_MAX = 500;
 // ---- 速度スライダー ----
 const pcSimSpeedSlider = document.getElementById('pc-sim-speed');
 
-// 対数スケール変換: スライダー内部値(0–1000) ↔ 実速度(10–200 km/h)
-// 低速ほど幅を広く取り、ランニング速度帯を細かく調整できる
-const _SIM_MIN = 10, _SIM_MAX = 200;
-function simSpeedFromSlider(t) {
-  return Math.round(_SIM_MIN * Math.pow(_SIM_MAX / _SIM_MIN, t / 1000));
+// 離散速度リスト（スライダーのインデックス 0〜13 に対応）
+// ランニング帯を細かく、高速帯は粗くなるよう手動設計
+const _SIM_SPEEDS = [10, 12, 15, 20, 30, 60, 100, 300, 600, 900];
+function simSpeedFromSlider(idx) {
+  const i = Math.max(0, Math.min(_SIM_SPEEDS.length - 1, Math.round(idx)));
+  return _SIM_SPEEDS[i];
 }
-function simSpeedToSlider(kmh) {
-  return Math.round(1000 * Math.log(kmh / _SIM_MIN) / Math.log(_SIM_MAX / _SIM_MIN));
+
+// ---- 乗り物モード SVG アイコン ----
+const _SVG_RUNNING = `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="13" cy="3.5" r="1.5"/><path d="M13 5 L11 9 L7 12"/><path d="M11 9 L15 10.5"/><path d="M7 12 L5 17 M7 12 L10 16"/></svg>`;
+const _SVG_BICYCLE = `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="14" r="3.5"/><circle cx="15" cy="14" r="3.5"/><path d="M5 14 L10 7 L15 14 M10 7 L13 7 M13 7 L15 10"/></svg>`;
+const _SVG_CAR = `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 13 L3 8 Q5 7 7 7 L13 7 Q15 7 17 8 L19 13 Z"/><circle cx="5.5" cy="14.5" r="1.8"/><circle cx="14.5" cy="14.5" r="1.8"/><path d="M7 10 L13 10"/></svg>`;
+const _SVG_HIGHWAY = `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17 L7 3 M17 17 L13 3"/><path d="M9.5 14 L10.5 14 M9 10 L11 10 M8.5 6 L11.5 6"/></svg>`;
+const _SVG_SHINKANSEN = `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 10 Q5 6 8 6 L17 6 L17 14 L8 14 Q5 14 2 10 Z"/><line x1="3" y1="16" x2="17" y2="16"/><line x1="5" y1="14" x2="5" y2="16"/><line x1="14" y1="14" x2="14" y2="16"/></svg>`;
+const _SVG_MAGLEV = `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 10 Q4 7 8 7.5 L18 7.5 L19 10 L18 12.5 L8 12.5 Q4 13 1 10 Z"/><line x1="3" y1="15" x2="17" y2="15"/><line x1="7" y1="12.5" x2="7" y2="15"/><line x1="15" y1="12.5" x2="15" y2="15"/></svg>`;
+const _SVG_AIRPLANE = `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 11 L7 9 L13 3 Q16 1.5 17.5 4 Q19 6.5 17 9 L19 14.5 L16 15 L12 10.5 L8 12 L9 15.5 L6.5 16 L4 12.5 Z"/></svg>`;
+
+// 速度区分定義（min以上max未満）
+const _SIM_MODES = [
+  { min: 10,  max: 20,   label: 'ランニング', svg: _SVG_RUNNING },
+  { min: 20,  max: 40,   label: '自転車',     svg: _SVG_BICYCLE },
+  { min: 40,  max: 100,  label: '自動車',     svg: _SVG_CAR },
+  { min: 100, max: 160,  label: '高速道路',   svg: _SVG_HIGHWAY },
+  { min: 160, max: 350,  label: '新幹線',     svg: _SVG_SHINKANSEN },
+  { min: 350, max: 600,  label: 'リニア',     svg: _SVG_MAGLEV },
+  { min: 600, max: 1001, label: '飛行機',     svg: _SVG_AIRPLANE },
+];
+function getSimSpeedMode(kmh) {
+  return _SIM_MODES.find(m => kmh >= m.min && kmh < m.max) || _SIM_MODES[_SIM_MODES.length - 1];
 }
 
 // km/h → min:sec/km ペース変換
@@ -6052,24 +6081,58 @@ function kmhToPace(kmh) {
   return `${min}:${String(sec).padStart(2, '0')}`;
 }
 
-// 速度バブル・ヘッダー数値・ペース表示を更新
+// バッジ（thumb追随）・速度数値・ペース・アイコンを更新
 function updateSimSpeedBubble(slider) {
   if (!slider) return;
   const pct = (parseFloat(slider.value) - parseFloat(slider.min))
             / (parseFloat(slider.max)  - parseFloat(slider.min));
   const kmh = simSpeedFromSlider(parseFloat(slider.value));
-  const bubble = document.getElementById('pc-sim-speed-bubble');
-  if (bubble) { bubble.style.setProperty('--pct', pct); bubble.textContent = kmh; }
+  // バッジ位置（CSS --pct 変数で制御）
+  const badge = document.getElementById('pc-sim-speed-badge');
+  if (badge) badge.style.setProperty('--pct', pct);
+  // 速度・ペース数値（ヘッダー大きい数値 + バッジ）
+  const pace = kmhToPace(kmh);
   const numEl  = document.getElementById('pc-sim-speed-num');
   if (numEl) numEl.textContent = kmh;
   const paceEl = document.getElementById('pc-sim-pace-display');
-  if (paceEl) paceEl.textContent = kmhToPace(kmh);
+  if (paceEl) paceEl.textContent = pace;
+  const badgeNum = document.getElementById('pc-sim-badge-speed');
+  if (badgeNum) badgeNum.textContent = kmh;
+  updateSimSpeedTicks(slider);
+}
+
+// 円ドット着色: 現在値以下のインデックス → 青（tick-active）、それ以上 → グレー
+function updateSimSpeedTicks(slider) {
+  if (!slider) return;
+  const currentIdx = Math.round(parseFloat(slider.value));
+  const dots = document.querySelectorAll('#pc-sim-speed-dots .sim-speed-tick');
+  dots.forEach(dot => {
+    const idx = parseInt(dot.dataset.idx, 10);
+    dot.classList.toggle('tick-active',   idx <= currentIdx);
+    dot.classList.toggle('tick-current',  idx === currentIdx);
+  });
 }
 
 pcSimSpeedSlider.addEventListener('input', () => {
   updateSliderGradient(pcSimSpeedSlider);
   updateSimSpeedBubble(pcSimSpeedSlider);
 });
+
+// ラベルクリック時にスライダー値を更新（上部tick-lbl / 下部mode-lbl の当たり判定拡大）
+pcSimSpeedSlider.closest('.slider-bubble-wrap').addEventListener('click', e => {
+  if (e.target === pcSimSpeedSlider) return; // スライダー本体はブラウザが処理
+  const rect = pcSimSpeedSlider.getBoundingClientRect();
+  const thumbR = 6; // thumb半径（px）
+  const pct = Math.max(0, Math.min(1,
+    (e.clientX - rect.left - thumbR) / (rect.width - thumbR * 2)
+  ));
+  const max = parseFloat(pcSimSpeedSlider.max);
+  const min = parseFloat(pcSimSpeedSlider.min);
+  pcSimSpeedSlider.value = Math.round(pct * (max - min) + min);
+  updateSliderGradient(pcSimSpeedSlider);
+  updateSimSpeedBubble(pcSimSpeedSlider);
+});
+
 // 初期状態を反映
 updateSliderGradient(pcSimSpeedSlider);
 updateSimSpeedBubble(pcSimSpeedSlider);
@@ -6077,6 +6140,71 @@ updateSimSpeedBubble(pcSimSpeedSlider);
 function getPcSimSpeedKmh() {
   return simSpeedFromSlider(parseFloat(pcSimSpeedSlider.value)) || 50;
 }
+
+// ---- 飛行高度スライダー（鳥瞰モード） ----
+// 対数スケール変換: スライダー内部値(0–1000) → 高度(10–5000 m)、10m単位に丸める
+const _BIRD_ALT_MIN = 10, _BIRD_ALT_MAX = 5000;
+function birdAltFromSlider(t) {
+  const raw = _BIRD_ALT_MIN * Math.pow(_BIRD_ALT_MAX / _BIRD_ALT_MIN, t / 1000);
+  return Math.round(raw / 10) * 10;
+}
+function updateBirdAltBubble(slider) {
+  if (!slider) return;
+  const pct = (parseFloat(slider.value) - parseFloat(slider.min))
+            / (parseFloat(slider.max) - parseFloat(slider.min));
+  const m = birdAltFromSlider(parseFloat(slider.value));
+  const bubble = document.getElementById('pc-bird-alt-bubble');
+  if (bubble) { bubble.style.setProperty('--pct', pct); bubble.textContent = m; }
+  const numEl = document.getElementById('pc-bird-alt-num');
+  if (numEl) numEl.textContent = m;
+  // シム実行中の鳥瞰モードならリアルタイム反映
+  if (pcSimState.active && pcSimState.viewMode === 'bird') pcSimState.birdAltM = m;
+}
+
+const birdAltSlider = document.getElementById('pc-bird-alt');
+if (birdAltSlider) {
+  birdAltSlider.addEventListener('input', () => {
+    updateSliderGradient(birdAltSlider);
+    updateBirdAltBubble(birdAltSlider);
+  });
+  updateSliderGradient(birdAltSlider);
+  updateBirdAltBubble(birdAltSlider);
+}
+
+// シミュレーターモード ボタンセレクト
+let _simViewMode = 'terrain'; // 現在選択中のモードを変数で保持（DOM クエリより確実）
+
+function getSimViewMode() {
+  return _simViewMode;
+}
+function syncSimStartButtons() {
+  const terrainBtn = document.getElementById('pc-sim-toggle-btn');
+  const birdBtn = document.getElementById('pc-sim-bird-btn');
+  if (!terrainBtn || !birdBtn) return;
+
+  terrainBtn.textContent = (pcSimState.active && pcSimState.viewMode !== 'bird')
+    ? '[Esc]でシミュレーター終了'
+    : '地面を走る';
+  birdBtn.textContent = (pcSimState.active && pcSimState.viewMode === 'bird')
+    ? '[Esc]で飛行終了'
+    : '空を飛ぶ';
+  terrainBtn.classList.toggle('pc-sim-active', pcSimState.active && pcSimState.viewMode !== 'bird');
+  birdBtn.classList.toggle('pc-sim-active', pcSimState.active && pcSimState.viewMode === 'bird');
+}
+function setSimViewMode(mode) {
+  _simViewMode = (mode === 'bird') ? 'bird' : 'terrain';
+  document.querySelectorAll('.sim-view-mode-chips .type-chip').forEach(btn => {
+    btn.classList.toggle('active', (btn.dataset.simMode ?? 'terrain') === _simViewMode);
+  });
+  const altItem = document.getElementById('settings-bird-alt-item');
+  if (altItem) altItem.style.display = (_simViewMode === 'bird') ? '' : 'none';
+}
+document.querySelectorAll('.sim-view-mode-chips .type-chip').forEach(btn => {
+  btn.addEventListener('click', () => {
+    setSimViewMode(btn.dataset.simMode ?? 'terrain');
+  });
+});
+syncSimStartButtons();
 
 /* ----------------------------------------------------------------
    PCシム開始: Pointer Lock をリクエストし、ロック成功後にループ起動
@@ -6140,10 +6268,18 @@ function onPcSimLocked() {
   pcSimState.playerLng = c.lng;
   pcSimState.playerLat = c.lat;
   pcSimState.bearing   = map.getBearing();
-  pcSimState.pitch     = PC_SIM_PITCH;
   pcSimState.camDistM  = 100;
 
-  // キャッシュ・ズームスムージングを現在値で初期化
+  // 環境設定からモード・高度を読み込み
+  pcSimState.viewMode = getSimViewMode();
+  pcSimState.birdAltM = birdAltFromSlider(parseFloat(document.getElementById('pc-bird-alt')?.value ?? '482'));
+  // モードに応じた初期ピッチ（鳥瞰: 45°、地形追従: PC_SIM_PITCH）
+  pcSimState.pitch     = (pcSimState.viewMode === 'bird') ? 45 : PC_SIM_PITCH;
+  // 読図マップのドット・矢印を鳥瞰モード時は青色に
+  document.getElementById('pc-sim-readmap-overlay')?.classList.toggle('bird-mode', pcSimState.viewMode === 'bird');
+  pcSimState.smoothedSlopeAdj = 0;
+
+  // キャッシュを現在地の地形高度で初期化
   pcSimState.cachedTerrainH  = map.queryTerrainElevation({ lng: pcSimState.playerLng, lat: pcSimState.playerLat }, { exaggerated: false }) ?? 0;
 
   // ③ カメラをプレイヤー視点へ即配置
@@ -6166,9 +6302,7 @@ function onPcSimLocked() {
   document.getElementById('unified-search').style.display = 'none';
   document.getElementById('scale-ctrl-container').style.display = 'none';
   document.querySelector('.maplibregl-ctrl-top-right').style.display = 'none';
-  const btn = document.getElementById('pc-sim-toggle-btn');
-  btn.textContent = '[Esc]でシミュレーター終了';
-  btn.classList.add('pc-sim-active');
+  syncSimStartButtons();
   const hintOn = document.getElementById('chk-sim-hint')?.checked ?? true;
   document.getElementById('pc-sim-hint').style.display = hintOn ? 'block' : 'none';
   document.getElementById('pc-sim-crosshair').style.display = 'block';
@@ -6231,6 +6365,9 @@ function stopPcSim() {
   pcSimState.active = false;
   pcSimState.paused = false;
 
+  // 鳥瞰モードカラーをリセット
+  document.getElementById('pc-sim-readmap-overlay')?.classList.remove('bird-mode');
+
   // ポーズHUDを非表示
   document.getElementById('pc-sim-pause-hud').style.display = 'none';
 
@@ -6251,9 +6388,7 @@ function stopPcSim() {
   document.getElementById('unified-search').style.display = '';
   document.getElementById('scale-ctrl-container').style.display = '';
   document.querySelector('.maplibregl-ctrl-top-right').style.display = '';
-  const btn = document.getElementById('pc-sim-toggle-btn');
-  btn.textContent = 'PC シミュレーター開始';
-  btn.classList.remove('pc-sim-active');
+  syncSimStartButtons();
   document.getElementById('pc-sim-hint').style.display = 'none';
   document.getElementById('pc-sim-crosshair').style.display = 'none';
 
@@ -6320,6 +6455,23 @@ function setCameraFromPlayer() {
   const R       = 6371008.8;
   const lat_rad = pcSimState.playerLat * Math.PI / 180;
 
+  // ── 鳥瞰モード ──────────────────────────────────────────────────────
+  if (pcSimState.viewMode === 'bird') {
+    const relativeAlt = Math.max(1, pcSimState.birdAltM);
+    const targetZoom = Math.max(10, Math.min(map.getMaxZoom(), Math.log2(
+      H * 2 * Math.PI * R * Math.cos(lat_rad) /
+      (1024 * Math.tan(fov_rad / 2) * relativeAlt)
+    )));
+    map.jumpTo({
+      center:  [pcSimState.playerLng, pcSimState.playerLat],
+      bearing: pcSimState.bearing,
+      pitch:   Math.max(0, Math.min(85, pcSimState.pitch)),
+      zoom:    targetZoom,
+    });
+    return;
+  }
+
+  // ── 地形追従モード ───────────────────────────────────────────────────
   let effectivePitch = Math.max(0, Math.min(map.getMaxPitch(), pcSimState.pitch + pcSimState.smoothedSlopeAdj));
   const pitchRad = effectivePitch * Math.PI / 180;
 
@@ -6445,10 +6597,10 @@ function pcSimLoop(timestamp) {
   if (pcSimState.keys.ArrowUp)    pcSimState.pitch   = Math.min(85, pcSimState.pitch + ARROW_PITCH_RATE * dt);
   if (pcSimState.keys.ArrowDown)  pcSimState.pitch   = Math.max(0,  pcSimState.pitch - ARROW_PITCH_RATE * dt);
 
-  // ── 地形傾斜による自動ピッチ補正 ─────────────────────────────────
+  // ── 地形傾斜による自動ピッチ補正（地形追従モードのみ） ──────────────
   // 進行方向 25m 先との高度差からスロープ角を推定し、
   // ローパスフィルタ（時定数 1.4s）で平滑化して酔い防止
-  if (map.getTerrain()) {
+  if (pcSimState.viewMode === 'terrain' && map.getTerrain()) {
     const SLOPE_SAMPLE_KM = 0.025; // 25m 先をサンプリング
     const SLOPE_INFLUENCE  = 0.40; // 傾斜角の何割を補正に使うか
     const MAX_SLOPE_ADJ    = 20;   // 最大補正量（deg）
@@ -6469,6 +6621,9 @@ function pcSimLoop(timestamp) {
 
     // ローパスフィルタ（急激な補正を抑制）
     pcSimState.smoothedSlopeAdj += (targetAdj - pcSimState.smoothedSlopeAdj) * Math.min(dt / SMOOTH_TC, 1);
+  } else {
+    // 鳥瞰モード or 地形なし: 傾斜補正をゼロに維持
+    pcSimState.smoothedSlopeAdj = 0;
   }
 
   // ── カメラを配置（プレイヤーを常に画面中央に） ───────────────────
@@ -6831,7 +6986,18 @@ function _onSimPickKeydown(e) {
 // ---- PCシムボタンのイベント ----
 document.getElementById('pc-sim-toggle-btn').addEventListener('click', () => {
   if (pcSimState.active) stopPcSim();
-  else enterSimStartPicking();
+  else {
+    setSimViewMode('terrain');
+    enterSimStartPicking();
+  }
+});
+
+document.getElementById('pc-sim-bird-btn').addEventListener('click', () => {
+  if (pcSimState.active) stopPcSim();
+  else {
+    setSimViewMode('bird');
+    enterSimStartPicking();
+  }
 });
 
 /* ----------------------------------------------------------------
