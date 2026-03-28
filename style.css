@@ -819,6 +819,7 @@ body {
   font-weight: 600;
   outline: 1.5px solid var(--border-muted);
   outline-offset: -1.5px;
+  border-radius: 3px;
 }
 
 /* ---- アイテム右側の補足テキスト（例: PPI値） ---- */
