@@ -807,6 +807,7 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+  background: var(--bg-select);
 }
 .cascade-item:hover,
 .ppi-cascade-item:hover {
@@ -814,8 +815,7 @@ body {
 }
 .cascade-item.selected,
 .ppi-cascade-item.selected {
-  background: var(--primary-light);
-  color: var(--primary);
+  background: var(--bg-surface);
   font-weight: 600;
 }
 
