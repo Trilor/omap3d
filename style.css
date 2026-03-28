@@ -818,7 +818,7 @@ body {
 .ppi-cascade-item.selected {
   background: var(--bg-surface);
   font-weight: 600;
-  outline: 1.5px solid var(--border-muted);
+  outline: 1.5px solid var(--border-light);
   outline-offset: -1.5px;
   border-radius: 3px;
 }
