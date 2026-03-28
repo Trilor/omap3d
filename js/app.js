@@ -6461,25 +6461,42 @@ function setCameraFromPlayer() {
   const lat_rad = pcSimState.playerLat * Math.PI / 180;
 
   // ── 鳥瞰モード ──────────────────────────────────────────────────────
-  // terrain mode と全く同じカメラ計算を使い、
-  // elevation で center の仮想標高を h + birdAltM に指定することで
-  // 「birdAltM の標高にある透明テレインの上を走っている」状態を再現する。
-  // zoom（カメラ-プレイヤー間の相対距離）は terrain mode と同一のため
-  // 同じ画角・操作感のまま全体が birdAltM 分上に平行移動される。
+  // ① zoom を camDist*cos(pitch) + birdAltM で計算 → カメラが birdAltM 分上に浮く
+  // ② center を birdAltM*tan(pitch) 前方にずらす → 画面中央がプレイヤー上空点になる
+  //
+  // 導出:
+  //   eye 高度 = h + birdAlt + camDist*cos(pitch)
+  //   eye〜地形面の垂直距離 (= relativeAlt) = birdAlt + camDist*cos(pitch)
+  //   eye〜center の水平距離 = relativeAlt * tan(pitch)
+  //   eye はプレイヤーの後方 camDist*sin(pitch) にある
+  //   → centerのプレイヤーからの前方距離 = relativeAlt*tan - camDist*sin = birdAlt*tan(pitch) ✓
   if (pcSimState.viewMode === 'bird') {
     const birdPitch    = Math.max(0, Math.min(map.getMaxPitch(), pcSimState.pitch));
     const birdPitchRad = birdPitch * Math.PI / 180;
-    const relativeAlt  = Math.max(0.3, pcSimState.camDistM * Math.cos(birdPitchRad));
-    const targetZoom   = Math.max(12, Math.min(map.getMaxZoom(), Math.log2(
+    const birdAlt      = pcSimState.birdAltM;
+
+    const relativeAlt = Math.max(0.3, pcSimState.camDistM * Math.cos(birdPitchRad) + birdAlt);
+    const targetZoom  = Math.max(12, Math.min(map.getMaxZoom(), Math.log2(
       H * 2 * Math.PI * R * Math.cos(lat_rad) /
       (1024 * Math.tan(fov_rad / 2) * relativeAlt)
     )));
+
+    const fwdKm = birdAlt * Math.tan(birdPitchRad) / 1000;
+    let birdCenterLng = pcSimState.playerLng;
+    let birdCenterLat = pcSimState.playerLat;
+    if (fwdKm > 0.001) {
+      const fwdPt = turf.destination(
+        [pcSimState.playerLng, pcSimState.playerLat], fwdKm, pcSimState.bearing
+      );
+      birdCenterLng = fwdPt.geometry.coordinates[0];
+      birdCenterLat = fwdPt.geometry.coordinates[1];
+    }
+
     map.jumpTo({
-      center:    [pcSimState.playerLng, pcSimState.playerLat],
-      bearing:   pcSimState.bearing,
-      pitch:     birdPitch,
-      zoom:      targetZoom,
-      elevation: h + pcSimState.birdAltM,
+      center:  [birdCenterLng, birdCenterLat],
+      bearing: pcSimState.bearing,
+      pitch:   birdPitch,
+      zoom:    targetZoom,
     });
     return;
   }
