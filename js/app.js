@@ -6032,14 +6032,34 @@ const PC_CAM_DIST_MAX = 500;
 
 // ---- 速度スライダー ----
 const pcSimSpeedSlider = document.getElementById('pc-sim-speed');
-const pcSimSpeedValEl  = document.getElementById('pc-sim-speed-val');
+
+// km/h → min:sec/km ペース変換
+function kmhToPace(kmh) {
+  if (!kmh || kmh <= 0) return '--:--';
+  const totalSec = Math.round(3600 / kmh);
+  const min = Math.floor(totalSec / 60);
+  const sec = totalSec % 60;
+  return `${min}:${String(sec).padStart(2, '0')}`;
+}
+
+// 速度バブルの位置とテキストを更新
+function updateSimSpeedBubble(slider) {
+  const bubble = document.getElementById('pc-sim-speed-bubble');
+  if (!bubble || !slider) return;
+  const pct = (parseFloat(slider.value) - parseFloat(slider.min))
+            / (parseFloat(slider.max)  - parseFloat(slider.min));
+  bubble.style.setProperty('--pct', pct);
+  const kmh = parseInt(slider.value, 10);
+  bubble.textContent = `${kmh} km/h (${kmhToPace(kmh)}/km)`;
+}
 
 pcSimSpeedSlider.addEventListener('input', () => {
-  pcSimSpeedValEl.textContent = pcSimSpeedSlider.value + 'km/h';
   updateSliderGradient(pcSimSpeedSlider);
+  updateSimSpeedBubble(pcSimSpeedSlider);
 });
-// 初期グラデーション反映
+// 初期状態を反映
 updateSliderGradient(pcSimSpeedSlider);
+updateSimSpeedBubble(pcSimSpeedSlider);
 
 function getPcSimSpeedKmh() {
   return parseFloat(pcSimSpeedSlider.value) || 50;
