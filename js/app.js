@@ -6033,6 +6033,16 @@ const PC_CAM_DIST_MAX = 500;
 // ---- 速度スライダー ----
 const pcSimSpeedSlider = document.getElementById('pc-sim-speed');
 
+// 対数スケール変換: スライダー内部値(0–1000) ↔ 実速度(10–200 km/h)
+// 低速ほど幅を広く取り、ランニング速度帯を細かく調整できる
+const _SIM_MIN = 10, _SIM_MAX = 200;
+function simSpeedFromSlider(t) {
+  return Math.round(_SIM_MIN * Math.pow(_SIM_MAX / _SIM_MIN, t / 1000));
+}
+function simSpeedToSlider(kmh) {
+  return Math.round(1000 * Math.log(kmh / _SIM_MIN) / Math.log(_SIM_MAX / _SIM_MIN));
+}
+
 // km/h → min:sec/km ペース変換
 function kmhToPace(kmh) {
   if (!kmh || kmh <= 0) return '--:--';
@@ -6047,7 +6057,7 @@ function updateSimSpeedBubble(slider) {
   if (!slider) return;
   const pct = (parseFloat(slider.value) - parseFloat(slider.min))
             / (parseFloat(slider.max)  - parseFloat(slider.min));
-  const kmh = parseInt(slider.value, 10);
+  const kmh = simSpeedFromSlider(parseFloat(slider.value));
   const bubble = document.getElementById('pc-sim-speed-bubble');
   if (bubble) { bubble.style.setProperty('--pct', pct); bubble.textContent = kmh; }
   const numEl  = document.getElementById('pc-sim-speed-num');
@@ -6065,7 +6075,7 @@ updateSliderGradient(pcSimSpeedSlider);
 updateSimSpeedBubble(pcSimSpeedSlider);
 
 function getPcSimSpeedKmh() {
-  return parseFloat(pcSimSpeedSlider.value) || 50;
+  return simSpeedFromSlider(parseFloat(pcSimSpeedSlider.value)) || 50;
 }
 
 /* ----------------------------------------------------------------

@@ -4501,12 +4501,6 @@ label.setting-label {
 .settings-sim-speed-values {
   gap: 4px;
 }
-.settings-sim-speed-sep {
-  font-size: var(--font-sm);
-  color: var(--text-disabled);
-  margin: 0 2px;
-  align-self: baseline;
-}
 
 .settings-sim-speed-ctrl {
   display: flex;
