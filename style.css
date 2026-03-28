@@ -808,11 +808,11 @@ body {
 }
 .cascade-item:hover,
 .ppi-cascade-item:hover {
-  background: var(--bg-hover);
+  background: var(--bg-hover-btn);
 }
 .cascade-item.selected,
 .ppi-cascade-item.selected {
-  background: var(--bg-hover);
+  background: var(--bg-hover-btn);
 }
 /* メニュー内をホバー中は、選択中アイテムのスタイルをホバーアイテムへ移す */
 /* ppi-cascade-sub は body 直下の独立要素なので個別に指定 */
