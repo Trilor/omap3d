@@ -6480,7 +6480,7 @@ function setCameraFromPlayer() {
     );
     const cameraAlt = playerAlt + Math.max(1, camDist * Math.cos(birdPitchRad));
 
-    const fc = new maplibregl.FreeCameraOptions();
+    const fc = map.getFreeCameraOptions();
     fc.position = maplibregl.MercatorCoordinate.fromLngLat(
       { lng: backPt.geometry.coordinates[0], lat: backPt.geometry.coordinates[1] },
       cameraAlt
