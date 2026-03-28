@@ -6053,7 +6053,7 @@ function updateSimSpeedBubble(slider) {
   const numEl  = document.getElementById('pc-sim-speed-num');
   if (numEl) numEl.textContent = kmh;
   const paceEl = document.getElementById('pc-sim-pace-display');
-  if (paceEl) paceEl.textContent = `（${kmhToPace(kmh)}/km）`;
+  if (paceEl) paceEl.textContent = kmhToPace(kmh);
 }
 
 pcSimSpeedSlider.addEventListener('input', () => {

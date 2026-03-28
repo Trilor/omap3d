@@ -4498,17 +4498,14 @@ label.setting-label {
   padding: 14px 24px;
   border-bottom: 1px solid var(--border-subtle);
 }
-.settings-sim-speed-unit {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  font-size: var(--font-sm);
-  color: var(--text-muted);
-  line-height: 1.4;
+.settings-sim-speed-values {
+  gap: 4px;
 }
-.settings-sim-speed-pace {
-  font-size: var(--font-xs);
+.settings-sim-speed-sep {
+  font-size: var(--font-sm);
   color: var(--text-disabled);
+  margin: 0 2px;
+  align-self: baseline;
 }
 
 .settings-sim-speed-ctrl {
