@@ -6084,6 +6084,7 @@ const pcSimState = {
   startLng:        null,       // クリック待ちで記録した開始座標（経度）
   startLat:        null,       // クリック待ちで記録した開始座標（緯度）
   pickingActive:   false,      // クリック待ちモード中か
+  _birdZoom:       null,       // bird mode: 前フレームのズーム（地形レイキャスト急変棄却用）
   keys: {                      // キー押下状態（Pointer Lock 有無に関わらず追跡）
     KeyW: false, KeyA: false, KeyS: false, KeyD: false,
     ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false,
@@ -6554,6 +6555,14 @@ function setCameraFromPlayer() {
       birdPitch,
       0
     );
+    // 遠方の地形にレイが当たってzoomが急変した場合は前フレームの値を維持する
+    if (pcSimState._birdZoom === null) {
+      pcSimState._birdZoom = camOpts.zoom;
+    } else if (Math.abs(camOpts.zoom - pcSimState._birdZoom) > 0.5) {
+      camOpts.zoom = pcSimState._birdZoom;
+    } else {
+      pcSimState._birdZoom = camOpts.zoom;
+    }
     map.jumpTo(camOpts);
     return;
   }
@@ -6809,6 +6818,7 @@ document.addEventListener('keydown', (e) => {
     if (pcSimState.active) {
       if (e.code === 'KeyI') pcSimState.camDistM = Math.max(PC_CAM_DIST_MIN, pcSimState.camDistM * 0.7);
       else                   pcSimState.camDistM = Math.min(PC_CAM_DIST_MAX, pcSimState.camDistM * 1.4);
+      pcSimState._birdZoom = null;  // カメラ距離変更時はzoomキャッシュをリセット
     } else {
       if (e.code === 'KeyI') gpxState.camDistM = Math.max(GPX_CAM_DIST_MIN, gpxState.camDistM * 0.7);
       else                   gpxState.camDistM = Math.min(GPX_CAM_DIST_MAX, gpxState.camDistM * 1.4);
