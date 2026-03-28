@@ -5543,21 +5543,18 @@ function updatePpiRuler() {
 }
 
 // スライダーつまみの位置に追従してバブルを更新する
+// 位置は CSS calc(var(--pct) * (100% - 12px) + 6px) で計算するため offsetWidth 不要
 function updatePpiSliderBubble(slider) {
-  const bubble  = document.getElementById('ppi-slider-bubble');
-  const numEl   = document.getElementById('ppi-current-display');
+  const bubble = document.getElementById('ppi-slider-bubble');
+  const numEl  = document.getElementById('ppi-current-display');
   if (!slider) return;
-  const min    = parseFloat(slider.min);
-  const max    = parseFloat(slider.max);
-  const val    = parseFloat(slider.value);
-  const pct    = (val - min) / (max - min);
-  const thumbW = 16; // CSS thumb 幅（ui-slider で指定した値と揃える）
+  const pct = (parseFloat(slider.value) - parseFloat(slider.min))
+            / (parseFloat(slider.max)  - parseFloat(slider.min));
   if (bubble) {
-    const left = pct * (slider.offsetWidth - thumbW) + thumbW / 2;
-    bubble.style.left = left + 'px';
-    bubble.textContent = Math.round(val);
+    bubble.style.setProperty('--pct', pct);
+    bubble.textContent = Math.round(slider.value);
   }
-  if (numEl) numEl.textContent = Math.round(val);
+  if (numEl) numEl.textContent = Math.round(slider.value);
 }
 
 updatePpiRuler();
@@ -6803,13 +6800,10 @@ document.getElementById('pc-sim-toggle-btn').addEventListener('click', () => {
    ---------------------------------------------------------------- */
 function openSysSettingsModal() {
   document.getElementById('sys-settings-modal').style.display = 'flex';
-  // モーダル表示後に定規・スライダーを最新値で再描画（非表示時は clientWidth=0）
-  // 二重 rAF でレイアウト完了後に offsetWidth を確実に取得する
-  requestAnimationFrame(() => requestAnimationFrame(() => {
-    updatePpiRuler();
-    const _ms = document.getElementById('ppi-manual-slider');
-    if (_ms) { _ms.value = currentDevicePPI; updateSliderGradient(_ms); updatePpiSliderBubble(_ms); }
-  }));
+  // バブル位置は CSS calc(--pct) で決まるため即時更新可。定規は clientWidth が必要なので rAF 後
+  const _ms = document.getElementById('ppi-manual-slider');
+  if (_ms) { _ms.value = currentDevicePPI; updateSliderGradient(_ms); updatePpiSliderBubble(_ms); }
+  requestAnimationFrame(() => { updatePpiRuler(); });
 }
 function closeSysSettingsModal() {
   document.getElementById('sys-settings-modal').style.display = 'none';
