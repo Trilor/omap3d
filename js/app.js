@@ -738,6 +738,16 @@ map.on('load', async () => {
   // ⑤ テレインマスタ → フレームの順で自動読み込みする
   autoLoadTerrains();
 
+  // ⑥ 空のグラデーション（下=白、上=青）
+  map.setSky({
+    'sky-color':           '#0066cc',
+    'sky-horizon-blend':   0.8,
+    'horizon-color':       '#ffffff',
+    'horizon-fog-blend':   0.5,
+    'fog-color':           '#ffffff',
+    'atmosphere-blend':    1.0,
+  });
+
   console.log('3D OMap Viewer 初期化完了（OriLibreベースマップ）');
 });
 
