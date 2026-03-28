@@ -757,8 +757,8 @@ map.on('load', async () => {
     const z = map.getZoom();
     const t = Math.max(0, Math.min(1, (z - 7) / 4));
 
-    // z0〜z22（最大ズーム）で一方向に連続遷移
-    const t2 = Math.max(0, Math.min(1, z / 22));
+    // z0〜z11で遷移、z11以降は明青+水色で固定
+    const t2 = Math.max(0, Math.min(1, z / 11));
 
     // 上空: 暗青（z0）→濃紺→深青→明青（z11）
     const skyColor     = _lerpMulti([[0,'#000510'],[0.3,'#000844'],[0.6,'#002277'],[1,'#0055cc']], t2);
