@@ -810,11 +810,9 @@ body {
 .ppi-cascade-item:hover {
   background: var(--primary-light);
   color: var(--primary-dark);
-  text-shadow: 0.3px 0 0 currentColor, -0.3px 0 0 currentColor; /* 幅変化なしの太字表現 */
 }
 .cascade-item.selected,
 .ppi-cascade-item.selected {
-  text-shadow: 0 0 0.5px currentColor;
   background: var(--primary-light);
   color: var(--primary-dark);
 }
@@ -825,7 +823,6 @@ body {
 .ppi-cascade-sub:hover .ppi-cascade-item.selected:not(:hover) {
   background: transparent;
   color: inherit;
-  text-shadow: none;
 }
 
 /* ---- アイテム右側の補足テキスト（例: PPI値） ---- */
