@@ -1186,7 +1186,7 @@ body {
   box-shadow: 0 0 0 2px var(--shadow-xs);
   transition: box-shadow 0.15s;
 }
-.bm-card:hover  { box-shadow: 0 0 0 2px var(--primary-light, #93c5fd); }
+.bm-card:hover  { box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 50%, transparent); }
 .bm-card.active { box-shadow: 0 0 0 2px var(--primary, #2563eb); }
 /* サムネイル: カード全面を覆う */
 .bm-card-img {
