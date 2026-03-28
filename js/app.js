@@ -761,16 +761,12 @@ map.on('load', async () => {
     const horizonColor = _lerpMulti([[0,'#000820'],[0.3,'#001a4d'],[0.6,'#3366cc'],[1,'#b0d8f0']], t);
     const bgColor      = _lerpMulti([[0,'#000000'],[0.3,'#000033'],[0.6,'#3366cc'],[1,'#c8e8f8']], t);
 
-    // 低ズーム→上空色が支配、高ズーム→地平線色が広がる
-    const skyHorizonBlend = 0.1 + 0.7 * t;  // 0.1（宇宙）→ 0.8（地上）
-    const horizFogBlend   = 0.1 + 0.4 * t;  // 0.1（宇宙）→ 0.5（地上）
-
     _globeBgEl.style.backgroundColor = bgColor;
     map.setSky({
       'sky-color':          skyColor,
-      'sky-horizon-blend':  skyHorizonBlend,
+      'sky-horizon-blend':  0.5,
       'horizon-color':      horizonColor,
-      'horizon-fog-blend':  horizFogBlend,
+      'horizon-fog-blend':  0.3,
       'fog-color':          horizonColor,
       'atmosphere-blend':   0,
     });
