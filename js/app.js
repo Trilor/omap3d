@@ -4191,9 +4191,13 @@ let crMax = 500;
 function refreshColorReliefTrackLayout() {
   const crCtrls = document.getElementById('color-relief-controls');
   if (!crCtrls || crCtrls.style.display === 'none') return;
-  requestAnimationFrame(() => requestAnimationFrame(() => {
-    updateGradientTrack();
-  }));
+  updateGradientTrack();
+  const track = document.querySelector('.cr-gradient-track');
+  if ((track?.offsetWidth ?? 0) === 0) {
+    requestAnimationFrame(() => {
+      updateGradientTrack();
+    });
+  }
 }
 
 // crMin/crMax をスライダーの range に収まるよう動的拡張し、全UIを同期
