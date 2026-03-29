@@ -4263,9 +4263,25 @@ function updateGradientTrack() {
     const radius = selectedH / 2;
     const posMin = (L / 100) * W; // 左つまみ中心(トラック左端からpx)
     const posMax = (R / 100) * W; // 右つまみ中心
+    const selectedW = Math.max(selectedH, (posMax - posMin) + selectedH);
     selected.style.left = `${posMin - radius}px`;
-    selected.style.width = `${Math.max(selectedH, (posMax - posMin) + selectedH)}px`;
-    selected.style.background = CR_PALETTE_GRADIENT;
+    selected.style.width = `${selectedW}px`;
+    if (selectedW <= selectedH) {
+      selected.style.background = `linear-gradient(to right, ${c0} 0%, ${c0} 50%, ${c1} 50%, ${c1} 100%)`;
+    } else {
+      const innerW = selectedW - selectedH;
+      const selectedStops = [
+        `${c0} 0px`,
+        `${c0} ${radius}px`,
+      ];
+      for (const p of CR_PALETTE) {
+        const pos = (radius + p.t * innerW).toFixed(2);
+        selectedStops.push(`rgb(${p.r},${p.g},${p.b}) ${pos}px`);
+      }
+      selectedStops.push(`${c1} ${(selectedW - radius).toFixed(2)}px`);
+      selectedStops.push(`${c1} 100%`);
+      selected.style.background = `linear-gradient(to right, ${selectedStops.join(', ')})`;
+    }
   }
 }
 
