@@ -1224,6 +1224,7 @@ body {
   height: 100%;
   object-fit: cover;
   display: block;
+  border-radius: inherit;
 }
 /* ラベル: 画像下部に半透明の帯をオーバーレイ */
 .bm-card-label {
@@ -4072,6 +4073,7 @@ input[type=range].cr-range::-moz-range-thumb {
   position: absolute;
   inset: 0;
   bottom: 0;
+  border-radius: inherit;
   background: linear-gradient(
     135deg,
     #0006fb  0%,
@@ -5070,11 +5072,11 @@ h1, h2, h3, h4,
 }
 .bm-card:hover {
   border-color: var(--primary-hover) !important;
-  box-shadow: 3px 3px 0 var(--border-light) !important;
+  box-shadow: none !important;
 }
 .bm-card.active {
   border-color: var(--primary) !important;
-  box-shadow: 3px 3px 0 var(--primary-light) !important;
+  box-shadow: none !important;
 }
 
 /* ---- モーダル: 大きな角丸 + シアンヘッダー ---- */
