@@ -3958,6 +3958,8 @@ label.setting-label {
 
 /* 左右つまみの間だけ重なる太い選択バー */
 .cr-selected-track {
+  --cr-bar-h: 20px;
+  --cr-edge-hit: 7px;
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
@@ -3965,7 +3967,7 @@ label.setting-label {
   display: flex;
   align-items: stretch;
   width: 0;
-  height: 14px;
+  height: var(--cr-bar-h);
   border-radius: 999px;
   background: linear-gradient(to right,
     #0006fb 0%, #0092fb 17%, #00e7fb 33%, #8af708 50%,
@@ -3976,27 +3978,27 @@ label.setting-label {
 }
 .cr-selected-drag {
   position: absolute;
-  top: -5px;
-  bottom: -5px;
+  top: -6px;
+  bottom: -6px;
   background: transparent;
 }
 .cr-selected-drag--min,
 .cr-selected-drag--max {
-  width: 18px;
+  width: var(--cr-edge-hit);
   z-index: 2;
 }
 .cr-selected-drag--min {
-  left: -6px;
+  left: 0;
   cursor: ew-resize;
 }
 .cr-selected-drag--max {
-  right: -6px;
+  right: 0;
   cursor: ew-resize;
 }
 .cr-selected-drag--move {
-  left: 10px;
-  right: 10px;
-  min-width: 12px;
+  left: var(--cr-edge-hit);
+  right: var(--cr-edge-hit);
+  min-width: 6px;
   cursor: grab;
 }
 .cr-selected-track.cr-dragging .cr-selected-drag--move {
