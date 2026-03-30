@@ -828,13 +828,13 @@ body {
 /* ハイライト中アイテム（JS で .highlighted を付与） */
 .cascade-item.highlighted,
 .ppi-cascade-item.highlighted {
-  background: var(--bg-hover-btn);
+  background: var(--primary-light);
   border-radius: 3px;
 }
 /* ハイライトなし・パネル未離脱のとき、選択済みをハイライト */
 .cascade-menu:not(:has(.cascade-item.highlighted)):not(.left) .cascade-item.selected,
 .cascade-menu:not(:has(.ppi-cascade-item.highlighted)):not(.left) .ppi-cascade-item.selected {
-  background: var(--bg-hover-btn);
+  background: var(--primary-light);
   border-radius: 3px;
 }
 .cascade-item.selected::after,
@@ -2399,7 +2399,7 @@ label.setting-label {
 }
 .place-result-item:last-child { border-bottom: none; }
 .place-result-item:hover,
-.place-result-item:active { background: #e8f2ec; }
+.place-result-item:active { background: var(--primary-light); }
 .place-result-name {
   flex: 1;
   min-width: 0;
