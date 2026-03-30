@@ -662,25 +662,20 @@ function _dem2reliefColor(t) {
 
 /*
   ========================================================
-  傾斜量図プロトコル (dem2slope://)
+  色別傾斜プロトコル (dem2slope://)
   qchizu-project/qchizu-maps-maplibregljs の dem2SlopeProtocol.js と
   protocolUtils.js の計算式をもとに、既存の DEM 合成系へ組み込む。
 
   URLクエリパラメータ:
-    mode: 'color' | 'gray'（省略時は color）
+    min: 最低傾斜角（度）
+    max: 最高傾斜角（度）
   ========================================================
 */
 
-function _dem2slopeColor(slope, mode = 'color') {
-  if (mode === 'gray') {
-    const alpha = Math.min(Math.max(slope * 3, 0), 255);
-    return [0, 0, 0, Math.round(alpha)];
-  }
-  if (slope < 15) return [0, 0, 255, 255];
-  if (slope < 30) return [51, 194, 255, 255];
-  if (slope < 40) return [182, 255, 143, 255];
-  if (slope < 45) return [255, 200, 0, 255];
-  return [255, 0, 0, 255];
+function _dem2slopeColor(slope, min, max) {
+  const range = max - min || 1;
+  const t = Math.max(0, Math.min(1, (slope - min) / range));
+  return _dem2reliefColor(t);
 }
 
 maplibregl.addProtocol('dem2slope', async (params, abortController) => {
@@ -688,7 +683,8 @@ maplibregl.addProtocol('dem2slope', async (params, abortController) => {
     const request = _parseProtocolTileRequest(params.url, 'dem2slope');
     if (!request) return { data: _transparentPngBuffer() };
     const { urlObj, baseUrl, tileOrder, zoomLevel, tileX, tileY, ext } = request;
-    const mode = urlObj.searchParams.get('mode') === 'gray' ? 'gray' : 'color';
+    const min = parseFloat(urlObj.searchParams.get('min') ?? '0');
+    const max = parseFloat(urlObj.searchParams.get('max') ?? '45');
     const regionalDemBase = (baseUrl === QCHIZU_DEM_BASE) ? null : baseUrl;
     const regionalDemExt = regionalDemBase ? ext : null;
     const regionalDemOrder = regionalDemBase ? tileOrder : 'xy';
@@ -765,11 +761,11 @@ maplibregl.addProtocol('dem2slope', async (params, abortController) => {
           continue;
         }
 
-        const [r, g, b, a] = _dem2slopeColor(slope, mode);
+        const { r, g, b } = _dem2slopeColor(slope, min, max);
         out[outputIndex] = r;
         out[outputIndex + 1] = g;
         out[outputIndex + 2] = b;
-        out[outputIndex + 3] = a;
+        out[outputIndex + 3] = 255;
       }
     }
 

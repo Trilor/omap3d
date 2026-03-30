@@ -623,7 +623,7 @@ map.on('load', async () => {
   // 傾斜量図（dem2slope://プロトコル）
   map.addSource('slope-relief', {
     type: 'raster',
-    tiles: [`dem2slope://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp`],
+    tiles: [`dem2slope://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp?min=0&max=45&_init=1`],
     tileSize: 512,
     minzoom: 5,
     maxzoom: 15,
@@ -4105,6 +4105,9 @@ function updateCsVisibility() {
   const crCtrls = document.getElementById('color-relief-controls');
   if (crCtrls) crCtrls.style.display = (currentOverlay === 'color-relief' || currentOverlay === 'color-contour') ? '' : 'none';
   if (currentOverlay === 'color-relief' || currentOverlay === 'color-contour') refreshColorReliefTrackLayout();
+  const srCtrls = document.getElementById('slope-relief-controls');
+  if (srCtrls) srCtrls.style.display = currentOverlay === 'slope' ? '' : 'none';
+  if (currentOverlay === 'slope') refreshSlopeReliefTrackLayout();
 
   // 色別等高線の表示制御（contourState.demMode に応じて排他表示）
   const showColorContour = overlay === 'color-contour';
@@ -4209,6 +4212,7 @@ document.getElementById('overlay-cards').addEventListener('click', (e) => {
   else hideMapLoading();
   // 色別標高図選択時はタイルを即座にリクエスト（visibility:none 中はMapLibreがフェッチしないため）
   if (currentOverlay === 'color-relief') applyColorReliefTiles();
+  if (currentOverlay === 'slope') applySlopeReliefTiles();
 });
 
 // （chk-overlay 削除のため、トグルイベントリスナーは不要）
@@ -4560,6 +4564,301 @@ function autoFitColorRelief() {
 }
 
 document.getElementById('cr-autofit-btn')?.addEventListener('click', autoFitColorRelief);
+
+// ---- 色別傾斜 デュアルレンジスライダー ----
+let srMin = 0;
+let srMax = 45;
+
+function refreshSlopeReliefTrackLayout() {
+  const srCtrls = document.getElementById('slope-relief-controls');
+  if (!srCtrls || srCtrls.style.display === 'none') return;
+  updateSlopeGradientTrack();
+  const track = document.getElementById('sr-gradient-track');
+  if ((track?.offsetWidth ?? 0) === 0) {
+    requestAnimationFrame(() => {
+      updateSlopeGradientTrack();
+    });
+  }
+}
+
+function syncSlopeReliefUI() {
+  const minSlider = document.getElementById('sr-min-slider');
+  const maxSlider = document.getElementById('sr-max-slider');
+  const minInput  = document.getElementById('sr-min-input');
+  const maxInput  = document.getElementById('sr-max-input');
+  if (!minSlider || !maxSlider) return;
+
+  minSlider.min = maxSlider.min = '0';
+  minSlider.max = maxSlider.max = '90';
+  srMin = Math.max(0, Math.min(srMin, 90));
+  srMax = Math.max(0, Math.min(srMax, 90));
+
+  minSlider.value = srMin;
+  maxSlider.value = srMax;
+  if (minInput) minInput.value = srMin;
+  if (maxInput) maxInput.value = srMax;
+}
+
+function updateSlopeGradientTrack() {
+  const track = document.getElementById('sr-gradient-track');
+  const selected = document.getElementById('sr-selected-track');
+  const minSlider = document.getElementById('sr-min-slider');
+  if (!track || !selected || !minSlider) return;
+
+  const tMin = parseFloat(minSlider.min);
+  const tMax = parseFloat(minSlider.max);
+  const range = tMax - tMin || 1;
+  const L = Math.max(0, Math.min(1, (srMin - tMin) / range)) * 100;
+  const R = Math.max(0, Math.min(1, (srMax - tMin) / range)) * 100;
+
+  const c0 = `rgb(${CR_PALETTE[0].r},${CR_PALETTE[0].g},${CR_PALETTE[0].b})`;
+  const c1 = `rgb(${CR_PALETTE[CR_PALETTE.length-1].r},${CR_PALETTE[CR_PALETTE.length-1].g},${CR_PALETTE[CR_PALETTE.length-1].b})`;
+
+  const stops = [`${c0} 0%`, `${c0} ${L.toFixed(2)}%`];
+  for (const p of CR_PALETTE) {
+    const pos = (L + p.t * (R - L)).toFixed(2);
+    stops.push(`rgb(${p.r},${p.g},${p.b}) ${pos}%`);
+  }
+  stops.push(`${c1} ${R.toFixed(2)}%`);
+  stops.push(`${c1} 100%`);
+  track.style.background = `linear-gradient(to right, ${stops.join(', ')})`;
+
+  const W = track.offsetWidth;
+  const selectedH = selected.offsetHeight || 20;
+  const radius = selectedH / 2;
+  const posMin = (L / 100) * W;
+  const posMax = (R / 100) * W;
+  const selectedW = Math.max(selectedH, (posMax - posMin) + selectedH);
+  selected.style.left = `${posMin - radius}px`;
+  selected.style.width = `${selectedW}px`;
+  if (selectedW <= selectedH) {
+    selected.style.background = `linear-gradient(to right, ${c0} 0%, ${c0} 50%, ${c1} 50%, ${c1} 100%)`;
+  } else {
+    const innerW = selectedW - selectedH;
+    const selectedStops = [`${c0} 0px`, `${c0} ${radius}px`];
+    for (const p of CR_PALETTE) {
+      const pos = (radius + p.t * innerW).toFixed(2);
+      selectedStops.push(`rgb(${p.r},${p.g},${p.b}) ${pos}px`);
+    }
+    selectedStops.push(`${c1} ${(selectedW - radius).toFixed(2)}px`);
+    selectedStops.push(`${c1} 100%`);
+    selected.style.background = `linear-gradient(to right, ${selectedStops.join(', ')})`;
+  }
+}
+
+let _srTileTimer = null;
+let _srRepaintTimer = null;
+
+function applySlopeReliefTiles() {
+  if (!map.getSource('slope-relief')) return;
+  map.getSource('slope-relief').setTiles([
+    `dem2slope://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp?min=${srMin}&max=${srMax}`
+  ]);
+  clearTimeout(_srRepaintTimer);
+  let remaining = 20;
+  const repaint = () => {
+    map.triggerRepaint();
+    if (--remaining > 0) _srRepaintTimer = setTimeout(repaint, 100);
+  };
+  repaint();
+}
+
+function updateSlopeReliefUI() {
+  syncSlopeReliefUI();
+  updateSlopeGradientTrack();
+  clearTimeout(_srTileTimer);
+  _srTileTimer = setTimeout(applySlopeReliefTiles, 300);
+}
+
+function updateSlopeReliefSource() {
+  syncSlopeReliefUI();
+  updateSlopeGradientTrack();
+  clearTimeout(_srTileTimer);
+  applySlopeReliefTiles();
+}
+
+(function initSlopeReliefSlider() {
+  const trackWrap = document.querySelector('#slope-relief-controls .cr-dual-track');
+  const selected  = document.getElementById('sr-selected-track');
+  const minHit    = document.getElementById('sr-selected-min-hit');
+  const maxHit    = document.getElementById('sr-selected-max-hit');
+  const moveHit   = document.getElementById('sr-selected-move-hit');
+  const minSlider = document.getElementById('sr-min-slider');
+  const maxSlider = document.getElementById('sr-max-slider');
+  const minInput  = document.getElementById('sr-min-input');
+  const maxInput  = document.getElementById('sr-max-input');
+  if (!minSlider || !maxSlider) return;
+
+  minSlider.addEventListener('input', () => {
+    srMin = Math.min(parseInt(minSlider.value, 10), srMax);
+    updateSlopeReliefUI();
+  });
+  minSlider.addEventListener('change', () => {
+    srMin = Math.min(parseInt(minSlider.value, 10), srMax);
+    updateSlopeReliefSource();
+  });
+  maxSlider.addEventListener('input', () => {
+    srMax = Math.max(parseInt(maxSlider.value, 10), srMin);
+    updateSlopeReliefUI();
+  });
+  maxSlider.addEventListener('change', () => {
+    srMax = Math.max(parseInt(maxSlider.value, 10), srMin);
+    updateSlopeReliefSource();
+  });
+
+  const applyMinInput = () => {
+    const v = parseInt(minInput.value, 10);
+    if (isNaN(v)) { minInput.value = srMin; return; }
+    srMin = Math.min(v, srMax);
+    updateSlopeReliefSource();
+  };
+  const applyMaxInput = () => {
+    const v = parseInt(maxInput.value, 10);
+    if (isNaN(v)) { maxInput.value = srMax; return; }
+    srMax = Math.max(v, srMin);
+    updateSlopeReliefSource();
+  };
+  if (minInput) {
+    minInput.addEventListener('change', applyMinInput);
+    minInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') applyMinInput(); });
+  }
+  if (maxInput) {
+    maxInput.addEventListener('change', applyMaxInput);
+    maxInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') applyMaxInput(); });
+  }
+
+  if (trackWrap && selected && minHit && maxHit && moveHit) {
+    let dragMode = null;
+    let dragPointerId = null;
+    let dragStartX = 0;
+    let dragStartMin = 0;
+    let dragStartMax = 0;
+
+    function clampSrValues() {
+      const lo = parseFloat(minSlider.min);
+      const hi = parseFloat(minSlider.max);
+      if (dragMode === 'min') {
+        srMin = Math.max(lo, Math.min(srMin, srMax));
+      } else if (dragMode === 'max') {
+        srMax = Math.min(hi, Math.max(srMax, srMin));
+      } else if (dragMode === 'move') {
+        const span = dragStartMax - dragStartMin;
+        if (srMin < lo) {
+          srMin = lo;
+          srMax = lo + span;
+        }
+        if (srMax > hi) {
+          srMax = hi;
+          srMin = hi - span;
+        }
+      }
+    }
+
+    function onDragMove(clientX) {
+      const width = trackWrap.clientWidth || 1;
+      const scale = (parseFloat(minSlider.max) - parseFloat(minSlider.min)) / width;
+      const deltaValue = Math.round((clientX - dragStartX) * scale);
+      if (dragMode === 'min') {
+        srMin = dragStartMin + deltaValue;
+      } else if (dragMode === 'max') {
+        srMax = dragStartMax + deltaValue;
+      } else if (dragMode === 'move') {
+        srMin = dragStartMin + deltaValue;
+        srMax = dragStartMax + deltaValue;
+      }
+      clampSrValues();
+      updateSlopeReliefUI();
+    }
+
+    function finishDrag() {
+      if (!dragMode) return;
+      dragMode = null;
+      dragPointerId = null;
+      trackWrap.classList.remove('cr-dragging');
+      selected.classList.remove('cr-dragging');
+      updateSlopeReliefSource();
+    }
+
+    function startDrag(mode, e) {
+      e.preventDefault();
+      dragMode = mode;
+      dragPointerId = e.pointerId;
+      dragStartX = e.clientX;
+      dragStartMin = srMin;
+      dragStartMax = srMax;
+      trackWrap.classList.add('cr-dragging');
+      selected.classList.add('cr-dragging');
+      e.currentTarget.setPointerCapture?.(e.pointerId);
+    }
+
+    [[minHit, 'min'], [maxHit, 'max'], [moveHit, 'move']].forEach(([el, mode]) => {
+      el.addEventListener('pointerdown', (e) => startDrag(mode, e));
+    });
+
+    document.addEventListener('pointermove', (e) => {
+      if (!dragMode || e.pointerId !== dragPointerId) return;
+      onDragMove(e.clientX);
+    });
+    document.addEventListener('pointerup', (e) => {
+      if (e.pointerId !== dragPointerId) return;
+      finishDrag();
+    });
+    document.addEventListener('pointercancel', (e) => {
+      if (e.pointerId !== dragPointerId) return;
+      finishDrag();
+    });
+    selected.addEventListener('lostpointercapture', () => {
+      finishDrag();
+    });
+  }
+
+  updateSlopeReliefSource();
+})();
+
+function estimateScreenSlopeDegrees(px, py, deltaPx = 4) {
+  const canvas = map.getCanvas();
+  if (px + deltaPx >= canvas.offsetWidth || py + deltaPx >= canvas.offsetHeight) return null;
+  const p00 = map.unproject([px, py]);
+  const p10 = map.unproject([px + deltaPx, py]);
+  const p01 = map.unproject([px, py + deltaPx]);
+  const h00 = map.queryTerrainElevation(p00, { exaggerated: false });
+  const h10 = map.queryTerrainElevation(p10, { exaggerated: false });
+  const h01 = map.queryTerrainElevation(p01, { exaggerated: false });
+  if (h00 == null || h10 == null || h01 == null) return null;
+  const dX = turf.distance(turf.point([p00.lng, p00.lat]), turf.point([p10.lng, p10.lat]), { units: 'kilometers' }) * 1000;
+  const dY = turf.distance(turf.point([p00.lng, p00.lat]), turf.point([p01.lng, p01.lat]), { units: 'kilometers' }) * 1000;
+  if (!(dX > 0) || !(dY > 0)) return null;
+  const gx = (h00 - h10) / dX;
+  const gy = (h00 - h01) / dY;
+  return Math.atan(Math.sqrt(gx * gx + gy * gy)) * 180 / Math.PI;
+}
+
+function autoFitSlopeRelief() {
+  const GRID = map.getZoom() <= 9 ? 10 : 20;
+  const canvas = map.getCanvas();
+  const w = canvas.offsetWidth;
+  const h = canvas.offsetHeight;
+  let globalMin = Infinity, globalMax = -Infinity;
+
+  for (let r = 0; r < GRID; r++) {
+    for (let c = 0; c < GRID; c++) {
+      const px = (c + 0.5) / GRID * w;
+      const py = (r + 0.5) / GRID * h;
+      const slope = estimateScreenSlopeDegrees(px, py);
+      if (slope == null) continue;
+      if (slope < globalMin) globalMin = slope;
+      if (slope > globalMax) globalMax = slope;
+    }
+  }
+
+  if (!isFinite(globalMin) || !isFinite(globalMax)) return;
+  srMin = Math.max(0, Math.floor(globalMin));
+  srMax = Math.min(90, Math.ceil(globalMax));
+  if (srMax <= srMin) srMax = Math.min(90, srMin + 1);
+  updateSlopeReliefSource();
+}
+
+document.getElementById('sr-autofit-btn')?.addEventListener('click', autoFitSlopeRelief);
 
 // ---- CS立体図 透明度スライダー（全国・地域別共通） ----
 const sliderCs = document.getElementById('slider-cs');
