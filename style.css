@@ -203,6 +203,9 @@ body {
   font-family: var(--font-family);
   color: var(--text-main);
   background-color: var(--bg-map);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 #map {
@@ -1192,13 +1195,13 @@ body {
 }
 .bm-cards {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
   width: 100%;
 }
-/* オーバーレイカードはベースマップと同じ3列 */
+/* オーバーレイカードはベースマップと同じ4列 */
 #overlay-cards.bm-cards {
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
 }
 /* 正方形カード: 検索ボックスと同じ box-shadow スタイル */
 .bm-card {
@@ -1246,14 +1249,15 @@ body {
   bottom: -2px;
   left: -2px;
   right: -2px;
-  font-size: 11px;
-  padding: 6px 8px 8px;
+  min-height: 20px;
+  font-size: 9px;
+  padding: 4px 5px 2px;
   text-align: center;
   color: var(--on-primary);
   background: var(--overlay-base);
   backdrop-filter: blur(2px);
   -webkit-backdrop-filter: blur(2px);
-  line-height: 1.15;
+  line-height: 1.0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
