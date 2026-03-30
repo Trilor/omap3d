@@ -14,7 +14,7 @@
 | `js/main.js` | エントリーポイント |
 | `js/app.js` | アプリ本体（地図・KMZ・GPX・UI） |
 | `js/config.js` | 定数・URL |
-| `js/protocols.js` | `gsjdem://` / `csdem://` プロトコル |
+| `js/protocols.js` | `gsjdem://` / `dem2cs://` プロトコル |
 | `js/contours.js` | 等高線・DEM レイヤー管理 |
 | `js/isomizer/` | OriLibre スタイル構築 |
 
@@ -24,7 +24,7 @@
 - **ベースマップ**: OriLibre（isomizer）
 - **3D地形**: Q地図タイル + `gsjdem://` プロトコル（NumPNG→Terrarium）
 - **等高線**: mlcontour + Q地図 / DEM5A / DEM1A
-- **CS立体図**: `csdem://` プロトコル（TensorFlow.js GPU演算）
+- **CS立体図**: `dem2cs://` プロトコル（TensorFlow.js GPU演算）
 - **KMZ**: JSZip + DOMParser
 - **空間計算**: Turf.js / geomag（WMM磁気偏角）
 - **UI**: Vanilla JS（フレームワーク不使用）

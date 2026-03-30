@@ -31,8 +31,8 @@ export const TERRAIN_URL = 'gsjdem://terrain/{z}/{x}/{y}.png';
 //   Japan版: 国土地理院ベクタータイル + OpenFreeMap + 産総研等高線 + 農林水産省筆ポリゴン
 
 // ★ CS立体図（ブラウザ生成・Q地図DEMから動的生成）
-//   csdem:// プロトコルでQ地図DEMタイルをリアルタイムにCS立体図へ変換します。
-export const CS_RELIEF_URL = `csdem://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp`;
+//   dem2cs:// プロトコルでQ地図DEMタイルをリアルタイムにCS立体図へ変換します。
+export const CS_RELIEF_URL = `dem2cs://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp`;
 
 // ★ 地域別CS立体図（0.5mDEM由来・高精度）の定義リスト
 //   在る地域では全国地理院CSタイルよりも高解像度なため、上層に重ねて表示する。
@@ -42,13 +42,13 @@ export const CS_RELIEF_URL = `csdem://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, 
 //   maxzoom   : サーバー側のタイル最大ズーム（オーバーズームで引き伸ばす）
 //   attribution: 帰属表記
 // ★ 地域別CS立体図（0.5m DEM由来・高精度）の定義リスト
-//   DEM が公開されている都道府県は csdem:// プロトコルでブラウザ内生成。
+//   DEM が公開されている都道府県は dem2cs:// プロトコルでブラウザ内生成。
 //   大阪府はDEMなし → 事前生成CSタイルをそのまま利用。
 export const REGIONAL_CS_LAYERS = [
   // ── 東北 ──────────────────────────────────────────────
   {
     sourceId: 'cs-miyagi', layerId: 'cs-miyagi-layer',
-    tileUrl: 'csdem://forestgeo.info/opendata/4_miyagi/dem_2023/{z}/{x}/{y}.png',
+    tileUrl: 'dem2cs://forestgeo.info/opendata/4_miyagi/dem_2023/{z}/{x}/{y}.png',
     label: 'CS立体図（0.5m）— 宮城県', maxzoom: 18, minzoom: 18,
     bounds: [140.2, 37.7, 141.7, 39.0],
     attribution: '<a href="https://www.geospatial.jp/ckan/dataset/rinya-miyagi-maptiles" target="_blank">【宮城県CS】林野庁PNG標高タイルを加工して作成</a>',
@@ -71,7 +71,7 @@ export const REGIONAL_CS_LAYERS = [
   }, */
   {
     sourceId: 'cs-kanagawa', layerId: 'cs-kanagawa-layer',
-    tileUrl: 'csdem://forestgeo.info/opendata/14_kanagawa/dem_2022/{z}/{x}/{y}.png',
+    tileUrl: 'dem2cs://forestgeo.info/opendata/14_kanagawa/dem_2022/{z}/{x}/{y}.png',
     label: 'CS立体図（0.5m）— 神奈川県', maxzoom: 18, minzoom: 18,
     bounds: [138.9, 35.1, 139.8, 35.7],
     attribution: '<a href="https://www.geospatial.jp/ckan/dataset/rinya-kanagawa-maptiles2" target="_blank">【神奈川県CS】林野庁PNG標高タイルを加工して作成</a>',
@@ -79,14 +79,14 @@ export const REGIONAL_CS_LAYERS = [
   // ── 近畿 ──────────────────────────────────────────────
   {
     sourceId: 'cs-kyoto', layerId: 'cs-kyoto-layer',
-    tileUrl: 'csdem://forestgeo.info/opendata/26_kyoto/dem_2024/{z}/{x}/{y}.png',
+    tileUrl: 'dem2cs://forestgeo.info/opendata/26_kyoto/dem_2024/{z}/{x}/{y}.png',
     label: 'CS立体図（0.5m）— 京都府', maxzoom: 18, minzoom: 18,
     bounds: [135.0, 34.7, 135.9, 35.8],
     attribution: '<a href="https://www.geospatial.jp/ckan/dataset/dem05_kyoto" target="_blank">【京都府CS】林野庁PNG標高タイルを加工して作成</a>',
   },
   {
     sourceId: 'cs-shiga', layerId: 'cs-shiga-layer',
-    tileUrl: 'csdem://forestgeo.info/opendata/25_shiga/dem_2023/{z}/{x}/{y}.png',
+    tileUrl: 'dem2cs://forestgeo.info/opendata/25_shiga/dem_2023/{z}/{x}/{y}.png',
     label: 'CS立体図（0.5m）— 滋賀県', maxzoom: 18, minzoom: 18,
     bounds: [135.7, 34.8, 136.5, 35.7],
     attribution: '<a href="https://www.geospatial.jp/ckan/dataset/rinya-shiga-maptiles" target="_blank">【滋賀県CS】林野庁PNG標高タイルを加工して作成</a>',
@@ -102,7 +102,7 @@ export const REGIONAL_CS_LAYERS = [
   }, */
   {
     sourceId: 'cs-hyogo', layerId: 'cs-hyogo-layer',
-    tileUrl: 'csdem://tiles.gsj.jp/tiles/elev/hyogodem/{z}/{y}/{x}.png',
+    tileUrl: 'dem2cs://tiles.gsj.jp/tiles/elev/hyogodem/{z}/{y}/{x}.png',
     label: 'CS立体図（0.5m）— 兵庫県', maxzoom: 18, minzoom: 18,
     bounds: [134.2, 34.2, 135.4, 35.7],
     attribution: '<a href="https://tiles.gsj.jp/tiles/elev/tiles.html" target="_blank">【兵庫県CS】産総研PNG標高タイルを加工して作成</a>',
@@ -110,7 +110,7 @@ export const REGIONAL_CS_LAYERS = [
   // ── 中部（甲信越・東海） ───────────────────────────────
   {
     sourceId: 'cs-yamanashi', layerId: 'cs-yamanashi-layer',
-    tileUrl: 'csdem://forestgeo.info/opendata/19_yamanashi/dem_2024/{z}/{x}/{y}.png',
+    tileUrl: 'dem2cs://forestgeo.info/opendata/19_yamanashi/dem_2024/{z}/{x}/{y}.png',
     label: 'CS立体図（0.5m）— 山梨県', maxzoom: 18, minzoom: 18,
     bounds: [138.3, 35.2, 139.1, 35.9],
     attribution: '<a href="https://www.geospatial.jp/ckan/dataset/rinya-nagano-maptiles" target="_blank">【山梨県CS】林野庁PNG標高タイルを加工して作成</a>',
@@ -144,14 +144,14 @@ export const REGIONAL_CS_LAYERS = [
   // ── 中国 ──────────────────────────────────────────────
   {
     sourceId: 'cs-tottori', layerId: 'cs-tottori-layer',
-    tileUrl: 'csdem://rinya-tottori.geospatial.jp/tile/rinya/2024/gridPNG_tottori/{z}/{x}/{y}.png',
+    tileUrl: 'dem2cs://rinya-tottori.geospatial.jp/tile/rinya/2024/gridPNG_tottori/{z}/{x}/{y}.png',
     label: 'CS立体図（0.5m）— 鳥取県', maxzoom: 18, minzoom: 18,
     bounds: [133.2, 35.0, 134.6, 35.6],
     attribution: '<a href="https://www.geospatial.jp/ckan/dataset/dem05_tottori" target="_blank">【鳥取県CS】鳥取県作成</a>',
   },
   {
     sourceId: 'cs-okayama', layerId: 'cs-okayama-layer',
-    tileUrl: 'csdem://forestgeo.info/opendata/33_okayama/dem_2024/{z}/{x}/{y}.png',
+    tileUrl: 'dem2cs://forestgeo.info/opendata/33_okayama/dem_2024/{z}/{x}/{y}.png',
     label: 'CS立体図（0.5m）— 岡山県', maxzoom: 18, minzoom: 18,
     bounds: [133.2, 34.4, 134.7, 35.2],
     attribution: '<a href="https://www.geospatial.jp/ckan/dataset/rinya-okayama-maptiles" target="_blank">【岡山県CS】林野庁PNG標高タイルを加工して作成</a>',
@@ -167,7 +167,7 @@ export const REGIONAL_CS_LAYERS = [
   // ── 四国 ──────────────────────────────────────────────
   {
     sourceId: 'cs-tokushima', layerId: 'cs-tokushima-layer',
-    tileUrl: 'csdem://rinya-tiles.geospatial.jp/dem_117_2025/{z}/{x}/{y}.png',
+    tileUrl: 'dem2cs://rinya-tiles.geospatial.jp/dem_117_2025/{z}/{x}/{y}.png',
     label: 'CS立体図（0.5m）— 徳島県', maxzoom: 18, minzoom: 18,
     bounds: [133.7, 33.7, 134.9, 34.4],
     attribution: '<a href="https://www.geospatial.jp/ckan/dataset/tokushima_aerial_laser" target="_blank">【徳島県CS】林野庁PNG標高タイルを加工して作成</a>',
@@ -265,7 +265,9 @@ export const CS_INITIAL_OPACITY = 0.6;
 
 // ベースマップ定義（url/maxzoom があるものはラスタータイル、ないものはベクター）
 // setStyle() を使わず visibility 切替で実現するため、load 時に全ソース/レイヤーを追加しておく。
-export const RASTER_BASEMAPS = {
+// ベースマップ定義（ラスター / ベクター共通）
+// bgColor: タイル未読込時に表示する背景色（省略時 #ffffff）
+export const BASEMAPS = {
   'orilibre':  { attr: '<a href="https://github.com/tjmsy/orilibre" target="_blank">OriLibre</a>' },
   'gsi-std':   { url: 'https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png',           maxzoom: 18,
                  attr: '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">地理院タイル</a>' },
@@ -274,7 +276,9 @@ export const RASTER_BASEMAPS = {
   'gsi-blank': { url: 'https://cyberjapandata.gsi.go.jp/xyz/blank/{z}/{x}/{y}.png',         maxzoom: 14,
                  attr: '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">地理院タイル</a>' },
   'gsi-photo': { url: 'https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg', maxzoom: 18,
+                 bgColor: '#4b5436',
                  attr: '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">地理院タイル</a>' },
   'osm':       { url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',                     maxzoom: 19,
+                 bgColor: '#add19e',
                  attr: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors' },
 };

@@ -1,5 +1,5 @@
 /* ================================================================
-   protocols.js — カスタムプロトコル登録（pmtiles / gsjdem / csdem）
+   protocols.js — カスタムプロトコル登録（pmtiles / gsjdem / dem2cs）
    MapLibre の addProtocol() でブラウザ内 DEM 変換を実現します
    ================================================================ */
 
@@ -134,12 +134,12 @@ async function fetchTerrainDemBitmap(z, x, y, signal) {
 
 /*
   ========================================================
-  CS立体図用 DEM 合成（csdem:// から呼ばれる）
+  CS立体図用 DEM 合成（dem2cs:// から呼ばれる）
   Q地図 > DEM10B > 地域DEM の優先順で合成。
   湖水深合成は廃止（コメントアウト済み）。
   ========================================================
 */
-// regionalDemBase: 地域DEMのベースURL（csdem://地域層の場合のみ指定）
+// regionalDemBase: 地域DEMのベースURL（dem2cs://地域層の場合のみ指定）
 // regionalDemExt : 地域DEMの拡張子（'png' または 'webp'）
 // demMode: null          → DEM10B + DEM5A + Q地図1m（z13-16用）
 //          'land'        → DEM10Bのみ（z≤10用）
@@ -227,7 +227,7 @@ async function fetchCompositeDemBitmap(z, x, y, signal, regionalDemBase = null, 
     }
   }
 
-  // 優先度 最高: 地域DEM（0.5m）― csdem://地域層からのみ利用
+  // 優先度 最高: 地域DEM（0.5m）― dem2cs://地域層からのみ利用
   if (rData) {
     const r = rData.data;
     for (let i = 0; i < o.length; i += 4) {
@@ -358,9 +358,9 @@ function _csRampMid(min, max, c0, c1, c2, t) {
   return tf.stack([r, g, b], -1);
 }
 
-maplibregl.addProtocol('csdem', async (params, abortController) => {
+maplibregl.addProtocol('dem2cs', async (params, abortController) => {
   try {
-  const url = params.url.replace('csdem://', 'https://');
+  const url = params.url.replace('dem2cs://', 'https://');
   const m = url.match(/\/(\d+)\/(\d+)\/(\d+)\.(png|webp)$/);
   if (!m) return { data: null };
   const zoomLevel = +m[1], tileX = +m[2], tileY = +m[3], ext = m[4];
@@ -759,7 +759,7 @@ maplibregl.addProtocol('dem2relief', async (params, abortController) => {
     if (!m) return { data: _transparentPngBuffer() };
     const [, z, x, y] = m;
 
-    // ズーム別 DEMソース選択（csdem:// と同じ基準）:
+    // ズーム別 DEMソース選択（dem2cs:// と同じ基準）:
     //   z≤10: DEM10Bのみ / z11-13: DEM10B+DEM5A / z≥14: DEM10B+DEM5A+Q地図1m
     const demMode = +z <= 10 ? 'land' : +z <= 13 ? 'land+dem5a' : null;
     // 合成 DEM ビットマップを取得（Q地図 > 陸域統合 > 湖水深 の優先順）

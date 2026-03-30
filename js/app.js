@@ -4,7 +4,7 @@
 
    【モジュール構成】
      config.js       定数・URL・初期値
-     protocols.js    gsjdem:// / csdem:// / dem2relief:// プロトコル登録
+    protocols.js    gsjdem:// / dem2cs:// / dem2relief:// プロトコル登録
      contours.js     等高線・DEM レイヤー管理（本ファイルからインポート）
 
    【本ファイルの内容（論理セクション）】
@@ -42,7 +42,7 @@ import {
   INITIAL_CENTER, INITIAL_ZOOM, INITIAL_PITCH, INITIAL_BEARING,
   TERRAIN_EXAGGERATION, OMAP_INITIAL_OPACITY, CS_INITIAL_OPACITY,
   EASE_DURATION, FIT_BOUNDS_PAD, FIT_BOUNDS_PAD_SIDEBAR, SIDEBAR_DEFAULT_WIDTH,
-  RASTER_BASEMAPS,
+  BASEMAPS,
   DEVICE_PPI_DATA, DEFAULT_DEVICE_PPI,
 } from './config.js';
 
@@ -263,7 +263,7 @@ map.on('load', async () => {
   // DPR=1.0 のとき tileSize=256 → round(viewZoom + 1.0) → 通常どおり viewZoom+1
   const _rasterTileSize = Math.round(256 / (window.devicePixelRatio || 1));
 
-  Object.entries(RASTER_BASEMAPS).filter(([, cfg]) => cfg.url).forEach(([key, cfg]) => {
+  Object.entries(BASEMAPS).filter(([, cfg]) => cfg.url).forEach(([key, cfg]) => {
     map.addSource(key, {
       type: 'raster',
       tiles: [cfg.url],
@@ -396,8 +396,20 @@ map.on('load', async () => {
     // contour-source のレイヤーは除外（等高線はベースマップ切替の影響を受けない）
     oriLibreLayers = map.getStyle().layers
       .filter(l => !snapshotBeforeIsomizer.has(l.id) && l.source !== 'contour-source')
-      .map(l => ({ id: l.id, defaultVisibility: l.layout?.visibility ?? 'visible' }));
+      .map(l => ({
+        id: l.id,
+        defaultVisibility: l.layout?.visibility ?? 'visible',
+        ...(l.type === 'background' ? { origBgColor: l.paint?.['background-color'] } : {}),
+      }));
     console.log(`OriLibre レイヤー収集完了: ${oriLibreLayers.length} レイヤー`);
+
+    // backgroundレイヤーを最下層に移動（ラスターベースマップの下に配置）
+    // ベースマップ切替時に色を変えるだけで済むようにする
+    const bgInit = oriLibreLayers.find(l => l.id.endsWith('-background'));
+    if (bgInit && map.getLayer(bgInit.id)) {
+      const firstId = map.getStyle().layers[0]?.id;
+      if (firstId && firstId !== bgInit.id) map.moveLayer(bgInit.id, firstId);
+    }
 
     // 読図マップ用にOriLibreスタイルをキャッシュ（ベースマップ切替後も正しく参照できるよう）
     oriLibreCachedStyle = map.getStyle();
@@ -3976,7 +3988,7 @@ function updateBasemapAttribution() {
     // MapLibreの書き換えで別の場所に移動した場合は先頭に戻す
     attrInner.insertBefore(attrEl, attrInner.firstChild);
   }
-  const attr = RASTER_BASEMAPS[currentBasemap]?.attr;
+  const attr = BASEMAPS[currentBasemap]?.attr;
   attrEl.innerHTML = attr ? attr + ' | ' : '';
 }
 
@@ -4883,44 +4895,40 @@ selMagneticNorth.addEventListener('change', () => {
  *   [OriLibre ベクターレイヤー群（isomizer 生成）]
  *   [等高線・CS立体図・KMZ・GPX・磁北線 …常時保持]
  *
- * @param {string} key - RASTER_BASEMAPS のキー、または 'orilibre'
+ * @param {string} key - BASEMAPS のキー、または 'orilibre'
  */
 function switchBasemap(key) {
   currentBasemap = key;
 
-  // ① ラスターベースマップを全て非表示（url を持つエントリのみ）
-  Object.keys(RASTER_BASEMAPS).filter(k => RASTER_BASEMAPS[k].url).forEach(k => {
+  // ① すべてのベースマップレイヤーを非表示
+  Object.keys(BASEMAPS).filter(k => BASEMAPS[k].url).forEach(k => {
     if (map.getLayer(k + '-layer')) map.setLayoutProperty(k + '-layer', 'visibility', 'none');
   });
+  oriLibreLayers.forEach(({ id }) => {
+    if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', 'none');
+  });
+  if (map.getLayer('basemap-fallback-layer')) {
+    map.setLayoutProperty('basemap-fallback-layer', 'visibility', 'none');
+  }
 
+  // ② 選択されたベースマップのレイヤーを表示
   if (key === 'orilibre') {
-    // ② OriLibre レイヤーを元の visibility に戻す
     oriLibreLayers.forEach(({ id, defaultVisibility }) => {
       if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', defaultVisibility);
     });
-    // isomizer 失敗時のフォールバックレイヤーも復元
     if (map.getLayer('basemap-fallback-layer')) {
       map.setLayoutProperty('basemap-fallback-layer', 'visibility', 'visible');
     }
-  } else if (key.startsWith('cs-')) {
-    // CS立体図をベースマップとして使用: OriLibre・ラスターを全て非表示にして CS のみ表示
-    oriLibreLayers.forEach(({ id }) => {
-      if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', 'none');
-    });
-    if (map.getLayer('basemap-fallback-layer')) {
-      map.setLayoutProperty('basemap-fallback-layer', 'visibility', 'none');
-    }
-    // CS レイヤーの表示は updateCsVisibility に委譲
-  } else {
-    // ③ OriLibre レイヤーを全て非表示
-    oriLibreLayers.forEach(({ id }) => {
-      if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', 'none');
-    });
-    if (map.getLayer('basemap-fallback-layer')) {
-      map.setLayoutProperty('basemap-fallback-layer', 'visibility', 'none');
-    }
-    // ④ 選択したラスターレイヤーを表示
+  } else if (!key.startsWith('cs-')) {
     if (map.getLayer(key + '-layer')) map.setLayoutProperty(key + '-layer', 'visibility', 'visible');
+  }
+
+  // ③ backgroundレイヤー（初期化時に最下層へ移動済み）の色を切り替えて常に表示
+  const bgLayer = oriLibreLayers.find(l => l.id.endsWith('-background'));
+  if (bgLayer && map.getLayer(bgLayer.id)) {
+    const bgColor = key === 'orilibre' ? bgLayer.origBgColor : (BASEMAPS[key]?.bgColor ?? '#ffffff');
+    map.setPaintProperty(bgLayer.id, 'background-color', bgColor);
+    map.setLayoutProperty(bgLayer.id, 'visibility', 'visible');
   }
 
   // CS 表示状態を更新（ベースマップとしての CS も updateCsVisibility で管理）
@@ -5428,7 +5436,7 @@ async function captureAllBasemapThumbs() {
     const card = document.querySelector(`#basemap-cards .bm-card[data-key="${key}"]`);
     if (card) card.classList.add('active');
 
-    // CS立体図は csdem:// プロトコルで TF.js GPU 演算するため1タイル0.5〜2秒かかる。
+    // CS立体図は dem2cs:// プロトコルで TF.js GPU 演算するため1タイル0.5〜2秒かかる。
     // zoom18 で16枚以上になると4秒では足りず白くなるため、CS系は15秒に拡張。
     const idleTimeout = key.startsWith('cs-') ? 15000 : 4000;
     await waitForMapIdle(idleTimeout);
@@ -7020,9 +7028,9 @@ function getReadmapBaseStyle(bgKey) {
   // KMZ選択時 → 地理院淡色を薄い下地として使用
   const tileKey = bgKey.startsWith('kmz-')
     ? 'gsi-pale'
-    : (!RASTER_BASEMAPS[bgKey] ? 'gsi-std' : bgKey);
+    : (!BASEMAPS[bgKey] ? 'gsi-std' : bgKey);
 
-  const bm = RASTER_BASEMAPS[tileKey];
+  const bm = BASEMAPS[tileKey];
   return {
     version: 8,
     sources: {
@@ -9386,6 +9394,7 @@ function makeCustomSelect(sel) {
 
   btn.addEventListener('click', e => {
     e.stopPropagation();
+    if (sel.disabled) return;
     panel.classList.contains('open') ? closePanel() : openPanel();
   });
   panel.addEventListener('click', e => {
