@@ -1206,7 +1206,7 @@ body {
 /* 正方形カード*/
 .bm-card {
   --bm-card-radius: 12px;
-  --bm-card-inner-radius: 12px;
+  --bm-card-inner-radius: 10px;
   --bm-card-stroke: var(--border-subtle);
   position: relative;
   display: block;
@@ -1232,7 +1232,7 @@ body {
   z-index: 3;
 }
 .bm-card:hover  { --bm-card-stroke: color-mix(in srgb, var(--primary) 50%, transparent); }
-.bm-card.active { --bm-card-stroke: var(--primary, #2563eb); }
+.bm-card.active { --bm-card-stroke: var(--primary); }
 /* サムネイル: カード全面を覆う */
 /* サムネイル画像 */
 .bm-card-img {
@@ -5082,22 +5082,6 @@ h1, h2, h3, h4,
 .panel-btn-outline:hover {
   background-color: var(--primary-light) !important;
   box-shadow: none !important;
-}
-
-/* ---- ベースマップカード ---- */
-.bm-card {
-  --bm-card-radius: 12px;
-  --bm-card-inner-radius: 10px;
-  --bm-card-stroke: var(--border-subtle);
-  border-radius: var(--bm-card-radius) !important;
-  border: none !important;
-  box-shadow: none !important;
-}
-.bm-card:hover {
-  --bm-card-stroke: color-mix(in srgb, var(--primary) 50%, transparent);
-}
-.bm-card.active {
-  --bm-card-stroke: var(--primary);
 }
 
 /* ---- モーダル: 大きな角丸 + シアンヘッダー ---- */
