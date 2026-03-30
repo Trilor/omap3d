@@ -582,6 +582,167 @@ function _dem2reliefColor(t) {
   };
 }
 
+/*
+  ========================================================
+  傾斜量図プロトコル (dem2slope://)
+  qchizu-project/qchizu-maps-maplibregljs の dem2SlopeProtocol.js と
+  protocolUtils.js の計算式をもとに、既存の DEM 合成系へ組み込む。
+
+  URLクエリパラメータ:
+    mode: 'color' | 'gray'（省略時は color）
+  ========================================================
+*/
+
+function _dem2slopeTilePosition(index, tileSize, buffer) {
+  const col = index % 3;
+  const row = Math.floor(index / 3);
+  if (index === 4) {
+    return { sx: 0, sy: 0, sWidth: tileSize, sHeight: tileSize, dx: buffer, dy: buffer };
+  }
+
+  const sx = col === 0 ? tileSize - buffer : 0;
+  const sWidth = col === 1 ? tileSize : buffer;
+  const dx = col === 2 ? tileSize + buffer : col * buffer;
+  const sy = row === 0 ? tileSize - buffer : 0;
+  const sHeight = row === 1 ? tileSize : buffer;
+  const dy = row === 2 ? tileSize + buffer : row * buffer;
+  return { sx, sy, sWidth, sHeight, dx, dy };
+}
+
+function _dem2slopeHeight(r, g, b, a) {
+  const bits24 = r * 65536 + g * 256 + b;
+  if (bits24 === 8388608 || a === 0) return -99999;
+  return bits24 < 8388608 ? bits24 * 0.01 : (bits24 - 16777216) * 0.01;
+}
+
+function _dem2slopePixelResolution(tileSize, zoomLevel, tileY) {
+  const L = 85.05112878;
+  const y = 256 * tileY + 128;
+  const lat = (180 / Math.PI) * Math.asin(
+    Math.tanh((-Math.PI / (1 << (zoomLevel + 7))) * y + Math.atanh(Math.sin((L * Math.PI) / 180)))
+  );
+  return 156543.04 * Math.cos((lat * Math.PI) / 180) / (1 << zoomLevel) * (256 / tileSize);
+}
+
+function _dem2slopeValue(h00, h01, h10, pixelLength) {
+  if (h00 === -99999 || h01 === -99999 || h10 === -99999) return null;
+  const dx = h00 - h01;
+  const dy = h00 - h10;
+  return Math.atan(Math.sqrt(dx * dx + dy * dy) / pixelLength) * (180 / Math.PI);
+}
+
+function _dem2slopeColor(slope, mode = 'color') {
+  if (mode === 'gray') {
+    const alpha = Math.min(Math.max(slope * 3, 0), 255);
+    return [0, 0, 0, Math.round(alpha)];
+  }
+  if (slope < 15) return [0, 0, 255, 255];
+  if (slope < 30) return [51, 194, 255, 255];
+  if (slope < 40) return [182, 255, 143, 255];
+  if (slope < 45) return [255, 200, 0, 255];
+  return [255, 0, 0, 255];
+}
+
+maplibregl.addProtocol('dem2slope', async (params, abortController) => {
+  try {
+    const rawUrl = params.url.replace(/^dem2slope:\/\//, 'https://');
+    const urlObj = new URL(rawUrl);
+    const mode = urlObj.searchParams.get('mode') === 'gray' ? 'gray' : 'color';
+
+    const m = urlObj.pathname.match(/\/(\d+)\/(\d+)\/(\d+)\.\w+/);
+    if (!m) return { data: _transparentPngBuffer() };
+    const zoomLevel = +m[1];
+    const tileX = +m[2];
+    const tileY = +m[3];
+
+    const demMode = zoomLevel <= 10 ? 'land'
+                  : zoomLevel <= 13 ? 'land+dem5a'
+                  : null;
+
+    const [center, right, down, downRight] = await Promise.all([
+      fetchCompositeDemBitmap(zoomLevel, tileX, tileY, abortController.signal, null, 'png', demMode),
+      fetchCompositeDemBitmap(zoomLevel, tileX + 1, tileY, abortController.signal, null, 'png', demMode),
+      fetchCompositeDemBitmap(zoomLevel, tileX, tileY + 1, abortController.signal, null, 'png', demMode),
+      fetchCompositeDemBitmap(zoomLevel, tileX + 1, tileY + 1, abortController.signal, null, 'png', demMode),
+    ]);
+    if (!center) return { data: _transparentPngBuffer() };
+
+    const tileSize = center.width;
+    const buffer = 1;
+    const mergedSize = tileSize + buffer * 2;
+    const mergedCanvas = new OffscreenCanvas(mergedSize, mergedSize);
+    const mergedCtx = mergedCanvas.getContext('2d');
+
+    [
+      { bmp: center, index: 4 },
+      { bmp: right, index: 5 },
+      { bmp: down, index: 7 },
+      { bmp: downRight, index: 8 },
+    ].forEach(({ bmp, index }) => {
+      if (!bmp) return;
+      const { sx, sy, sWidth, sHeight, dx, dy } = _dem2slopeTilePosition(index, tileSize, buffer);
+      mergedCtx.drawImage(bmp, sx, sy, sWidth, sHeight, dx, dy, sWidth, sHeight);
+      bmp.close();
+    });
+
+    const outCanvas = new OffscreenCanvas(tileSize, tileSize);
+    const outCtx = outCanvas.getContext('2d');
+    const outImageData = outCtx.createImageData(tileSize, tileSize);
+    const out = outImageData.data;
+
+    const mergedImageData = mergedCtx.getImageData(0, 0, mergedSize, mergedSize);
+    const data = mergedImageData.data;
+    const pixelLength = _dem2slopePixelResolution(tileSize, zoomLevel, tileY);
+
+    for (let row = 0; row < tileSize; row++) {
+      for (let col = 0; col < tileSize; col++) {
+        const mergedIndex = ((row + buffer) * mergedSize + (col + buffer)) * 4;
+        const outputIndex = (row * tileSize + col) * 4;
+
+        const h00 = _dem2slopeHeight(
+          data[mergedIndex],
+          data[mergedIndex + 1],
+          data[mergedIndex + 2],
+          data[mergedIndex + 3]
+        );
+        const h01 = _dem2slopeHeight(
+          data[mergedIndex + 4],
+          data[mergedIndex + 5],
+          data[mergedIndex + 6],
+          data[mergedIndex + 7]
+        );
+        const h10 = _dem2slopeHeight(
+          data[mergedIndex + mergedSize * 4],
+          data[mergedIndex + mergedSize * 4 + 1],
+          data[mergedIndex + mergedSize * 4 + 2],
+          data[mergedIndex + mergedSize * 4 + 3]
+        );
+        const slope = _dem2slopeValue(h00, h01, h10, pixelLength);
+
+        if (slope == null) {
+          out[outputIndex] = 0;
+          out[outputIndex + 1] = 0;
+          out[outputIndex + 2] = 0;
+          out[outputIndex + 3] = 0;
+          continue;
+        }
+
+        const [r, g, b, a] = _dem2slopeColor(slope, mode);
+        out[outputIndex] = r;
+        out[outputIndex + 1] = g;
+        out[outputIndex + 2] = b;
+        out[outputIndex + 3] = a;
+      }
+    }
+
+    outCtx.putImageData(outImageData, 0, 0);
+    const blob = await outCanvas.convertToBlob({ type: 'image/png' });
+    return { data: await blob.arrayBuffer() };
+  } catch {
+    return { data: _transparentPngBuffer() };
+  }
+});
+
 maplibregl.addProtocol('dem2relief', async (params, abortController) => {
   try {
     // URLスキームを https:// に置換して URL オブジェクトを生成
