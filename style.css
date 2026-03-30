@@ -1250,8 +1250,8 @@ body {
   left: -2px;
   right: -2px;
   min-height: 20px;
-  font-size: 9px;
-  padding: 4px 5px 2px;
+  font-size: 10px;
+  padding: 0 5px;
   text-align: center;
   color: var(--on-primary);
   background: var(--overlay-base);
@@ -1261,6 +1261,9 @@ body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   border-radius: 0 0 var(--bm-card-radius) var(--bm-card-radius);
 }
 .bm-card.active .bm-card-label {
