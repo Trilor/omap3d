@@ -182,6 +182,7 @@ button, input, textarea {
    ================================================================ */
 select {
   font-family: var(--font-family);
+  font-weight: 500;
   appearance: none;
   background-color: var(--dropdown-bg);
   background-image: var(--chevron-down);
@@ -194,6 +195,7 @@ select {
   cursor: pointer;
   outline: none;
 }
+select:hover { background-color: var(--primary-light); }
 select:disabled { opacity: 0.5; cursor: default; }
 
 body {
@@ -296,7 +298,7 @@ body {
   display: block;
 }
 .nav-label {
-  font-size: 9px;
+  font-size: var(--font-xs);
   font-weight: var(--font-semi);
   line-height: 1;
   letter-spacing: 0.04em;
@@ -597,7 +599,7 @@ body {
 }
 .event-group-hd:hover { background: #eef2f7; }
 .event-group-toggle {
-  font-size: 9px;
+  font-size: var(--font-xs);
   color: var(--text-muted);
   flex-shrink: 0;
   width: 10px;
@@ -722,7 +724,7 @@ body {
   border-bottom: 1px solid #e0e0e0;
 }
 .settings-group-title {
-  font-size: 9px;
+  font-size: var(--font-xs);
   font-weight: var(--font-bold);
   color: var(--text-disabled);
   letter-spacing: 0.1em;
@@ -759,7 +761,7 @@ body {
 .cascade-btn:hover,
 .ppi-cascade-btn:hover {
   border-color: #888;
-  background-color: var(--bg-hover-btn);
+  background-color: var(--primary-light);
 }
 .cascade-arrow,
 .ppi-cascade-arrow { display: none; }
@@ -788,6 +790,7 @@ body {
 .ppi-cascade-cat {
   padding: 5px var(--chevron-pad-r) 5px 10px;
   font-size: var(--font-sm);
+  font-weight: 500;
   cursor: default;
   white-space: nowrap;
   user-select: none;
@@ -796,7 +799,7 @@ body {
 .cascade-cat + .cascade-cat,
 .ppi-cascade-cat + .ppi-cascade-cat { border-top: 1px solid var(--border-subtle); }
 .cascade-cat:hover, .cascade-cat.open,
-.ppi-cascade-cat:hover, .ppi-cascade-cat.open { background-color: var(--border-muted); }
+.ppi-cascade-cat:hover, .ppi-cascade-cat.open { background-color: var(--primary-light); }
 .cascade-cat-arrow,
 .ppi-cascade-cat-arrow { display: none; }
 
@@ -805,7 +808,7 @@ body {
 .ppi-cascade-sub {
   position: fixed;
   z-index: 10101;
-  background: var(--bg-panel);
+  background: var(--dropdown-bg);
   border: 1px solid var(--border-muted);
   border-radius: 4px;
   box-shadow: 2px 4px 12px rgba(0,0,0,0.15);
@@ -821,6 +824,7 @@ body {
 .ppi-cascade-item {
   padding: 5px 10px;
   font-size: var(--font-sm);
+  font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
   display: flex;
@@ -828,7 +832,9 @@ body {
   justify-content: space-between;
   gap: 10px;
 }
-/* ハイライト中アイテム（JS で .highlighted を付与） */
+/* ホバー中・ハイライト中アイテム */
+.cascade-item:hover,
+.ppi-cascade-item:hover,
 .cascade-item.highlighted,
 .ppi-cascade-item.highlighted {
   background: var(--primary-light);
@@ -836,7 +842,9 @@ body {
 }
 /* ハイライトなし・パネル未離脱のとき、選択済みをハイライト */
 .cascade-menu:not(:has(.cascade-item.highlighted)):not(.left) .cascade-item.selected,
-.cascade-menu:not(:has(.ppi-cascade-item.highlighted)):not(.left) .ppi-cascade-item.selected {
+.cascade-menu:not(:has(.ppi-cascade-item.highlighted)):not(.left) .ppi-cascade-item.selected,
+.cascade-sub:not(:has(.cascade-item:hover)) .cascade-item.selected,
+.ppi-cascade-sub:not(:has(.ppi-cascade-item:hover)) .ppi-cascade-item.selected {
   background: var(--primary-light);
   border-radius: 3px;
 }
@@ -857,7 +865,7 @@ body {
 .cascade-item-sub,
 .ppi-cascade-item-ppi {
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: var(--font-xs);
   flex-shrink: 0;
 }
 
@@ -874,7 +882,7 @@ body {
   overflow: hidden;
 }
 .ppi-ruler-hint {
-  font-size: 9px;
+  font-size: var(--font-xs);
   color: var(--text-disabled);
   user-select: none;
 }
@@ -1117,7 +1125,7 @@ body {
   display: flex;
   align-items: center;
   gap: 5px;
-  padding: 7px 12px;
+  padding: 7px 8px;
   border-bottom: 1px solid var(--border-subtle);
 }
 .setting-row:last-child { border-bottom: none; }
@@ -1172,10 +1180,11 @@ body {
   outline: none;
   padding: 2px var(--chevron-pad-r) 2px 6px;
   font-size: var(--font-sm);
+  font-weight: 500;
   font-family: var(--font-family);
 }
 .cascade-btn:disabled,
-.ppi-cascade-btn:disabled { opacity: 0.5; cursor: default; }
+.ppi-cascade-btn:disabled { opacity: 0.5; cursor: default; pointer-events: none; }
 
 /* ---- .setting-select — サイズ・レイアウトのみ ---- */
 .setting-select {
@@ -1191,7 +1200,7 @@ body {
   flex-direction: column;
   align-items: flex-start;
   gap: 5px;
-  padding: 6px 8px;
+  padding: 6px 4px;
 }
 .bm-cards {
   display: grid;
@@ -1231,29 +1240,29 @@ body {
   pointer-events: none;
   z-index: 3;
 }
-.bm-card:hover  { --bm-card-stroke: color-mix(in srgb, var(--primary) 50%, transparent); }
+.bm-card:hover  { --bm-card-stroke: #94cec7; }
 .bm-card.active { --bm-card-stroke: var(--primary); }
 /* サムネイル: カード全面を覆う */
 /* サムネイル画像 */
 .bm-card-img {
   position: absolute; /* relativeからabsoluteに戻す */
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
+  top: 1px;
+  left: 1px;
+  width: calc(100% - 2px);
+  height: calc(100% - 2px);
   object-fit: contain;
-  border-radius: var(--bm-card-inner-radius);
+  border-radius: calc(var(--bm-card-radius) - 1px);
 }
 
 /* ラベル */
 .bm-card-label {
   position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
+  bottom: 1px;
+  left: 1px;
+  right: 1px;
   min-height: 20px;
-  font-size: 11px;
-  padding: 0 5px;
+  font-size: var(--font-xs);
+  padding: 0 5px 1px;
   color: var(--on-primary);
   background: var(--overlay-base);
   backdrop-filter: blur(2px);
@@ -1261,7 +1270,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 0 0 var(--bm-card-inner-radius) var(--bm-card-inner-radius);
+  border-radius: 0 0 calc(var(--bm-card-radius) - 1px) calc(var(--bm-card-radius) - 1px);
 }
 
 .bm-card.active .bm-card-label {
@@ -1288,7 +1297,7 @@ body {
 .bm-thumb-btn:hover { background: var(--bg-select); border-color: var(--border-weak); }
 .bm-thumb-btn:disabled { opacity: 0.6; cursor: default; }
 .bm-thumb-note {
-  font-size: 9px;
+  font-size: var(--font-xs);
   color: var(--text-muted);
   line-height: 1.2;
 }
@@ -1702,7 +1711,7 @@ label.setting-label {
 .terrain-group > summary::-webkit-details-marker { display: none; }
 .terrain-group > summary::before {
   content: '▶';
-  font-size: 9px;
+  font-size: var(--font-xs);
   color: var(--text-disabled);
   transition: transform 0.15s;
   flex-shrink: 0;
@@ -1762,7 +1771,7 @@ label.setting-label {
 
 /* バッジ（種別タグ） */
 .frame-badge {
-  font-size: 9px;
+  font-size: var(--font-xs);
   font-weight: var(--font-bold);
   padding: 1px 5px;
   border-radius: 3px;
@@ -1802,7 +1811,7 @@ label.setting-label {
   flex-wrap: nowrap;
   overflow-x: auto;
 }
-.miller-bc-root { color: var(--text-muted); font-size: 10px; cursor: default; white-space: nowrap; }
+.miller-bc-root { color: var(--text-muted); font-size: var(--font-xs); cursor: default; white-space: nowrap; }
 .miller-bc-sep { color: var(--text-disabled); margin: 0 1px; flex-shrink: 0; }
 .miller-bc-item { color: var(--primary); font-weight: 600; position: relative; flex-shrink: 0; white-space: nowrap; }
 .miller-bc-current { color: var(--primary); font-weight: 600; flex-shrink: 0; white-space: nowrap; }
@@ -1853,7 +1862,7 @@ label.setting-label {
 /* 列ヘッダー */
 .miller-col-hd {
   padding: 3px 6px;
-  font-size: 9px;
+  font-size: var(--font-xs);
   font-weight: var(--font-bold);
   color: var(--text-muted);
   letter-spacing: 0.05em;
@@ -1889,7 +1898,7 @@ label.setting-label {
   min-width: 0;
 }
 .miller-item-count {
-  font-size: 9px;
+  font-size: var(--font-xs);
   opacity: 0.65;
   flex-shrink: 0;
 }
@@ -1907,7 +1916,7 @@ label.setting-label {
 }
 
 /* 空状態メッセージ */
-.miller-empty { padding: 12px 10px; font-size: 11px; color: var(--text-disabled); text-align: center; }
+.miller-empty { padding: 12px 10px; font-size: var(--font-sm); color: var(--text-disabled); text-align: center; }
 
 /* ===== タブバー ===== */
 .tab-bar {
@@ -2014,7 +2023,7 @@ label.setting-label {
 }
 
 /* MapLibreポップアップ内のカスタムスタイル */
-.frame-popup { font-size: 12px; min-width: 200px; }
+.frame-popup { font-size: var(--font-base); min-width: 200px; }
 .frame-popup-title {
   font-weight: var(--font-bold);
   font-size: var(--font-md);
@@ -2230,7 +2239,7 @@ label.setting-label {
   color: var(--text-sub);
 }
 #dev-color-copy:hover { background: var(--bg-hover-btn); }
-#dev-on-primary-toggle { cursor: pointer; font-size: 10px; }
+#dev-on-primary-toggle { cursor: pointer; font-size: var(--font-xs); }
 #dev-on-primary-knob {
   display: inline-block;
   padding: 2px 6px;
@@ -2323,7 +2332,7 @@ label.setting-label {
 }
 /* テレインタイプバッジ（検索結果用） */
 .result-type-badge {
-  font-size: 9px;
+  font-size: var(--font-xs);
   font-weight: var(--font-bold);
   padding: 1px 4px;
   border-radius: 3px;
@@ -3199,7 +3208,7 @@ label.setting-label {
   box-shadow: 0 0 0 2px var(--shadow-xs);
 }
 .scale-ctrl-select:hover {
-  background-color: var(--bg-select);
+  background-color: var(--primary-light);
 }
 
 /* スマホ向けパネル最適化 */
@@ -3708,7 +3717,7 @@ label.setting-label {
   }
   /* スペーサーはモバイル横並びでは不要 */
   .sidebar-nav-spacer { display: none; }
-  .nav-label { display: block; font-size: 9px; }
+  .nav-label { display: block; font-size: var(--font-xs); }
 
   /* モバイル: 左バー非表示、上端ラインでアクティブを表現 */
   .sidebar-nav-btn.active::before {
@@ -4655,7 +4664,7 @@ input[type=range].cr-range::-moz-range-thumb {
   bottom: calc(100% + 4px);
   left: 50%;
   transform: translateX(-50%);
-  font-size: 11px;
+  font-size: var(--font-sm);
   color: var(--text-muted);
   white-space: nowrap;
   line-height: 1;
@@ -4678,7 +4687,7 @@ input[type=range].cr-range::-moz-range-thumb {
   top: 6px;
   left: calc(var(--lbl-ctr) * (100% - 12px) + 6px);
   transform: translateX(-50%);
-  font-size: 11px;
+  font-size: var(--font-sm);
   color: #c8c8c8;
   white-space: nowrap;
   line-height: 1;
@@ -4968,7 +4977,7 @@ input[type=range].cr-range::-moz-range-thumb {
   padding: 0 var(--chevron-pad-r) 0 8px;
 }
 .custom-select-wrap.scale-ctrl-select > .cascade-btn:hover {
-  background-color: var(--bg-select);
+  background-color: var(--primary-light);
 }
 
 /* ---- .export-dialog-input 専用: 印刷ダイアログ外観をボタンに適用 ---- */
@@ -5223,7 +5232,7 @@ input[type=range].cr-range::-webkit-slider-thumb {
 
 /* パネルセクション summary（折り畳み見出し）*/
 .panel-section > summary {
-  font-size: 14px !important;
+  font-size: var(--font-lg) !important;
   font-weight: 700 !important;
   padding: 10px 16px !important;
 }
@@ -5259,6 +5268,6 @@ select,
 #pc-sim-toggle-btn {
   min-height: 40px !important;
   padding: 8px 16px !important;
-  font-size: 14px !important;
+  font-size: var(--font-lg) !important;
 }
 
