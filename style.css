@@ -1277,12 +1277,34 @@ body {
   background: color-mix(in srgb, var(--primary) 75%, transparent);
 }
 
-/* ---- レイヤートグルカード（等高線・磁北線） ---- */
-.layer-cards {
-  grid-template-columns: repeat(2, 1fr);
+/* ---- レイヤートグルカード（等高線・磁北線）横並びレイアウト ---- */
+/* bm-row の flex-direction:column を上書きして横並びにする */
+.setting-row.layer-pair-row {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 4px;
+}
+/* 各カードの列（タイトル＋カード） */
+.layer-card-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+.layer-card-title {
+  font-size: var(--font-sm);
+  color: var(--text-main);
+  text-align: center;
+  white-space: nowrap;
+}
+/* カード: 幅はwrapper全幅、高さはベースマップ4列の1枠と同じ（= 幅の1/2） */
+.layer-pair-row .bm-card {
+  width: 100%;
+  aspect-ratio: 2 / 1;
 }
 /* 非アクティブ時は半透明 */
-.layer-cards .bm-card:not(.active) {
+.layer-pair-row .bm-card:not(.active) {
   opacity: 0.45;
 }
 /* カード内セレクト: .bm-card-label と同じ見た目にする */
