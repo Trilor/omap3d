@@ -4075,12 +4075,11 @@ function updatePlateauAttribution() {
   const buildingOn = document.getElementById('building3d-card')?.classList.contains('active') ?? false;
   const mode       = document.getElementById('sel-building')?.value ?? 'plateau';
   const plateauLink = ' | <a href="https://www.mlit.go.jp/plateau/open-data/" target="_blank">国土交通省3D都市モデルPLATEAU</a>';
-  const selCity = document.getElementById('sel-plateau-city');
-  const cityLabel = selCity?.options[selCity.selectedIndex]?.textContent ?? '';
+  const areaLabel = document.getElementById('plateau-area-label')?.textContent ?? '';
   attrEl.innerHTML = !buildingOn ? ''
     : mode === 'plateau'          ? plateauLink + '（<a href="https://github.com/shiwaku/mlit-plateau-bldg-pmtiles" target="_blank">shiwaku</a>加工）'
-    : mode === 'plateau-lod2-api' ? plateauLink + (cityLabel ? `（${cityLabel} LOD2）` : '（LOD2）')
-    : mode === 'plateau-lod3-api' ? plateauLink + (cityLabel ? `（${cityLabel} LOD3）` : '（LOD3）')
+    : mode === 'plateau-lod2-api' ? plateauLink + (areaLabel && areaLabel !== '—' ? `（${areaLabel} LOD2）` : '（LOD2）')
+    : mode === 'plateau-lod3-api' ? plateauLink + (areaLabel && areaLabel !== '—' ? `（${areaLabel} LOD3）` : '（LOD3）')
     : '';
 }
 
@@ -4223,20 +4222,18 @@ document.getElementById('overlay-cards').addEventListener('click', (e) => {
 // ズーム17の境界を跨いだとき 0.5m ↔ 1m を自動切替
 map.on('zoomend', updateCsVisibility);
 
-// ---- deck.gl 建物レイヤー: ズーム16未満で非表示、16以上で復帰 ----
-map.on('zoomend', () => {
+// ---- deck.gl 建物レイヤー: 地図移動・ズーム変更で位置連動自動更新 ----
+function _onMapMoveForPlateau() {
   const mode = document.getElementById('sel-building')?.value ?? '';
   if (mode !== 'plateau-lod2-api' && mode !== 'plateau-lod3-api') return;
   if (!document.getElementById('building3d-card')?.classList.contains('active')) return;
-  const selCity = document.getElementById('sel-plateau-city');
-  if (!selCity?.value) return;
-  if (map.getZoom() < 15) {
-    _deckOverlay?.setProps({ layers: [] });
-  } else {
-    // 既にレイヤーが存在する場合は再生成しない
-    if (!_deckOverlay?.props?.layers?.length) _applyDeckTile3D(selCity.value);
-  }
-});
+  const lod = mode === 'plateau-lod2-api' ? 2 : 3;
+  // デバウンス: 連続移動中は最後の moveend から 300ms 後に実行
+  clearTimeout(_plateauAutoTimer);
+  _plateauAutoTimer = setTimeout(() => _autoShowPlateauByPosition(lod), 300);
+}
+map.on('moveend', _onMapMoveForPlateau);
+map.on('zoomend', _onMapMoveForPlateau);
 
 
 // ---- 色別標高図 デュアルレンジスライダー ----
@@ -4926,103 +4923,102 @@ async function _fetchPlateauDatasets() {
   return _plateauApiCache;
 }
 
-// 都道府県プルダウンを都市ピッカーに反映
-// prevPrefCode: 復元したい都道府県コード（LOD切り替え時に渡す）
-function _buildPlateauPrefOptions(datasets, prevPrefCode) {
-  const selPref = document.getElementById('sel-plateau-pref');
-  // 都道府県リストを重複除去（pref_code 順でソート）
-  const prefs = [...new Map(datasets.map(d => [d.pref_code, { code: d.pref_code, name: d.pref }])).values()]
-    .sort((a, b) => a.code.localeCompare(b.code));
-  selPref.innerHTML = '<option value="">都道府県を選択</option>';
-  prefs.forEach(p => {
-    const opt = document.createElement('option');
-    opt.value = p.code;
-    opt.textContent = p.name;
-    selPref.appendChild(opt);
-  });
-  // 以前選択していた都道府県が新データセットにあれば復元
-  if (prevPrefCode && prefs.some(p => p.code === prevPrefCode)) {
-    selPref.value = prevPrefCode;
-  }
-  selPref._csRefresh?.();
+// ---- PLATEAU 位置連動：逆ジオコーダーで地図中心の市区町村を特定して自動表示 ----
+// 地理院逆ジオコーダー API（市区町村コード・名称を返す）
+const GSI_REVERSE_URL = 'https://mreversegeocoder.gsi.go.jp/reverse-geocoder/LonLatToAddress';
+
+// 現在表示中の PLATEAU データ状態
+let _plateauCurrentCityCode = null; // 最後に表示した city_code
+let _plateauCurrentLod      = null; // 最後に表示した lod（2 or 3）
+let _plateauAutoTimer       = null; // moveend デバウンスタイマー
+
+// 地域ラベルを更新する
+function _updatePlateauAreaLabel(text) {
+  const el = document.getElementById('plateau-area-label');
+  if (el) el.textContent = text || '—';
 }
 
-// 都道府県選択時に市区町村を絞り込む
-// prevCityCode: 復元したい city_code（LOD切り替え時に渡す）
-function _buildPlateauCityOptions(datasets, prefCode, prevCityCode) {
-  const selCity = document.getElementById('sel-plateau-city');
-  const cities = datasets
-    .filter(d => d.pref_code === prefCode)
-    .sort((a, b) => (a.city_code ?? '').localeCompare(b.city_code ?? ''));
-  selCity.innerHTML = '<option value="">市区町村を選択</option>';
-  cities.forEach(d => {
-    const opt = document.createElement('option');
-    opt.value = d.url;
-    opt.dataset.cityCode = d.city_code ?? '';
-    const label = d.ward ? `${d.city} ${d.ward}` : d.city;
-    opt.textContent = `${label}（${d.year}年）`;
-    selCity.appendChild(opt);
-  });
-  selCity.disabled = false;
-  // 以前選択していた city_code が新データセットにあれば復元
-  if (prevCityCode) {
-    const match = [...selCity.options].find(o => o.dataset.cityCode === prevCityCode);
-    if (match) selCity.value = match.value;
-  }
-  selCity._csRefresh?.();
+// PLATEAU エリアラベルの表示/非表示
+function _showPlateauAreaLabel() {
+  const el = document.getElementById('plateau-area-label');
+  if (el) el.style.display = '';
+}
+function _hidePlateauAreaLabel() {
+  const el = document.getElementById('plateau-area-label');
+  if (el) el.style.display = 'none';
 }
 
-// 都市ピッカーの表示/非表示を切り替えて都道府県リストを構築
-async function _showPlateauCityPicker(lod) {
-  const picker = document.getElementById('plateau-city-picker');
-  picker.style.display = '';
-  const selPref = document.getElementById('sel-plateau-pref');
-  const selCity = document.getElementById('sel-plateau-city');
+// 地図中心の市区町村コードを地理院逆ジオコーダーで取得
+// 返り値: { muniCd: "13101", lv01Nm: "千代田区" } | null
+async function _reverseGeocode(lng, lat) {
+  const url = `${GSI_REVERSE_URL}?lat=${lat}&lon=${lng}`;
+  const res = await fetch(url);
+  if (!res.ok) return null;
+  const json = await res.json();
+  // レスポンス: { results: { muniCd, lv01Nm, ... } }
+  return json.results ?? null;
+}
 
-  // LOD切り替え前の選択状態を保存
-  const prevPrefCode = selPref.value || null;
-  const prevCityCode = selCity.options[selCity.selectedIndex]?.dataset?.cityCode ?? null;
-
+// 市区町村コード（5桁）でPLATEAUデータセットを検索して表示
+// city_code は "13101" のような5桁コード。ward がある場合は city_code が区レベルになる
+async function _autoShowPlateauByPosition(lod) {
+  if (!document.getElementById('building3d-card')?.classList.contains('active')) return;
+  if (map.getZoom() < 15) {
+    _deckOverlay?.setProps({ layers: [] });
+    _updatePlateauAreaLabel('ズーム15以上で表示');
+    return;
+  }
+  const center = map.getCenter();
   try {
+    const geo = await _reverseGeocode(center.lng, center.lat);
+    if (!geo?.muniCd) {
+      _updatePlateauAreaLabel('対象地域外');
+      return;
+    }
+    const muniCd = String(geo.muniCd).padStart(5, '0');
+    // 同じ市区町村・LODなら再ロード不要
+    if (muniCd === _plateauCurrentCityCode && lod === _plateauCurrentLod) return;
+
     const cache = await _fetchPlateauDatasets();
     const datasets = lod === 2 ? cache.lod2 : cache.lod3;
-    _buildPlateauPrefOptions(datasets, prevPrefCode);
-    // 都道府県が復元できていれば市区町村も復元
-    if (selPref.value) {
-      _buildPlateauCityOptions(datasets, selPref.value, prevCityCode);
-    } else {
-      selCity.innerHTML = '<option value="">市区町村を選択</option>';
-      selCity.disabled = true;
-      selCity._csRefresh?.();
-    }
-    // 都道府県セレクトのchangeハンドラーを付け替え
-    selPref.onchange = () => {
-      if (!selPref.value) return;
-      const ds = lod === 2 ? _plateauApiCache.lod2 : _plateauApiCache.lod3;
-      _buildPlateauCityOptions(ds, selPref.value, null);
-    };
-    // 市区町村選択 → 即時表示
-    selCity.onchange = () => {
-      if (selCity.value && document.getElementById('building3d-card')?.classList.contains('active')) {
-        if (map.getZoom() >= 15) {
-          _applyDeckTile3D(selCity.value);
-        } else {
-          _deckOverlay?.setProps({ layers: [] });
-        }
+
+    // city_code が5桁完全一致 → なければ上位4桁（市レベル）で先頭一致
+    let entry = datasets.find(d => String(d.city_code).padStart(5, '0') === muniCd)
+              ?? datasets.find(d => muniCd.startsWith(String(d.city_code).padStart(5, '0').slice(0, 4)));
+
+    if (!entry) {
+      // データなし：レイヤークリアしてラベル更新
+      if (_plateauCurrentCityCode !== null) {
+        _deckOverlay?.setProps({ layers: [] });
+        _plateauCurrentCityCode = null;
+        _plateauCurrentLod      = null;
       }
-    };
-    // 都市が復元できていれば表示も継続
-    if (selCity.value && document.getElementById('building3d-card')?.classList.contains('active')) {
-      if (map.getZoom() >= 15) _applyDeckTile3D(selCity.value);
+      _updatePlateauAreaLabel(`${geo.lv01Nm ?? ''} (データなし)`);
+      updatePlateauAttribution();
+      return;
     }
+
+    _plateauCurrentCityCode = muniCd;
+    _plateauCurrentLod      = lod;
+    const label = entry.ward ? `${entry.city} ${entry.ward}` : entry.city;
+    _updatePlateauAreaLabel(`${entry.pref} ${label}`);
+    await _applyDeckTile3D(entry.url);
+    updatePlateauAttribution();
   } catch (e) {
-    console.error('PLATEAU API 取得失敗:', e);
+    console.error('PLATEAU 位置自動取得失敗:', e);
   }
 }
 
-function _hidePlateauCityPicker() {
-  const picker = document.getElementById('plateau-city-picker');
-  picker.style.display = 'none';
+// LOD2/LOD3 モードに切り替えたときにエリアラベルを表示して位置から検索
+async function _initPlateauAutoMode(lod) {
+  _showPlateauAreaLabel();
+  _updatePlateauAreaLabel('取得中…');
+  // LOD が変わった場合はキャッシュを無効化して再検索
+  if (lod !== _plateauCurrentLod) {
+    _plateauCurrentCityCode = null;
+    _plateauCurrentLod      = null;
+  }
+  await _autoShowPlateauByPosition(lod);
 }
 
 let _deckOverlay = null; // deck.MapboxOverlay インスタンス（初回のみ生成）
@@ -5126,23 +5122,23 @@ async function updateBuildingLayer() {
   // 既存 MapLibre レイヤーを一旦削除
   if (map.getLayer('building-3d')) map.removeLayer('building-3d');
 
-  // PLATEAU LOD2/LOD3 API モード: 都市ピッカーを表示して deck.gl で描画
+  // PLATEAU LOD2/LOD3 API モード: 地図位置から自動取得して deck.gl で描画
   if (mode === 'plateau-lod2-api' || mode === 'plateau-lod3-api') {
     const lod = mode === 'plateau-lod2-api' ? 2 : 3;
-    await _showPlateauCityPicker(lod);
     if (!buildingOn) {
       _deckOverlay?.setProps({ layers: [] });
+      _hidePlateauAreaLabel();
+      updatePlateauAttribution();
     } else {
-      // 既に都市が選択済みなら再表示
-      const selCity = document.getElementById('sel-plateau-city');
-      if (selCity?.value) _applyDeckTile3D(selCity.value);
+      await _initPlateauAutoMode(lod);
     }
-    updatePlateauAttribution();
     return;
   }
 
-  // API モード以外: 都市ピッカーを非表示・deck.gl レイヤーをクリア
-  _hidePlateauCityPicker();
+  // API モード以外: エリアラベルを非表示・deck.gl レイヤーをクリア
+  _hidePlateauAreaLabel();
+  _plateauCurrentCityCode = null;
+  _plateauCurrentLod      = null;
   _deckOverlay?.setProps({ layers: [] });
 
   if (!buildingOn) { updatePlateauAttribution(); return; }
