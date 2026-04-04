@@ -4927,9 +4927,9 @@ async function _fetchPlateauDatasets() {
 }
 
 // 都道府県プルダウンを都市ピッカーに反映
-function _buildPlateauPrefOptions(datasets) {
+// prevPrefCode: 復元したい都道府県コード（LOD切り替え時に渡す）
+function _buildPlateauPrefOptions(datasets, prevPrefCode) {
   const selPref = document.getElementById('sel-plateau-pref');
-  const selCity = document.getElementById('sel-plateau-city');
   // 都道府県リストを重複除去（pref_code 順でソート）
   const prefs = [...new Map(datasets.map(d => [d.pref_code, { code: d.pref_code, name: d.pref }])).values()]
     .sort((a, b) => a.code.localeCompare(b.code));
@@ -4940,14 +4940,16 @@ function _buildPlateauPrefOptions(datasets) {
     opt.textContent = p.name;
     selPref.appendChild(opt);
   });
+  // 以前選択していた都道府県が新データセットにあれば復元
+  if (prevPrefCode && prefs.some(p => p.code === prevPrefCode)) {
+    selPref.value = prevPrefCode;
+  }
   selPref._csRefresh?.();
-  selCity.innerHTML = '<option value="">市区町村を選択</option>';
-  selCity.disabled = true;
-  selCity._csRefresh?.();
 }
 
 // 都道府県選択時に市区町村を絞り込む
-function _buildPlateauCityOptions(datasets, prefCode) {
+// prevCityCode: 復元したい city_code（LOD切り替え時に渡す）
+function _buildPlateauCityOptions(datasets, prefCode, prevCityCode) {
   const selCity = document.getElementById('sel-plateau-city');
   const cities = datasets
     .filter(d => d.pref_code === prefCode)
@@ -4956,11 +4958,17 @@ function _buildPlateauCityOptions(datasets, prefCode) {
   cities.forEach(d => {
     const opt = document.createElement('option');
     opt.value = d.url;
+    opt.dataset.cityCode = d.city_code ?? '';
     const label = d.ward ? `${d.city} ${d.ward}` : d.city;
     opt.textContent = `${label}（${d.year}年）`;
     selCity.appendChild(opt);
   });
   selCity.disabled = false;
+  // 以前選択していた city_code が新データセットにあれば復元
+  if (prevCityCode) {
+    const match = [...selCity.options].find(o => o.dataset.cityCode === prevCityCode);
+    if (match) selCity.value = match.value;
+  }
   selCity._csRefresh?.();
 }
 
@@ -4968,19 +4976,32 @@ function _buildPlateauCityOptions(datasets, prefCode) {
 async function _showPlateauCityPicker(lod) {
   const picker = document.getElementById('plateau-city-picker');
   picker.style.display = '';
+  const selPref = document.getElementById('sel-plateau-pref');
+  const selCity = document.getElementById('sel-plateau-city');
+
+  // LOD切り替え前の選択状態を保存
+  const prevPrefCode = selPref.value || null;
+  const prevCityCode = selCity.options[selCity.selectedIndex]?.dataset?.cityCode ?? null;
+
   try {
     const cache = await _fetchPlateauDatasets();
     const datasets = lod === 2 ? cache.lod2 : cache.lod3;
-    _buildPlateauPrefOptions(datasets);
+    _buildPlateauPrefOptions(datasets, prevPrefCode);
+    // 都道府県が復元できていれば市区町村も復元
+    if (selPref.value) {
+      _buildPlateauCityOptions(datasets, selPref.value, prevCityCode);
+    } else {
+      selCity.innerHTML = '<option value="">市区町村を選択</option>';
+      selCity.disabled = true;
+      selCity._csRefresh?.();
+    }
     // 都道府県セレクトのchangeハンドラーを付け替え
-    const selPref = document.getElementById('sel-plateau-pref');
     selPref.onchange = () => {
       if (!selPref.value) return;
-      const datasets2 = lod === 2 ? _plateauApiCache.lod2 : _plateauApiCache.lod3;
-      _buildPlateauCityOptions(datasets2, selPref.value);
+      const ds = lod === 2 ? _plateauApiCache.lod2 : _plateauApiCache.lod3;
+      _buildPlateauCityOptions(ds, selPref.value, null);
     };
     // 市区町村選択 → 即時表示
-    const selCity = document.getElementById('sel-plateau-city');
     selCity.onchange = () => {
       if (selCity.value && document.getElementById('building3d-card')?.classList.contains('active')) {
         if (map.getZoom() >= 16) {
@@ -4990,6 +5011,10 @@ async function _showPlateauCityPicker(lod) {
         }
       }
     };
+    // 都市が復元できていれば表示も継続
+    if (selCity.value && document.getElementById('building3d-card')?.classList.contains('active')) {
+      if (map.getZoom() >= 16) _applyDeckTile3D(selCity.value);
+    }
   } catch (e) {
     console.error('PLATEAU API 取得失敗:', e);
   }
