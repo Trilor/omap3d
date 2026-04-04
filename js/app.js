@@ -4230,7 +4230,7 @@ map.on('zoomend', () => {
   if (!document.getElementById('building3d-card')?.classList.contains('active')) return;
   const selCity = document.getElementById('sel-plateau-city');
   if (!selCity?.value) return;
-  if (map.getZoom() < 16) {
+  if (map.getZoom() < 15) {
     _deckOverlay?.setProps({ layers: [] });
   } else {
     // 既にレイヤーが存在する場合は再生成しない
@@ -5004,7 +5004,7 @@ async function _showPlateauCityPicker(lod) {
     // 市区町村選択 → 即時表示
     selCity.onchange = () => {
       if (selCity.value && document.getElementById('building3d-card')?.classList.contains('active')) {
-        if (map.getZoom() >= 16) {
+        if (map.getZoom() >= 15) {
           _applyDeckTile3D(selCity.value);
         } else {
           _deckOverlay?.setProps({ layers: [] });
@@ -5013,7 +5013,7 @@ async function _showPlateauCityPicker(lod) {
     };
     // 都市が復元できていれば表示も継続
     if (selCity.value && document.getElementById('building3d-card')?.classList.contains('active')) {
-      if (map.getZoom() >= 16) _applyDeckTile3D(selCity.value);
+      if (map.getZoom() >= 15) _applyDeckTile3D(selCity.value);
     }
   } catch (e) {
     console.error('PLATEAU API 取得失敗:', e);
@@ -5155,7 +5155,7 @@ async function updateBuildingLayer() {
     type: 'fill-extrusion',
     source: cfg.source,
     'source-layer': cfg.sourceLayer,
-    minzoom: 16,
+    minzoom: 15,
     paint: {
       'fill-extrusion-height':  cfg.height,
       'fill-extrusion-base':    cfg.base,
