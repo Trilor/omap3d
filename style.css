@@ -3249,6 +3249,11 @@ label.setting-label {
 .maplibregl-ctrl-attrib-inner {
   white-space: normal !important;
 }
+/* 展開時: ボタンをコンテナ右下に固定（コンテナが上に広がるため画面位置が変わらない） */
+.maplibregl-ctrl-attrib.maplibregl-compact-show .maplibregl-ctrl-attrib-button {
+  top: auto !important;
+  bottom: 0 !important;
+}
 
 /* 縮尺コントロール: 左下に配置（検索ボックスとの重なりを回避）
    出典が閉じているとき: (i) マークと同じ高さ（bottom: 10px）
