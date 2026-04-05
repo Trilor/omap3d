@@ -6091,6 +6091,97 @@ async function captureColorReliefThumb() {
 const btnColorReliefThumb = document.getElementById('btn-color-relief-thumb');
 if (btnColorReliefThumb) btnColorReliefThumb.addEventListener('click', captureColorReliefThumb);
 
+// ---- 開発者向け: 地図中央切り取り PNG 出力ツール ----
+(function () {
+  const overlay   = document.getElementById('dev-crop-overlay');
+  const svg       = document.getElementById('dev-crop-svg');
+  const toggleBtn = document.getElementById('dev-crop-frame-toggle');
+  if (!overlay || !svg || !toggleBtn) return;
+
+  let frameVisible = false;
+  let cropW = 256, cropH = 256; // 現在選択中の出力サイズ
+
+  // 枠の SVG を再描画する（ウィンドウリサイズ時も呼ぶ）
+  function _drawFrame() {
+    if (!frameVisible) return;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const cx = vw / 2, cy = vh / 2;
+    // 枠はDPR等を無視した「CSS px」での中央範囲
+    const fw = cropW, fh = cropH;
+    const x1 = cx - fw / 2, y1 = cy - fh / 2;
+    const x2 = cx + fw / 2, y2 = cy + fh / 2;
+    svg.innerHTML = `
+      <defs>
+        <mask id="dev-hole">
+          <rect width="100%" height="100%" fill="white"/>
+          <rect x="${x1}" y="${y1}" width="${fw}" height="${fh}" fill="black"/>
+        </mask>
+      </defs>
+      <rect width="100%" height="100%" fill="rgba(0,0,0,0.35)" mask="url(#dev-hole)"/>
+      <rect x="${x1}" y="${y1}" width="${fw}" height="${fh}"
+            fill="none" stroke="#ff3" stroke-width="1.5" stroke-dasharray="4 2"/>
+      <text x="${cx}" y="${y1 - 4}" fill="#ff3" font-size="11" text-anchor="middle"
+            font-family="monospace">${fw} × ${fh}</text>`;
+  }
+
+  // 枠表示切り替え
+  toggleBtn.addEventListener('click', () => {
+    frameVisible = !frameVisible;
+    overlay.style.display = frameVisible ? '' : 'none';
+    toggleBtn.textContent = frameVisible ? '非表示' : '表示';
+    toggleBtn.style.background = frameVisible ? '#333' : '#fff';
+    toggleBtn.style.color      = frameVisible ? '#ff3' : '';
+    if (frameVisible) _drawFrame();
+  });
+  window.addEventListener('resize', _drawFrame);
+
+  // 出力ボタン
+  document.querySelectorAll('.dev-crop-btn').forEach(btn => {
+    btn.style.cssText = 'padding:1px 7px;font-size:10px;border:1px solid #aaa;border-radius:3px;background:#fff;cursor:pointer';
+    btn.addEventListener('click', () => {
+      cropW = parseInt(btn.dataset.w, 10);
+      cropH = parseInt(btn.dataset.h, 10);
+      // ボタン選択状態を更新
+      document.querySelectorAll('.dev-crop-btn').forEach(b => {
+        b.style.background = b === btn ? '#333' : '#fff';
+        b.style.color      = b === btn ? '#fff' : '';
+      });
+      _drawFrame();
+      _exportCrop(cropW, cropH);
+    });
+  });
+
+  // 地図中央を cropW×cropH で切り取って PNG ダウンロード
+  function _exportCrop(outW, outH) {
+    map.once('idle', () => {
+      const canvas = map.getCanvas();
+      const dpr    = window.devicePixelRatio || 1;
+      // CSS px での地図キャンバスの中心
+      const cssCx  = canvas.offsetWidth  / 2;
+      const cssCy  = canvas.offsetHeight / 2;
+      // 物理ピクセルに変換
+      const px = Math.round((cssCx - outW / 2) * dpr);
+      const py = Math.round((cssCy - outH / 2) * dpr);
+      const pw = Math.round(outW * dpr);
+      const ph = Math.round(outH * dpr);
+
+      // 切り取り用 canvas に描画
+      const out = document.createElement('canvas');
+      out.width  = outW;
+      out.height = outH;
+      const ctx = out.getContext('2d');
+      ctx.drawImage(canvas, px, py, pw, ph, 0, 0, outW, outH);
+
+      const link = document.createElement('a');
+      link.download = `crop_${outW}x${outH}.png`;
+      link.href     = out.toDataURL('image/png');
+      link.click();
+    });
+    map.triggerRepaint();
+  }
+})();
+
 // ---- サムネイル生成関連ここまで ----
 
 // ---- サイドバーナビゲーション ----
