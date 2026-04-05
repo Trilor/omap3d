@@ -5061,9 +5061,12 @@ input[type=range].cr-range::-moz-range-thumb {
 .custom-select-wrap[data-select-id="speed-select"] { flex-shrink: 0; }
 
 /* ---- .scale-ctrl-select 専用: 地図コントロール外観をボタンに適用 ---- */
-.custom-select-wrap.scale-ctrl-select { height: var(--control-icon-btn-size); }
+.custom-select-wrap.scale-ctrl-select {
+  height: var(--control-icon-btn-size);
+  min-height: var(--control-icon-btn-size);
+}
 .custom-select-wrap.scale-ctrl-select > .cascade-btn {
-  height: 100%;
+  height: var(--control-icon-btn-size) !important;
   min-height: var(--control-icon-btn-size) !important;
   background-color: var(--control-bg);
   color: var(--control-text);
