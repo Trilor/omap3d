@@ -9400,8 +9400,13 @@ document.getElementById('import-decide-btn').addEventListener('click', () => {
     const bH = Math.round(Math.min(fH, ovH));
     pfTop.style.height    = t + 'px';
     pfBottom.style.height = t + 'px';
-    pfLeft.style.width    = l + 'px';
-    pfRight.style.width   = l + 'px';
+    // 左右マスクはフレームの上下端の範囲のみ（コーナーは top/bottom が担うため重複させない）
+    pfLeft.style.top    = t + 'px';
+    pfLeft.style.height = bH + 'px';
+    pfLeft.style.width  = l + 'px';
+    pfRight.style.top    = t + 'px';
+    pfRight.style.height = bH + 'px';
+    pfRight.style.width  = l + 'px';
     pfBox.style.left   = l + 'px';
     pfBox.style.top    = t + 'px';
     pfBox.style.width  = bW + 'px';

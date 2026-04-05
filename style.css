@@ -3657,8 +3657,8 @@ label.setting-label {
 }
 #pf-top    { top: 0; left: 0; right: 0; }
 #pf-bottom { bottom: 0; left: 0; right: 0; }
-#pf-left   { top: 0; bottom: 0; left: 0; }
-#pf-right  { top: 0; bottom: 0; right: 0; }
+#pf-left   { left: 0; }
+#pf-right  { right: 0; }
 #pf-box {
   position: absolute;
   outline: 2px solid rgba(255, 255, 255, 0.9);
