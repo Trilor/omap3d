@@ -2325,8 +2325,8 @@ label.setting-label {
 /* ===== 統合検索ボックス（常時表示・サイドバー幅に連動） ===== */
 #unified-search {
   position: absolute;
-  top: 10px;
-  left: calc(var(--sidebar-w, 296px) + 8px);
+  top: var(--control-edge-gap);
+  left: calc(var(--sidebar-w, 296px) + var(--control-edge-gap));
   z-index: 10;
   width: 270px;
 }
@@ -3232,7 +3232,11 @@ label.setting-label {
   bottom: var(--control-edge-gap) !important;
   z-index: 20 !important;
 }
-.maplibregl-ctrl-top-right,
+.maplibregl-ctrl-top-right {
+  top: var(--control-edge-gap) !important;
+  right: var(--control-edge-gap) !important;
+  z-index: 20 !important;
+}
 .maplibregl-ctrl-bottom-left {
   z-index: 20 !important;
 }
@@ -3308,7 +3312,7 @@ body.map-overlays-ready #custom-attrib-control {
 /* 縮尺コントロール: 左下に配置（検索ボックスとの重なりを回避） */
 #scale-ctrl-container {
   position: absolute;
-  left: calc(var(--sidebar-w, 296px) + 10px); /* 左パネル右端から10px */
+  left: calc(var(--sidebar-w, 296px) + var(--control-edge-gap));
   bottom: var(--control-edge-gap);
   z-index: 19;
   opacity: 0;
