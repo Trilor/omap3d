@@ -371,8 +371,10 @@ body {
 /* パネル閉じるボタン */
 .sidebar-close-btn {
   margin-left: auto;
-  width: 24px;
-  height: 24px;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  min-height: 32px;
   border: none;
   background: transparent;
   color: var(--text-muted);
@@ -384,11 +386,18 @@ body {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  transition: background var(--transition), color var(--transition);
+  transform: none !important;
+  transition: background var(--transition), color var(--transition), transform 0s;
+}
+.sidebar-close-btn svg {
+  width: 12px;
+  height: 12px;
+  pointer-events: none;
 }
 .sidebar-close-btn:hover {
   background: var(--primary-light);
   color: var(--primary);
+  transform: none !important;
 }
 
 /* ================================================================
@@ -1297,6 +1306,38 @@ body {
   width: 100%;
   aspect-ratio: 2 / 1;
 }
+/* OFF時: サムネイルをグレースケール＋半透明にして無効感を表現 */
+.layer-2col-row .bm-card:not(.active) .bm-card-img {
+  filter: grayscale(100%) opacity(55%);
+  transition: filter 0.2s;
+}
+.layer-2col-row .bm-card.active .bm-card-img {
+  filter: none;
+  transition: filter 0.2s;
+}
+
+/* ON時: ラベル左端にチェックマークを表示 */
+.layer-2col-row .bm-card-label::before {
+  content: '';
+  display: inline-block;
+  width: 10px;
+  margin-right: 3px;
+  flex-shrink: 0;
+}
+.layer-2col-row .bm-card.active .bm-card-label::before {
+  content: '✓';
+}
+
+/* OFF時: カード下プルダウンをグレーアウト */
+.layer-card-wrapper:has(.bm-card:not(.active)) .custom-select-wrap.layer-card-select > .cascade-btn {
+  opacity: 0.4;
+  pointer-events: none;
+  cursor: default;
+}
+.layer-card-wrapper:has(.bm-card:not(.active)) .plateau-area-label {
+  opacity: 0.4;
+}
+
 /* 非アクティブ時はベースマップカードと同じスタイル（border-subtleの枠線のみ） */
 /* PLATEAU 現在地域ラベル（LOD2/LOD3選択時にカード下に表示） */
 .plateau-area-label {
@@ -1305,9 +1346,9 @@ body {
   font-size: var(--font-xs);
   color: var(--text-sub);
   padding: 2px 4px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  line-height: 1.45;
+  word-break: break-word;
   text-align: left;
 }
 /* カード下セレクト（等高線・磁北線・3D地形・3D建物） */
