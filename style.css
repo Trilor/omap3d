@@ -1277,12 +1277,11 @@ body {
   background: color-mix(in srgb, var(--primary) 75%, transparent);
 }
 
-/* ---- レイヤートグルカード（等高線・磁北線）横並びレイアウト ---- */
-/* bm-row のflex/column を上書き: ベースマップと同じ4列グリッドを流用 */
-.setting-row.layer-pair-row {
+/* ---- レイヤートグルカード（等高線・磁北線 / 3D表示）横並びレイアウト ---- */
+/* 2列グリッド: パネル幅を2分割して各カードを配置 */
+.setting-row.layer-2col-row {
   display: grid;
-  /* minmax(0, 1fr): コンテンツ幅に引きずられず4列を常に均等固定 */
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 2px;
 }
 /* 各カードの列（カード＋プルダウン） */
@@ -1293,14 +1292,8 @@ body {
   gap: 2px;
   min-width: 0; /* グリッドセルからのはみ出しを防止 */
 }
-.layer-card-title {
-  font-size: var(--font-sm);
-  color: var(--text-main);
-  text-align: center;
-  white-space: nowrap;
-}
-/* カード: ベースマップと同じ正方形 */
-.layer-pair-row .bm-card {
+/* カード: 正方形（アスペクト比 1:1） */
+.layer-2col-row .bm-card {
   width: 100%;
   aspect-ratio: 1 / 1;
 }
