@@ -1292,10 +1292,10 @@ body {
   gap: 2px;
   min-width: 0; /* グリッドセルからのはみ出しを防止 */
 }
-/* カード: 正方形（アスペクト比 1:1） */
+/* カード: 横長（アスペクト比 2:1） */
 .layer-2col-row .bm-card {
   width: 100%;
-  aspect-ratio: 1 / 1;
+  aspect-ratio: 2 / 1;
 }
 /* 非アクティブ時はベースマップカードと同じスタイル（border-subtleの枠線のみ） */
 /* PLATEAU 現在地域ラベル（LOD2/LOD3選択時にカード下に表示） */
