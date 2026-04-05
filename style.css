@@ -3334,7 +3334,7 @@ body.map-overlays-ready #scale-ctrl-container {
   pointer-events: auto;
 }
 .scale-ctrl-select {
-  height: 29px;           /* 全画面ボタンと同じ高さ */
+  height: var(--control-icon-btn-size);
   box-sizing: border-box;
   padding: 0 var(--chevron-pad-r) 0 8px;
   /* 地図コントロール独自外観: 白地・影・ボーダーなしで select{} を上書き */
@@ -5061,10 +5061,10 @@ input[type=range].cr-range::-moz-range-thumb {
 .custom-select-wrap[data-select-id="speed-select"] { flex-shrink: 0; }
 
 /* ---- .scale-ctrl-select 専用: 地図コントロール外観をボタンに適用 ---- */
-.custom-select-wrap.scale-ctrl-select { height: 27px; }
+.custom-select-wrap.scale-ctrl-select { height: var(--control-icon-btn-size); }
 .custom-select-wrap.scale-ctrl-select > .cascade-btn {
   height: 100%;
-  min-height: 27px !important;
+  min-height: var(--control-icon-btn-size) !important;
   background-color: var(--control-bg);
   color: var(--control-text);
   border: var(--control-border);
