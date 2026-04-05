@@ -3291,11 +3291,10 @@ body.map-overlays-ready #custom-attrib-control {
   pointer-events: none;
 }
 #custom-attrib-panel {
-  position: absolute;
-  right: 0;
-  bottom: calc(var(--control-icon-btn-size) + var(--control-stack-gap));
-  min-width: 220px;
-  max-width: min(420px, calc(100vw - var(--sidebar-w, 296px) - 24px));
+  position: fixed;
+  left: calc(var(--sidebar-w, 0px) + var(--control-edge-gap));
+  right: var(--control-edge-gap);
+  bottom: calc(var(--control-icon-btn-size) + var(--control-edge-gap) + var(--control-stack-gap));
 }
 #custom-attrib-inner {
   white-space: normal;
@@ -3953,7 +3952,8 @@ body.map-overlays-ready #scale-ctrl-container {
     bottom: calc(54px + env(safe-area-inset-bottom, 0px) + var(--control-edge-gap));
   }
   #custom-attrib-panel {
-    max-width: min(420px, calc(100vw - 20px));
+    left: var(--control-edge-gap);
+    bottom: calc(54px + env(safe-area-inset-bottom, 0px) + var(--control-icon-btn-size) + var(--control-edge-gap) + var(--control-stack-gap));
   }
 }
 
