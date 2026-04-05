@@ -4908,7 +4908,9 @@ sliderCs.addEventListener('input', () => {
 // API: https://api.plateauview.mlit.go.jp/datacatalog/plateau-datasets?type=bldg&format=3dtiles
 // キャッシュしてセッション中の重複リクエストを防ぐ
 const PLATEAU_API_URL = 'https://api.plateauview.mlit.go.jp/datacatalog/plateau-datasets?type=bldg&format=3dtiles';
+const PLATEAU_GEOID_API_URL_2011 = 'https://vldb.gsi.go.jp/sokuchi/surveycalc/geoid/calcgh2011/cgi/geoidcalc.pl';
 let _plateauApiCache = null; // { lod2: [...], lod3: [...] } | null
+const _plateauGeoidCache = new Map(); // key: "lat,lng"（小数第3位丸め） -> geoidHeight(m)
 
 async function _fetchPlateauDatasets() {
   if (_plateauApiCache) return _plateauApiCache;
@@ -4928,14 +4930,15 @@ async function _fetchPlateauDatasets() {
 const GSI_REVERSE_URL = 'https://mreversegeocoder.gsi.go.jp/reverse-geocoder/LonLatToAddress';
 
 // 現在表示中の PLATEAU データ状態
-let _plateauCurrentCityCode = null; // 最後に表示した city_code
-let _plateauCurrentLod      = null; // 最後に表示した lod（2 or 3）
+let _plateauCurrentLod = null; // 最後に表示した lod（2 or 3）
+let _plateauCurrentDatasetSignature = ''; // 最後に表示した tileset 群の署名
+let _plateauCurrentGeoidSignature = ''; // 最後に適用したジオイド高署名
 let _plateauAutoTimer       = null; // moveend デバウンスタイマー
 
 // 地域ラベルを更新する
 function _updatePlateauAreaLabel(text) {
   const el = document.getElementById('plateau-area-label');
-  if (el) el.textContent = text || '—';
+  if (el) el.innerHTML = text || '—';
 }
 
 // PLATEAU エリアラベルの表示/非表示
@@ -4946,6 +4949,63 @@ function _showPlateauAreaLabel() {
 function _hidePlateauAreaLabel() {
   const el = document.getElementById('plateau-area-label');
   if (el) el.style.display = 'none';
+}
+
+function _getApproxJapaneseGeoidHeight(latDeg) {
+  return latDeg >= 41 ? 31
+    : latDeg >= 38 ? 35
+    : latDeg >= 34 ? 38
+    : 37;
+}
+
+function _getPlateauGeoidCacheKey(lng, lat) {
+  return `${lat.toFixed(3)},${lng.toFixed(3)}`;
+}
+
+function _extractGeoidHeightValue(payload) {
+  if (payload == null) return null;
+  if (Array.isArray(payload)) {
+    for (const value of payload) {
+      const found = _extractGeoidHeightValue(value);
+      if (Number.isFinite(found)) return found;
+    }
+    return null;
+  }
+  if (typeof payload === 'object') {
+    const direct = Number(payload.geoidHeight);
+    if (Number.isFinite(direct)) return direct;
+    for (const value of Object.values(payload)) {
+      const found = _extractGeoidHeightValue(value);
+      if (Number.isFinite(found)) return found;
+    }
+  }
+  return null;
+}
+
+async function _fetchPlateauGeoidHeight(lng, lat) {
+  const cacheKey = _getPlateauGeoidCacheKey(lng, lat);
+  if (_plateauGeoidCache.has(cacheKey)) return _plateauGeoidCache.get(cacheKey);
+
+  const params = new URLSearchParams({
+    outputType: 'json',
+    latitude: lat.toFixed(8),
+    longitude: lng.toFixed(8),
+  });
+  const res = await fetch(`${PLATEAU_GEOID_API_URL_2011}?${params.toString()}`);
+  if (!res.ok) throw new Error(`ジオイド高 API fetch failed: ${res.status}`);
+  const payload = await res.json();
+  const geoidHeight = _extractGeoidHeightValue(payload);
+  if (!Number.isFinite(geoidHeight)) {
+    throw new Error('ジオイド高 API の応答から geoidHeight を取得できませんでした');
+  }
+  _plateauGeoidCache.set(cacheKey, geoidHeight);
+  return geoidHeight;
+}
+
+function _resetPlateauDeckState() {
+  _plateauCurrentLod = null;
+  _plateauCurrentDatasetSignature = '';
+  _plateauCurrentGeoidSignature = '';
 }
 
 // 地図中心の市区町村コードを地理院逆ジオコーダーで取得
@@ -4960,58 +5020,108 @@ async function _reverseGeocode(lng, lat) {
   return result;
 }
 
+function _getPlateauGridSamplePoints() {
+  const bounds = map.getBounds();
+  const west = bounds.getWest();
+  const east = bounds.getEast();
+  const south = bounds.getSouth();
+  const north = bounds.getNorth();
+  const lngs = [west, (west + east) / 2, east];
+  const lats = [south, (south + north) / 2, north];
+  const points = [];
+  for (const lat of lats) {
+    for (const lng of lngs) {
+      points.push({ lng, lat });
+    }
+  }
+  return points;
+}
+
+function _findPlateauDatasetEntry(datasets, muniCd) {
+  return datasets.find(d => String(d.city_code) === muniCd)
+      ?? datasets.find(d => d.ward_code && String(d.ward_code) === muniCd)
+      ?? datasets.find(d => String(d.city_code) === muniCd.slice(0, 4) + '0' && !d.ward);
+}
+
+function _buildPlateauAreaSummary(entries) {
+  if (!entries.length) return '対象地域外';
+  const labels = entries.map(({ entry }) => `${entry.pref} ${entry.ward ? `${entry.city} ${entry.ward}` : entry.city}`);
+  return labels.join('<br>');
+}
+
 // 市区町村コード（5桁）でPLATEAUデータセットを検索して表示
 async function _autoShowPlateauByPosition(lod) {
   if (!document.getElementById('building3d-card')?.classList.contains('active')) return;
   if (map.getZoom() < 15) {
     _deckOverlay?.setProps({ layers: [] });
+    _resetPlateauDeckState();
     _updatePlateauAreaLabel('ズーム15以上で表示');
     return;
   }
-  const center = map.getCenter();
-
   try {
-    // ① 逆ジオコーディング
-    const geo = await _reverseGeocode(center.lng, center.lat);
-    if (!geo?.muniCd) {
-      _updatePlateauAreaLabel('対象地域外');
-      return;
-    }
-    const muniCd = String(geo.muniCd).padStart(5, '0');
-
-    // 同じ市区町村・LODなら再ロード不要
-    if (muniCd === _plateauCurrentCityCode && lod === _plateauCurrentLod) return;
-
-    // ② PLATEAU データ取得
+    const samplePoints = _getPlateauGridSamplePoints();
     const cache = await _fetchPlateauDatasets();
     const datasets = lod === 2 ? cache.lod2 : cache.lod3;
 
-    // ③ city_code / ward_code マッチング
-    // 優先順位:
-    //   1. city_code が完全一致（市単位データ）
-    //   2. ward_code が完全一致（政令市の区単位データ、例: 京都市左京区）
-    //   3. city_code が市コード（区コード末尾を0）と一致かつ ward なし（市単位フォールバック）
-    const entry = datasets.find(d => String(d.city_code) === muniCd)
-               ?? datasets.find(d => d.ward_code && String(d.ward_code) === muniCd)
-               ?? datasets.find(d => String(d.city_code) === muniCd.slice(0, 4) + '0' && !d.ward);
-
-    if (!entry) {
-      if (_plateauCurrentCityCode !== null) {
-        _deckOverlay?.setProps({ layers: [] });
-        _plateauCurrentCityCode = null;
-        _plateauCurrentLod      = null;
+    // ① 9点を並列で逆ジオコーディング
+    const reverseResults = await Promise.all(samplePoints.map(async (point) => {
+      const geo = await _reverseGeocode(point.lng, point.lat);
+      if (!geo?.muniCd) return null;
+      const muniCd = String(geo.muniCd).padStart(5, '0');
+      const entry = _findPlateauDatasetEntry(datasets, muniCd);
+      if (!entry) return null;
+      let geoidHeight;
+      try {
+        geoidHeight = await _fetchPlateauGeoidHeight(point.lng, point.lat);
+      } catch (geoidError) {
+        geoidHeight = _getApproxJapaneseGeoidHeight(point.lat);
+        console.warn('PLATEAU ジオイド高 API 取得失敗。概算値で補正します:', geoidError);
       }
+      return { point, muniCd, entry, geoidHeight };
+    }));
+
+    const grouped = new Map();
+    for (const result of reverseResults) {
+      if (!result) continue;
+      const key = result.entry.url;
+      if (!grouped.has(key)) {
+        grouped.set(key, { entry: result.entry, muniCodes: new Set(), geoidHeights: [] });
+      }
+      const item = grouped.get(key);
+      item.muniCodes.add(result.muniCd);
+      item.geoidHeights.push(result.geoidHeight);
+    }
+
+    const matchedEntries = Array.from(grouped.values()).map((item) => ({
+      entry: item.entry,
+      muniCodes: Array.from(item.muniCodes).sort(),
+      geoidHeight: item.geoidHeights.reduce((sum, value) => sum + value, 0) / item.geoidHeights.length,
+    })).sort((a, b) => a.entry.url.localeCompare(b.entry.url));
+
+    if (!matchedEntries.length) {
+      _deckOverlay?.setProps({ layers: [] });
+      _resetPlateauDeckState();
       _updatePlateauAreaLabel(`データなし（LOD${lod}）`);
       updatePlateauAttribution();
       return;
     }
 
-    // ④ Tile3DLayer 表示
-    _plateauCurrentCityCode = muniCd;
-    _plateauCurrentLod      = lod;
-    const label = entry.ward ? `${entry.city} ${entry.ward}` : entry.city;
-    _updatePlateauAreaLabel(`${entry.pref} ${label}`);
-    await _applyDeckTile3D(entry.url);
+    const datasetSignature = matchedEntries.map(({ entry, muniCodes }) => `${entry.url}|${muniCodes.join(',')}`).join('||');
+    const geoidSignature = matchedEntries.map(({ entry, geoidHeight }) => `${entry.url}|${geoidHeight.toFixed(2)}`).join('||');
+
+    if (lod === _plateauCurrentLod
+      && datasetSignature === _plateauCurrentDatasetSignature
+      && geoidSignature === _plateauCurrentGeoidSignature) {
+      _updatePlateauAreaLabel(_buildPlateauAreaSummary(matchedEntries));
+      return;
+    }
+
+    // ② 必要な tileset 群をまとめて表示
+    _plateauCurrentLod = lod;
+    _plateauCurrentDatasetSignature = datasetSignature;
+    _plateauCurrentGeoidSignature = geoidSignature;
+    _updatePlateauAreaLabel(_buildPlateauAreaSummary(matchedEntries));
+    await _applyDeckTile3D(matchedEntries);
     updatePlateauAttribution();
 
   } catch (e) {
@@ -5026,8 +5136,7 @@ async function _initPlateauAutoMode(lod) {
   _updatePlateauAreaLabel('取得中…');
   // LOD が変わった場合はキャッシュを無効化して再検索
   if (lod !== _plateauCurrentLod) {
-    _plateauCurrentCityCode = null;
-    _plateauCurrentLod      = null;
+    _resetPlateauDeckState();
   }
   await _autoShowPlateauByPosition(lod);
 }
@@ -5060,8 +5169,8 @@ function _initDeckOverlay() {
 
 // 指定 tileset.json URL の PLATEAU 3D Tiles を deck.gl で表示する汎用関数
 // （LOD2・LOD3 共用。visible=false で非表示）
-async function _applyDeckTile3D(tilesetUrl) {
-  if (!tilesetUrl) {
+async function _applyDeckTile3D(tilesetEntries) {
+  if (!tilesetEntries?.length) {
     _deckOverlay?.setProps({ layers: [] });
     return;
   }
@@ -5069,11 +5178,11 @@ async function _applyDeckTile3D(tilesetUrl) {
   try {
     await _loadDeckGl();
     _initDeckOverlay();
+    let remainingTilesets = tilesetEntries.length;
     _deckOverlay.setProps({
-      layers: [
-        new deck.Tile3DLayer({
-          id: 'plateau-lod',
-          data: tilesetUrl,
+      layers: tilesetEntries.map(({ entry, geoidHeight }, index) => new deck.Tile3DLayer({
+          id: `plateau-lod-${index}`,
+          data: entry.url,
           loader: window.loaders?.Tiles3DLoader,
           opacity: 0.8,
           pointSize: 1,
@@ -5081,30 +5190,25 @@ async function _applyDeckTile3D(tilesetUrl) {
           _subLayerProps: {
             scenegraph: { _lighting: 'flat' },
           },
-          // PLATEAU は楕円体高(WGS84)で記録されているため地形（ジオイド高ベース）とずれる
-          // onTileLoad でタイル中心の terrain 標高との差分を補正する
           onTilesetLoad: (tileset) => {
             const waitUntilLoaded = () => {
-              if (tileset.isLoaded) { hideMapLoading(); return; }
+              if (tileset.isLoaded) {
+                remainingTilesets -= 1;
+                if (remainingTilesets <= 0) hideMapLoading();
+                return;
+              }
               requestAnimationFrame(waitUntilLoaded);
             };
             requestAnimationFrame(waitUntilLoaded);
           },
+          // PLATEAU は楕円体高で、地形は標高ベースのためジオイド高分だけ下げる
           onTileLoad: (tile) => {
-            if (!tile.content?.cartographicOrigin) return;
-            const o = tile.content.cartographicOrigin;
-            // タイル中心の経緯度で MapLibre terrain の標高を取得
-            const lngDeg = o[0] * (180 / Math.PI);
-            const latDeg = o[1] * (180 / Math.PI);
-            const terrainEle = map.queryTerrainElevation([lngDeg, latDeg]) ?? 0;
-            // 楕円体高とジオイド高の差 ≒ ジオイド高（EGM96）
-            // 日本周辺は概ね 30〜50m。terrain の標高と楕円体高の差を補正値とする
-            // cartographicOrigin の z はラジアン球面上の高さではなくメートル単位の楕円体高
-            const geoidOffset = o[2] - terrainEle;
-            tile.content.cartographicOrigin = new Float64Array([o[0], o[1], o[2] - geoidOffset]);
+            if (tile.content?.cartographicOrigin) {
+              const o = tile.content.cartographicOrigin;
+              tile.content.cartographicOrigin = new Float64Array([o[0], o[1], o[2] - geoidHeight]);
+            }
           },
-        }),
-      ],
+        })),
     });
   } catch (e) {
     hideMapLoading();
@@ -5146,6 +5250,7 @@ async function updateBuildingLayer() {
     const lod = mode === 'plateau-lod2-api' ? 2 : 3;
     if (!buildingOn) {
       _deckOverlay?.setProps({ layers: [] });
+      _resetPlateauDeckState();
       _hidePlateauAreaLabel();
       updatePlateauAttribution();
     } else {
@@ -5156,8 +5261,7 @@ async function updateBuildingLayer() {
 
   // API モード以外: エリアラベルを非表示・deck.gl レイヤーをクリア
   _hidePlateauAreaLabel();
-  _plateauCurrentCityCode = null;
-  _plateauCurrentLod      = null;
+  _resetPlateauDeckState();
   _deckOverlay?.setProps({ layers: [] });
 
   if (!buildingOn) { updatePlateauAttribution(); return; }
