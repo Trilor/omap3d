@@ -3226,14 +3226,8 @@ label.setting-label {
 }
 
 /* 地図コントロール群 */
-.maplibregl-ctrl-bottom-right {
-  right: var(--control-edge-gap) !important;
-  bottom: var(--control-edge-gap) !important;
-  z-index: 20 !important;
-}
+.maplibregl-ctrl-bottom-right,
 .maplibregl-ctrl-top-right {
-  top: var(--control-edge-gap) !important;
-  right: var(--control-edge-gap) !important;
   z-index: 20 !important;
 }
 .maplibregl-ctrl-bottom-left {

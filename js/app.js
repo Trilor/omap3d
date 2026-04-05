@@ -6004,17 +6004,22 @@ function downloadDataUrl(dataUrl, filename) {
 let _sidebarCurrentPanel = 'sim';
 let _sidebarOpen = true;
 
-// サイドバー幅をCSS変数に反映（検索ボックス・出典の左位置が連動する）
+// サイドバー幅をCSS変数に反映し、MapLibreコントロールの位置を統一する
 function updateSidebarWidth() {
-  // モバイルではサイドバーは下部に配置するため幅は 0
-  if (window.matchMedia('(max-width: 768px)').matches) {
-    document.documentElement.style.setProperty('--sidebar-w', '0px');
-    return;
-  }
+  const mobile = window.matchMedia('(max-width: 768px)').matches;
   const sidebar = document.getElementById('sidebar');
-  const w = sidebar ? sidebar.offsetWidth : 296;
+  const w = (!mobile && sidebar) ? sidebar.offsetWidth : 0;
   document.documentElement.style.setProperty('--sidebar-w', w + 'px');
+
+  // MapLibre がインラインスタイルで top/right/bottom を固定するため直接上書き
+  const gap = getComputedStyle(document.documentElement).getPropertyValue('--control-edge-gap').trim();
+  const topRight = document.querySelector('.maplibregl-ctrl-top-right');
+  if (topRight) { topRight.style.top = gap; topRight.style.right = gap; }
+  const bottomRight = document.querySelector('.maplibregl-ctrl-bottom-right');
+  if (bottomRight) { bottomRight.style.bottom = gap; bottomRight.style.right = gap; }
 }
+window.addEventListener('resize', updateSidebarWidth);
+updateSidebarWidth();
 
 document.querySelectorAll('.sidebar-nav-btn').forEach(btn => {
   btn.addEventListener('click', () => {
