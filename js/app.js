@@ -5001,10 +5001,10 @@ async function _autoShowPlateauByPosition(lod) {
 
   // ③ city_code マッチング
   // PLATEAU API の city_code は 5 桁文字列（例 "13101"）
-  // 区がある政令市では muniCd が区コード（例 "01101"）になる場合がある
+  // 政令指定都市の区コードは下1桁が 1-9（例 "01101" = 札幌市中央区）
+  // PLATEAU が市単位のデータしか持たない場合は下1桁を0にした市コード（例 "01100"）で照合
   let entry = datasets.find(d => String(d.city_code) === muniCd)
-            // 政令市の ward がない場合: muniCd の先頭 4 桁で照合
-            ?? datasets.find(d => muniCd.startsWith(String(d.city_code).slice(0, 4)));
+            ?? datasets.find(d => String(d.city_code) === muniCd.slice(0, 4) + '0');
 
   if (!entry) {
     if (_plateauCurrentCityCode !== null) {
