@@ -134,72 +134,42 @@ const map = new maplibregl.Map({
   hash: true,
 });
 
-const STATIC_ATTRIBUTION_HTML =
-  '<a href="https://www.geospatial.jp/ckan/dataset/qchizu_94dem_99gsi" target="_blank" rel="noopener">Q地図1mDEM</a>' +
-  '/<a href="https://maps.gsi.go.jp/development/ichiran.html#dem" target="_blank" rel="noopener">地理院DEM5A</a>' +
-  '/<a href="https://maps.gsi.go.jp/development/ichiran.html#dem" target="_blank" rel="noopener">地理院DEM10B</a>' +
-  'を加工して作成 | ' +
-  '<a href="https://www.ngdc.noaa.gov/geomag/WMM/" target="_blank" rel="noopener">WMM/NOAA</a>' +
-  'を加工して作成';
+// 出典表示（customAttribution で固定表示、都道府県別CS出典は updateRegionalAttribution で追記）
+map.addControl(new maplibregl.AttributionControl({
+  compact: true,
+  customAttribution:
+    '<a href="https://www.geospatial.jp/ckan/dataset/qchizu_94dem_99gsi" target="_blank" rel="noopener">Q地図1mDEM</a>' +
+    '/<a href="https://maps.gsi.go.jp/development/ichiran.html#dem" target="_blank" rel="noopener">地理院DEM5A</a>' +
+    '/<a href="https://maps.gsi.go.jp/development/ichiran.html#dem" target="_blank" rel="noopener">地理院DEM10B</a>' +
+    'を加工して作成 | ' +
+    '<a href="https://www.ngdc.noaa.gov/geomag/WMM/" target="_blank" rel="noopener">WMM/NOAA</a>' +
+    'を加工して作成',
+}), 'bottom-right');
 
-function getCustomAttributionInner() {
-  return document.getElementById('custom-attrib-inner');
+// 出典パネルの開閉に応じて縮尺コントロールを移動（重なり防止）
+// MutationObserver: compact-show クラスの変化（開閉）を検知して .above-attrib を付与
+// ResizeObserver  : 出典の高さ変化（テキスト量・折り返し）を常時追従して --attrib-h を更新
+{
+  requestAnimationFrame(() => {
+    const attribEl = document.querySelector('.maplibregl-ctrl-attrib');
+    const scaleEl  = document.getElementById('scale-ctrl-container');
+    if (!attribEl || !scaleEl) return;
+
+    const updateHeight = () => {
+      document.documentElement.style.setProperty(
+        '--attrib-h', attribEl.getBoundingClientRect().height + 'px'
+      );
+    };
+
+    new MutationObserver(() => {
+      const open = attribEl.classList.contains('maplibregl-compact-show');
+      scaleEl.classList.toggle('above-attrib', open);
+    }).observe(attribEl, { attributes: true, attributeFilter: ['class'] });
+
+    new ResizeObserver(updateHeight).observe(attribEl);
+    updateHeight();
+  });
 }
-
-class CustomAttributionControl {
-  onAdd() {
-    // ボタン
-    this._toggle = document.createElement('button');
-    this._toggle.type = 'button';
-    this._toggle.id = 'custom-attrib-toggle';
-    this._toggle.setAttribute('aria-label', '出典を表示');
-    this._toggle.setAttribute('aria-expanded', 'false');
-    this._toggle.innerHTML = `<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false" width="14" height="14">
-      <circle cx="8" cy="8" r="5.25" fill="none" stroke="currentColor" stroke-width="1.5"/>
-      <circle cx="8" cy="4.6" r="0.9" fill="currentColor" stroke="none"/>
-      <path d="M8 7v4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-    </svg>`;
-
-    // 出典パネル（body直下に固定配置）
-    this._panel = document.createElement('div');
-    this._panel.id = 'custom-attrib-panel';
-    this._panel.hidden = true;
-    this._inner = document.createElement('div');
-    this._inner.id = 'custom-attrib-inner';
-    this._panel.appendChild(this._inner);
-    document.body.appendChild(this._panel);
-
-    // MapLibreコントロールのwrapperに入れる
-    this._container = document.createElement('div');
-    this._container.className = 'maplibregl-ctrl maplibregl-ctrl-group';
-    this._container.setAttribute('aria-live', 'polite');
-    this._container.appendChild(this._toggle);
-
-    this._toggle.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      this._setOpen(this._panel.hidden);
-    });
-    this._container.addEventListener('click', (e) => e.stopPropagation());
-    map.on('click', () => { if (!this._panel.hidden) this._setOpen(false); });
-
-    document.body.classList.add('map-overlays-ready');
-    return this._container;
-  }
-
-  _setOpen(open) {
-    this._panel.hidden = !open;
-    this._toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-  }
-
-  onRemove() {
-    this._container.remove();
-    this._panel.remove();
-  }
-}
-
-const _customAttribControl = new CustomAttributionControl();
-map.addControl(_customAttribControl, 'bottom-right');
 
 /*
   ========================================================
@@ -741,10 +711,14 @@ map.on('load', async () => {
   // 起動時は zoom イベントが発火しないため、load 完了後に一度だけ初期化する
   updateContourAutoInterval();
 
-  // 初期出典を custom attribution パネルへ反映
-  updateBasemapAttribution();
-  updateRegionalAttribution();
-  updatePlateauAttribution();
+  // 初期ベースマップ（OriLibre）の出典を表示
+  // MapLibreはsource追加のたびに .maplibregl-ctrl-attrib-inner を書き換えるため
+  // MutationObserver で監視し、書き換えられるたびに先頭スパンを再挿入する
+  (function retryInitAttr(attempts) {
+    if (!initAttributionObserver() && attempts > 0) {
+      setTimeout(() => retryInitAttr(attempts - 1), 300);
+    }
+  })(15);
 
   // ④ Globe投影（ズーム7以下で地球が球体に見える広域表示）
   // MapLibre v5 以降で利用可能。高ズームではメルカトルに自動移行する。
@@ -3985,29 +3959,48 @@ function updateMagneticNorth() {
 // 要素を lazy に取得し、ビューポートと bounds が重なる都道府県のみ出典を表示する。
 // map.on('load') の外で定義することで chkCs ハンドラーからも呼び出せる。
 let _lastAttrKey = null; // bounds+zoom のキャッシュ（変化がなければ更新をスキップ）
-
-function ensureAttributionSection(id) {
-  const attrInner = getCustomAttributionInner();
-  if (!attrInner) return null;
-  let attrEl = document.getElementById(id);
-  if (!attrEl) {
-    attrEl = document.createElement('span');
-    attrEl.id = id;
-    attrInner.appendChild(attrEl);
-  }
-  return attrEl;
-}
+let _attrObserver = null;
 
 function updateBasemapAttribution() {
-  const attrEl = ensureAttributionSection('basemap-attr');
-  if (!attrEl) return;
+  const attrInner = document.querySelector('.maplibregl-ctrl-attrib-inner');
+  if (!attrInner) return;
+  let attrEl = document.getElementById('basemap-attr');
+  if (!attrEl) {
+    attrEl = document.createElement('span');
+    attrEl.id = 'basemap-attr';
+    attrInner.insertBefore(attrEl, attrInner.firstChild);
+  } else if (attrEl.parentNode !== attrInner) {
+    attrInner.insertBefore(attrEl, attrInner.firstChild);
+  }
   const attr = BASEMAPS[currentBasemap]?.attr;
-  attrEl.innerHTML = [attr, STATIC_ATTRIBUTION_HTML].filter(Boolean).join(' | ');
+  attrEl.innerHTML = attr ? attr + ' | ' : '';
+}
+
+function initAttributionObserver() {
+  const attrInner = document.querySelector('.maplibregl-ctrl-attrib-inner');
+  if (!attrInner) return false;
+  if (_attrObserver) _attrObserver.disconnect();
+  _attrObserver = new MutationObserver(() => {
+    _attrObserver.disconnect();
+    updateBasemapAttribution();
+    updatePlateauAttribution();
+    _attrObserver.observe(attrInner, { childList: true, subtree: true });
+  });
+  _attrObserver.observe(attrInner, { childList: true, subtree: true });
+  updateBasemapAttribution();
+  updatePlateauAttribution();
+  return true;
 }
 
 function updateRegionalAttribution() {
-  const attrEl = ensureAttributionSection('regional-cs-attr');
-  if (!attrEl) return;
+  let attrEl = document.getElementById('regional-cs-attr');
+  if (!attrEl) {
+    const attrInner = document.querySelector('.maplibregl-ctrl-attrib-inner');
+    if (!attrInner) return;
+    attrEl = document.createElement('span');
+    attrEl.id = 'regional-cs-attr';
+    attrInner.appendChild(attrEl);
+  }
   const _csOverlay  = currentOverlay;
   const _csBasemap  = currentBasemap;
   const _csKey      = _csOverlay !== 'none' ? _csOverlay : _csBasemap;
@@ -4033,15 +4026,21 @@ function updateRegionalAttribution() {
     )
     .map(l => l.attribution)
     .join(' | ');
-  attrEl.innerHTML = html || '';
+  attrEl.innerHTML = html ? ' | ' + html : '';
 }
 
 function updatePlateauAttribution() {
-  const attrEl = ensureAttributionSection('plateau-attr');
-  if (!attrEl) return;
+  let attrEl = document.getElementById('plateau-attr');
+  if (!attrEl) {
+    const attrInner = document.querySelector('.maplibregl-ctrl-attrib-inner');
+    if (!attrInner) return;
+    attrEl = document.createElement('span');
+    attrEl.id = 'plateau-attr';
+    attrInner.appendChild(attrEl);
+  }
   const buildingOn = document.getElementById('building3d-card')?.classList.contains('active') ?? false;
   const mode       = document.getElementById('sel-building')?.value ?? 'plateau';
-  const plateauLink = '<a href="https://www.mlit.go.jp/plateau/open-data/" target="_blank">国土交通省3D都市モデルPLATEAU</a>';
+  const plateauLink = ' | <a href="https://www.mlit.go.jp/plateau/open-data/" target="_blank">国土交通省3D都市モデルPLATEAU</a>';
   const areaLabel = document.getElementById('plateau-area-label')?.textContent ?? '';
   attrEl.innerHTML = !buildingOn ? ''
     : mode === 'plateau'          ? plateauLink + '（<a href="https://github.com/shiwaku/mlit-plateau-bldg-pmtiles" target="_blank">shiwaku</a>加工）'
@@ -6004,19 +6003,12 @@ function downloadDataUrl(dataUrl, filename) {
 let _sidebarCurrentPanel = 'sim';
 let _sidebarOpen = true;
 
-// サイドバー幅をCSS変数に反映し、MapLibreコントロールの位置を統一する
+// サイドバー幅をCSS変数に反映（検索ボックス・縮尺の左位置が連動する）
 function updateSidebarWidth() {
   const mobile = window.matchMedia('(max-width: 768px)').matches;
   const sidebar = document.getElementById('sidebar');
   const w = (!mobile && sidebar) ? sidebar.offsetWidth : 0;
   document.documentElement.style.setProperty('--sidebar-w', w + 'px');
-
-  // MapLibre がインラインスタイルで top/right/bottom を固定するため直接上書き
-  const gap = getComputedStyle(document.documentElement).getPropertyValue('--control-edge-gap').trim();
-  const topRight = document.querySelector('.maplibregl-ctrl-top-right');
-  if (topRight) { topRight.style.top = gap; topRight.style.right = gap; }
-  const bottomRight = document.querySelector('.maplibregl-ctrl-bottom-right');
-  if (bottomRight) { bottomRight.style.bottom = gap; bottomRight.style.right = gap; }
 }
 window.addEventListener('resize', updateSidebarWidth);
 updateSidebarWidth();
