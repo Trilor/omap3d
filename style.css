@@ -1358,31 +1358,6 @@ body {
   white-space: nowrap;
 }
 
-.bm-thumb-actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
-  margin-top: 2px;
-}
-.bm-thumb-btn {
-  border: 1px solid var(--border-input);
-  background: var(--bg-subtle);
-  color: var(--text-main);
-  border-radius: 4px;
-  padding: 3px 8px;
-  font-size: var(--font-xs);
-  cursor: pointer;
-  white-space: nowrap;
-  transition: background 0.12s, border-color 0.12s, color 0.12s;
-}
-.bm-thumb-btn:hover { background: var(--bg-select); border-color: var(--border-weak); }
-.bm-thumb-btn:disabled { opacity: 0.6; cursor: default; }
-.bm-thumb-note {
-  font-size: var(--font-xs);
-  color: var(--text-muted);
-  line-height: 1.2;
-}
 
 /* ================================================================
    共通スライダー (.ui-slider)
@@ -5193,9 +5168,6 @@ h1, h2, h3, h4,
 .sim-speed-chip {
   border-radius: 9999px !important;
   font-weight: 600;
-}
-.bm-thumb-btn {
-  border-radius: 8px !important;
 }
 
 /* ---- タイムラインパネル ---- */
