@@ -3236,6 +3236,7 @@ label.setting-label {
 .maplibregl-ctrl-bottom-left {
   z-index: 20 !important;
 }
+/* コントロールボタン共通レイアウト */
 .maplibregl-ctrl-group button,
 #custom-attrib-toggle {
   width: var(--control-icon-btn-size);
@@ -3248,12 +3249,15 @@ label.setting-label {
   appearance: none !important;
   -webkit-appearance: none !important;
   outline: none !important;
-  box-shadow: none !important;
-  background-image: none !important;
   background: var(--control-bg);
   color: var(--control-text);
-  border: 0;
   cursor: pointer;
+}
+/* group ボタンは wrapper が border/shadow を持つためリセット */
+.maplibregl-ctrl-group button {
+  border: 0;
+  box-shadow: none !important;
+  background-image: none !important;
 }
 
 /* 独自の出典コントロール */
@@ -3271,15 +3275,14 @@ body.map-overlays-ready #custom-attrib-control {
   pointer-events: auto;
 }
 #custom-attrib-toggle {
-  border: var(--control-border) !important;
-  border-radius: var(--control-radius) !important;
-  box-shadow: var(--control-shadow) !important;
-  background: var(--control-bg) !important;
+  border: var(--control-border);
+  border-radius: var(--control-radius);
+  box-shadow: var(--control-shadow);
   overflow: hidden;
 }
 #custom-attrib-toggle:hover {
-  background: var(--control-hover-bg) !important;
-  color: var(--control-text-hover) !important;
+  background: var(--control-hover-bg);
+  color: var(--control-text-hover);
 }
 #custom-attrib-toggle svg {
   width: 14px;
