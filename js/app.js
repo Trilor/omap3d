@@ -5824,7 +5824,7 @@ const selMagneticModel    = document.getElementById('sel-magnetic-model');
 const selMagneticColor    = document.getElementById('sel-magnetic-color');
 
 function getMagneticLineColor() {
-  return (selMagneticColor?.value ?? 'blue') === 'black'
+  return (selMagneticColor?.value ?? 'black') === 'black'
     ? '#000000'
     : '#00ffff';
 }
@@ -5869,6 +5869,12 @@ function handleMagneticColorChange() {
   applyMagneticLineColor();
   applyMagneticLineColor(pcSimState.readMap);
   applyMagneticLineColor(importState.previewMap, 'prev-magnetic-north-layer');
+  updateMagneticNorth();
+  requestAnimationFrame(() => {
+    applyMagneticLineColor();
+    applyMagneticLineColor(pcSimState.readMap);
+    applyMagneticLineColor(importState.previewMap, 'prev-magnetic-north-layer');
+  });
 }
 
 selMagneticColor.addEventListener('input', handleMagneticColorChange);
