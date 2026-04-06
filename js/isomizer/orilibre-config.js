@@ -556,43 +556,45 @@ export const SYMBOL_PALETTE = {
 };
 
 // ===== color-palette.yml =====
-export const COLOR_PALETTE = {
+
+// ---- hexセット（スクリーン向け調整済み、旧来の動作を維持） ----
+export const COLOR_PALETTE_HEX = {
   "color-palette": [
     {
       lower: [
-        { background:                        { hex: "#9BBB1D" } },
-        { yellow_green:                      { hex: "#9BBB1D" } },
-        { white:                             { hex: "#FFFFFF" } },
+        { background:                           { hex: "#9BBB1D" } },
+        { yellow_green:                         { hex: "#9BBB1D" } },
+        { white:                                { hex: "#FFFFFF" } },
         { "placeholder_boulder-field-pattern":  {} },
-        { "green_30%":                       { hex: "#C5FFC4" } },
-        { "green_60%":                       { hex: "#8AFF74" } },
-        { "green_100%":                      { hex: "#3FFF17" } },
-        { "yellow_50%":                      { hex: "#FFDD9A" } },
+        { "green_30%":                          { hex: "#C5FFC4" } },
+        { "green_60%":                          { hex: "#8AFF74" } },
+        { "green_100%":                         { hex: "#3FFF17" } },
+        { "yellow_50%":                         { hex: "#FFDD9A" } },
         { "placeholder_sandy-ground-pattern":   {} },
-        { yellow:                            { hex: "#FFBA35" } },
+        { yellow:                               { hex: "#FFBA35" } },
         { "placeholder_cultivated-land-pattern": {} },
         { "placeholder_orchard-pattern":        {} },
       ],
     },
     {
       upper: [
-        { brown:                { hex: "#D25C00" } },
-        { green:                { hex: "#3FFF17" } },
-        { black_water_boundary: { hex: "#000000" } },
-        { "blue_50%":           { hex: "#4DFFFF" } },
-        { blue:                 { hex: "#00FFFF" } },
+        { brown:                  { hex: "#D25C00" } },
+        { green:                  { hex: "#3FFF17" } },
+        { black_water_boundary:   { hex: "#000000" } },
+        { "blue_50%":             { hex: "#4DFFFF" } },
+        { blue:                   { hex: "#00FFFF" } },
         { "placeholder_marsh-pattern": {} },
-        { black_casing:         { hex: "#000000" } },
-        { black_footpath:       { hex: "#000000" } },
-        { "brown_50%":          { hex: "#E8AD80" } },
-        { "black_25%":          { hex: "#BFBFBF" } },
-        { "black_20%":          { hex: "#CCCCCC" } },
-        { black:                { hex: "#000000" } },
-        { black_stairway:       { hex: "#595959" } },
-        { white_stairway:       { hex: "#FFFFFF" } },
-        { "black_65%":              { hex: "#595959" } },
-        { white:                    { hex: "#FFFFFF" } },
-        { black_building_outline:   { hex: "#000000" } },
+        { black_casing:           { hex: "#000000" } },
+        { black_footpath:         { hex: "#000000" } },
+        { "brown_50%":            { hex: "#E8AD80" } },
+        { "black_25%":            { hex: "#BFBFBF" } },
+        { "black_20%":            { hex: "#CCCCCC" } },
+        { black:                  { hex: "#000000" } },
+        { black_stairway:         { hex: "#595959" } },
+        { white_stairway:         { hex: "#FFFFFF" } },
+        { "black_65%":            { hex: "#595959" } },
+        { white:                  { hex: "#FFFFFF" } },
+        { black_building_outline: { hex: "#000000" } },
       ],
     },
     {
@@ -603,6 +605,87 @@ export const COLOR_PALETTE = {
     },
   ],
 };
+
+// ---- IOF規格準拠セット（CMYK値を直接定義、実行時に変換） ----
+// 出典: IOF 地図図式 印刷と色の定義（2023年5月版）
+// https://www.orienteering.or.jp/archive/rule/map-print-colour_202305.pdf
+// ※ ICC プロファイルなしの単純 CMYK→RGB 変換。実際の印刷色とは差異が生じる場合がある。
+export const COLOR_PALETTE_CMYK = {
+  "color-palette": [
+    {
+      lower: [
+        // Out-of-bounds: Yellow 100% + Green 50% = C38/M27/Y100/K0
+        { background:                           { cmyk: [38, 27, 100,  0] } },
+        { yellow_green:                         { cmyk: [38, 27, 100,  0] } },
+        { white:                                { cmyk: [ 0,  0,   0,  0] } },
+        { "placeholder_boulder-field-pattern":  {} },
+        // Green 30% area symbols
+        { "green_30%":                          { cmyk: [24,  0,  27,  0] } },
+        // Green 60% area symbols
+        { "green_60%":                          { cmyk: [46,  0,  55,  0] } },
+        // Green 100% area symbols
+        { "green_100%":                         { cmyk: [76,  0,  91,  0] } },
+        // Yellow 50% area symbols
+        { "yellow_50%":                         { cmyk: [ 0, 14,  40,  0] } },
+        { "placeholder_sandy-ground-pattern":   {} },
+        // Yellow 100% area symbols
+        { yellow:                               { cmyk: [ 0, 27,  79,  0] } },
+        { "placeholder_cultivated-land-pattern": {} },
+        { "placeholder_orchard-pattern":        {} },
+      ],
+    },
+    {
+      upper: [
+        // Brown 100% line/point symbols
+        { brown:                  { cmyk: [ 0, 56, 100, 18] } },
+        // Green 100%
+        { green:                  { cmyk: [76,  0,  91,  0] } },
+        // Black 100%
+        { black_water_boundary:   { cmyk: [ 0,  0,   0, 100] } },
+        // Blue 50% area symbols
+        { "blue_50%":             { cmyk: [50,  0,   0,  0] } },
+        // Blue 100%
+        { blue:                   { cmyk: [100, 0,   0,  0] } },
+        { "placeholder_marsh-pattern": {} },
+        // Black 100% for road outline
+        { black_casing:           { cmyk: [ 0,  0,   0, 100] } },
+        // Black 100% for footpath
+        { black_footpath:         { cmyk: [ 0,  0,   0, 100] } },
+        // Brown 50% for road/paved area infill
+        { "brown_50%":            { cmyk: [ 0, 28,  50,  9] } },
+        // Black 30% area symbols（キー名は 25% だが IOF規格は 30%）
+        { "black_25%":            { cmyk: [ 0,  0,   0, 30] } },
+        // Black 20% for canopy
+        { "black_20%":            { cmyk: [ 0,  0,   0, 20] } },
+        // Black 100%
+        { black:                  { cmyk: [ 0,  0,   0, 100] } },
+        // Black 65% for stairway
+        { black_stairway:         { cmyk: [ 0,  0,   0, 65] } },
+        { white_stairway:         { cmyk: [ 0,  0,   0,  0] } },
+        // Black 60% for large buildings（キー名は 65% だが IOF規格は 60%）
+        { "black_65%":            { cmyk: [ 0,  0,   0, 60] } },
+        { white:                  { cmyk: [ 0,  0,   0,  0] } },
+        { black_building_outline: { cmyk: [ 0,  0,   0, 100] } },
+      ],
+    },
+    {
+      overlay: [
+        { black:  { cmyk: [  0,  0,  0, 100] } },
+        // Purple for course overprint
+        { purple: { cmyk: [ 35, 85,  0,   0] } },
+      ],
+    },
+  ],
+};
+
+// 色セットのエントリーポイント: isomizer / recolorMap に渡す
+export const COLOR_PALETTES = {
+  hex: COLOR_PALETTE_HEX["color-palette"],
+  iof: COLOR_PALETTE_CMYK["color-palette"],
+};
+
+// 後方互換エイリアス
+export const COLOR_PALETTE = COLOR_PALETTE_HEX;
 
 // ===== image-palette.yml（SVGインライン埋め込み済み）=====
 export const IMAGE_PALETTE = {

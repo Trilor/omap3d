@@ -8,11 +8,31 @@ function mmToPx(mm, precision = 1) {
   return Math.round(mm * MM_TO_PX * factor) / factor;
 }
 
+/** CMYK (0–100) → #RRGGBB 変換（ICC プロファイルなしの単純変換） */
+function cmykToHex(c, m, y, k) {
+  const r = Math.round(255 * (1 - c / 100) * (1 - k / 100));
+  const g = Math.round(255 * (1 - m / 100) * (1 - k / 100));
+  const b = Math.round(255 * (1 - y / 100) * (1 - k / 100));
+  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+}
+
+/**
+ * color-palette の colors 配列から colorKey に対応する hex 文字列を返す。
+ * 色定義が { hex } の場合はそのまま、{ cmyk } の場合は変換する。
+ * placeholder（空オブジェクト）は undefined を返す。
+ */
 function getColor(colorKey, colors) {
   const [group, color] = colorKey.split(".");
   const groupIndex = colors.findIndex((item) => item[group]);
   const colorIndex = colors[groupIndex][group].findIndex((item) => item[color]);
-  return colors[groupIndex][group][colorIndex][color].hex;
+  const def = colors[groupIndex][group][colorIndex][color];
+  if (def.cmyk) return cmykToHex(...def.cmyk);
+  return def.hex; // { hex } または placeholder の undefined
+}
+
+/** getColor を外部（isomizer.js の recolorMap）から利用するためのエクスポート */
+export function resolveColor(colorKey, colors) {
+  return getColor(colorKey, colors);
 }
 
 function getColorOrderIndex(colorKey, colors) {
@@ -98,6 +118,11 @@ function withSource(layer, link) {
   };
 }
 
+/**
+ * ルールからレイヤーを生成し、{ layer, colorKey, paintProp } の配列を返す。
+ * paintProp は recolorMap で setPaintProperty に使うプロパティ名。
+ * fill-pattern レイヤーや色を持たないレイヤーは paintProp: null。
+ */
 function generateLayersFromRule(rule, symbols, colors) {
   return rule.symbol_id.flatMap((symbolId) => {
     const symbol = getSymbolFromPalette(symbolId, symbols);
@@ -107,8 +132,15 @@ function generateLayersFromRule(rule, symbols, colors) {
       const colorKey = symbol.property["color-key"];
       const hex      = getColor(colorKey, colors);
       const index    = getColorOrderIndex(colorKey, colors);
-      return [{ id: generateLayerId(index, symbolId), type: "background", paint: { "background-color": hex } }];
+      const layer    = { id: generateLayerId(index, symbolId), type: "background", paint: { "background-color": hex } };
+      return [{ layer, colorKey, paintProp: "background-color" }];
     }
+
+    // fill-pattern を持つ fill レイヤーは色を持たない
+    const hasFillPattern = symbol.type === "fill" && "fill-pattern" in (symbol.paint || {});
+    const paintProp = symbol.type === "line" ? "line-color"
+      : symbol.type === "fill" && !hasFillPattern ? "fill-color"
+      : null;
 
     return rule.links.map((link, linkIndex) => {
       const colorKey = symbol.property["color-key"];
@@ -120,13 +152,17 @@ function generateLayersFromRule(rule, symbols, colors) {
 
       const { paint, layout } = resolveLayerStyle(symbol, hex);
       const baseLayer = createBaseLayer({ id: generateLayerId(index, symbolId, suffix), symbol, paint, layout });
-      return withSource(baseLayer, link);
+      return { layer: withSource(baseLayer, link), colorKey, paintProp };
     });
   });
 }
 
+/**
+ * 全ルールからレイヤーと colorMap を生成する。
+ * colorMap: { layerId: { colorKey, paintProp } } — recolorMap で使用。
+ */
 async function generateLayers(rules, symbols, colors) {
-  const layers = rules.flatMap((rule) => {
+  const entries = rules.flatMap((rule) => {
     try {
       return generateLayersFromRule(rule, symbols, colors);
     } catch (error) {
@@ -134,14 +170,20 @@ async function generateLayers(rules, symbols, colors) {
       return [];
     }
   });
-  layers.sort((a, b) => a.id.localeCompare(b.id));
-  return layers;
+  entries.sort((a, b) => a.layer.id.localeCompare(b.layer.id));
+
+  const layers   = entries.map(e => e.layer);
+  const colorMap = {};
+  for (const { layer, colorKey, paintProp } of entries) {
+    if (paintProp) colorMap[layer.id] = { colorKey, paintProp };
+  }
+  return { layers, colorMap };
 }
 
 export async function generateStyle(rules, sources, symbols, colors) {
   try {
-    const layers = await generateLayers(rules, symbols, colors);
-    return { version: 8, sources, layers };
+    const { layers, colorMap } = await generateLayers(rules, symbols, colors);
+    return { version: 8, sources, layers, colorMap };
   } catch (error) {
     console.error("Error generating style:", error);
     throw error;
