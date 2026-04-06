@@ -539,52 +539,54 @@ maplibregl.addProtocol('dem2cs', async (params, abortController) => {
     }
   }
 
-  // ── ④ ガウシアン平滑化（キャッシュ済みカーネル・手動dispose・非同期転送） ──
-  // tf.tidy を使わず手動でdisposeすることで平滑化フェーズのテンソルを早期解放。
-  // await tensor.data() で GPU→CPU を非同期化（dataSync() のブロックを回避）。
+  // ── ④ ガウシアン平滑化（キャッシュ済みカーネル） ──
   const kExp = _getCsKernel(kernelRadius, sigma);
   const hT = tf.tensor2d(mergedHeights, [mergedSize, mergedSize]);
   const valid = hT.notEqual(-99999);
-  const masked = tf.where(valid, hT, 0);                  // tf.where(condition, x, y) で正しくマスク
+  const masked = tf.where(valid, hT, 0);
   const kSum = tf.conv2d(
     valid.cast('float32').expandDims(2).expandDims(0), kExp, 1, 'valid'
   ).squeeze([0, 3]);
   const sHRaw = tf.conv2d(
     masked.expandDims(2).expandDims(0), kExp, 1, 'valid'
   ).squeeze([0, 3]).div(kSum);
+  // nodata箇所は 0 埋め（Laplacianでの汚染を最小化）
   const validCrop = valid.slice([buffer, buffer], [tileSize + 2, tileSize + 2]);
-  const sH = tf.where(validCrop, sHRaw, tf.fill([tileSize + 2, tileSize + 2], -99999));
-  const smoothed = await sH.data(); // 非同期 GPU→CPU 転送（メインスレッドをブロックしない）
-  [masked, kSum, sHRaw, validCrop, sH].forEach(t => t.dispose());
+  const smoothedT = tf.where(validCrop, sHRaw, tf.zerosLike(sHRaw)); // [tileSize+2, tileSize+2]
+  [masked, kSum, sHRaw, validCrop].forEach(t => t.dispose());
 
-  // ── ⑤ JS ループ: 傾斜・曲率計算 ──
-  const curvatures = new Float32Array(tileSize * tileSize);
-  const slopes = new Float32Array(tileSize * tileSize);
-  const sw2 = tileSize + 2;
-  for (let row = 0; row < tileSize; row++) {
-    for (let col = 0; col < tileSize; col++) {
-      const oi = row * tileSize + col;
-      const mi = (row + buffer) * mergedSize + (col + buffer);
-      const H00 = mergedHeights[mi], H01 = mergedHeights[mi + 1], H10 = mergedHeights[mi + mergedSize];
-      slopes[oi] = _calculateSlope(H00, H01, H10, pixelLength) ?? 0;
-      const si = (row + 1) * sw2 + (col + 1);
-      const z2 = smoothed[si - sw2], z4 = smoothed[si - 1], z5 = smoothed[si],
-            z6 = smoothed[si + 1],   z8 = smoothed[si + sw2];
-      const cellArea = pixelLength * pixelLength;
-      curvatures[oi] = H00 === -99999 ? -1
-        : -2 * (((z4 + z6) / 2 - z5) / cellArea + ((z2 + z8) / 2 - z5) / cellArea);
-    }
-  }
-
-  // ── ⑥ CS立体図 5レイヤー合成（tf.tidy で中間テンソルを自動解放） ──
+  // ── ⑤⑥ 傾斜・曲率・CS合成（全GPU。CPU往復なし） ──
+  // 傾斜: Sobelフィルタ（中央差分）
+  // 曲率: Laplacianフィルタ（smoothed DEM）
+  // どちらも tf.conv2d で求め、そのまま tf.tidy 内でカラー合成する。
   const cc = pixelLength < 68
     ? Math.max(pixelLength / 2, 1.1) * Math.sqrt(terrainScale) * redAndBlueIntensity
     : 0.188 * Math.pow(pixelLength, 1.232) * Math.sqrt(terrainScale) * redAndBlueIntensity;
 
   const csRittaizuTensor = tf.tidy(() => {
-    const hCrop = hT.slice([buffer, buffer], [tileSize, tileSize]);
-    const cT = tf.tensor1d(curvatures).reshape([tileSize, tileSize]);
-    const sT = tf.tensor1d(slopes).reshape([tileSize, tileSize]);
+    const cellArea = pixelLength * pixelLength;
+
+    // 傾斜: raw DEM の [tileSize+2, tileSize+2] 領域に Sobel → [tileSize, tileSize]
+    const rawCrop = tf.where(
+      valid.slice([buffer - 1, buffer - 1], [tileSize + 2, tileSize + 2]),
+      hT.slice([buffer - 1, buffer - 1], [tileSize + 2, tileSize + 2]),
+      tf.zeros([tileSize + 2, tileSize + 2])
+    );
+    const rawIn = rawCrop.expandDims(0).expandDims(-1); // [1,H,W,1]
+    const sobelX = tf.tensor4d([-1, 0, 1, -2, 0, 2, -1, 0, 1], [3, 3, 1, 1]);
+    const sobelY = tf.tensor4d([-1, -2, -1, 0, 0, 0, 1, 2, 1], [3, 3, 1, 1]);
+    const dzdx = tf.conv2d(rawIn, sobelX, 1, 'valid').squeeze([0, 3]).div(8 * pixelLength);
+    const dzdy = tf.conv2d(rawIn, sobelY, 1, 'valid').squeeze([0, 3]).div(8 * pixelLength);
+    const sT   = tf.atan(dzdx.square().add(dzdy.square()).sqrt()).mul(180 / Math.PI); // 度
+
+    // 曲率: smoothedT に Laplacian → [tileSize, tileSize]
+    // Laplacian = [0,1,0; 1,-4,1; 0,1,0] → conv 結果の符号反転 / cellArea
+    const lapKernel = tf.tensor4d([0, 1, 0, 1, -4, 1, 0, 1, 0], [3, 3, 1, 1]);
+    const smoothIn  = smoothedT.expandDims(0).expandDims(-1); // [1,H,W,1]
+    const cT = tf.conv2d(smoothIn, lapKernel, 1, 'valid').squeeze([0, 3]).neg().div(cellArea);
+
+    // 5レイヤー合成
+    const hCrop    = hT.slice([buffer, buffer], [tileSize, tileSize]);
     const blend    = (a, b, alpha) => a.mul(1 - alpha).add(b.mul(alpha));
     const mulBlend = (a, b) => a.mul(b.div(255));
     const L1 = _csRamp(0, 3000, { r: 100, g: 100, b: 100 }, { r: 255, g: 255, b: 255 }, hCrop);
@@ -593,18 +595,18 @@ maplibregl.addProtocol('dem2cs', async (params, abortController) => {
     const L4 = _csRampMid(-0.2/cc, 0.2/cc, { r: 0, g: 0, b: 255 }, { r: 255, g: 255, b: 240 }, { r: 255, g: 0, b: 0 }, cT);
     const L5 = _csRamp(0, 90, { r: 255, g: 255, b: 255 }, { r: 0, g: 0, b: 0 }, sT);
     const rgb = mulBlend(blend(blend(blend(L1, L2, 0.5), L3, 0.5), L4, 0.5), L5);
-    // 無効値（NoData）領域をアルファ0（透明）にするため、centerAlpha を第4チャンネルとして結合
-    const alphaT = tf.tensor1d(centerAlpha, 'float32').reshape([tileSize, tileSize, 1]);
-    return tf.concat([rgb, alphaT], -1); // [tileSize,tileSize,4] RGBA出力
+    // nodata → アルファ 0
+    const alphaT = tf.where(hCrop.notEqual(-99999), tf.scalar(255), tf.scalar(0))
+      .reshape([tileSize, tileSize, 1]);
+    return tf.concat([rgb, alphaT], -1);
   });
-  [hT, valid].forEach(t => t.dispose()); // 平滑化フェーズで使い終わったテンソルを解放
+  [hT, valid, smoothedT].forEach(t => t.dispose());
 
-  // ── ⑦ 出力: tf.browser.toPixels でキャンバスに直接書き込み（中間配列不要） ──
+  // ── ⑦ 出力 ──
   const outCanvas = new OffscreenCanvas(tileSize, tileSize);
-  // csRittaizuTensor は [256,256,4] RGBA。div(255) で 0–1 に正規化してそのまま渡す
-  await tf.browser.toPixels(
-    csRittaizuTensor.div(tf.scalar(255)), outCanvas
-  );
+  const csNorm = csRittaizuTensor.div(255);
+  await tf.browser.toPixels(csNorm, outCanvas);
+  csNorm.dispose();
   csRittaizuTensor.dispose();
   return { data: await outCanvas.convertToBlob({ type: 'image/png' }).then(b => b.arrayBuffer()) };
   } catch { return { data: _transparentPngBuffer() }; }
@@ -839,5 +841,189 @@ maplibregl.addProtocol('dem2relief', async (params, abortController) => {
     return { data: _transparentPngBuffer() };
   }
 });
+
+/*
+  ========================================================
+  赤色立体地図プロトコル (dem2rrim://)
+  MPI（Morphometric Protection Index）と傾斜を組み合わせた赤色立体地図。
+  参考: Kaneda & Chiba (2019) / https://github.com/yiwasa/Stereo-MPI-RRIM-Creator
+
+  アルゴリズム:
+    1. 8方向 × radius ステップの最大接線勾配を tf.roll でベクトル化 → arctan → 8方向平均 = MPI
+    2. 傾斜: Sobelフィルタで中央差分 → atan(sqrt(dzdx² + dzdy²))
+    3. RGB合成（乗算ブレンド）:
+         傾斜レイヤー: 急傾斜ほど赤（白→赤）
+         MPIレイヤー:  凹地ほどシアン RGB(18,112,121)（白→シアン）
+    全計算をGPUで実行。CPU往復なし。
+  ========================================================
+*/
+
+// MPI 探索半径（固定ピクセル数）— 品質とパフォーマンスのバランス
+const RRIM_RADIUS = 10;
+// 8方向 [dirY, dirX]: 行(↓+) × 列(→+)
+const _RRIM_DIRS = [[0,1],[1,1],[1,0],[1,-1],[0,-1],[-1,-1],[-1,0],[-1,1]];
+
+maplibregl.addProtocol('dem2rrim', async (params, abortController) => {
+  try {
+    const request = _parseProtocolTileRequest(params.url, 'dem2rrim');
+    if (!request) return { data: _transparentPngBuffer() };
+    const { baseUrl, tileOrder, zoomLevel, tileX, tileY, ext } = request;
+
+    const regionalDemBase  = baseUrl === QCHIZU_DEM_BASE ? null : baseUrl;
+    const regionalDemExt   = regionalDemBase ? ext : null;
+    const regionalDemOrder = regionalDemBase ? tileOrder : 'xy';
+    const demMode = zoomLevel <= 10 ? 'land' : zoomLevel <= 13 ? 'land+dem5a' : null;
+    const effectiveRegionalBase  = zoomLevel >= 17 ? regionalDemBase : null;
+    const effectiveRegionalExt   = effectiveRegionalBase ? regionalDemExt : null;
+    const effectiveRegionalOrder = effectiveRegionalBase ? regionalDemOrder : 'xy';
+
+    // buffer は radius 以上（tf.roll のシフトがはみ出ない最小サイズ）
+    const radius = RRIM_RADIUS;
+    const buffer = radius + 1;
+
+    // ── ① 9タイル並列取得 ──
+    const neighborOffsets = [
+      [-1,-1],[0,-1],[1,-1],
+      [-1, 0],[0, 0],[1, 0],
+      [-1, 1],[0, 1],[1, 1],
+    ];
+    const bitmaps = await Promise.all(neighborOffsets.map(([dx, dy]) =>
+      fetchCompositeDemBitmap(
+        zoomLevel, tileX + dx, tileY + dy,
+        abortController.signal,
+        effectiveRegionalBase, effectiveRegionalExt,
+        demMode, effectiveRegionalOrder
+      )
+    ));
+    if (!bitmaps[4]) return { data: _transparentPngBuffer() };
+
+    const tileSize = bitmaps[4].width;
+    const pixelLength = _calculatePixelResolution(tileSize, zoomLevel, tileY);
+    const mergedSize  = tileSize + buffer * 2;
+
+    // ── ② 9タイル結合 ──
+    const mergedCanvas = new OffscreenCanvas(mergedSize, mergedSize);
+    const mc = mergedCanvas.getContext('2d');
+    bitmaps.forEach((bmp, idx) => {
+      if (!bmp) return;
+      if (idx === 4) {
+        mc.drawImage(bmp, 0, 0, tileSize, tileSize, buffer, buffer, tileSize, tileSize);
+      } else {
+        const { sx, sy, sWidth: sw, sHeight: sh, dx, dy } = _calculateTilePosition(idx, tileSize, buffer);
+        mc.drawImage(bmp, sx, sy, sw, sh, dx, dy, sw, sh);
+      }
+      bmp.close();
+    });
+
+    // ── ③ NumPNG → Float32Array ──
+    const mergedPx = mc.getImageData(0, 0, mergedSize, mergedSize).data;
+    const mergedHeights = new Float32Array(mergedSize * mergedSize);
+    for (let i = 0; i < mergedHeights.length; i++) {
+      const p = i * 4;
+      mergedHeights[i] = _getNumpngHeight(mergedPx[p], mergedPx[p + 1], mergedPx[p + 2], mergedPx[p + 3]);
+    }
+
+    // ── ④ MPI 計算（全GPU、CPU往復なし） ──
+    // tf.roll(tensor, -r*dir, axis) で方向 dir × r ステップ先の標高をシフト取得。
+    // buffer >= radius なので中央タイル領域でロールの折り返しは発生しない。
+    const demTensor = tf.tensor2d(mergedHeights, [mergedSize, mergedSize]);
+    const validMask = demTensor.notEqual(-99999);
+    // nodata を 0 埋め（隣接nodata域の MPI への影響を最小化）
+    const demFilled = tf.tidy(() => tf.where(validMask, demTensor, tf.zerosLike(demTensor)));
+
+    let mpiSum = null;
+    for (const [dirY, dirX] of _RRIM_DIRS) {
+      // この方向の1ステップあたりの実距離
+      const distUnit = Math.sqrt((dirX * pixelLength) ** 2 + (dirY * pixelLength) ** 2);
+      let maxTan = null;
+      for (let r = 1; r <= radius; r++) {
+        // r ステップ先の標高 - 中心標高) / 実距離 = 接線勾配
+        const tangent = tf.tidy(() => {
+          let s = demFilled;
+          if (dirY !== 0) s = tf.roll(s, -r * dirY, 0);
+          if (dirX !== 0) s = tf.roll(s, -r * dirX, 1);
+          return s.sub(demFilled).div(r * distUnit);
+        });
+        if (maxTan === null) {
+          maxTan = tangent;
+        } else {
+          const next = tf.maximum(maxTan, tangent);
+          maxTan.dispose(); tangent.dispose();
+          maxTan = next;
+        }
+      }
+      const atanDir = tf.atan(maxTan); // この方向の最大仰角
+      maxTan.dispose();
+      if (mpiSum === null) {
+        mpiSum = atanDir;
+      } else {
+        const next = mpiSum.add(atanDir);
+        mpiSum.dispose(); atanDir.dispose();
+        mpiSum = next;
+      }
+    }
+    const mpiTensor = mpiSum.div(8); // 8方向平均
+    mpiSum.dispose();
+
+    // ── ⑤ RRIM RGB合成（全GPU、Sobel傾斜 + MPI + tf.tidy） ──
+    const rrimTensor = tf.tidy(() => {
+      const HALF_PI = Math.PI / 2;
+
+      // 傾斜: Sobel（中央差分）→ atan(|∇h|) in radians
+      const rawCrop = tf.where(
+        validMask.slice([buffer - 1, buffer - 1], [tileSize + 2, tileSize + 2]),
+        demTensor.slice([buffer - 1, buffer - 1], [tileSize + 2, tileSize + 2]),
+        tf.zeros([tileSize + 2, tileSize + 2])
+      );
+      const rawIn  = rawCrop.expandDims(0).expandDims(-1);
+      const sobelX = tf.tensor4d([-1, 0, 1, -2, 0, 2, -1, 0, 1], [3, 3, 1, 1]);
+      const sobelY = tf.tensor4d([-1, -2, -1, 0, 0, 0, 1, 2, 1], [3, 3, 1, 1]);
+      const dzdx   = tf.conv2d(rawIn, sobelX, 1, 'valid').squeeze([0, 3]).div(8 * pixelLength);
+      const dzdy   = tf.conv2d(rawIn, sobelY, 1, 'valid').squeeze([0, 3]).div(8 * pixelLength);
+      const slopeT = tf.atan(dzdx.square().add(dzdy.square()).sqrt()); // radians
+
+      // MPI 中央タイル切り出し
+      const mpiCrop = mpiTensor.slice([buffer, buffer], [tileSize, tileSize]);
+
+      // 傾斜正規化: 0〜1、gamma=0.8
+      const vSlope      = slopeT.div(HALF_PI).clipByValue(0, 1).pow(0.8);
+      const vSlopeColor = vSlope.mul(1.3).clipByValue(0, 1); // 色計算用に1.3倍強調
+
+      // MPI正規化: 0〜1（mpi_max=1.0rad、gamma=1.0、×1.5増幅）
+      const vMpi = mpiCrop.clipByValue(0, 1.0).mul(1.5).clipByValue(0, 1);
+
+      // 傾斜レイヤー（急傾斜ほど赤: 白→赤）
+      const rSlope = tf.scalar(255).sub(vSlope.mul(0.1 * 255));
+      const gSlope = tf.scalar(255).sub(vSlopeColor.mul(255));
+      const bSlope = tf.scalar(255).sub(vSlopeColor.mul(255));
+
+      // MPIレイヤー（凹地ほどシアン: 白→RGB(18,112,121)）
+      const rMpi = tf.scalar(255).add(vMpi.mul(18  - 255));
+      const gMpi = tf.scalar(255).add(vMpi.mul(112 - 255));
+      const bMpi = tf.scalar(255).add(vMpi.mul(121 - 255));
+
+      // 乗算合成（Multiply blend = 白ベースに2レイヤーを掛け合わせ）
+      const rOut = rSlope.mul(rMpi).div(255).clipByValue(0, 255).round();
+      const gOut = gSlope.mul(gMpi).div(255).clipByValue(0, 255).round();
+      const bOut = bSlope.mul(bMpi).div(255).clipByValue(0, 255).round();
+
+      // nodata → アルファ 0
+      const hCrop  = demTensor.slice([buffer, buffer], [tileSize, tileSize]);
+      const alphaT = tf.where(hCrop.notEqual(-99999), tf.scalar(255), tf.scalar(0))
+        .reshape([tileSize, tileSize, 1]);
+      return tf.concat([tf.stack([rOut, gOut, bOut], -1), alphaT], -1);
+    });
+    [demTensor, validMask, demFilled, mpiTensor].forEach(t => t.dispose());
+
+    // ── ⑥ 出力 ──
+    const outCanvas = new OffscreenCanvas(tileSize, tileSize);
+    const rrimNorm = rrimTensor.div(255);
+    await tf.browser.toPixels(rrimNorm, outCanvas);
+    rrimNorm.dispose();
+    rrimTensor.dispose();
+    return { data: await outCanvas.convertToBlob({ type: 'image/png' }).then(b => b.arrayBuffer()) };
+  } catch { return { data: _transparentPngBuffer() }; }
+});
+
 
 export { fetchCompositeDemBitmap };
