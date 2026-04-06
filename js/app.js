@@ -9805,8 +9805,9 @@ document.getElementById('import-decide-btn').addEventListener('click', () => {
   const exportBtn        = document.getElementById('print-export-btn');
   const selPaper         = document.getElementById('print-paper-size');
   const selOrientation   = document.getElementById('print-orientation');
-  const selScaleSelect   = document.getElementById('print-scale-select'); // <select> プルダウン本体
-  const selScale         = document.getElementById('print-scale');        // <input> 表示オーバーレイ
+  const selScaleSelect   = document.getElementById('print-scale-select');
+  const scaleCustomRow   = document.getElementById('print-scale-custom-row');
+  const scaleCustomInput = document.getElementById('print-scale');
   const selFormat        = document.getElementById('print-format');
   const selDpi           = document.getElementById('print-dpi');
   const infoEl           = document.getElementById('print-info');
@@ -9814,30 +9815,18 @@ document.getElementById('import-decide-btn').addEventListener('click', () => {
   const frameSvg         = document.getElementById('print-frame-svg');
   const simStartBlock    = document.getElementById('sim-start-block');
 
-  // input の表示文字列（カンマ区切り可）から縮尺分母の整数を返す
+  // 現在の縮尺分母を返す
   function getScale() {
-    const raw = selScale.value.replace(/,/g, '').trim();
-    const v   = parseInt(raw, 10);
-    return v >= 100 ? v : 10000;
+    if (selScaleSelect.value === 'custom') {
+      return Math.max(500, parseInt(scaleCustomInput.value, 10) || 10000);
+    }
+    return parseInt(selScaleSelect.value, 10);
   }
 
-  // select 選択時 → input に反映
+  // 手入力行の表示切替
   selScaleSelect.addEventListener('change', () => {
-    selScale.value = parseInt(selScaleSelect.value, 10).toLocaleString('ja-JP');
-  });
-
-  // input 編集時 → プリセット値と一致した場合だけ select を同期
-  // 一致しない場合は select を変更しない（value='' にするとブラウザの描画が変わりズレる）
-  selScale.addEventListener('input', () => {
-    const v = parseInt(selScale.value.replace(/,/g, ''), 10);
-    const match = Array.from(selScaleSelect.options).find(o => parseInt(o.value, 10) === v);
-    if (match) selScaleSelect.value = match.value;
-  });
-
-  // フォーカスを失ったらカンマ整形
-  selScale.addEventListener('blur', () => {
-    const v = getScale();
-    selScale.value = v.toLocaleString('ja-JP');
+    scaleCustomRow.style.display = selScaleSelect.value === 'custom' ? '' : 'none';
+    if (selScaleSelect.value === 'custom') scaleCustomInput.focus();
   });
   const printModeState = {
     active: false,
@@ -10254,14 +10243,51 @@ document.getElementById('import-decide-btn').addEventListener('click', () => {
   new ResizeObserver(schedulePrintFrameRefresh).observe(frameOverlay);
   new ResizeObserver(schedulePrintFrameRefresh).observe(map.getContainer());
 
+  // 縮尺・用紙サイズ・向き変更時に枠全体が画面に収まるようにズームを自動調整する
+  function fitPrintFrameToView() {
+    if (!printModeState.active) return;
+    const [pw_mm, ph_mm] = getPaperDim();
+    const scale = getScale();
+    if (!scale || !isFinite(scale)) return;
+
+    const lat = map.getCenter().lat;
+
+    // 地図の有効表示領域（サイドバー右側）のピクセルサイズを取得
+    const insetLeft = getPrintFrameInsetLeft();
+    const mapRect   = map.getContainer().getBoundingClientRect();
+    const viewW = Math.max(1, mapRect.width  - insetLeft);
+    const viewH = Math.max(1, mapRect.height);
+
+    // 枠がビューに収まる最大ズームを幅・高さそれぞれで計算し、小さい方を採用
+    // 式: 78271.51696 × cos(lat) / 2^z = scale × (mm/1000) / (viewPx)
+    // → z = log2( 78271.51696 × cos(lat) × viewPx / (scale × mm/1000) )
+    const cosLat   = Math.cos(lat * Math.PI / 180);
+    const zForW = Math.log2(78271.51696 * cosLat * viewW / (scale * pw_mm / 1000));
+    const zForH = Math.log2(78271.51696 * cosLat * viewH / (scale * ph_mm / 1000));
+    // 余白を少し設ける（0.92 ≈ 8% 余裕）
+    const targetZoom = Math.min(zForW, zForH) + Math.log2(0.92);
+    const clampedZoom = getClampedPrintZoom(targetZoom);
+
+    map.easeTo({ zoom: clampedZoom, duration: 350 });
+  }
+
   // 設定変更時の更新
+  function handleScaleChange() {
+    schedulePrintFrameRefresh();
+    // 縮尺変更直後はフレーム計算が完了していないため次フレームで fit
+    requestAnimationFrame(() => requestAnimationFrame(fitPrintFrameToView));
+  }
+  function handlePaperChange() {
+    schedulePrintFrameRefresh();
+    requestAnimationFrame(() => requestAnimationFrame(fitPrintFrameToView));
+  }
+
   [selPaper, selOrientation].forEach(el => {
-    el.addEventListener('change', schedulePrintFrameRefresh);
+    el.addEventListener('change', handlePaperChange);
   });
-  // 縮尺: select 選択 または input 直接入力の両方でフレーム更新
-  selScaleSelect.addEventListener('change', () => { schedulePrintFrameRefresh(); updateInfo(); });
-  selScale.addEventListener('input',  schedulePrintFrameRefresh);
-  selScale.addEventListener('change', updateInfo);
+  selScaleSelect.addEventListener('change', handleScaleChange);
+  scaleCustomInput.addEventListener('input',  schedulePrintFrameRefresh);
+  scaleCustomInput.addEventListener('change', () => { updateInfo(); fitPrintFrameToView(); });
   selDpi.addEventListener('change', updateInfo);
 
   // エクスポート実行

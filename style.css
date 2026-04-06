@@ -3528,6 +3528,12 @@ label.setting-label {
   outline: none;
 }
 .import-ctrl-input:focus { border-color: var(--primary); }
+/* 縮尺手入力欄: セレクトボックスと同じ角丸・フォントサイズに揃える */
+.import-ctrl-input--scale {
+  border-radius: var(--dropdown-radius);
+  font-size: var(--font-base);
+  box-sizing: border-box;
+}
 .import-ctrl-hint {
   font-size: var(--font-sm);
   color: var(--text-muted);
@@ -3679,7 +3685,7 @@ label.setting-label {
   border-bottom: none;
 }
 
-/* 縮尺コンボ: 「1 :」プレフィックス + select+inputオーバーレイ */
+/* 縮尺行: 「1 :」プレフィックス + select */
 .print-scale-row {
   display: flex;
   align-items: center;
@@ -3691,45 +3697,6 @@ label.setting-label {
   font-weight: 500;
   color: var(--text-main);
   flex-shrink: 0;
-}
-.print-scale-wrap {
-  position: relative;
-  flex: 1;
-}
-.print-scale-wrap select {
-  width: 100%;
-  color: transparent; /* テキストは input が表示するため非表示 */
-  /* 高さを固定してどんな操作でも変化しないようにする */
-  height: 38px !important;
-  min-height: unset !important;
-}
-/* select の hover/focus によるスタイル変化を無効化（ズレ防止・文字重なり防止） */
-.print-scale-wrap select:hover,
-.print-scale-wrap select:focus {
-  background-color: var(--dropdown-bg) !important;
-  border-color: var(--dropdown-border) !important;
-  outline: none !important;
-  color: transparent !important;
-}
-.print-scale-overlay {
-  position: absolute;
-  inset: 1px; /* select の border 内側にぴったり合わせる */
-  right: var(--chevron-pad-r);
-  border: none !important;
-  outline: none !important;
-  box-shadow: none !important;
-  background: transparent;
-  color: var(--dropdown-color);
-  font-family: var(--font-family);
-  font-size: var(--font-base);
-  font-weight: 500;
-  padding: 4px 0 4px 6px;
-  cursor: text;
-  z-index: 1;
-}
-/* input フォーカス時に select の枠色を変える（代わりに wrap で視覚フィードバック） */
-.print-scale-wrap:focus-within select {
-  border-color: var(--primary) !important;
 }
 
 /* 出力情報（元のスタイルに戻す） */
