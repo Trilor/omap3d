@@ -5853,7 +5853,7 @@ selMagneticModel.addEventListener('change', async () => {
   updateMagneticNorth();
   updateMagneticAttribution();
 });
-// 初期モデルをロード（wmm2025 がデフォルト）
+// 初期モデルをロード（国土地理院2020 がデフォルト）
 setDeclinationModel(selMagneticModel.value);
 
 // ---- 磁北線 間隔セレクト ----
