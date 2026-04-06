@@ -9802,15 +9802,32 @@ document.getElementById('import-decide-btn').addEventListener('click', () => {
     B2: [515, 728], B3: [364, 515], B4: [257, 364], B5: [182, 257],
   };
 
-  const exportBtn      = document.getElementById('print-export-btn');
-  const selPaper       = document.getElementById('print-paper-size');
-  const selOrientation = document.getElementById('print-orientation');
-  const selScale       = document.getElementById('print-scale');
-  const selFormat      = document.getElementById('print-format');
-  const selDpi         = document.getElementById('print-dpi');
-  const infoEl         = document.getElementById('print-info');
-  const frameOverlay   = document.getElementById('print-frame-overlay');
-  const frameSvg       = document.getElementById('print-frame-svg');
+  const exportBtn        = document.getElementById('print-export-btn');
+  const selPaper         = document.getElementById('print-paper-size');
+  const selOrientation   = document.getElementById('print-orientation');
+  const selScale         = document.getElementById('print-scale');
+  const scaleCustomRow   = document.getElementById('print-scale-custom-row');
+  const scaleCustomInput = document.getElementById('print-scale-custom');
+  const selFormat        = document.getElementById('print-format');
+  const selDpi           = document.getElementById('print-dpi');
+  const infoEl           = document.getElementById('print-info');
+  const frameOverlay     = document.getElementById('print-frame-overlay');
+  const frameSvg         = document.getElementById('print-frame-svg');
+
+  // 現在の縮尺分母を返す（手入力モード対応）
+  function getScale() {
+    if (selScale.value === 'custom') {
+      return Math.max(100, parseInt(scaleCustomInput.value, 10) || 10000);
+    }
+    return parseInt(selScale.value, 10);
+  }
+
+  // 手入力行の表示切替（schedulePrintFrameRefresh のイベント登録は後述）
+  selScale.addEventListener('change', () => {
+    const isCustom = selScale.value === 'custom';
+    scaleCustomRow.style.display = isCustom ? '' : 'none';
+    if (isCustom) scaleCustomInput.focus();
+  });
   const printModeState = {
     active: false,
     prevTerrainEnabled: false,
@@ -9865,7 +9882,7 @@ document.getElementById('import-decide-btn').addEventListener('click', () => {
   function getPrintFrameLayout() {
     printModeState.frameInsetLeft = getPrintFrameInsetLeft();
     const [pw_mm, ph_mm] = getPaperDim();
-    const scale = parseInt(selScale.value, 10);
+    const scale = getScale();
     const zoom  = map.getZoom();
     const lat   = map.getCenter().lat;
     // MapLibre GL JS は 512px タイル基準（係数 78271.51696 = 40075016.686 / 512）
@@ -9921,7 +9938,7 @@ document.getElementById('import-decide-btn').addEventListener('click', () => {
   function updateInfo() {
     const [pw_mm, ph_mm] = getPaperDim();
     const dpi   = parseInt(selDpi.value, 10);
-    const scale = parseInt(selScale.value, 10);
+    const scale = getScale();
     const outW  = Math.round(pw_mm / 25.4 * dpi);
     const outH  = Math.round(ph_mm / 25.4 * dpi);
     const groundW = Math.round((pw_mm / 1000) * scale);
@@ -10228,12 +10245,14 @@ document.getElementById('import-decide-btn').addEventListener('click', () => {
   [selPaper, selOrientation, selScale].forEach(el => {
     el.addEventListener('change', schedulePrintFrameRefresh);
   });
+  scaleCustomInput.addEventListener('input',  schedulePrintFrameRefresh);
+  scaleCustomInput.addEventListener('change', updateInfo);
   selDpi.addEventListener('change', updateInfo);
 
   // エクスポート実行
   async function execExport() {
     const [pw_mm, ph_mm] = getPaperDim();
-    const scale = parseInt(selScale.value, 10);
+    const scale = getScale();
     const dpi   = parseInt(selDpi.value, 10);
     const fmt   = selFormat.value;
     const outW  = Math.round(pw_mm / 25.4 * dpi);
