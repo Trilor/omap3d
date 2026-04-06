@@ -984,8 +984,8 @@ maplibregl.addProtocol('dem2rrim', async (params, abortController) => {
       const dzdy   = tf.conv2d(rawIn, sobelY, 1, 'valid').squeeze([0, 3]).div(8 * pixelLength);
       const slopeT = tf.atan(dzdx.square().add(dzdy.square()).sqrt()); // radians
 
-      // MPI 中央タイル切り出し
-      const mpiCrop = mpiTensor.slice([buffer, buffer], [tileSize, tileSize]);
+      // mpiTensor はすでに [tileSize, tileSize]（demCenter と同サイズ）
+      const mpiCrop = mpiTensor;
 
       // 傾斜正規化: 0〜1、gamma=0.8
       const vSlope      = slopeT.div(HALF_PI).clipByValue(0, 1).pow(0.8);
