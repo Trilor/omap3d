@@ -1358,6 +1358,18 @@ body {
   width: 100%;
   min-width: 0; /* テキスト幅でラッパーが広がるのを防止 */
 }
+.layer-card-subrow {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  min-width: 0;
+}
+.layer-card-subrow--magnetic {
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+}
+.layer-card-subrow .custom-select-wrap.layer-card-select {
+  width: 100%;
+}
 .layer-card-wrapper .custom-select-wrap.layer-card-select > .cascade-btn {
   flex: 1;
   min-width: 0;
@@ -2580,6 +2592,7 @@ label.setting-label {
 /* ベーススタイルは「共通パネルプルダウン」セクションで定義済み */
 #sel-contour-dem,
 #sel-contour-interval,
+#sel-magnetic-color,
 #sel-magnetic-combined {
   flex: 1;
   padding: 3px var(--chevron-pad-r) 3px 6px;

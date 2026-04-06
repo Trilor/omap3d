@@ -700,7 +700,7 @@ map.on('load', async () => {
   REGIONAL_CS_LAYERS.forEach(_addRegionalLayer);
   REGIONAL_RRIM_LAYERS.forEach(_addRegionalLayer);
 
-  // 磁北線 GeoJSON ソース＋レイヤー
+// 磁北線 GeoJSON ソース＋レイヤー
   map.addSource('magnetic-north', {
     type: 'geojson',
     data: { type: 'FeatureCollection', features: [] },
@@ -711,7 +711,7 @@ map.on('load', async () => {
     source: 'magnetic-north',
     layout: { visibility: 'visible' },
     paint: {
-      'line-color': '#0055cc',
+      'line-color': getMagneticLineColor(),
       'line-width': 0.8,
       'line-opacity': 1.0,
     },
@@ -5821,6 +5821,20 @@ selContourInterval.addEventListener('change', () => {
 const magneticCard = document.getElementById('magnetic-card');
 const selMagneticCombined = document.getElementById('sel-magnetic-combined');
 const selMagneticModel    = document.getElementById('sel-magnetic-model');
+const selMagneticColor    = document.getElementById('sel-magnetic-color');
+
+function getMagneticLineColor() {
+  return (selMagneticColor?.value ?? 'blue') === 'black'
+    ? '#000000'
+    : '#00ffff';
+}
+
+function applyMagneticLineColor(targetMap = map, layerId = 'magnetic-north-layer') {
+  if (targetMap?.getLayer?.(layerId)) {
+    targetMap.setPaintProperty(layerId, 'line-color', getMagneticLineColor());
+    targetMap.triggerRepaint?.();
+  }
+}
 
 // ---- 磁北線カード クリックでトグル ----
 magneticCard.addEventListener('click', (e) => {
@@ -5850,6 +5864,15 @@ selMagneticCombined.addEventListener('change', () => {
   }
   updateMagneticNorth();
 });
+
+function handleMagneticColorChange() {
+  applyMagneticLineColor();
+  applyMagneticLineColor(pcSimState.readMap);
+  applyMagneticLineColor(importState.previewMap, 'prev-magnetic-north-layer');
+}
+
+selMagneticColor.addEventListener('input', handleMagneticColorChange);
+selMagneticColor.addEventListener('change', handleMagneticColorChange);
 
 // ---- ベースマップ切替 ----
 /**
@@ -7975,7 +7998,7 @@ function syncReadmapOriLibre() {
       source: 'magnetic-north',
       layout: { visibility: magnVis },
       paint: {
-        'line-color': '#0055cc',
+        'line-color': getMagneticLineColor(),
         'line-width': 0.8,
         'line-opacity': 1.0,
       },
@@ -7984,6 +8007,7 @@ function syncReadmapOriLibre() {
     pcSimState.readMap.getSource('magnetic-north').setData(_lastMagneticNorthData);
     if (pcSimState.readMap.getLayer('magnetic-north-layer')) {
       pcSimState.readMap.setLayoutProperty('magnetic-north-layer', 'visibility', magnVis);
+      applyMagneticLineColor(pcSimState.readMap);
     }
   }
 }
@@ -9059,7 +9083,7 @@ function _addPreviewContourAndNorth(m) {
   if (magneticCard.classList.contains('active') && _lastMagneticNorthData.features.length > 0) {
     m.addSource('prev-magnetic-north', { type: 'geojson', data: _lastMagneticNorthData });
     m.addLayer({ id: 'prev-magnetic-north-layer', type: 'line', source: 'prev-magnetic-north',
-      paint: { 'line-color': '#0055cc', 'line-width': 0.8, 'line-opacity': 1.0 } });
+      paint: { 'line-color': getMagneticLineColor(), 'line-width': 0.8, 'line-opacity': 1.0 } });
   }
 }
 
