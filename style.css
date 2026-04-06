@@ -3698,15 +3698,19 @@ label.setting-label {
 }
 .print-scale-wrap select {
   width: 100%;
-  /* select 自身のテキストは非表示（input オーバーレイが代わりに表示する） */
-  color: transparent;
+  color: transparent; /* テキストは input が表示するため非表示 */
+}
+/* select の hover/focus によるスタイル変化を無効化（ズレ防止） */
+.print-scale-wrap select:hover,
+.print-scale-wrap select:focus {
+  background-color: var(--dropdown-bg) !important;
+  border-color: var(--dropdown-border) !important;
+  outline: none !important;
 }
 .print-scale-overlay {
   position: absolute;
-  /* select の border 内側にぴったり合わせる（border 1px 分を inset で吸収） */
-  inset: 1px;
+  inset: 1px; /* select の border 内側にぴったり合わせる */
   right: var(--chevron-pad-r);
-  /* border/outline を一切持たせてレイアウトに影響させない */
   border: none !important;
   outline: none !important;
   box-shadow: none !important;
@@ -3718,6 +3722,10 @@ label.setting-label {
   padding: 4px 0 4px 6px;
   cursor: text;
   z-index: 1;
+}
+/* input フォーカス時に select の枠色を変える（代わりに wrap で視覚フィードバック） */
+.print-scale-wrap:focus-within select {
+  border-color: var(--primary) !important;
 }
 
 /* 出力情報（元のスタイルに戻す） */
