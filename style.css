@@ -3679,53 +3679,32 @@ label.setting-label {
   border-bottom: none;
 }
 
-/* 縮尺コンボボックス */
-.print-scale-combo {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  border: 1px solid var(--border-input);
-  border-radius: 3px;
-  background: var(--bg-surface);
-  padding: 0 8px;
-  min-height: 38px;
-}
-.print-scale-combo:focus-within {
-  border-color: var(--primary);
-}
-.print-scale-prefix {
-  font-size: var(--font-base);
-  color: var(--text-sub);
-  white-space: nowrap;
-  user-select: none;
-}
-.print-scale-input {
-  flex: 1;
-  border: none;
+/* 縮尺コンボ入力: select と同じ外観で文字入力も可能 */
+.print-scale-combo-input {
+  font-family: var(--font-family);
+  font-weight: 500;
+  appearance: none;
+  background-color: var(--dropdown-bg);
+  background-image: var(--chevron-down);
+  background-repeat: no-repeat;
+  background-position: right var(--chevron-inset) center;
+  background-size: var(--chevron-size-down);
+  color: var(--dropdown-color);
+  border: 1px solid var(--dropdown-border);
+  border-radius: var(--dropdown-radius);
+  cursor: text;
   outline: none;
-  background: transparent;
-  font-size: var(--font-base);
-  font-family: inherit;
-  color: var(--text-main);
-  text-align: right;
-  min-width: 0;
-  padding: 0;
 }
+.print-scale-combo-input:focus { border-color: var(--primary); }
 
-/* 出力情報サマリーボックス */
+/* 出力情報（元のスタイルに戻す） */
 .print-panel-info {
+  font-size: var(--font-xs);
+  color: var(--text-muted);
   white-space: pre-line;
-  line-height: 1.7;
+  line-height: 1.6;
+  padding: 2px 12px 8px;
 }
-.print-panel-summary {
-  font-size: var(--font-sm);
-  color: var(--text-sub);
-  background: var(--bg-hover, rgba(0,0,0,0.04));
-  border-radius: 6px;
-  margin: 8px 12px 4px;
-  padding: 8px 12px;
-}
-.print-panel-summary:empty { display: none; }
 
 /* エクスポートボタン */
 .print-panel-actions {
