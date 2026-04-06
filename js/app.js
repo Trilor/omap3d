@@ -5131,6 +5131,88 @@ function updateCurvatureReliefSource() {
   updateCurvatureReliefSource();
 })();
 
+// ---- 色別曲率: 現在のズーム・緯度から pixelLength を推定（プロトコルと同じ式） ----
+function _estimateCurvaturePixelLength() {
+  const z = map.getZoom();
+  const lat = map.getCenter().lat;
+  // tileSize=512 相当 (256/512=0.5) ← dem2curve プロトコルの設定に合わせる
+  return 156543.04 * Math.cos(lat * Math.PI / 180) / Math.pow(2, z) * 0.5;
+}
+
+// スクリーン座標 (px, py) の曲率を推定（5点有限差分ラプラシアン + cc 正規化）
+// プロトコルの neg(Laplacian(smoothed)) / cc に相当する値を返す
+function estimateScreenCurvature(px, py, deltaPx = 4) {
+  const canvas = map.getCanvas();
+  if (px - deltaPx < 0 || px + deltaPx >= canvas.offsetWidth ||
+      py - deltaPx < 0 || py + deltaPx >= canvas.offsetHeight) return null;
+
+  const pC  = map.unproject([px,           py          ]);
+  const pR  = map.unproject([px + deltaPx, py          ]);
+  const pL  = map.unproject([px - deltaPx, py          ]);
+  const pD  = map.unproject([px,           py + deltaPx]);
+  const pU  = map.unproject([px,           py - deltaPx]);
+
+  const hC = map.queryTerrainElevation(pC, { exaggerated: false });
+  const hR = map.queryTerrainElevation(pR, { exaggerated: false });
+  const hL = map.queryTerrainElevation(pL, { exaggerated: false });
+  const hD = map.queryTerrainElevation(pD, { exaggerated: false });
+  const hU = map.queryTerrainElevation(pU, { exaggerated: false });
+  if ([hC, hR, hL, hD, hU].some(h => h == null)) return null;
+
+  const dX = turf.distance(turf.point([pC.lng, pC.lat]), turf.point([pR.lng, pR.lat]), { units: 'kilometers' }) * 1000;
+  const dY = turf.distance(turf.point([pC.lng, pC.lat]), turf.point([pD.lng, pD.lat]), { units: 'kilometers' }) * 1000;
+  if (!(dX > 0) || !(dY > 0)) return null;
+
+  // 5点ラプラシアン: (h+1 - 2h0 + h-1) / d^2 を x・y 方向で合算
+  const lapX = (hR - 2 * hC + hL) / (dX * dX);
+  const lapY = (hD - 2 * hC + hU) / (dY * dY);
+  // プロトコルは neg(Laplacian) → 符号反転
+  const laplacian = -(lapX + lapY);
+
+  // cc 係数（プロトコルと同式・terrainScale=1 固定）
+  const pixelLength = _estimateCurvaturePixelLength();
+  const cc = pixelLength < 68
+    ? Math.max(pixelLength / 2, 1.1)
+    : 0.188 * Math.pow(pixelLength, 1.232);
+
+  return laplacian / cc;
+}
+
+// ---- 色別曲率: 表示範囲から自動フィット ----
+function autoFitCurvatureRelief() {
+  const GRID = map.getZoom() <= 9 ? 8 : 15;
+  const canvas = map.getCanvas();
+  const w = canvas.offsetWidth;
+  const h = canvas.offsetHeight;
+  // deltaPx: グリッドサイズに対応した有限差分幅（小さすぎると noisy）
+  const deltaPx = Math.max(4, Math.round(w / (GRID * 3)));
+  let globalMin = Infinity, globalMax = -Infinity;
+
+  for (let r = 0; r < GRID; r++) {
+    for (let c = 0; c < GRID; c++) {
+      const px = (c + 0.5) / GRID * w;
+      const py = (r + 0.5) / GRID * h;
+      const curv = estimateScreenCurvature(px, py, deltaPx);
+      if (curv == null) continue;
+      if (curv < globalMin) globalMin = curv;
+      if (curv > globalMax) globalMax = curv;
+    }
+  }
+
+  if (!isFinite(globalMin) || !isFinite(globalMax)) return;
+
+  const step = 0.01;
+  // 余白 10% を加えてスライダー上限内に収める
+  const margin = Math.max((globalMax - globalMin) * 0.1, step);
+  cvMin = Math.max(-0.5, Math.round((globalMin - margin) / step) * step);
+  cvMax = Math.min( 0.5, Math.round((globalMax + margin) / step) * step);
+  if (cvMax <= cvMin) cvMax = Math.min(0.5, cvMin + step);
+
+  updateCurvatureReliefSource();
+}
+
+document.getElementById('cv-autofit-btn')?.addEventListener('click', autoFitCurvatureRelief);
+
 // ---- CS立体図 透明度スライダー（全国・地域別共通） ----
 const sliderCs = document.getElementById('slider-cs');
 updateSliderGradient(sliderCs);
