@@ -203,8 +203,9 @@ const magneticNorthControl = {
     btn.addEventListener('click', () => {
       const center = m.getCenter();
       const decl   = getDeclination(center.lat, center.lng);
-      // 磁北方向の bearing = -decl（東偏正の偏角を MapLibre bearing に変換）
-      m.easeTo({ bearing: -decl, duration: 300 });
+      // MapLibre bearing = 地図上方が真北から時計回りに何度か
+      // 磁北を上にする = 地図上方を磁北方向（真北から decl 度）に向ける → bearing = decl
+      m.easeTo({ bearing: decl, duration: 300 });
     });
     this._container.appendChild(btn);
     return this._container;
