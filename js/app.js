@@ -187,6 +187,35 @@ map.addControl(new maplibregl.NavigationControl({
   'top-right'
 );
 
+// 磁北を上にするカスタムコントロール
+// NavigationControl の compass（真北リセット）ボタンの直下に配置する。
+// 地図中央の磁気偏角を getDeclination() で取得し、その分だけ bearing を回転させる。
+const magneticNorthControl = {
+  onAdd(m) {
+    this._map = m;
+    this._container = document.createElement('div');
+    this._container.className = 'maplibregl-ctrl maplibregl-ctrl-group';
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.title = '磁北を上にする';
+    btn.style.cssText = 'display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:bold;color:inherit;';
+    btn.textContent = 'MN';
+    btn.addEventListener('click', () => {
+      const center = m.getCenter();
+      const decl   = getDeclination(center.lat, center.lng);
+      // 磁北方向の bearing = -decl（東偏正の偏角を MapLibre bearing に変換）
+      m.easeTo({ bearing: -decl, duration: 300 });
+    });
+    this._container.appendChild(btn);
+    return this._container;
+  },
+  onRemove() {
+    this._container.parentNode?.removeChild(this._container);
+    this._map = undefined;
+  },
+};
+map.addControl(magneticNorthControl, 'top-right');
+
 /*
   ========================================================
   現在位置取得ボタン（GeolocateControl）
