@@ -10243,51 +10243,12 @@ document.getElementById('import-decide-btn').addEventListener('click', () => {
   new ResizeObserver(schedulePrintFrameRefresh).observe(frameOverlay);
   new ResizeObserver(schedulePrintFrameRefresh).observe(map.getContainer());
 
-  // 縮尺・用紙サイズ・向き変更時に枠全体が画面に収まるようにズームを自動調整する
-  function fitPrintFrameToView() {
-    if (!printModeState.active) return;
-    const [pw_mm, ph_mm] = getPaperDim();
-    const scale = getScale();
-    if (!scale || !isFinite(scale)) return;
-
-    const lat = map.getCenter().lat;
-
-    // 地図の有効表示領域（サイドバー右側）のピクセルサイズを取得
-    const insetLeft = getPrintFrameInsetLeft();
-    const mapRect   = map.getContainer().getBoundingClientRect();
-    const viewW = Math.max(1, mapRect.width  - insetLeft);
-    const viewH = Math.max(1, mapRect.height);
-
-    // 枠がビューに収まる最大ズームを幅・高さそれぞれで計算し、小さい方を採用
-    // 式: 78271.51696 × cos(lat) / 2^z = scale × (mm/1000) / (viewPx)
-    // → z = log2( 78271.51696 × cos(lat) × viewPx / (scale × mm/1000) )
-    const cosLat   = Math.cos(lat * Math.PI / 180);
-    const zForW = Math.log2(78271.51696 * cosLat * viewW / (scale * pw_mm / 1000));
-    const zForH = Math.log2(78271.51696 * cosLat * viewH / (scale * ph_mm / 1000));
-    // 余白を少し設ける（0.92 ≈ 8% 余裕）
-    const targetZoom = Math.min(zForW, zForH) + Math.log2(0.92);
-    const clampedZoom = getClampedPrintZoom(targetZoom);
-
-    map.easeTo({ zoom: clampedZoom, duration: 350 });
-  }
-
   // 設定変更時の更新
-  function handleScaleChange() {
-    schedulePrintFrameRefresh();
-    // 縮尺変更直後はフレーム計算が完了していないため次フレームで fit
-    requestAnimationFrame(() => requestAnimationFrame(fitPrintFrameToView));
-  }
-  function handlePaperChange() {
-    schedulePrintFrameRefresh();
-    requestAnimationFrame(() => requestAnimationFrame(fitPrintFrameToView));
-  }
-
-  [selPaper, selOrientation].forEach(el => {
-    el.addEventListener('change', handlePaperChange);
+  [selPaper, selOrientation, selScaleSelect].forEach(el => {
+    el.addEventListener('change', schedulePrintFrameRefresh);
   });
-  selScaleSelect.addEventListener('change', handleScaleChange);
   scaleCustomInput.addEventListener('input',  schedulePrintFrameRefresh);
-  scaleCustomInput.addEventListener('change', () => { updateInfo(); fitPrintFrameToView(); });
+  scaleCustomInput.addEventListener('change', updateInfo);
   selDpi.addEventListener('change', updateInfo);
 
   // エクスポート実行
