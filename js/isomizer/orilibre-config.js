@@ -557,8 +557,8 @@ export const SYMBOL_PALETTE = {
 
 // ===== color-palette.yml =====
 
-// ---- hexセット（スクリーン向け調整済み、旧来の動作を維持） ----
-export const COLOR_PALETTE_HEX = {
+// ---- OriLibreオリジナルセット（スクリーン向け調整済み） ----
+export const COLOR_PALETTE_ORILIBRE = {
   "color-palette": [
     {
       lower: [
@@ -610,7 +610,7 @@ export const COLOR_PALETTE_HEX = {
 // 出典: IOF 地図図式 印刷と色の定義（2023年5月版）
 // https://www.orienteering.or.jp/archive/rule/map-print-colour_202305.pdf
 // ※ ICC プロファイルなしの単純 CMYK→RGB 変換。実際の印刷色とは差異が生じる場合がある。
-export const COLOR_PALETTE_CMYK = {
+export const COLOR_PALETTE_IOF = {
   "color-palette": [
     {
       lower: [
@@ -680,12 +680,12 @@ export const COLOR_PALETTE_CMYK = {
 
 // 色セットのエントリーポイント: isomizer / recolorMap に渡す
 export const COLOR_PALETTES = {
-  hex: COLOR_PALETTE_HEX["color-palette"],
-  iof: COLOR_PALETTE_CMYK["color-palette"],
+  orilibre: COLOR_PALETTE_ORILIBRE["color-palette"],
+  iof:      COLOR_PALETTE_IOF["color-palette"],
 };
 
 // 後方互換エイリアス
-export const COLOR_PALETTE = COLOR_PALETTE_HEX;
+export const COLOR_PALETTE = COLOR_PALETTE_IOF;
 
 // ===== image-palette.yml（SVGインライン埋め込み済み）=====
 export const IMAGE_PALETTE = {

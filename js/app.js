@@ -9821,9 +9821,9 @@ document.getElementById('import-decide-btn').addEventListener('click', () => {
   }
 
   // 指定 DPI・縮尺・緯度に対応したエクスポートズームを計算
-  // 導出: 156543 × cos(lat) / 2^z = 0.0254 × scale / dpi
+  // MapLibre GL JS は 512px タイル基準: 78271.51696 × cos(lat) / 2^z = 0.0254 × scale / dpi
   function calcExportZoom(dpi, scale, lat) {
-    return Math.log2(156543.03392 * Math.cos(lat * Math.PI / 180) * dpi / (0.0254 * scale));
+    return Math.log2(78271.51696 * Math.cos(lat * Math.PI / 180) * dpi / (0.0254 * scale));
   }
 
   function getPrintFrameInsetLeft() {
@@ -9838,7 +9838,8 @@ document.getElementById('import-decide-btn').addEventListener('click', () => {
     const scale = parseInt(selScale.value, 10);
     const zoom  = map.getZoom();
     const lat   = map.getCenter().lat;
-    const metersPerPx = 40075016.686 * Math.cos(lat * Math.PI / 180) / (256 * Math.pow(2, zoom));
+    // MapLibre GL JS は 512px タイル基準（係数 78271.51696 = 40075016.686 / 512）
+    const metersPerPx = 40075016.686 * Math.cos(lat * Math.PI / 180) / (512 * Math.pow(2, zoom));
     const fW = (pw_mm / 1000 * scale) / metersPerPx;
     const fH = (ph_mm / 1000 * scale) / metersPerPx;
     // overlay は画面全体だが、フレームはサイドバー右側の地図表示領域に固定する

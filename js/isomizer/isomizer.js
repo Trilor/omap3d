@@ -14,11 +14,11 @@ let _colorMap = null;
 /**
  * OriLibre スタイルをマップに適用する。
  * @param {maplibregl.Map} map
- * @param {'hex'|'iof'} paletteName 使用する色セット（デフォルト: 'hex'）
+ * @param {'iof'|'orilibre'} paletteName 使用する色セット（デフォルト: 'iof'）
  */
-export async function isomizer(map, paletteName = 'hex') {
+export async function isomizer(map, paletteName = 'iof') {
   try {
-    const palette = COLOR_PALETTES[paletteName] ?? COLOR_PALETTES.hex;
+    const palette = COLOR_PALETTES[paletteName] ?? COLOR_PALETTES.iof;
     const style = await generateStyle(
       DESIGN_PLAN.rules,
       DESIGN_PLAN.sources,
