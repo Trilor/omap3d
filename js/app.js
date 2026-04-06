@@ -610,7 +610,7 @@ map.on('load', async () => {
   // 色別曲率図（dem2curve://プロトコル）
   map.addSource('curvature-relief', {
     type: 'raster',
-    tiles: [`dem2curve://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp?min=-1.0&max=1.0&_init=1`],
+    tiles: [`dem2curve://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp?min=-0.25&max=0.25&_init=1`],
     tileSize: 512,
     minzoom: 5,
     maxzoom: 15,
@@ -4887,8 +4887,9 @@ function autoFitSlopeRelief() {
 document.getElementById('sr-autofit-btn')?.addEventListener('click', autoFitSlopeRelief);
 
 // ---- 色別曲率 デュアルレンジスライダー ----
-let cvMin = -1.0;
-let cvMax =  1.0;
+// CS立体図の曲率レイヤー（L2/L4）と同じスケールに合わせたデフォルト範囲
+let cvMin = -0.25;
+let cvMax =  0.25;
 
 function refreshCurvatureReliefTrackLayout() {
   const cvCtrls = document.getElementById('curvature-relief-controls');
@@ -4909,10 +4910,10 @@ function syncCurvatureReliefUI() {
   const maxInput  = document.getElementById('cv-max-input');
   if (!minSlider || !maxSlider) return;
 
-  minSlider.min = maxSlider.min = '-5.0';
-  minSlider.max = maxSlider.max = '5.0';
-  cvMin = Math.max(-5.0, Math.min(cvMin, 5.0));
-  cvMax = Math.max(-5.0, Math.min(cvMax, 5.0));
+  minSlider.min = maxSlider.min = '-0.5';
+  minSlider.max = maxSlider.max = '0.5';
+  cvMin = Math.max(-0.5, Math.min(cvMin, 0.5));
+  cvMax = Math.max(-0.5, Math.min(cvMax, 0.5));
 
   minSlider.value = cvMin;
   maxSlider.value = cvMax;
@@ -5064,8 +5065,8 @@ function updateCurvatureReliefSource() {
         cvMax = Math.min(hi, Math.max(cvMax, cvMin));
       } else if (dragMode === 'move') {
         const span = dragStartMax - dragStartMin;
-        if (cvMin < lo) { cvMin = lo; cvMax = lo + span; }
-        if (cvMax > hi) { cvMax = hi; cvMin = hi - span; }
+        if (cvMin < lo) { cvMin = lo; cvMax = Math.min(hi, lo + span); }
+        if (cvMax > hi) { cvMax = hi; cvMin = Math.max(lo, hi - span); }
       }
     }
 
