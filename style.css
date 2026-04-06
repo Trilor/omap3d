@@ -3679,23 +3679,32 @@ label.setting-label {
   border-bottom: none;
 }
 
-/* 縮尺コンボ入力: select と同じ外観で文字入力も可能 */
-.print-scale-combo-input {
-  font-family: var(--font-family);
-  font-weight: 500;
-  appearance: none;
-  background-color: var(--dropdown-bg);
-  background-image: var(--chevron-down);
-  background-repeat: no-repeat;
-  background-position: right var(--chevron-inset) center;
-  background-size: var(--chevron-size-down);
-  color: var(--dropdown-color);
-  border: 1px solid var(--dropdown-border);
-  border-radius: var(--dropdown-radius);
-  cursor: text;
-  outline: none;
+/* 縮尺コンボ: select の上に透明 input をオーバーレイ */
+.print-scale-wrap {
+  position: relative;
+  width: 100%;
 }
-.print-scale-combo-input:focus { border-color: var(--primary); }
+.print-scale-wrap select {
+  width: 100%;
+  /* select 本体はそのままの外観（chevron・border・背景色）を維持 */
+}
+.print-scale-overlay {
+  position: absolute;
+  inset: 0;
+  /* chevron 領域（右端 var(--chevron-pad-r)）は select に任せる */
+  right: var(--chevron-pad-r);
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--dropdown-color);
+  font-family: var(--font-family);
+  font-size: var(--font-base);
+  font-weight: 500;
+  padding: 4px 0 4px 6px;
+  cursor: text;
+  /* select の上に重ねる */
+  z-index: 1;
+}
 
 /* 出力情報（元のスタイルに戻す） */
 .print-panel-info {

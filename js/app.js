@@ -9802,30 +9802,42 @@ document.getElementById('import-decide-btn').addEventListener('click', () => {
     B2: [515, 728], B3: [364, 515], B4: [257, 364], B5: [182, 257],
   };
 
-  const exportBtn      = document.getElementById('print-export-btn');
-  const selPaper       = document.getElementById('print-paper-size');
-  const selOrientation = document.getElementById('print-orientation');
-  const selScale       = document.getElementById('print-scale'); // <input type="text"> コンボボックス
-  const selFormat      = document.getElementById('print-format');
-  const selDpi         = document.getElementById('print-dpi');
-  const infoEl         = document.getElementById('print-info');
-  const frameOverlay   = document.getElementById('print-frame-overlay');
-  const frameSvg       = document.getElementById('print-frame-svg');
-  const simStartBlock  = document.getElementById('sim-start-block');
+  const exportBtn        = document.getElementById('print-export-btn');
+  const selPaper         = document.getElementById('print-paper-size');
+  const selOrientation   = document.getElementById('print-orientation');
+  const selScaleSelect   = document.getElementById('print-scale-select'); // <select> プルダウン本体
+  const selScale         = document.getElementById('print-scale');        // <input> 表示オーバーレイ
+  const selFormat        = document.getElementById('print-format');
+  const selDpi           = document.getElementById('print-dpi');
+  const infoEl           = document.getElementById('print-info');
+  const frameOverlay     = document.getElementById('print-frame-overlay');
+  const frameSvg         = document.getElementById('print-frame-svg');
+  const simStartBlock    = document.getElementById('sim-start-block');
 
-  // コンボボックスの表示文字列（カンマ区切り可）から縮尺分母の整数を返す
+  // input の表示文字列（カンマ区切り可）から縮尺分母の整数を返す
   function getScale() {
     const raw = selScale.value.replace(/,/g, '').trim();
     const v   = parseInt(raw, 10);
     return v >= 100 ? v : 10000;
   }
 
-  // 入力中にカンマを自動挿入してフォーマット（フォーカスを失ったとき）
+  // select 選択時 → input に反映
+  selScaleSelect.addEventListener('change', () => {
+    selScale.value = parseInt(selScaleSelect.value, 10).toLocaleString('ja-JP');
+  });
+
+  // input 編集時 → select の選択状態をリセット（プリセット外の値を入力した場合）
+  selScale.addEventListener('input', () => {
+    const v = parseInt(selScale.value.replace(/,/g, ''), 10);
+    const match = Array.from(selScaleSelect.options).find(o => parseInt(o.value, 10) === v);
+    selScaleSelect.value = match ? match.value : '';
+  });
+
+  // フォーカスを失ったらカンマ整形
   selScale.addEventListener('blur', () => {
     const v = getScale();
     selScale.value = v.toLocaleString('ja-JP');
   });
-  // datalist 選択時（change）はカンマ付きなのでそのまま受け取る
   const printModeState = {
     active: false,
     prevTerrainEnabled: false,
@@ -10245,9 +10257,10 @@ document.getElementById('import-decide-btn').addEventListener('click', () => {
   [selPaper, selOrientation].forEach(el => {
     el.addEventListener('change', schedulePrintFrameRefresh);
   });
-  // 縮尺コンボ: input（リアルタイム）と change（datalist選択）の両方を拾う
+  // 縮尺: select 選択 または input 直接入力の両方でフレーム更新
+  selScaleSelect.addEventListener('change', () => { schedulePrintFrameRefresh(); updateInfo(); });
   selScale.addEventListener('input',  schedulePrintFrameRefresh);
-  selScale.addEventListener('change', () => { schedulePrintFrameRefresh(); updateInfo(); });
+  selScale.addEventListener('change', updateInfo);
   selDpi.addEventListener('change', updateInfo);
 
   // エクスポート実行
