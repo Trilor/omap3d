@@ -9889,16 +9889,18 @@ document.getElementById('import-decide-btn').addEventListener('click', () => {
     const metersPerPx = 40075016.686 * Math.cos(lat * Math.PI / 180) / (512 * Math.pow(2, zoom));
     const fW = (pw_mm / 1000 * scale) / metersPerPx;
     const fH = (ph_mm / 1000 * scale) / metersPerPx;
-    // overlay は画面全体だが、フレームはサイドバー右側の地図表示領域に固定する
     const ovW = Math.max(0, frameOverlay.offsetWidth - printModeState.frameInsetLeft);
     const ovH = frameOverlay.offsetHeight;
-    const x = Math.max(printModeState.frameInsetLeft, Math.round(printModeState.frameInsetLeft + (ovW - fW) / 2));
-    const y = Math.max(0, Math.round((ovH - fH) / 2));
-    const bW = Math.round(Math.min(fW, ovW));
-    const bH = Math.round(Math.min(fH, ovH));
+    // 地図有効領域の中心を基準に枠を配置（クランプしない — 枠は画面外に出てよい）
+    const centerX = printModeState.frameInsetLeft + ovW / 2;
+    const centerY = ovH / 2;
+    const x  = Math.round(centerX - fW / 2);
+    const y  = Math.round(centerY - fH / 2);
+    const bW = Math.round(fW);
+    const bH = Math.round(fH);
     return {
       x, y, bW, bH, ovW, ovH,
-      anchorPx: [x + bW / 2, y + bH / 2],
+      anchorPx: [centerX, centerY],
     };
   }
 
