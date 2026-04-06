@@ -234,6 +234,8 @@ async function fetchCompositeDemBitmap(
   const useQ    = demMode === null; // Q地図: 全合成モードのみ使用
   const useS    = demMode === null || demMode === 'dem5a' || demMode === 'land+dem5a'; // DEM5A: 全合成 or 単独 or land+dem5a
   const useLand = demMode === null || demMode === 'land' || demMode === 'land+dem5a'; // DEM10B: 全合成 or 単独 or land+dem5a
+  const sUrl    = useS    ? `${DEM5A_BASE}/${z}/${x}/${y}.png`         : null;
+  const landUrl = useLand ? `${LAND_DEM_BASE}/${z}/${x}/${y}.png`      : null;
   const qUrl    = useQ    ? `${QCHIZU_PROXY_BASE}/${z}/${x}/${y}.webp` : null;
   // 湖水深タイルはコメントアウト（2026-03-23 廃止）
   // const lUrl  = `${LAKEDEPTH_BASE}/${z}/${x}/${y}.png`;
@@ -262,40 +264,13 @@ async function fetchCompositeDemBitmap(
     } catch { return null; }
   }
 
-  // DEM5A(maxzoom=15) / DEM10B(maxzoom=14) のオーバーズーム fetch。
-  // z > maxzoom の場合、親タイルを取得して該当領域を切り出しリサイズして返す。
-  async function toImageDataOverzoom(baseUrl, tz, tx, ty, maxzoom) {
-    const overstep = tz - maxzoom;
-    if (overstep <= 0) {
-      return toImageData(`${baseUrl}/${tz}/${tx}/${ty}.png`);
-    }
-    // 親タイル座標
-    const pz = maxzoom;
-    const px = tx >> overstep;
-    const py = ty >> overstep;
-    const parent = await toImageData(`${baseUrl}/${pz}/${px}/${py}.png`);
-    if (!parent) return null;
-    // 親タイル内での切り出し位置（overstep 段分の細分割）
-    const divisions = 1 << overstep; // 2^overstep
-    const tileW = parent.width  / divisions;
-    const tileH = parent.height / divisions;
-    const offX  = (tx - (px << overstep)) * tileW;
-    const offY  = (ty - (py << overstep)) * tileH;
-    // 切り出してリサイズ（元サイズに戻す）
-    const srcCv = new OffscreenCanvas(parent.width, parent.height);
-    srcCv.getContext('2d').putImageData(parent, 0, 0);
-    const dstCv = new OffscreenCanvas(parent.width, parent.height);
-    dstCv.getContext('2d').drawImage(srcCv, offX, offY, tileW, tileH, 0, 0, parent.width, parent.height);
-    return dstCv.getContext('2d').getImageData(0, 0, parent.width, parent.height);
-  }
-
   const [qData, sData, landData, rData] = await Promise.all([
-    qUrl   ? toImageData(qUrl, qSignal)                     : Promise.resolve(null),
-    useS   ? toImageDataOverzoom(DEM5A_BASE,  z, x, y, 15) : Promise.resolve(null),
-    useLand? toImageDataOverzoom(LAND_DEM_BASE, z, x, y, 14): Promise.resolve(null),
+    qUrl     ? toImageData(qUrl, qSignal) : Promise.resolve(null),
+    sUrl     ? toImageData(sUrl)          : Promise.resolve(null),
+    landUrl  ? toImageData(landUrl)       : Promise.resolve(null),
     // 湖水深タイルはコメントアウト（2026-03-23 廃止）
     // toImageData(lUrl), toImageData(lsUrl),
-    rUrl   ? toImageData(rUrl)                              : Promise.resolve(null),
+    rUrl     ? toImageData(rUrl)          : Promise.resolve(null),
   ]);
   if (!qData && !sData && !landData && !rData) return null;
 
