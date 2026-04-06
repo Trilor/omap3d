@@ -9802,32 +9802,30 @@ document.getElementById('import-decide-btn').addEventListener('click', () => {
     B2: [515, 728], B3: [364, 515], B4: [257, 364], B5: [182, 257],
   };
 
-  const exportBtn        = document.getElementById('print-export-btn');
-  const selPaper         = document.getElementById('print-paper-size');
-  const selOrientation   = document.getElementById('print-orientation');
-  const selScale         = document.getElementById('print-scale');
-  const scaleCustomRow   = document.getElementById('print-scale-custom-row');
-  const scaleCustomInput = document.getElementById('print-scale-custom');
-  const selFormat        = document.getElementById('print-format');
-  const selDpi           = document.getElementById('print-dpi');
-  const infoEl           = document.getElementById('print-info');
-  const frameOverlay     = document.getElementById('print-frame-overlay');
-  const frameSvg         = document.getElementById('print-frame-svg');
+  const exportBtn      = document.getElementById('print-export-btn');
+  const selPaper       = document.getElementById('print-paper-size');
+  const selOrientation = document.getElementById('print-orientation');
+  const selScale       = document.getElementById('print-scale'); // <input type="text"> コンボボックス
+  const selFormat      = document.getElementById('print-format');
+  const selDpi         = document.getElementById('print-dpi');
+  const infoEl         = document.getElementById('print-info');
+  const frameOverlay   = document.getElementById('print-frame-overlay');
+  const frameSvg       = document.getElementById('print-frame-svg');
+  const simStartBlock  = document.getElementById('sim-start-block');
 
-  // 現在の縮尺分母を返す（手入力モード対応）
+  // コンボボックスの表示文字列（カンマ区切り可）から縮尺分母の整数を返す
   function getScale() {
-    if (selScale.value === 'custom') {
-      return Math.max(100, parseInt(scaleCustomInput.value, 10) || 10000);
-    }
-    return parseInt(selScale.value, 10);
+    const raw = selScale.value.replace(/,/g, '').trim();
+    const v   = parseInt(raw, 10);
+    return v >= 100 ? v : 10000;
   }
 
-  // 手入力行の表示切替（schedulePrintFrameRefresh のイベント登録は後述）
-  selScale.addEventListener('change', () => {
-    const isCustom = selScale.value === 'custom';
-    scaleCustomRow.style.display = isCustom ? '' : 'none';
-    if (isCustom) scaleCustomInput.focus();
+  // 入力中にカンマを自動挿入してフォーマット（フォーカスを失ったとき）
+  selScale.addEventListener('blur', () => {
+    const v = getScale();
+    selScale.value = v.toLocaleString('ja-JP');
   });
+  // datalist 選択時（change）はカンマ付きなのでそのまま受け取る
   const printModeState = {
     active: false,
     prevTerrainEnabled: false,
@@ -10180,11 +10178,13 @@ document.getElementById('import-decide-btn').addEventListener('click', () => {
 
     if (printModeState.prevTerrainEnabled) setTerrain3dEnabled(false);
     if (printModeState.prevBuildingEnabled) await setBuilding3dEnabled(false);
+    if (simStartBlock) simStartBlock.style.display = 'none';
   }
 
   async function exitPrintMode() {
     if (!printModeState.active) return;
     printModeState.active = false;
+    if (simStartBlock) simStartBlock.style.display = '';
 
     disablePrintCenterRotate();
     disablePrintCenterZoom();
@@ -10242,11 +10242,12 @@ document.getElementById('import-decide-btn').addEventListener('click', () => {
   new ResizeObserver(schedulePrintFrameRefresh).observe(map.getContainer());
 
   // 設定変更時の更新
-  [selPaper, selOrientation, selScale].forEach(el => {
+  [selPaper, selOrientation].forEach(el => {
     el.addEventListener('change', schedulePrintFrameRefresh);
   });
-  scaleCustomInput.addEventListener('input',  schedulePrintFrameRefresh);
-  scaleCustomInput.addEventListener('change', updateInfo);
+  // 縮尺コンボ: input（リアルタイム）と change（datalist選択）の両方を拾う
+  selScale.addEventListener('input',  schedulePrintFrameRefresh);
+  selScale.addEventListener('change', () => { schedulePrintFrameRefresh(); updateInfo(); });
   selDpi.addEventListener('change', updateInfo);
 
   // エクスポート実行
