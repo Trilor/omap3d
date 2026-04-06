@@ -3679,14 +3679,25 @@ label.setting-label {
   border-bottom: none;
 }
 
-/* 縮尺コンボ: select の上に透明 input をオーバーレイ */
+/* 縮尺コンボ: 「1 :」プレフィックス + select+inputオーバーレイ */
+.print-scale-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.print-scale-prefix {
+  white-space: nowrap;
+  font-size: var(--font-base);
+  font-weight: 500;
+  color: var(--text-main);
+  flex-shrink: 0;
+}
 .print-scale-wrap {
   position: relative;
-  width: 100%;
+  flex: 1;
 }
 .print-scale-wrap select {
   width: 100%;
-  /* select 本体はそのままの外観（chevron・border・背景色）を維持 */
 }
 .print-scale-overlay {
   position: absolute;
