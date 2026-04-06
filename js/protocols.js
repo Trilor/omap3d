@@ -529,20 +529,15 @@ maplibregl.addProtocol('dem2cs', async (params, abortController) => {
     mergedHeights[i] = _getNumpngHeight(mergedPx[p], mergedPx[p + 1], mergedPx[p + 2], mergedPx[p + 3]);
   }
 
-  // 中央タイルの無効値マスク — 無効ピクセルを透明にするためのアルファ値
-  // mergedHeights の中央領域 (buffer,buffer)〜(buffer+tileSize,buffer+tileSize) を参照
-  const centerAlpha = new Float32Array(tileSize * tileSize);
-  for (let row = 0; row < tileSize; row++) {
-    for (let col = 0; col < tileSize; col++) {
-      const mi = (row + buffer) * mergedSize + (col + buffer);
-      centerAlpha[row * tileSize + col] = mergedHeights[mi] === -99999 ? 0 : 255;
-    }
-  }
-
-  // ── ④ ガウシアン平滑化（キャッシュ済みカーネル） ──
+  // ── ④ ガウシアン平滑化 + Sobel傾斜（GPU）──
+  // RRIMと同様に重い演算は tf.tidy 外で手動管理し、早期 dispose でメモリを抑制。
+  // 平滑化（→曲率用）と Sobel傾斜（→傾斜レイヤー用）を独立した tidy で計算し、
+  // Promise.all で GPU→CPU 転送を並列化してスループットを最大化する。
   const kExp = _getCsKernel(kernelRadius, sigma);
   const hT = tf.tensor2d(mergedHeights, [mergedSize, mergedSize]);
   const valid = hT.notEqual(-99999);
+
+  // Phase A-1: ガウシアン平滑化テンソル生成（tidy外・手動dispose）
   const masked = tf.where(valid, hT, 0);
   const kSum = tf.conv2d(
     valid.cast('float32').expandDims(2).expandDims(0), kExp, 1, 'valid'
@@ -550,43 +545,63 @@ maplibregl.addProtocol('dem2cs', async (params, abortController) => {
   const sHRaw = tf.conv2d(
     masked.expandDims(2).expandDims(0), kExp, 1, 'valid'
   ).squeeze([0, 3]).div(kSum);
-  // nodata箇所は 0 埋め（Laplacianでの汚染を最小化）
   const validCrop = valid.slice([buffer, buffer], [tileSize + 2, tileSize + 2]);
-  const smoothedT = tf.where(validCrop, sHRaw, tf.zerosLike(sHRaw)); // [tileSize+2, tileSize+2]
+  // nodata は -99999 のまま保持（CPU側の曲率計算で nodata 判定に使う）
+  const sH = tf.where(validCrop, sHRaw, tf.fill([tileSize + 2, tileSize + 2], -99999));
   [masked, kSum, sHRaw, validCrop].forEach(t => t.dispose());
 
-  // ── ⑤⑥ 傾斜・曲率・CS合成（全GPU。CPU往復なし） ──
-  // 傾斜: Sobelフィルタ（中央差分）
-  // 曲率: Laplacianフィルタ（smoothed DEM）
-  // どちらも tf.conv2d で求め、そのまま tf.tidy 内でカラー合成する。
-  const cc = pixelLength < 68
-    ? Math.max(pixelLength / 2, 1.1) * Math.sqrt(terrainScale) * redAndBlueIntensity
-    : 0.188 * Math.pow(pixelLength, 1.232) * Math.sqrt(terrainScale) * redAndBlueIntensity;
-
-  const csRittaizuTensor = tf.tidy(() => {
-    const cellArea = pixelLength * pixelLength;
-
-    // 傾斜: raw DEM の [tileSize+2, tileSize+2] 領域に Sobel → [tileSize, tileSize]
+  // Phase A-2: Sobel傾斜テンソル生成（独立 tf.tidy・RRIMのSobel計算と同方式）
+  // 傾斜精度向上のため旧来の3点前進差分から8点Sobelへ変更。
+  // tf.tidy 内で完結させ中間テンソルを即座に解放。
+  const slopeT = tf.tidy(() => {
     const rawCrop = tf.where(
       valid.slice([buffer - 1, buffer - 1], [tileSize + 2, tileSize + 2]),
       hT.slice([buffer - 1, buffer - 1], [tileSize + 2, tileSize + 2]),
       tf.zeros([tileSize + 2, tileSize + 2])
     );
-    const rawIn = rawCrop.expandDims(0).expandDims(-1); // [1,H,W,1]
+    const rawIn = rawCrop.expandDims(0).expandDims(-1);
     const sobelX = tf.tensor4d([-1, 0, 1, -2, 0, 2, -1, 0, 1], [3, 3, 1, 1]);
     const sobelY = tf.tensor4d([-1, -2, -1, 0, 0, 0, 1, 2, 1], [3, 3, 1, 1]);
     const dzdx = tf.conv2d(rawIn, sobelX, 1, 'valid').squeeze([0, 3]).div(8 * pixelLength);
     const dzdy = tf.conv2d(rawIn, sobelY, 1, 'valid').squeeze([0, 3]).div(8 * pixelLength);
-    const sT   = tf.atan(dzdx.square().add(dzdy.square()).sqrt()).mul(180 / Math.PI); // 度
+    return tf.atan(dzdx.square().add(dzdy.square()).sqrt()).mul(180 / Math.PI); // 度 [tileSize,tileSize]
+  });
 
-    // 曲率: smoothedT に Laplacian → [tileSize, tileSize]
-    // Laplacian = [0,1,0; 1,-4,1; 0,1,0] → conv 結果の符号反転 / cellArea
-    const lapKernel = tf.tensor4d([0, 1, 0, 1, -4, 1, 0, 1, 0], [3, 3, 1, 1]);
-    const smoothIn  = smoothedT.expandDims(0).expandDims(-1); // [1,H,W,1]
-    const cT = tf.conv2d(smoothIn, lapKernel, 1, 'valid').squeeze([0, 3]).neg().div(cellArea);
+  // Phase B: GPU→CPU 並列転送（平滑化データと Sobel傾斜を同時に転送）
+  // await を2回逐次発行する代わりに Promise.all で並走させ、転送待ち時間を削減。
+  const [smoothed, slopes] = await Promise.all([sH.data(), slopeT.data()]);
+  [sH, slopeT].forEach(t => t.dispose());
 
-    // 5レイヤー合成
-    const hCrop    = hT.slice([buffer, buffer], [tileSize, tileSize]);
+  // Phase C: CPU ループで曲率計算（旧方式）
+  // Laplacian を GPU conv2d で求めると tf.tidy スコープが肥大化し
+  // カーネル起動オーバーヘッドが増大するため、V8 最適化が効く CPU ループを採用。
+  const curvatures = new Float32Array(tileSize * tileSize);
+  const sw2 = tileSize + 2;
+  const cellArea = pixelLength * pixelLength;
+  for (let row = 0; row < tileSize; row++) {
+    for (let col = 0; col < tileSize; col++) {
+      const oi = row * tileSize + col;
+      const mi = (row + buffer) * mergedSize + (col + buffer);
+      const H00 = mergedHeights[mi];
+      const si = (row + 1) * sw2 + (col + 1);
+      const z2 = smoothed[si - sw2], z4 = smoothed[si - 1], z5 = smoothed[si],
+            z6 = smoothed[si + 1],   z8 = smoothed[si + sw2];
+      curvatures[oi] = H00 === -99999 ? -1
+        : -2 * (((z4 + z6) / 2 - z5) / cellArea + ((z2 + z8) / 2 - z5) / cellArea);
+    }
+  }
+
+  // ── ⑤ CS立体図 5レイヤー合成（小スコープ tf.tidy）──
+  // curvatures / slopes は CPU 側 Float32Array → tensor1d で GPU に転送。
+  // tf.tidy スコープを合成のみに絞ることで中間テンソルの滞留を防ぐ。
+  const cc = pixelLength < 68
+    ? Math.max(pixelLength / 2, 1.1) * Math.sqrt(terrainScale) * redAndBlueIntensity
+    : 0.188 * Math.pow(pixelLength, 1.232) * Math.sqrt(terrainScale) * redAndBlueIntensity;
+
+  const csRittaizuTensor = tf.tidy(() => {
+    const hCrop = hT.slice([buffer, buffer], [tileSize, tileSize]);
+    const cT = tf.tensor1d(curvatures).reshape([tileSize, tileSize]);
+    const sT = tf.tensor1d(slopes).reshape([tileSize, tileSize]);
     const blend    = (a, b, alpha) => a.mul(1 - alpha).add(b.mul(alpha));
     const mulBlend = (a, b) => a.mul(b.div(255));
     const L1 = _csRamp(0, 3000, { r: 100, g: 100, b: 100 }, { r: 255, g: 255, b: 255 }, hCrop);
@@ -596,13 +611,14 @@ maplibregl.addProtocol('dem2cs', async (params, abortController) => {
     const L5 = _csRamp(0, 90, { r: 255, g: 255, b: 255 }, { r: 0, g: 0, b: 0 }, sT);
     const rgb = mulBlend(blend(blend(blend(L1, L2, 0.5), L3, 0.5), L4, 0.5), L5);
     // nodata → アルファ 0
-    const alphaT = tf.where(hCrop.notEqual(-99999), tf.scalar(255), tf.scalar(0))
-      .reshape([tileSize, tileSize, 1]);
+    const alphaT = tf.tensor1d(
+      Float32Array.from({ length: tileSize * tileSize }, (_, i) => curvatures[i] === -1 ? 0 : 255)
+    ).reshape([tileSize, tileSize, 1]);
     return tf.concat([rgb, alphaT], -1);
   });
-  [hT, valid, smoothedT].forEach(t => t.dispose());
+  [hT, valid].forEach(t => t.dispose());
 
-  // ── ⑦ 出力 ──
+  // ── ⑥ 出力 ──
   const outCanvas = new OffscreenCanvas(tileSize, tileSize);
   const csNorm = csRittaizuTensor.div(255);
   await tf.browser.toPixels(csNorm, outCanvas);
