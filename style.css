@@ -4065,6 +4065,21 @@ label.setting-label {
   right: 0;
   cursor: ew-resize;
 }
+.cr-selected-drag--min::before,
+.cr-selected-drag--max::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 14px;
+  height: 14px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.98);
+  background: transparent;
+  box-shadow: 0 0 0 1px rgba(45, 61, 74, 0.10);
+  pointer-events: none;
+}
 .cr-selected-drag--move {
   left: var(--cr-edge-hit);
   right: var(--cr-edge-hit);
