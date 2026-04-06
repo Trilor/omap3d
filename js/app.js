@@ -9826,11 +9826,12 @@ document.getElementById('import-decide-btn').addEventListener('click', () => {
     selScale.value = parseInt(selScaleSelect.value, 10).toLocaleString('ja-JP');
   });
 
-  // input 編集時 → select の選択状態をリセット（プリセット外の値を入力した場合）
+  // input 編集時 → プリセット値と一致した場合だけ select を同期
+  // 一致しない場合は select を変更しない（value='' にするとブラウザの描画が変わりズレる）
   selScale.addEventListener('input', () => {
     const v = parseInt(selScale.value.replace(/,/g, ''), 10);
     const match = Array.from(selScaleSelect.options).find(o => parseInt(o.value, 10) === v);
-    selScaleSelect.value = match ? match.value : '';
+    if (match) selScaleSelect.value = match.value;
   });
 
   // フォーカスを失ったらカンマ整形

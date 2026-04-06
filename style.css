@@ -3699,6 +3699,9 @@ label.setting-label {
 .print-scale-wrap select {
   width: 100%;
   color: transparent; /* テキストは input が表示するため非表示 */
+  /* 高さを固定してどんな操作でも変化しないようにする */
+  height: 38px !important;
+  min-height: unset !important;
 }
 /* select の hover/focus によるスタイル変化を無効化（ズレ防止） */
 .print-scale-wrap select:hover,
