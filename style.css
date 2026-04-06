@@ -4070,7 +4070,6 @@ label.setting-label {
   content: "";
   position: absolute;
   top: 50%;
-  left: 50%;
   width: 14px;
   height: 14px;
   transform: translate(-50%, -50%);
@@ -4079,6 +4078,12 @@ label.setting-label {
   background: transparent;
   box-shadow: 0 0 0 1px rgba(45, 61, 74, 0.10);
   pointer-events: none;
+}
+.cr-selected-drag--min::before {
+  left: calc(var(--cr-bar-h) / 2);
+}
+.cr-selected-drag--max::before {
+  left: calc(100% - (var(--cr-bar-h) / 2));
 }
 .cr-selected-drag--move {
   left: var(--cr-edge-hit);
