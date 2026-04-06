@@ -3680,6 +3680,9 @@ label.setting-label {
   margin-bottom: 0;
   padding-bottom: 16px;
   border-bottom: 1px solid var(--border-light, #e8e8e8);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 #panel-print .settings-group:last-of-type {
   border-bottom: none;
