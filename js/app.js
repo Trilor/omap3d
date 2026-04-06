@@ -4,7 +4,7 @@
 
    【モジュール構成】
      config.js       定数・URL・初期値
-    protocols.js    gsjdem:// / dem2cs:// / dem2relief:// プロトコル登録
+     protocols.js    gsjdem:// / dem2cs:// / dem2relief:// / dem2curve:// プロトコル登録
      contours.js     等高線・DEM レイヤー管理（本ファイルからインポート）
 
    【本ファイルの内容（論理セクション）】
@@ -606,6 +606,24 @@ map.on('load', async () => {
     layout: { visibility: 'visible' },
     paint: { 'raster-opacity': 0, 'raster-fade-duration': 0, 'raster-opacity-transition': { duration: 0, delay: 0 } },
   }, map.getLayer('contour-regular-dem1a') ? 'contour-regular-dem1a' : undefined);
+
+  // 色別曲率図（dem2curve://プロトコル）
+  map.addSource('curvature-relief', {
+    type: 'raster',
+    tiles: [`dem2curve://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp?min=-1.0&max=1.0&_init=1`],
+    tileSize: 512,
+    minzoom: 5,
+    maxzoom: 15,
+    attribution: '',
+  });
+  map.addLayer({
+    id: 'curvature-relief-layer',
+    type: 'raster',
+    source: 'curvature-relief',
+    layout: { visibility: 'visible' },
+    paint: { 'raster-opacity': 0, 'raster-fade-duration': 0, 'raster-opacity-transition': { duration: 0, delay: 0 } },
+  }, map.getLayer('contour-regular-dem1a') ? 'contour-regular-dem1a' : undefined);
+
 
   // 赤色立体地図（dem2rrim://プロトコル）
   map.addSource('rrim-relief', {
@@ -4072,6 +4090,11 @@ function updateCsVisibility() {
     const slopeOpacity = showSlopeRelief ? parseFloat(document.getElementById('slider-cs').value) : 0;
     map.setPaintProperty('slope-relief-layer', 'raster-opacity', slopeOpacity);
   }
+  const showCurvatureRelief = overlay === 'curvature';
+  if (map.getLayer('curvature-relief-layer')) {
+    const curvOpacity = showCurvatureRelief ? parseFloat(document.getElementById('slider-cs').value) : 0;
+    map.setPaintProperty('curvature-relief-layer', 'raster-opacity', curvOpacity);
+  }
   const showRrimRelief = overlay === 'rrim';
   if (map.getLayer('rrim-relief-layer')) {
     const rrimOpacity = showRrimRelief ? parseFloat(document.getElementById('slider-cs').value) : 0;
@@ -4084,6 +4107,9 @@ function updateCsVisibility() {
   const srCtrls = document.getElementById('slope-relief-controls');
   if (srCtrls) srCtrls.style.display = currentOverlay === 'slope' ? '' : 'none';
   if (currentOverlay === 'slope') refreshSlopeReliefTrackLayout();
+  const cvCtrls = document.getElementById('curvature-relief-controls');
+  if (cvCtrls) cvCtrls.style.display = currentOverlay === 'curvature' ? '' : 'none';
+  if (currentOverlay === 'curvature') refreshCurvatureReliefTrackLayout();
 
   // 色別等高線の表示制御（contourState.demMode に応じて排他表示）
   const showColorContour = overlay === 'color-contour';
@@ -4102,7 +4128,7 @@ function updateCsVisibility() {
   });
 
   // CS立体図: 他の生成系オーバーレイ選択時は非表示
-  const csOverlay = (showColorRelief || showColorContour || showSlopeRelief || showRrimRelief) ? 'none' : overlay;
+  const csOverlay = (showColorRelief || showColorContour || showSlopeRelief || showCurvatureRelief || showRrimRelief) ? 'none' : overlay;
   const csKey = csOverlay !== 'none' ? csOverlay
               : basemap.startsWith('cs-') ? basemap
               : null;
@@ -4178,7 +4204,7 @@ function isCsLayerVisible() {
 }
 
 function isGeneratingLayer() {
-  return isCsLayerVisible() || currentOverlay === 'color-relief' || currentOverlay === 'slope' || currentOverlay === 'rrim';
+  return isCsLayerVisible() || currentOverlay === 'color-relief' || currentOverlay === 'slope' || currentOverlay === 'curvature' || currentOverlay === 'rrim';
 }
 
 map.on('movestart', () => {
@@ -4194,11 +4220,12 @@ document.getElementById('overlay-cards').addEventListener('click', (e) => {
   currentOverlay = card.dataset.key;
   updateCsVisibility();
   // CS立体図・生成系オーバーレイ選択時はローディング表示（idle で非表示）
-  if (currentOverlay === 'cs' || currentOverlay === 'color-relief' || currentOverlay === 'slope' || currentOverlay === 'rrim') showMapLoading();
+  if (currentOverlay === 'cs' || currentOverlay === 'color-relief' || currentOverlay === 'slope' || currentOverlay === 'curvature' || currentOverlay === 'rrim') showMapLoading();
   else hideMapLoading();
   // 色別標高図選択時はタイルを即座にリクエスト（visibility:none 中はMapLibreがフェッチしないため）
   if (currentOverlay === 'color-relief') applyColorReliefTiles();
   if (currentOverlay === 'slope') applySlopeReliefTiles();
+  if (currentOverlay === 'curvature') applyCurvatureReliefTiles();
 });
 
 // （chk-overlay 削除のため、トグルイベントリスナーは不要）
@@ -4859,6 +4886,250 @@ function autoFitSlopeRelief() {
 
 document.getElementById('sr-autofit-btn')?.addEventListener('click', autoFitSlopeRelief);
 
+// ---- 色別曲率 デュアルレンジスライダー ----
+let cvMin = -1.0;
+let cvMax =  1.0;
+
+function refreshCurvatureReliefTrackLayout() {
+  const cvCtrls = document.getElementById('curvature-relief-controls');
+  if (!cvCtrls || cvCtrls.style.display === 'none') return;
+  updateCurvatureGradientTrack();
+  const track = document.getElementById('cv-gradient-track');
+  if ((track?.offsetWidth ?? 0) === 0) {
+    requestAnimationFrame(() => {
+      updateCurvatureGradientTrack();
+    });
+  }
+}
+
+function syncCurvatureReliefUI() {
+  const minSlider = document.getElementById('cv-min-slider');
+  const maxSlider = document.getElementById('cv-max-slider');
+  const minInput  = document.getElementById('cv-min-input');
+  const maxInput  = document.getElementById('cv-max-input');
+  if (!minSlider || !maxSlider) return;
+
+  minSlider.min = maxSlider.min = '-5.0';
+  minSlider.max = maxSlider.max = '5.0';
+  cvMin = Math.max(-5.0, Math.min(cvMin, 5.0));
+  cvMax = Math.max(-5.0, Math.min(cvMax, 5.0));
+
+  minSlider.value = cvMin;
+  maxSlider.value = cvMax;
+  if (minInput) minInput.value = cvMin.toFixed(2);
+  if (maxInput) maxInput.value = cvMax.toFixed(2);
+}
+
+function updateCurvatureGradientTrack() {
+  const track    = document.getElementById('cv-gradient-track');
+  const selected = document.getElementById('cv-selected-track');
+  const minSlider = document.getElementById('cv-min-slider');
+  if (!track || !selected || !minSlider) return;
+
+  const tMin  = parseFloat(minSlider.min);
+  const tMax  = parseFloat(minSlider.max);
+  const range = tMax - tMin || 1;
+  const L = Math.max(0, Math.min(1, (cvMin - tMin) / range)) * 100;
+  const R = Math.max(0, Math.min(1, (cvMax - tMin) / range)) * 100;
+
+  const c0 = `rgb(${CR_PALETTE[0].r},${CR_PALETTE[0].g},${CR_PALETTE[0].b})`;
+  const c1 = `rgb(${CR_PALETTE[CR_PALETTE.length-1].r},${CR_PALETTE[CR_PALETTE.length-1].g},${CR_PALETTE[CR_PALETTE.length-1].b})`;
+
+  const stops = [`${c0} 0%`, `${c0} ${L.toFixed(2)}%`];
+  for (const p of CR_PALETTE) {
+    const pos = (L + p.t * (R - L)).toFixed(2);
+    stops.push(`rgb(${p.r},${p.g},${p.b}) ${pos}%`);
+  }
+  stops.push(`${c1} ${R.toFixed(2)}%`);
+  stops.push(`${c1} 100%`);
+  track.style.background = `linear-gradient(to right, ${stops.join(', ')})`;
+
+  const W = track.offsetWidth;
+  const selectedH = selected.offsetHeight || 20;
+  const radius = selectedH / 2;
+  const posMin = (L / 100) * W;
+  const posMax = (R / 100) * W;
+  const selectedW = Math.max(selectedH, (posMax - posMin) + selectedH);
+  selected.style.left = `${posMin - radius}px`;
+  selected.style.width = `${selectedW}px`;
+  if (selectedW <= selectedH) {
+    selected.style.background = `linear-gradient(to right, ${c0} 0%, ${c0} 50%, ${c1} 50%, ${c1} 100%)`;
+  } else {
+    const innerW = selectedW - selectedH;
+    const selectedStops = [`${c0} 0px`, `${c0} ${radius}px`];
+    for (const p of CR_PALETTE) {
+      const pos = (radius + p.t * innerW).toFixed(2);
+      selectedStops.push(`rgb(${p.r},${p.g},${p.b}) ${pos}px`);
+    }
+    selectedStops.push(`${c1} ${(selectedW - radius).toFixed(2)}px`);
+    selectedStops.push(`${c1} 100%`);
+    selected.style.background = `linear-gradient(to right, ${selectedStops.join(', ')})`;
+  }
+}
+
+let _cvTileTimer = null;
+let _cvRepaintTimer = null;
+
+function applyCurvatureReliefTiles() {
+  if (!map.getSource('curvature-relief')) return;
+  map.getSource('curvature-relief').setTiles([
+    `dem2curve://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp?min=${cvMin.toFixed(3)}&max=${cvMax.toFixed(3)}`
+  ]);
+  clearTimeout(_cvRepaintTimer);
+  let remaining = 20;
+  const repaint = () => {
+    map.triggerRepaint();
+    if (--remaining > 0) _cvRepaintTimer = setTimeout(repaint, 100);
+  };
+  repaint();
+}
+
+function updateCurvatureReliefUI() {
+  syncCurvatureReliefUI();
+  updateCurvatureGradientTrack();
+  clearTimeout(_cvTileTimer);
+  _cvTileTimer = setTimeout(applyCurvatureReliefTiles, 300);
+}
+
+function updateCurvatureReliefSource() {
+  syncCurvatureReliefUI();
+  updateCurvatureGradientTrack();
+  clearTimeout(_cvTileTimer);
+  applyCurvatureReliefTiles();
+}
+
+(function initCurvatureReliefSlider() {
+  const trackWrap = document.querySelector('#curvature-relief-controls .cr-dual-track');
+  const selected  = document.getElementById('cv-selected-track');
+  const minHit    = document.getElementById('cv-selected-min-hit');
+  const maxHit    = document.getElementById('cv-selected-max-hit');
+  const moveHit   = document.getElementById('cv-selected-move-hit');
+  const minSlider = document.getElementById('cv-min-slider');
+  const maxSlider = document.getElementById('cv-max-slider');
+  const minInput  = document.getElementById('cv-min-input');
+  const maxInput  = document.getElementById('cv-max-input');
+  if (!minSlider || !maxSlider) return;
+
+  minSlider.addEventListener('input', () => {
+    cvMin = Math.min(parseFloat(minSlider.value), cvMax);
+    updateCurvatureReliefUI();
+  });
+  minSlider.addEventListener('change', () => {
+    cvMin = Math.min(parseFloat(minSlider.value), cvMax);
+    updateCurvatureReliefSource();
+  });
+  maxSlider.addEventListener('input', () => {
+    cvMax = Math.max(parseFloat(maxSlider.value), cvMin);
+    updateCurvatureReliefUI();
+  });
+  maxSlider.addEventListener('change', () => {
+    cvMax = Math.max(parseFloat(maxSlider.value), cvMin);
+    updateCurvatureReliefSource();
+  });
+
+  const applyMinInput = () => {
+    const v = parseFloat(minInput.value);
+    if (isNaN(v)) { minInput.value = cvMin.toFixed(2); return; }
+    cvMin = Math.min(v, cvMax);
+    updateCurvatureReliefSource();
+  };
+  const applyMaxInput = () => {
+    const v = parseFloat(maxInput.value);
+    if (isNaN(v)) { maxInput.value = cvMax.toFixed(2); return; }
+    cvMax = Math.max(v, cvMin);
+    updateCurvatureReliefSource();
+  };
+  if (minInput) {
+    minInput.addEventListener('change', applyMinInput);
+    minInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') applyMinInput(); });
+  }
+  if (maxInput) {
+    maxInput.addEventListener('change', applyMaxInput);
+    maxInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') applyMaxInput(); });
+  }
+
+  if (trackWrap && selected && minHit && maxHit && moveHit) {
+    let dragMode = null;
+    let dragPointerId = null;
+    let dragStartX = 0;
+    let dragStartMin = 0;
+    let dragStartMax = 0;
+
+    function clampCvValues() {
+      const lo = parseFloat(minSlider.min);
+      const hi = parseFloat(minSlider.max);
+      if (dragMode === 'min') {
+        cvMin = Math.max(lo, Math.min(cvMin, cvMax));
+      } else if (dragMode === 'max') {
+        cvMax = Math.min(hi, Math.max(cvMax, cvMin));
+      } else if (dragMode === 'move') {
+        const span = dragStartMax - dragStartMin;
+        if (cvMin < lo) { cvMin = lo; cvMax = lo + span; }
+        if (cvMax > hi) { cvMax = hi; cvMin = hi - span; }
+      }
+    }
+
+    function onDragMove(clientX) {
+      const width = trackWrap.clientWidth || 1;
+      const scale = (parseFloat(minSlider.max) - parseFloat(minSlider.min)) / width;
+      const deltaValue = (clientX - dragStartX) * scale;
+      if (dragMode === 'min') {
+        cvMin = dragStartMin + deltaValue;
+      } else if (dragMode === 'max') {
+        cvMax = dragStartMax + deltaValue;
+      } else if (dragMode === 'move') {
+        cvMin = dragStartMin + deltaValue;
+        cvMax = dragStartMax + deltaValue;
+      }
+      clampCvValues();
+      updateCurvatureReliefUI();
+    }
+
+    function finishDrag() {
+      if (!dragMode) return;
+      dragMode = null;
+      dragPointerId = null;
+      trackWrap.classList.remove('cr-dragging');
+      selected.classList.remove('cr-dragging');
+      updateCurvatureReliefSource();
+    }
+
+    function startDrag(mode, e) {
+      e.preventDefault();
+      dragMode = mode;
+      dragPointerId = e.pointerId;
+      dragStartX = e.clientX;
+      dragStartMin = cvMin;
+      dragStartMax = cvMax;
+      trackWrap.classList.add('cr-dragging');
+      selected.classList.add('cr-dragging');
+      e.currentTarget.setPointerCapture?.(e.pointerId);
+    }
+
+    [[minHit, 'min'], [maxHit, 'max'], [moveHit, 'move']].forEach(([el, mode]) => {
+      el.addEventListener('pointerdown', (e) => startDrag(mode, e));
+    });
+
+    document.addEventListener('pointermove', (e) => {
+      if (!dragMode || e.pointerId !== dragPointerId) return;
+      onDragMove(e.clientX);
+    });
+    document.addEventListener('pointerup', (e) => {
+      if (e.pointerId !== dragPointerId) return;
+      finishDrag();
+    });
+    document.addEventListener('pointercancel', (e) => {
+      if (e.pointerId !== dragPointerId) return;
+      finishDrag();
+    });
+    selected.addEventListener('lostpointercapture', () => {
+      finishDrag();
+    });
+  }
+
+  updateCurvatureReliefSource();
+})();
+
 // ---- CS立体図 透明度スライダー（全国・地域別共通） ----
 const sliderCs = document.getElementById('slider-cs');
 updateSliderGradient(sliderCs);
@@ -4883,6 +5154,9 @@ sliderCs.addEventListener('input', () => {
   }
   if (currentOverlay === 'rrim' && map.getLayer('rrim-relief-layer')) {
     map.setPaintProperty('rrim-relief-layer', 'raster-opacity', v);
+  }
+  if (currentOverlay === 'curvature' && map.getLayer('curvature-relief-layer')) {
+    map.setPaintProperty('curvature-relief-layer', 'raster-opacity', v);
   }
   if (currentOverlay === 'rrim') {
     REGIONAL_RRIM_LAYERS.forEach(layer => {

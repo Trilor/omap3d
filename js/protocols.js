@@ -1,5 +1,5 @@
 /* ================================================================
-   protocols.js — カスタムプロトコル登録（pmtiles / gsjdem / dem2cs）
+   protocols.js — カスタムプロトコル登録（pmtiles / gsjdem / dem2cs / dem2curve）
    MapLibre の addProtocol() でブラウザ内 DEM 変換を実現します
    ================================================================ */
 
@@ -841,6 +841,200 @@ maplibregl.addProtocol('dem2relief', async (params, abortController) => {
     return { data: _transparentPngBuffer() };
   }
 });
+
+/*
+  ========================================================
+  色別曲率プロトコル (dem2curve://)
+  CS立体図 (dem2cs://) の曲率計算（Laplacian フィルタ）を再利用し、
+  曲率を色別に可視化するオーバーレイを生成します。
+
+  アルゴリズム:
+    1. 9タイル結合 + ガウシアン平滑化（CS立体図と同じ手順）
+    2. 平滑化済み DEM に Laplacian フィルタ → 曲率テンソル cT
+    3. cT を min〜max の範囲で 0〜1 に正規化 → パレット補間で RGB 着色
+
+  URLクエリパラメータ:
+    min: 曲率の下限値（1/m スケールを cc 乗数調整後、デフォルト -1.0）
+    max: 曲率の上限値（同上、デフォルト +1.0）
+    terrainScale: CS立体図と同じスケール係数（デフォルト 1）
+  ========================================================
+*/
+
+// 色別曲率スライダー用のガウシアンカーネルキャッシュ（CS立体図共用の _csKernelCache を流用）
+// — _csKernelCache は同一モジュールスコープに定義済みのため追加不要 —
+
+maplibregl.addProtocol('dem2curve', async (params, abortController) => {
+  try {
+    const request = _parseProtocolTileRequest(params.url, 'dem2curve');
+    if (!request) return { data: _transparentPngBuffer() };
+    const { urlObj, baseUrl, tileOrder, zoomLevel, tileX, tileY, ext } = request;
+
+    const terrainScale = Math.max(parseFloat(urlObj.searchParams.get('terrainScale') ?? '1') || 1, 0.1);
+    // min/max は「正規化後の曲率スケール（cc 補正後）」で指定（デフォルト -1〜+1）
+    const curveMin = parseFloat(urlObj.searchParams.get('min') ?? '-1.0');
+    const curveMax = parseFloat(urlObj.searchParams.get('max') ??  '1.0');
+    const curveRange = (curveMax - curveMin) || 1;
+
+    const regionalDemBase = (baseUrl === QCHIZU_DEM_BASE) ? null : baseUrl;
+    const regionalDemExt  = regionalDemBase ? ext : null;
+    const regionalDemOrder = regionalDemBase ? tileOrder : 'xy';
+
+    const demMode = zoomLevel <= 10 ? 'land'
+                  : zoomLevel <= 13 ? 'land+dem5a'
+                  : null;
+    const effectiveRegionalBase  = zoomLevel >= 17 ? regionalDemBase : null;
+    const effectiveRegionalExt   = effectiveRegionalBase ? regionalDemExt : null;
+    const effectiveRegionalOrder = effectiveRegionalBase ? regionalDemOrder : 'xy';
+
+    // ── ① 9タイル取得（CS立体図と同じ） ──
+    const neighborOffsets = [
+      [-1, -1], [0, -1], [1, -1],
+      [-1,  0], [0,  0], [1,  0],
+      [-1,  1], [0,  1], [1,  1],
+    ];
+    const bitmaps = await Promise.all(neighborOffsets.map(([dx, dy]) =>
+      fetchCompositeDemBitmap(
+        zoomLevel, tileX + dx, tileY + dy,
+        abortController.signal,
+        effectiveRegionalBase, effectiveRegionalExt,
+        demMode, effectiveRegionalOrder
+      )
+    ));
+    if (!bitmaps[4]) return { data: _transparentPngBuffer() };
+
+    const tileSize    = bitmaps[4].width;
+    const pixelLength = _calculatePixelResolution(tileSize, zoomLevel, tileY);
+
+    // ガウシアンパラメータ（CS立体図と同じ）
+    const sigma       = Math.min(Math.max(3 / pixelLength, 1.6), 7) * terrainScale;
+    const kernelRadius = Math.ceil(sigma * 3);
+    const buffer      = kernelRadius + 1;
+    const mergedSize  = tileSize + buffer * 2;
+
+    // ── ② 9タイル結合 ──
+    const mergedCanvas = new OffscreenCanvas(mergedSize, mergedSize);
+    const mc = mergedCanvas.getContext('2d');
+    bitmaps.forEach((bmp, idx) => {
+      if (!bmp) return;
+      if (idx === 4) {
+        mc.drawImage(bmp, 0, 0, tileSize, tileSize, buffer, buffer, tileSize, tileSize);
+      } else {
+        const { sx, sy, sWidth: sw, sHeight: sh, dx, dy } = _calculateTilePosition(idx, tileSize, buffer);
+        mc.drawImage(bmp, sx, sy, sw, sh, dx, dy, sw, sh);
+      }
+      bmp.close();
+    });
+
+    // ── ③ 標高配列生成 ──
+    const mergedPx = mc.getImageData(0, 0, mergedSize, mergedSize).data;
+    const mergedHeights = new Float32Array(mergedSize * mergedSize);
+    for (let i = 0; i < mergedHeights.length; i++) {
+      const p = i * 4;
+      mergedHeights[i] = _getNumpngHeight(mergedPx[p], mergedPx[p + 1], mergedPx[p + 2], mergedPx[p + 3]);
+    }
+
+    // nodata マスク（アルファ値用）
+    const centerAlpha = new Float32Array(tileSize * tileSize);
+    for (let row = 0; row < tileSize; row++) {
+      for (let col = 0; col < tileSize; col++) {
+        const mi = (row + buffer) * mergedSize + (col + buffer);
+        centerAlpha[row * tileSize + col] = mergedHeights[mi] === -99999 ? 0 : 255;
+      }
+    }
+
+    // ── ④ ガウシアン平滑化（CS立体図と同じカーネルキャッシュを使用） ──
+    const kExp = _getCsKernel(kernelRadius, sigma);
+    const hT   = tf.tensor2d(mergedHeights, [mergedSize, mergedSize]);
+    const valid   = hT.notEqual(-99999);
+    const masked  = tf.where(valid, hT, 0);
+    const kSum    = tf.conv2d(
+      valid.cast('float32').expandDims(2).expandDims(0), kExp, 1, 'valid'
+    ).squeeze([0, 3]);
+    const sHRaw   = tf.conv2d(
+      masked.expandDims(2).expandDims(0), kExp, 1, 'valid'
+    ).squeeze([0, 3]).div(kSum);
+    const validCrop = valid.slice([buffer, buffer], [tileSize + 2, tileSize + 2]);
+    const smoothedT = tf.where(validCrop, sHRaw, tf.zerosLike(sHRaw));
+    [masked, kSum, sHRaw, validCrop].forEach(t => t.dispose());
+
+    // cc 係数（CS立体図と同一; terrainScale のみ適用・redAndBlueIntensity は 1 固定）
+    const cc = pixelLength < 68
+      ? Math.max(pixelLength / 2, 1.1) * Math.sqrt(terrainScale)
+      : 0.188 * Math.pow(pixelLength, 1.232) * Math.sqrt(terrainScale);
+
+    // ── ⑤ 曲率計算 + カラーリング（tf.tidy） ──
+    const curvatureTensor = tf.tidy(() => {
+      const cellArea  = pixelLength * pixelLength;
+
+      // Laplacian → 曲率 cT（CS立体図と同じカーネル）
+      const lapKernel = tf.tensor4d([0, 1, 0, 1, -4, 1, 0, 1, 0], [3, 3, 1, 1]);
+      const smoothIn  = smoothedT.expandDims(0).expandDims(-1);
+      const cT = tf.conv2d(smoothIn, lapKernel, 1, 'valid').squeeze([0, 3]).neg().div(cellArea);
+
+      // cT を cc スケールで正規化 → min〜max を 0〜1 にクランプしてパレット着色
+      // （CS立体図の L4 と同じスケール: cT / cc）
+      const cTscaled = cT.div(cc); // 1/m 相当の正規化曲率
+
+      // 0〜1 の正規化値
+      const n = cTscaled.sub(curveMin).div(curveRange).clipByValue(0, 1);
+
+      // パレット は _dem2reliefColor 相当を GPU で計算
+      // DEM2RELIEF_PALETTE: 7点（t=0/0.17/0.33/0.50/0.67/0.83/1.00）
+      // GPU では区間ごとに線形補間するのが複雑なため、6段の piecewise 補間を実施
+      const P = [
+        [  0,   6, 251],
+        [  0, 146, 251],
+        [  0, 231, 251],
+        [138, 247,   8],
+        [242, 249,  11],
+        [242, 138,   9],
+        [242,  72,  11],
+      ];
+      const stops = [0, 0.17, 0.33, 0.50, 0.67, 0.83, 1.00];
+
+      // piecewise blend: 6区間を重ねて加算（各区間で clamp した寄与を sum）
+      let r = tf.zerosLike(n);
+      let g = tf.zerosLike(n);
+      let b = tf.zerosLike(n);
+      for (let i = 0; i < 6; i++) {
+        const t0 = stops[i], t1 = stops[i + 1];
+        const [r0, g0, b0] = P[i];
+        const [r1, g1, b1] = P[i + 1];
+        const seg = n.sub(t0).div(t1 - t0).clipByValue(0, 1);
+        const inSeg = n.greaterEqual(t0).logicalAnd(n.less(t1)).cast('float32');
+        const rSeg = seg.mul(r1 - r0).add(r0).mul(inSeg);
+        const gSeg = seg.mul(g1 - g0).add(g0).mul(inSeg);
+        const bSeg = seg.mul(b1 - b0).add(b0).mul(inSeg);
+        const rNext = r.add(rSeg); r.dispose(); r = rNext;
+        const gNext = g.add(gSeg); g.dispose(); g = gNext;
+        const bNext = b.add(bSeg); b.dispose(); b = bNext;
+      }
+      // n=1.0 の端点を加算
+      const atEnd  = n.greaterEqual(1.0).cast('float32');
+      const rFinal = r.add(tf.scalar(P[6][0]).mul(atEnd));
+      const gFinal = g.add(tf.scalar(P[6][1]).mul(atEnd));
+      const bFinal = b.add(tf.scalar(P[6][2]).mul(atEnd));
+
+      // nodata → アルファ 0
+      const hCrop  = hT.slice([buffer, buffer], [tileSize, tileSize]);
+      const alphaT = tf.where(hCrop.notEqual(-99999), tf.scalar(255), tf.scalar(0))
+        .reshape([tileSize, tileSize, 1]);
+
+      const rgb = tf.stack([rFinal.round(), gFinal.round(), bFinal.round()], -1);
+      return tf.concat([rgb, alphaT], -1);
+    });
+    [hT, valid, smoothedT].forEach(t => t.dispose());
+
+    // ── ⑥ 出力 ──
+    const outCanvas = new OffscreenCanvas(tileSize, tileSize);
+    const cvNorm    = curvatureTensor.div(255);
+    await tf.browser.toPixels(cvNorm, outCanvas);
+    cvNorm.dispose();
+    curvatureTensor.dispose();
+    return { data: await outCanvas.convertToBlob({ type: 'image/png' }).then(b => b.arrayBuffer()) };
+  } catch { return { data: _transparentPngBuffer() }; }
+});
+
 
 /*
   ========================================================
