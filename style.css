@@ -3703,12 +3703,13 @@ label.setting-label {
   height: 38px !important;
   min-height: unset !important;
 }
-/* select の hover/focus によるスタイル変化を無効化（ズレ防止） */
+/* select の hover/focus によるスタイル変化を無効化（ズレ防止・文字重なり防止） */
 .print-scale-wrap select:hover,
 .print-scale-wrap select:focus {
   background-color: var(--dropdown-bg) !important;
   border-color: var(--dropdown-border) !important;
   outline: none !important;
+  color: transparent !important;
 }
 .print-scale-overlay {
   position: absolute;
