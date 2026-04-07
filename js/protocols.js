@@ -214,6 +214,34 @@ async function fetchTerrainDemBitmap(z, x, y, signal) {
   湖水深合成は廃止（コメントアウト済み）。
   ========================================================
 */
+
+// ================================================================
+// DEMタイルfetchキャッシュ（URL単位でPromiseを共有）
+// 隣接タイル同士が同じ近傍URLを要求する重複fetchを排除する。
+// z18のような高ズームでは隣接タイル間の重複が多く、初めて見る場所でも効果がある。
+// 例: 4×4タイル表示時、27リクエスト×16タイル=432 → ユニーク108に削減（約4分の1）
+// ================================================================
+const _demTileFetchCache = new Map();
+const _DEM_TILE_CACHE_TTL = 15000; // 15秒保持（近傍タイルの処理完了まで十分な時間）
+
+function _cachedFetchImageData(url, signal) {
+  const hit = _demTileFetchCache.get(url);
+  if (hit) return hit;
+  const promise = (async () => {
+    try {
+      const r = await fetch(url, signal ? { signal } : undefined);
+      if (!r.ok) return null;
+      const bm = await createImageBitmap(await r.blob());
+      const cv = new OffscreenCanvas(bm.width, bm.height);
+      cv.getContext('2d').drawImage(bm, 0, 0);
+      bm.close();
+      return cv.getContext('2d').getImageData(0, 0, cv.width, cv.height);
+    } catch { return null; }
+  })();
+  _demTileFetchCache.set(url, promise);
+  promise.finally(() => setTimeout(() => _demTileFetchCache.delete(url), _DEM_TILE_CACHE_TTL));
+  return promise;
+}
 // regionalDemBase : 地域DEMのベースURL（dem2cs://地域層の場合のみ指定）
 // regionalDemExt  : 地域DEMの拡張子（'png' または 'webp'）
 // regionalDemOrder: 地域DEM URL の軸順序（'xy' または 'yx'）
@@ -248,29 +276,18 @@ async function fetchCompositeDemBitmap(
 
   // Q地図1m 用タイムアウト付きシグナル（3秒）
   // Q地図1mの提供が不安定な場合でも他ソースで素早くCS立体図を返すため。
+  // キャッシュヒット時はシグナルは無視されるが、初回fetchの品質維持のために残す。
   const qSignal = useQ && (typeof AbortSignal.any === 'function')
     ? AbortSignal.any([signal, AbortSignal.timeout(3000)])
     : signal;
 
-  async function toImageData(url, s = signal) {
-    try {
-      const r = await fetch(url, { signal: s });
-      if (!r.ok) return null;
-      const bm = await createImageBitmap(await r.blob());
-      const cv = new OffscreenCanvas(bm.width, bm.height);
-      cv.getContext('2d').drawImage(bm, 0, 0);
-      bm.close();
-      return cv.getContext('2d').getImageData(0, 0, cv.width, cv.height);
-    } catch { return null; }
-  }
-
+  // _cachedFetchImageData でURL単位のPromise共有 → 同一URLの重複fetchを排除
   const [qData, sData, landData, rData] = await Promise.all([
-    qUrl     ? toImageData(qUrl, qSignal) : Promise.resolve(null),
-    sUrl     ? toImageData(sUrl)          : Promise.resolve(null),
-    landUrl  ? toImageData(landUrl)       : Promise.resolve(null),
+    qUrl     ? _cachedFetchImageData(qUrl, qSignal) : Promise.resolve(null),
+    sUrl     ? _cachedFetchImageData(sUrl)          : Promise.resolve(null),
+    landUrl  ? _cachedFetchImageData(landUrl)       : Promise.resolve(null),
     // 湖水深タイルはコメントアウト（2026-03-23 廃止）
-    // toImageData(lUrl), toImageData(lsUrl),
-    rUrl     ? toImageData(rUrl)          : Promise.resolve(null),
+    rUrl     ? _cachedFetchImageData(rUrl)          : Promise.resolve(null),
   ]);
   if (!qData && !sData && !landData && !rData) return null;
 
