@@ -10296,7 +10296,16 @@ document.getElementById('import-decide-btn').addEventListener('click', () => {
       const exportStyle = {
         ...rawStyle,
         terrain: undefined,
-        layers: rawStyle.layers.filter(l => !FRAME_LAYER_IDS.has(l.id)),
+        layers: rawStyle.layers
+          .filter(l => !FRAME_LAYER_IDS.has(l.id))
+          .map(l => {
+            // raster レイヤーの輪郭線プロパティを除去（MapLibre GL JS 5.x で追加）
+            if (l.type !== 'raster') return l;
+            const paint = { ...l.paint };
+            delete paint['raster-border-color'];
+            delete paint['raster-border-width'];
+            return { ...l, paint };
+          }),
       };
 
       const exportMap = new maplibregl.Map({
