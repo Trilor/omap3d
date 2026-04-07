@@ -10272,8 +10272,9 @@ document.getElementById('import-decide-btn').addEventListener('click', () => {
     showMapLoading();
 
     try {
-      // エクスポート時の中心はメインマップの中心を使用
-      const center = map.getCenter();
+      // エクスポート時の中心は印刷フレームのアンカー座標（サイドバーオフセット考慮済み）
+      const { anchorPx } = getPrintFrameLayout();
+      const center = map.unproject(anchorPx);
       const zoom   = calcExportZoom(dpi, scale, center.lat);
 
       const container = document.createElement('div');
