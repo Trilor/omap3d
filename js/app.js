@@ -1602,6 +1602,7 @@ function updateFrameGeoJsonSource() {
     const firstImgLayerId = existingStyleLayers.find(id => imageLayerIds.has(id));
     map.addLayer({
       id: 'frames-fill', type: 'fill', source: 'frames-src',
+      layout: { visibility: 'none' },
       paint: { 'fill-color': FRAME_COLOR_EXPR, 'fill-opacity': 0.001 },
     }, firstImgLayerId); // undefined なら末尾に追加（画像なし時）
   }
@@ -1609,12 +1610,14 @@ function updateFrameGeoJsonSource() {
   // 枠線: map_type/map_subtype で色分け（実線）
   map.addLayer({
     id: 'frames-outline', type: 'line', source: 'frames-src',
+    layout: { visibility: 'none' },
     paint: { 'line-color': FRAME_COLOR_EXPR, 'line-width': 2.5 },
   });
 
   // ホバーハイライト: feature-state で opacity を切り替える
   map.addLayer({
     id: 'frames-hover', type: 'line', source: 'frames-src',
+    layout: { visibility: 'none' },
     paint: {
       'line-color': '#ff9900',
       'line-width': 4.0,
@@ -1656,6 +1659,7 @@ function updateTerrainBoundarySource() {
   const beforeHover = map.getLayer('frames-hover') ? 'frames-hover' : undefined;
   map.addLayer({
     id: 'terrain-boundary-fill', type: 'fill', source: 'terrain-boundary-src',
+    layout: { visibility: 'none' },
     paint: {
       'fill-color': FRAME_COLOR_EXPR,
       'fill-opacity': [
@@ -1669,6 +1673,7 @@ function updateTerrainBoundarySource() {
   // テレイン境界: 破線アウトライン
   map.addLayer({
     id: 'terrain-boundary-outline', type: 'line', source: 'terrain-boundary-src',
+    layout: { visibility: 'none' },
     paint: {
       'line-color': FRAME_COLOR_EXPR,
       'line-width': ['case', ['boolean', ['feature-state', 'selected'], false], 2.0, 1.5],
