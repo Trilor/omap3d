@@ -9820,6 +9820,7 @@ document.getElementById('import-decide-btn').addEventListener('click', () => {
   const scaleCustomInput = document.getElementById('print-scale');
   const selFormat        = document.getElementById('print-format');
   const selDpi           = document.getElementById('print-dpi');
+  const selZoom          = document.getElementById('print-zoom');
   const infoEl           = document.getElementById('print-info');
   const frameOverlay     = document.getElementById('print-frame-overlay');
   const frameSvg         = document.getElementById('print-frame-svg');
@@ -9947,6 +9948,11 @@ document.getElementById('import-decide-btn').addEventListener('click', () => {
   }
 
   // 出力サイズ情報を更新
+  function getExportZoom(lat) {
+    if (selZoom.value !== 'auto') return parseFloat(selZoom.value);
+    return calcExportZoom(parseInt(selDpi.value, 10), getScale(), lat);
+  }
+
   function updateInfo() {
     const [pw_mm, ph_mm] = getPaperDim();
     const dpi   = parseInt(selDpi.value, 10);
@@ -9955,7 +9961,9 @@ document.getElementById('import-decide-btn').addEventListener('click', () => {
     const outH  = Math.round(ph_mm / 25.4 * dpi);
     const groundW = Math.round((pw_mm / 1000) * scale);
     const groundH = Math.round((ph_mm / 1000) * scale);
-    infoEl.textContent = `出力: ${outW}×${outH} px\n範囲: ${groundW}×${groundH} m`;
+    const lat   = map.getCenter().lat;
+    const z     = getExportZoom(lat);
+    infoEl.textContent = `出力: ${outW}×${outH} px　ズーム: ${z.toFixed(1)}\n範囲: ${groundW}×${groundH} m`;
   }
 
   function schedulePrintFrameRefresh() {
@@ -10262,6 +10270,7 @@ document.getElementById('import-decide-btn').addEventListener('click', () => {
   scaleCustomInput.addEventListener('input',  schedulePrintFrameRefresh);
   scaleCustomInput.addEventListener('change', updateInfo);
   selDpi.addEventListener('change', updateInfo);
+  selZoom.addEventListener('change', updateInfo);
 
   // エクスポート実行
   async function execExport() {
@@ -10285,7 +10294,7 @@ document.getElementById('import-decide-btn').addEventListener('click', () => {
       // エクスポート時の中心は印刷フレームのアンカー座標（サイドバーオフセット考慮済み）
       const { anchorPx } = getPrintFrameLayout();
       const center = map.unproject(anchorPx);
-      const zoom   = calcExportZoom(dpi, scale, center.lat);
+      const zoom   = getExportZoom(center.lat);
 
       const container = document.createElement('div');
       container.style.cssText =
