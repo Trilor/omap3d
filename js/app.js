@@ -10288,7 +10288,16 @@ document.getElementById('import-decide-btn').addEventListener('click', () => {
       document.body.appendChild(container);
 
       const rawStyle    = map.getStyle();
-      const exportStyle = { ...rawStyle, terrain: undefined };
+      // テレイン枠・境界レイヤーを除外（印刷出力に枠を含めない）
+      const FRAME_LAYER_IDS = new Set([
+        'frames-fill', 'frames-outline', 'frames-hover',
+        'terrain-boundary-fill', 'terrain-boundary-outline',
+      ]);
+      const exportStyle = {
+        ...rawStyle,
+        terrain: undefined,
+        layers: rawStyle.layers.filter(l => !FRAME_LAYER_IDS.has(l.id)),
+      };
 
       const exportMap = new maplibregl.Map({
         container,
