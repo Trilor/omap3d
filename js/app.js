@@ -661,7 +661,7 @@ map.on('load', async () => {
     tiles: [`dem2rrim://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp?_init=1`],
     tileSize: 512,
     minzoom: 5,
-    maxzoom: 16,
+    maxzoom: 15, // DEM5A 上限に合わせる（z16+ はオーバーズーム）
     attribution: '',
   });
   map.addLayer({
@@ -678,7 +678,7 @@ map.on('load', async () => {
     tiles: [CS_RELIEF_URL],
     tileSize: 512,
     minzoom: 5,
-    maxzoom: 16, // Q地図DEMの提供上限に合わせる
+    maxzoom: 15, // DEM5A 上限に合わせる（z16+ はMapLibreオーバーズーム）
     attribution: '',
   });
 
