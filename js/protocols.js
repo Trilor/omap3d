@@ -465,7 +465,7 @@ maplibregl.addProtocol('dem2cs', async (params, abortController) => {
   //   z14-16: DEM10B + DEM5A + Q地図1m（高ズーム・フル合成）
   //   z≥17: DEM10B + DEM5A + Q地図1m + 地域DEM 0.5m（最高ズーム・地域DEMが最優先）
   const demMode = zoomLevel <= 10 ? 'land'
-                : zoomLevel <= 13 ? 'land+dem5a'
+                : zoomLevel <= 12 ? 'land+dem5a'
                 : null; // z14以上は全ソース合成
   // z<17 では地域DEM を使わない（地域DEMは z≥17 の高ズームでのみ有効）
   const effectiveRegionalBase = zoomLevel >= 17 ? regionalDemBase : null;
@@ -708,7 +708,7 @@ maplibregl.addProtocol('dem2slope', async (params, abortController) => {
     const regionalDemOrder = regionalDemBase ? tileOrder : 'xy';
 
     const demMode = zoomLevel <= 10 ? 'land'
-                  : zoomLevel <= 13 ? 'land+dem5a'
+                  : zoomLevel <= 12 ? 'land+dem5a'
                   : null;
 
     const [center, right, down, downRight] = await Promise.all([
@@ -813,7 +813,7 @@ maplibregl.addProtocol('dem2relief', async (params, abortController) => {
 
     // ズーム別 DEMソース選択（dem2cs:// と同じ基準）:
     //   z≤10: DEM10Bのみ / z11-13: DEM10B+DEM5A / z≥14: DEM10B+DEM5A+Q地図1m
-    const demMode = +z <= 10 ? 'land' : +z <= 13 ? 'land+dem5a' : null;
+    const demMode = +z <= 10 ? 'land' : +z <= 12 ? 'land+dem5a' : null;
     // 合成 DEM ビットマップを取得（Q地図 > 陸域統合 > 湖水深 の優先順）
     // データなし（海域・範囲外・404・CORS）の場合は透明タイルを返す
     const bitmap = await fetchCompositeDemBitmap(z, x, y, abortController.signal, null, 'png', demMode);
@@ -896,7 +896,7 @@ maplibregl.addProtocol('dem2curve', async (params, abortController) => {
     const regionalDemOrder = regionalDemBase ? tileOrder : 'xy';
 
     const demMode = zoomLevel <= 10 ? 'land'
-                  : zoomLevel <= 13 ? 'land+dem5a'
+                  : zoomLevel <= 12 ? 'land+dem5a'
                   : null;
     const effectiveRegionalBase  = zoomLevel >= 17 ? regionalDemBase : null;
     const effectiveRegionalExt   = effectiveRegionalBase ? regionalDemExt : null;
@@ -1082,7 +1082,7 @@ maplibregl.addProtocol('dem2rrim', async (params, abortController) => {
     const regionalDemBase  = baseUrl === QCHIZU_DEM_BASE ? null : baseUrl;
     const regionalDemExt   = regionalDemBase ? ext : null;
     const regionalDemOrder = regionalDemBase ? tileOrder : 'xy';
-    const demMode = zoomLevel <= 10 ? 'land' : zoomLevel <= 13 ? 'land+dem5a' : null;
+    const demMode = zoomLevel <= 10 ? 'land' : zoomLevel <= 12 ? 'land+dem5a' : null;
     const effectiveRegionalBase  = zoomLevel >= 17 ? regionalDemBase : null;
     const effectiveRegionalExt   = effectiveRegionalBase ? regionalDemExt : null;
     const effectiveRegionalOrder = effectiveRegionalBase ? regionalDemOrder : 'xy';
