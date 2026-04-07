@@ -472,6 +472,8 @@ maplibregl.addProtocol('dem2cs', async (params, abortController) => {
   const effectiveRegionalExt  = effectiveRegionalBase ? regionalDemExt : null;
   const effectiveRegionalOrder = effectiveRegionalBase ? regionalDemOrder : 'xy';
 
+  const _csT0 = performance.now();
+
   // ── ① 9タイル全て並列fetch（地域DEM優先 → Q地図 → DEM10B の順で補完） ──
   // 各タイルを fetchCompositeDemBitmap で取得（地域DEM/Q地図優先・nodata はシームレスで補完）
   const neighborOffsets = [
@@ -493,6 +495,8 @@ maplibregl.addProtocol('dem2cs', async (params, abortController) => {
     )
   ));
   if (!bitmaps[4]) return { data: _transparentPngBuffer() }; // 中央タイルが取得できなければ透明タイルを返す
+
+  const _csT1 = performance.now(); // ①fetch完了
 
   // タイルサイズを中央タイルから動的検出（256px または 512px タイルに対応）
   const tileSize = bitmaps[4].width;
@@ -528,6 +532,8 @@ maplibregl.addProtocol('dem2cs', async (params, abortController) => {
     const p = i * 4;
     mergedHeights[i] = _getNumpngHeight(mergedPx[p], mergedPx[p + 1], mergedPx[p + 2], mergedPx[p + 3]);
   }
+
+  const _csT2 = performance.now(); // ②③merge+decode完了
 
   // ── ④ ガウシアン平滑化 + Sobel傾斜（GPU）──
   // RRIMと同様に重い演算は tf.tidy 外で手動管理し、早期 dispose でメモリを抑制。
@@ -572,6 +578,8 @@ maplibregl.addProtocol('dem2cs', async (params, abortController) => {
   const [smoothed, slopes] = await Promise.all([sH.data(), slopeT.data()]);
   [sH, slopeT].forEach(t => t.dispose());
 
+  const _csT3 = performance.now(); // ④GPU演算+転送完了
+
   // Phase C: CPU ループで曲率計算（旧方式）
   // Laplacian を GPU conv2d で求めると tf.tidy スコープが肥大化し
   // カーネル起動オーバーヘッドが増大するため、V8 最適化が効く CPU ループを採用。
@@ -590,6 +598,8 @@ maplibregl.addProtocol('dem2cs', async (params, abortController) => {
         : -2 * (((z4 + z6) / 2 - z5) / cellArea + ((z2 + z8) / 2 - z5) / cellArea);
     }
   }
+
+  const _csT4 = performance.now(); // ⑤CPU曲率計算完了
 
   // ── ⑤ CS立体図 5レイヤー合成（小スコープ tf.tidy）──
   // curvatures / slopes は CPU 側 Float32Array → tensor1d で GPU に転送。
@@ -624,6 +634,18 @@ maplibregl.addProtocol('dem2cs', async (params, abortController) => {
   await tf.browser.toPixels(csNorm, outCanvas);
   csNorm.dispose();
   csRittaizuTensor.dispose();
+
+  const _csT5 = performance.now(); // ⑥出力完了
+  console.log(
+    `[dem2cs] z${zoomLevel} ${tileX},${tileY} | ` +
+    `fetch:${(_csT1-_csT0).toFixed(0)}ms  ` +
+    `merge+decode:${(_csT2-_csT1).toFixed(0)}ms  ` +
+    `GPU(gauss+sobel+transfer):${(_csT3-_csT2).toFixed(0)}ms  ` +
+    `CPU(curv):${(_csT4-_csT3).toFixed(0)}ms  ` +
+    `composite+output:${(_csT5-_csT4).toFixed(0)}ms  ` +
+    `total:${(_csT5-_csT0).toFixed(0)}ms`
+  );
+
   return { data: await outCanvas.convertToBlob({ type: 'image/png' }).then(b => b.arrayBuffer()) };
   } catch { return { data: _transparentPngBuffer() }; }
 });
@@ -1091,6 +1113,8 @@ maplibregl.addProtocol('dem2rrim', async (params, abortController) => {
     const radius = RRIM_RADIUS;
     const buffer = radius + 1;
 
+    const _rrimT0 = performance.now();
+
     // ── ① 9タイル並列取得 ──
     const neighborOffsets = [
       [-1,-1],[0,-1],[1,-1],
@@ -1106,6 +1130,7 @@ maplibregl.addProtocol('dem2rrim', async (params, abortController) => {
       )
     ));
     if (!bitmaps[4]) return { data: _transparentPngBuffer() };
+    const _rrimT1 = performance.now(); // fetch完了
 
     const tileSize = bitmaps[4].width;
     const pixelLength = _calculatePixelResolution(tileSize, zoomLevel, tileY);
@@ -1132,6 +1157,7 @@ maplibregl.addProtocol('dem2rrim', async (params, abortController) => {
       const p = i * 4;
       mergedHeights[i] = _getNumpngHeight(mergedPx[p], mergedPx[p + 1], mergedPx[p + 2], mergedPx[p + 3]);
     }
+    const _rrimT2 = performance.now(); // merge+decode完了
 
     // ── ④ MPI 計算（全GPU、CPU往復なし） ──
     // tf.roll は TF.js 4.x に存在しないため、tf.slice で「r ステップ先の中央領域」を切り出して代用。
@@ -1176,6 +1202,7 @@ maplibregl.addProtocol('dem2rrim', async (params, abortController) => {
     }
     const mpiTensor = mpiSum.div(8); // 8方向平均
     mpiSum.dispose();
+    const _rrimT3 = performance.now(); // MPI GPU完了
 
     // ── ⑤ RRIM RGB合成（全GPU、Sobel傾斜 + MPI + tf.tidy） ──
     const rrimTensor = tf.tidy(() => {
@@ -1226,6 +1253,7 @@ maplibregl.addProtocol('dem2rrim', async (params, abortController) => {
       return tf.concat([tf.stack([rOut, gOut, bOut], -1), alphaT], -1);
     });
     [demTensor, validMask, demFilled, demCenter, mpiTensor].forEach(t => t.dispose());
+    const _rrimT4 = performance.now(); // RRIM合成完了
 
     // ── ⑥ 出力 ──
     const outCanvas = new OffscreenCanvas(tileSize, tileSize);
@@ -1233,6 +1261,16 @@ maplibregl.addProtocol('dem2rrim', async (params, abortController) => {
     await tf.browser.toPixels(rrimNorm, outCanvas);
     rrimNorm.dispose();
     rrimTensor.dispose();
+    const _rrimT5 = performance.now(); // 出力完了
+    console.log(
+      `[dem2rrim] z${zoomLevel} ${tileX},${tileY} | ` +
+      `fetch:${(_rrimT1-_rrimT0).toFixed(0)}ms  ` +
+      `merge+decode:${(_rrimT2-_rrimT1).toFixed(0)}ms  ` +
+      `GPU(MPI 8dir×${RRIM_RADIUS}step):${(_rrimT3-_rrimT2).toFixed(0)}ms  ` +
+      `GPU(sobel+rrim):${(_rrimT4-_rrimT3).toFixed(0)}ms  ` +
+      `output:${(_rrimT5-_rrimT4).toFixed(0)}ms  ` +
+      `total:${(_rrimT5-_rrimT0).toFixed(0)}ms`
+    );
     return { data: await outCanvas.convertToBlob({ type: 'image/png' }).then(b => b.arrayBuffer()) };
   } catch { return { data: _transparentPngBuffer() }; }
 });
