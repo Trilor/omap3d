@@ -111,6 +111,17 @@ const map = new maplibregl.Map({
 
   ,
 
+  // URLハッシュがない場合は localStorage の最終状態を復元、それもなければ初期値
+  ...((() => {
+    const _LS_KEY = 'teledrop-map-state';
+    if (!location.hash) {
+      try {
+        const s = JSON.parse(localStorage.getItem(_LS_KEY));
+        if (s) return { center: [s.lng, s.lat], zoom: s.zoom, pitch: s.pitch, bearing: s.bearing };
+      } catch {}
+    }
+    return {};
+  })()),
   center: INITIAL_CENTER,
   zoom: INITIAL_ZOOM,
   pitch: INITIAL_PITCH,
@@ -752,6 +763,18 @@ map.on('load', async () => {
   updateMagneticAttribution();
 
   // 都道府県別CS出典の動的更新 — タイル読み込み完了を待たず即時反映するため moveend を使用
+  // 地図移動のたびに状態を localStorage に保存（ハッシュなし再訪時の復元用）
+  const _LS_MAP_KEY = 'teledrop-map-state';
+  map.on('moveend', () => {
+    const c = map.getCenter();
+    try {
+      localStorage.setItem(_LS_MAP_KEY, JSON.stringify({
+        lat: c.lat, lng: c.lng,
+        zoom: map.getZoom(), pitch: map.getPitch(), bearing: map.getBearing(),
+      }));
+    } catch {}
+  });
+
   map.on('moveend', updateRegionalAttribution);
   // スクロールズーム時に moveend が連続発火するため debounce でまとめて1回だけ実行する
   let _magnNorthTimer;
