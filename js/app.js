@@ -679,7 +679,7 @@ map.on('load', async () => {
     id: 'rrim-relief-layer',
     type: 'raster',
     source: 'rrim-relief',
-    layout: { visibility: 'visible' },
+    layout: { visibility: 'none' },
     paint: { 'raster-opacity': 0, 'raster-fade-duration': 0, 'raster-opacity-transition': { duration: 0, delay: 0 } },
   }, map.getLayer('contour-regular-dem1a') ? 'contour-regular-dem1a' : undefined);
 
@@ -4181,8 +4181,10 @@ function updateCsVisibility() {
   }
   const showRrimRelief = overlay === 'rrim';
   if (map.getLayer('rrim-relief-layer')) {
-    const rrimOpacity = showRrimRelief ? parseFloat(document.getElementById('slider-cs').value) : 0;
-    map.setPaintProperty('rrim-relief-layer', 'raster-opacity', rrimOpacity);
+    map.setLayoutProperty('rrim-relief-layer', 'visibility', showRrimRelief ? 'visible' : 'none');
+    if (showRrimRelief) {
+      map.setPaintProperty('rrim-relief-layer', 'raster-opacity', parseFloat(document.getElementById('slider-cs').value));
+    }
   }
   // スライダーはカード選択だけで表示（オーバーレイトグルのON/OFFに依存しない）
   const crCtrls = document.getElementById('color-relief-controls');
