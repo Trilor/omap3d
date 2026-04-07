@@ -1472,6 +1472,11 @@ function addImageLayerToMap(sourceId, layerId, imageUrl, coordinates, opacity) {
     map.getSource(sourceId).updateImage({ url: imageUrl });
     return;
   }
+  // 地図配置時にテレイン枠・境界レイヤーを非表示にする
+  ['frames-fill', 'frames-outline', 'frames-hover',
+   'terrain-boundary-fill', 'terrain-boundary-outline'].forEach(id => {
+    if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', 'none');
+  });
   map.addSource(sourceId, { type: 'image', url: imageUrl, coordinates });
   map.addLayer({
     id: layerId, type: 'raster', source: sourceId,
