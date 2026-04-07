@@ -573,60 +573,43 @@ maplibregl.addProtocol('dem2cs', async (params, abortController) => {
     return tf.atan(dzdx.square().add(dzdy.square()).sqrt()).mul(180 / Math.PI); // 度 [tileSize,tileSize]
   });
 
-  // Phase B: GPU→CPU 並列転送（平滑化データと Sobel傾斜を同時に転送）
-  // await を2回逐次発行する代わりに Promise.all で並走させ、転送待ち時間を削減。
-  const [smoothed, slopes] = await Promise.all([sH.data(), slopeT.data()]);
-  [sH, slopeT].forEach(t => t.dispose());
-
-  const _csT3 = performance.now(); // ④GPU演算+転送完了
-
-  // Phase C: CPU ループで曲率計算（旧方式）
-  // Laplacian を GPU conv2d で求めると tf.tidy スコープが肥大化し
-  // カーネル起動オーバーヘッドが増大するため、V8 最適化が効く CPU ループを採用。
-  const curvatures = new Float32Array(tileSize * tileSize);
-  const sw2 = tileSize + 2;
+  // Phase B: Laplacian曲率（GPU conv2d）— CPU転送不要
+  // 元の CPU 計算式: -2*(((z4+z6)/2-z5)/cellArea + ((z2+z8)/2-z5)/cellArea)
+  //               = (4*z5 - z2 - z4 - z6 - z8) / cellArea
+  // → [[0,-1,0],[-1,4,-1],[0,-1,0]] / cellArea をGaussian平滑化後の高さに conv2d で適用。
+  // rrim と同様に GPU→CPU 転送を廃止し、全演算を GPU 内で完結させる。
   const cellArea = pixelLength * pixelLength;
-  for (let row = 0; row < tileSize; row++) {
-    for (let col = 0; col < tileSize; col++) {
-      const oi = row * tileSize + col;
-      const mi = (row + buffer) * mergedSize + (col + buffer);
-      const H00 = mergedHeights[mi];
-      const si = (row + 1) * sw2 + (col + 1);
-      const z2 = smoothed[si - sw2], z4 = smoothed[si - 1], z5 = smoothed[si],
-            z6 = smoothed[si + 1],   z8 = smoothed[si + sw2];
-      curvatures[oi] = H00 === -99999 ? -1
-        : -2 * (((z4 + z6) / 2 - z5) / cellArea + ((z2 + z8) / 2 - z5) / cellArea);
-    }
-  }
+  const curvatureT = tf.tidy(() => {
+    const lapKernel = tf.tensor4d([0,-1,0,-1,4,-1,0,-1,0], [3,3,1,1]).div(cellArea);
+    return tf.conv2d(sH.expandDims(0).expandDims(-1), lapKernel, 1, 'valid').squeeze([0,3]);
+  });
+  sH.dispose();
 
-  const _csT4 = performance.now(); // ⑤CPU曲率計算完了
+  const _csT3 = performance.now(); // GPU演算完了（Gaussian+Laplacian+Sobel）
 
-  // ── ⑤ CS立体図 5レイヤー合成（小スコープ tf.tidy）──
-  // curvatures / slopes は CPU 側 Float32Array → tensor1d で GPU に転送。
-  // tf.tidy スコープを合成のみに絞ることで中間テンソルの滞留を防ぐ。
+  // ── ⑤ CS立体図 5レイヤー合成（GPU完結・CPU転送なし）──
+  // curvatureT / slopeT はすでに GPU テンソル — tensor1d 再転送不要。
+  // nodata 判定は rrim と同様に hCrop.notEqual(-99999) で GPU 内で処理。
   const cc = pixelLength < 68
     ? Math.max(pixelLength / 2, 1.1) * Math.sqrt(terrainScale) * redAndBlueIntensity
     : 0.188 * Math.pow(pixelLength, 1.232) * Math.sqrt(terrainScale) * redAndBlueIntensity;
 
+  const hCrop = hT.slice([buffer, buffer], [tileSize, tileSize]);
   const csRittaizuTensor = tf.tidy(() => {
-    const hCrop = hT.slice([buffer, buffer], [tileSize, tileSize]);
-    const cT = tf.tensor1d(curvatures).reshape([tileSize, tileSize]);
-    const sT = tf.tensor1d(slopes).reshape([tileSize, tileSize]);
     const blend    = (a, b, alpha) => a.mul(1 - alpha).add(b.mul(alpha));
     const mulBlend = (a, b) => a.mul(b.div(255));
     const L1 = _csRamp(0, 3000, { r: 100, g: 100, b: 100 }, { r: 255, g: 255, b: 255 }, hCrop);
-    const L2 = _csRamp(-0.25/cc, 0.05/cc, { r: 42, g: 92, b: 170 }, { r: 255, g: 255, b: 255 }, cT);
-    const L3 = _csRamp(0, 60, { r: 255, g: 255, b: 255 }, { r: 189, g: 74, b: 29 }, sT);
-    const L4 = _csRampMid(-0.2/cc, 0.2/cc, { r: 0, g: 0, b: 255 }, { r: 255, g: 255, b: 240 }, { r: 255, g: 0, b: 0 }, cT);
-    const L5 = _csRamp(0, 90, { r: 255, g: 255, b: 255 }, { r: 0, g: 0, b: 0 }, sT);
+    const L2 = _csRamp(-0.25/cc, 0.05/cc, { r: 42, g: 92, b: 170 }, { r: 255, g: 255, b: 255 }, curvatureT);
+    const L3 = _csRamp(0, 60, { r: 255, g: 255, b: 255 }, { r: 189, g: 74, b: 29 }, slopeT);
+    const L4 = _csRampMid(-0.2/cc, 0.2/cc, { r: 0, g: 0, b: 255 }, { r: 255, g: 255, b: 240 }, { r: 255, g: 0, b: 0 }, curvatureT);
+    const L5 = _csRamp(0, 90, { r: 255, g: 255, b: 255 }, { r: 0, g: 0, b: 0 }, slopeT);
     const rgb = mulBlend(blend(blend(blend(L1, L2, 0.5), L3, 0.5), L4, 0.5), L5);
-    // nodata → アルファ 0
-    const alphaT = tf.tensor1d(
-      Float32Array.from({ length: tileSize * tileSize }, (_, i) => curvatures[i] === -1 ? 0 : 255)
-    ).reshape([tileSize, tileSize, 1]);
+    // nodata → アルファ 0（rrim と同様の GPU 判定）
+    const alphaT = tf.where(hCrop.notEqual(-99999), tf.scalar(255), tf.scalar(0))
+      .reshape([tileSize, tileSize, 1]);
     return tf.concat([rgb, alphaT], -1);
   });
-  [hT, valid].forEach(t => t.dispose());
+  [hT, valid, hCrop, curvatureT, slopeT].forEach(t => t.dispose());
 
   // ── ⑥ 出力 ──
   const outCanvas = new OffscreenCanvas(tileSize, tileSize);
@@ -635,15 +618,14 @@ maplibregl.addProtocol('dem2cs', async (params, abortController) => {
   csNorm.dispose();
   csRittaizuTensor.dispose();
 
-  const _csT5 = performance.now(); // ⑥出力完了
+  const _csT4 = performance.now(); // 出力完了
   console.log(
     `[dem2cs] z${zoomLevel} ${tileX},${tileY} | ` +
     `fetch:${(_csT1-_csT0).toFixed(0)}ms  ` +
     `merge+decode:${(_csT2-_csT1).toFixed(0)}ms  ` +
-    `GPU(gauss+sobel+transfer):${(_csT3-_csT2).toFixed(0)}ms  ` +
-    `CPU(curv):${(_csT4-_csT3).toFixed(0)}ms  ` +
-    `composite+output:${(_csT5-_csT4).toFixed(0)}ms  ` +
-    `total:${(_csT5-_csT0).toFixed(0)}ms`
+    `GPU(gauss+lap+sobel):${(_csT3-_csT2).toFixed(0)}ms  ` +
+    `composite+output:${(_csT4-_csT3).toFixed(0)}ms  ` +
+    `total:${(_csT4-_csT0).toFixed(0)}ms`
   );
 
   return { data: await outCanvas.convertToBlob({ type: 'image/png' }).then(b => b.arrayBuffer()) };
