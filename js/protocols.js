@@ -584,6 +584,7 @@ maplibregl.addProtocol('dem2cs', async (params, abortController) => {
   // セマフォをGPUアップロード前から取得することで、GPU演算全体を2タイル同時に制限する。
   await _acquireGpuTransfer();
   let arrayBuffer;
+  let _csGpuReleased = false;
   try {
     // Phase A: CPU→GPU転送（tensor2d生成）
     const hT = tf.tensor2d(mergedHeights, [mergedSize, mergedSize]);
@@ -664,6 +665,8 @@ maplibregl.addProtocol('dem2cs', async (params, abortController) => {
     csNorm.dispose();
     csRittaizuTensor.dispose();
     const _csT5 = performance.now(); // toPixels完了
+    _releaseGpuTransfer(); // blob変換はCPU処理なのでGPUスロットを即返却
+    _csGpuReleased = true;
 
     const blob = await outCanvas.convertToBlob({ type: 'image/webp', quality: 0.92 });
     arrayBuffer = await blob.arrayBuffer();
@@ -681,7 +684,7 @@ maplibregl.addProtocol('dem2cs', async (params, abortController) => {
       `total:${(_csT6-_csT0).toFixed(0)}ms`
     );
   } finally {
-    _releaseGpuTransfer();
+    if (!_csGpuReleased) _releaseGpuTransfer(); // エラー時のフォールバック解放
   }
 
   return { data: arrayBuffer };
@@ -1298,16 +1301,20 @@ maplibregl.addProtocol('dem2rrim', async (params, abortController) => {
     [demTensor, validMask, demFilled, demCenter, mpiTensor].forEach(t => t.dispose());
     const _rrimT4 = performance.now(); // RRIM合成完了
 
-    // ── ⑥ 出力（セマフォでtoPixels+blob全体を直列化）──
+    // ── ⑥ 出力（toPixelsまでセマフォ制御・blob変換はCPUなので解放後に実行）──
     const outCanvas = new OffscreenCanvas(tileSize, tileSize);
     const rrimNorm = rrimTensor.div(255);
     await _acquireGpuTransfer();
+    const _rrimT4b = performance.now(); // セマフォ取得完了（wait終了）
     let rrimArrayBuffer;
+    let _rrimGpuReleased = false;
     try {
       await tf.browser.toPixels(rrimNorm, outCanvas);
       rrimNorm.dispose();
       rrimTensor.dispose();
       const _rrimT5 = performance.now(); // toPixels完了
+      _releaseGpuTransfer(); // blob変換はCPU処理なのでGPUスロットを即返却
+      _rrimGpuReleased = true;
       const rrimBlob = await outCanvas.convertToBlob({ type: 'image/webp', quality: 0.92 });
       rrimArrayBuffer = await rrimBlob.arrayBuffer();
       const _rrimT6 = performance.now();
@@ -1317,12 +1324,13 @@ maplibregl.addProtocol('dem2rrim', async (params, abortController) => {
         `merge+decode:${(_rrimT2-_rrimT1).toFixed(0)}ms  ` +
         `GPU(MPI 8dir×${RRIM_RADIUS}step):${(_rrimT3-_rrimT2).toFixed(0)}ms  ` +
         `GPU(sobel+rrim):${(_rrimT4-_rrimT3).toFixed(0)}ms  ` +
-        `toPixels:${(_rrimT5-_rrimT4).toFixed(0)}ms  ` +
+        `wait:${(_rrimT4b-_rrimT4).toFixed(0)}ms  ` +
+        `toPixels:${(_rrimT5-_rrimT4b).toFixed(0)}ms  ` +
         `blob:${(_rrimT6-_rrimT5).toFixed(0)}ms  ` +
         `total:${(_rrimT6-_rrimT0).toFixed(0)}ms`
       );
     } finally {
-      _releaseGpuTransfer();
+      if (!_rrimGpuReleased) _releaseGpuTransfer(); // エラー時のフォールバック解放
     }
     return { data: rrimArrayBuffer };
   } catch { return { data: _transparentPngBuffer() }; }
