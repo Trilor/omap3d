@@ -113,7 +113,12 @@ const map = new maplibregl.Map({
 
   ,
 
-  // URLハッシュがない場合は localStorage の最終状態を復元、それもなければ初期値
+  // デフォルト値（後続のスプレッドで上書きされる）
+  center: INITIAL_CENTER,
+  zoom: INITIAL_ZOOM,
+  pitch: INITIAL_PITCH,
+  bearing: INITIAL_BEARING,
+  // URLハッシュがない場合は localStorage の最終状態を復元（後に書くことで上書き優先）
   ...((() => {
     const _LS_KEY = 'teledrop-map-state';
     if (!location.hash) {
@@ -127,10 +132,6 @@ const map = new maplibregl.Map({
     }
     return {};
   })()),
-  center: INITIAL_CENTER,
-  zoom: INITIAL_ZOOM,
-  pitch: INITIAL_PITCH,
-  bearing: INITIAL_BEARING,
   minZoom: 0,
   maxZoom: 24,
   maxPitch: 85,
