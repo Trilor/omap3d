@@ -4310,6 +4310,7 @@ document.getElementById('overlay-cards').addEventListener('click', (e) => {
   document.querySelectorAll('#overlay-cards .bm-card').forEach(c => c.classList.remove('active'));
   card.classList.add('active');
   currentOverlay = card.dataset.key;
+  updateShareableUrl();
   saveUiState();
   updateCsVisibility();
   // CS立体図・生成系オーバーレイ選択時はローディング表示（idle で非表示）
@@ -6022,6 +6023,7 @@ document.getElementById('basemap-cards').addEventListener('click', (e) => {
   document.querySelectorAll('#basemap-cards .bm-card').forEach(c => c.classList.remove('active'));
   card.classList.add('active');
   switchBasemap(card.dataset.key);
+  updateShareableUrl();
   saveUiState();
 });
 
@@ -6565,18 +6567,35 @@ function saveUiState() {
   } catch {}
 }
 
+// URLクエリパラメータ（?base=X&overlay=Y）を更新する（Q地図MapLibre版と同方式）
+// MapLibreが管理する #hash（位置）とは独立して管理し、共有URLとして機能する
+function updateShareableUrl() {
+  const p = new URLSearchParams(location.search);
+  if (currentBasemap && currentBasemap !== 'orilibre') p.set('base', currentBasemap);
+  else p.delete('base');
+  if (currentOverlay && currentOverlay !== 'none') p.set('overlay', currentOverlay);
+  else p.delete('overlay');
+  const qs = p.toString();
+  // history.replaceState でブラウザ履歴を汚さずURLを更新（MapLibreの#hashは保持）
+  history.replaceState(null, '', location.pathname + (qs ? '?' + qs : '') + location.hash);
+}
+
 function restoreUiState() {
   try {
-    const s = JSON.parse(localStorage.getItem(_UI_STATE_KEY));
-    if (!s) return;
+    // URLクエリ（シェアURL）を最優先、次にlocalStorage（前回の個人設定）
+    const urlParams  = new URLSearchParams(location.search);
+    const urlBase    = urlParams.get('base');
+    const urlOverlay = urlParams.get('overlay');
+    const s = JSON.parse(localStorage.getItem(_UI_STATE_KEY) || 'null') || {};
 
-    // ベースマップ
-    if (s.basemap) {
-      const card = document.querySelector(`#basemap-cards .bm-card[data-key="${s.basemap}"]`);
+    // ベースマップ：URLクエリ > localStorage
+    const targetBase = urlBase || s.basemap;
+    if (targetBase) {
+      const card = document.querySelector(`#basemap-cards .bm-card[data-key="${targetBase}"]`);
       if (card) {
         document.querySelectorAll('#basemap-cards .bm-card').forEach(c => c.classList.remove('active'));
         card.classList.add('active');
-        switchBasemap(s.basemap);
+        switchBasemap(targetBase);
       }
     }
 
@@ -6633,19 +6652,20 @@ function restoreUiState() {
     }
     setTerrain3dEnabled(!!s.terrain3d, { updateCard: true });
 
-    // オーバーレイ
-    if (s.overlay && s.overlay !== 'none') {
-      const card = document.querySelector(`#overlay-cards .bm-card[data-key="${s.overlay}"]`);
+    // オーバーレイ：URLクエリ > localStorage
+    const targetOverlay = urlOverlay || s.overlay;
+    if (targetOverlay && targetOverlay !== 'none') {
+      const card = document.querySelector(`#overlay-cards .bm-card[data-key="${targetOverlay}"]`);
       if (card) {
         document.querySelectorAll('#overlay-cards .bm-card').forEach(c => c.classList.remove('active'));
         card.classList.add('active');
-        currentOverlay = s.overlay;
+        currentOverlay = targetOverlay;
         updateCsVisibility();
         if (['cs', 'color-relief', 'slope', 'curvature', 'rrim'].includes(currentOverlay)) showMapLoading();
       }
     }
 
-    // タブ（サイドバーパネル）
+    // タブ（サイドバーパネル）：localStorageのみ（他者に強制しない個人設定）
     if (s.sidebarPanel) {
       _sidebarCurrentPanel = s.sidebarPanel;
       _sidebarOpen = s.sidebarOpen !== false;
