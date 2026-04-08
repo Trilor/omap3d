@@ -6608,26 +6608,26 @@ function updateShareableUrl() {
   if (Math.abs(opacity - 1.0) > 0.005) p.set('opacity', opacity);
   else p.delete('opacity');
 
-  // 等高線（OFF → 省略; ON時のみ明示）
+  // 等高線（ON = デフォルト → 省略; OFF時のみ明示）
   if (contourCard.classList.contains('active')) {
-    p.set('contour', '1');
+    p.delete('contour');
     const ci = selContourInterval.value;
     if (ci !== '5') p.set('cont_int', ci); else p.delete('cont_int');
     const cd = selContourDem.value;
     if (cd !== 'q1m') p.set('cont_dem', cd); else p.delete('cont_dem');
   } else {
-    p.delete('contour'); p.delete('cont_int'); p.delete('cont_dem');
+    p.set('contour', '0'); p.delete('cont_int'); p.delete('cont_dem');
   }
 
-  // 磁北線（OFF → 省略; ON時のみ明示）
+  // 磁北線（ON = デフォルト → 省略; OFF時のみ明示）
   if (magneticCard.classList.contains('active')) {
-    p.set('magnetic', '1');
+    p.delete('magnetic');
     const mi = selMagneticCombined.value;
     if (mi !== '300') p.set('mag_int', mi); else p.delete('mag_int');
     const mm = selMagneticModel.value;
     if (mm !== 'gsi2020') p.set('mag_model', mm); else p.delete('mag_model');
   } else {
-    p.delete('magnetic'); p.delete('mag_int'); p.delete('mag_model');
+    p.set('magnetic', '0'); p.delete('mag_int'); p.delete('mag_model');
   }
 
   // 3D地形（OFF → 省略）
@@ -6688,8 +6688,8 @@ function restoreUiState() {
       selContourInterval._csRefresh?.();
       userContourInterval = parseFloat(targetContInt) || 5;
     }
-    // 等高線表示：URL > localStorage
-    const contourOn = up.has('contour') ? up.get('contour') === '1' : !!s.contourVisible;
+    // 等高線表示：URL > localStorage（デフォルトON）
+    const contourOn = up.has('contour') ? up.get('contour') !== '0' : (s.contourVisible ?? true);
     if (contourOn) {
       contourCard.classList.add('active');
       applyContourInterval(userContourInterval);
@@ -6710,8 +6710,8 @@ function restoreUiState() {
       selMagneticCombined._csRefresh?.();
       userMagneticInterval = parseInt(targetMagInt, 10) || 300;
     }
-    // 磁北線表示：URL > localStorage
-    const magneticOn = up.has('magnetic') ? up.get('magnetic') === '1' : !!s.magneticVisible;
+    // 磁北線表示：URL > localStorage（デフォルトON）
+    const magneticOn = up.has('magnetic') ? up.get('magnetic') !== '0' : (s.magneticVisible ?? true);
     if (magneticOn) {
       magneticCard.classList.add('active');
       if (map.getLayer('magnetic-north-layer')) {
