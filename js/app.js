@@ -4329,9 +4329,11 @@ document.getElementById('overlay-cards').addEventListener('click', (e) => {
   if (currentOverlay === 'cs' || currentOverlay === 'color-relief' || currentOverlay === 'slope' || currentOverlay === 'curvature' || currentOverlay === 'rrim') showMapLoading();
   else hideMapLoading();
   // 色別標高図選択時はタイルを即座にリクエスト（visibility:none 中はMapLibreがフェッチしないため）
-  if (currentOverlay === 'color-relief') applyColorReliefTiles();
-  if (currentOverlay === 'slope') applySlopeReliefTiles();
-  if (currentOverlay === 'curvature') applyCurvatureReliefTiles();
+  // 自動フィット成功時は updateXReliefSource() 内で applyXTiles() が再呼び出しされるが、
+  // 地形データ未ロード時のフォールバックとして先に applyXTiles() を実行しておく
+  if (currentOverlay === 'color-relief') { applyColorReliefTiles(); autoFitColorRelief(); }
+  if (currentOverlay === 'slope') { applySlopeReliefTiles(); autoFitSlopeRelief(); }
+  if (currentOverlay === 'curvature') { applyCurvatureReliefTiles(); autoFitCurvatureRelief(); }
 });
 
 // （chk-overlay 削除のため、トグルイベントリスナーは不要）
