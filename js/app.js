@@ -875,6 +875,11 @@ map.on('load', async () => {
   // UI状態全体をlocalStorageから復元（リロード時維持）
   restoreUiState();
 
+  // 地図が安定表示されたらURLをフル状態に更新（Google Maps方式）
+  // hash:true がハッシュを確定した後に updateShareableUrl を呼ぶことで
+  // https://teledrop.pages.dev/ → https://teledrop.pages.dev/?overlay=cs#15/35.02/135.78 に自動遷移する
+  map.once('idle', updateShareableUrl);
+
   console.log('3D OMap Viewer 初期化完了（OriLibreベースマップ）');
 });
 
