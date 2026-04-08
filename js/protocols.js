@@ -292,7 +292,7 @@ async function fetchCompositeDemBitmap(
   const useQ    = demMode === null; // Q地図: 全合成モードのみ使用
   const useS    = demMode === null || demMode === 'dem5a' || demMode === 'land+dem5a'; // DEM5A: 全合成 or 単独 or land+dem5a
   const useLand = demMode === null || demMode === 'land' || demMode === 'land+dem5a'; // DEM10B: 全合成 or 単独 or land+dem5a
-  const sUrl    = useS    ? `${DEM5A_BASE}/${z}/${x}/${y}.png`         : null;
+  const sUrl    = (useS && z <= 15) ? `${DEM5A_BASE}/${z}/${x}/${y}.png` : null; // DEM5A: maxzoom 15
   const landUrl = (useLand && z <= 14) ? `${LAND_DEM_BASE}/${z}/${x}/${y}.png` : null; // DEM10B: maxzoom 14
   const qUrl    = useQ    ? `${QCHIZU_PROXY_BASE}/${z}/${x}/${y}.webp` : null;
   // 湖水深タイルはコメントアウト（2026-03-23 廃止）
