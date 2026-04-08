@@ -589,7 +589,11 @@ maplibregl.addProtocol('dem2cs', async (params, abortController) => {
   // 積み残し演算が一気に実行される。fetch後に大量タイルが同時にGPU処理に入ると
   // GPU作業キューが飽和し toPixels が数秒待たされる。
   // セマフォをGPUアップロード前から取得することで、GPU演算全体を2タイル同時に制限する。
+  // セマフォ待ち前にabort済みならキューに入らず即終了
+  if (abortController.signal.aborted) throw new DOMException('Tile request aborted', 'AbortError');
   await _acquireGpuTransfer();
+  // 待機中にabortされた場合もセマフォを返して終了
+  if (abortController.signal.aborted) { _releaseGpuTransfer(); throw new DOMException('Tile request aborted', 'AbortError'); }
   let arrayBuffer;
   let _csGpuReleased = false;
   try {
@@ -695,7 +699,10 @@ maplibregl.addProtocol('dem2cs', async (params, abortController) => {
   }
 
   return { data: arrayBuffer };
-  } catch { return { data: _transparentPngBuffer() }; }
+  } catch(e) {
+    if (e?.name === 'AbortError') throw e; // MapLibreにAbortを正しく伝播→タイル再取得可能に
+    return { data: _transparentPngBuffer() };
+  }
 });
 
 
@@ -1123,7 +1130,10 @@ maplibregl.addProtocol('dem2curve', async (params, abortController) => {
     cvNorm.dispose();
     curvatureTensor.dispose();
     return { data: await outCanvas.convertToBlob({ type: 'image/webp', quality: 0.92 }).then(b => b.arrayBuffer()) };
-  } catch { return { data: _transparentPngBuffer() }; }
+  } catch(e) {
+    if (e?.name === 'AbortError') throw e;
+    return { data: _transparentPngBuffer() };
+  }
 });
 
 
@@ -1311,7 +1321,9 @@ maplibregl.addProtocol('dem2rrim', async (params, abortController) => {
     // ── ⑥ 出力（toPixelsまでセマフォ制御・blob変換はCPUなので解放後に実行）──
     const outCanvas = new OffscreenCanvas(tileSize, tileSize);
     const rrimNorm = rrimTensor.div(255);
+    if (abortController.signal.aborted) throw new DOMException('Tile request aborted', 'AbortError');
     await _acquireGpuTransfer();
+    if (abortController.signal.aborted) { _releaseGpuTransfer(); throw new DOMException('Tile request aborted', 'AbortError'); }
     const _rrimT4b = performance.now(); // セマフォ取得完了（wait終了）
     let rrimArrayBuffer;
     let _rrimGpuReleased = false;
@@ -1340,7 +1352,10 @@ maplibregl.addProtocol('dem2rrim', async (params, abortController) => {
       if (!_rrimGpuReleased) _releaseGpuTransfer(); // エラー時のフォールバック解放
     }
     return { data: rrimArrayBuffer };
-  } catch { return { data: _transparentPngBuffer() }; }
+  } catch(e) {
+    if (e?.name === 'AbortError') throw e;
+    return { data: _transparentPngBuffer() };
+  }
 });
 
 
