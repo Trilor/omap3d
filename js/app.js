@@ -866,20 +866,8 @@ map.on('load', async () => {
   // ⑤ テレインマスタ → フレームの順で自動読み込みする
   autoLoadTerrains();
 
-  // オーバーレイ選択状態をlocalStorageから復元（リロード時維持）
-  try {
-    const _savedOverlay = localStorage.getItem('teledrop-overlay');
-    if (_savedOverlay && _savedOverlay !== 'none') {
-      const _card = document.querySelector(`#overlay-cards .bm-card[data-key="${_savedOverlay}"]`);
-      if (_card) {
-        document.querySelectorAll('#overlay-cards .bm-card').forEach(c => c.classList.remove('active'));
-        _card.classList.add('active');
-        currentOverlay = _savedOverlay;
-        updateCsVisibility();
-        if (['cs', 'color-relief', 'slope', 'curvature', 'rrim'].includes(currentOverlay)) showMapLoading();
-      }
-    }
-  } catch {}
+  // UI状態全体をlocalStorageから復元（リロード時維持）
+  restoreUiState();
 
   console.log('3D OMap Viewer 初期化完了（OriLibreベースマップ）');
 });
@@ -4322,7 +4310,7 @@ document.getElementById('overlay-cards').addEventListener('click', (e) => {
   document.querySelectorAll('#overlay-cards .bm-card').forEach(c => c.classList.remove('active'));
   card.classList.add('active');
   currentOverlay = card.dataset.key;
-  try { localStorage.setItem('teledrop-overlay', currentOverlay); } catch {}
+  saveUiState();
   updateCsVisibility();
   // CS立体図・生成系オーバーレイ選択時はローディング表示（idle で非表示）
   if (currentOverlay === 'cs' || currentOverlay === 'color-relief' || currentOverlay === 'slope' || currentOverlay === 'curvature' || currentOverlay === 'rrim') showMapLoading();
@@ -5351,6 +5339,7 @@ sliderCs.addEventListener('input', () => {
       if (map.getLayer(layer.layerId)) map.setPaintProperty(layer.layerId, 'raster-opacity', v);
     });
   }
+  saveUiState();
   });
 
 
@@ -5779,12 +5768,14 @@ function setTerrain3dEnabled(enabled, { updateCard = true } = {}) {
 terrain3dCard.addEventListener('click', (e) => {
   if (e.target.closest('.custom-select-wrap') || e.target.closest('select')) return;
   setTerrain3dEnabled(!terrain3dCard.classList.contains('active'), { updateCard: true });
+  saveUiState();
 });
 
 selTerrainExaggeration.addEventListener('change', () => {
   if (terrain3dCard.classList.contains('active')) {
     setTerrain3dEnabled(true, { updateCard: false });
   }
+  saveUiState();
 });
 
 // ---- 等高線 タイルカード ----
@@ -5880,6 +5871,7 @@ contourCard.addEventListener('click', (e) => {
   const isActive = contourCard.classList.toggle('active');
   const vis = isActive ? 'visible' : 'none';
   setAllContourVisibility(map, vis);
+  saveUiState();
 });
 
 // ---- 等高線 DEMソースセレクト ----
@@ -5890,6 +5882,7 @@ selContourDem.addEventListener('change', () => {
   }
   // 色別等高線オーバーレイ選択中の場合はソース切り替えに追従
   if (currentOverlay === 'color-contour') updateCsVisibility();
+  saveUiState();
 });
 
 // ---- 等高線 間隔セレクト ----
@@ -5899,6 +5892,7 @@ selContourInterval.addEventListener('change', () => {
     userContourInterval = iv;
     applyContourInterval(iv);
   }
+  saveUiState();
 });
 
 // ---- 磁北線 タイルカード ----
@@ -5928,6 +5922,7 @@ magneticCard.addEventListener('click', (e) => {
     map.setLayoutProperty('magnetic-north-layer', 'visibility', isActive ? 'visible' : 'none');
   }
   updateMagneticAttribution();
+  saveUiState();
 });
 
 // ---- 磁北線 モデルセレクト ----
@@ -5936,6 +5931,7 @@ selMagneticModel.addEventListener('change', async () => {
   _globalMagneticLines = null; // グローバル磁北線キャッシュをクリア
   updateMagneticNorth();
   updateMagneticAttribution();
+  saveUiState();
 });
 // 初期モデルをロード（国土地理院2020 がデフォルト）
 setDeclinationModel(selMagneticModel.value);
@@ -5947,6 +5943,7 @@ selMagneticCombined.addEventListener('change', () => {
     userMagneticInterval = val;
   }
   updateMagneticNorth();
+  saveUiState();
 });
 
 function handleMagneticColorChange() {
@@ -5959,6 +5956,7 @@ function handleMagneticColorChange() {
     applyMagneticLineColor(pcSimState.readMap);
     applyMagneticLineColor(importState.previewMap, 'prev-magnetic-north-layer');
   });
+  saveUiState();
 }
 
 selMagneticColor.addEventListener('input', handleMagneticColorChange);
@@ -6024,6 +6022,7 @@ document.getElementById('basemap-cards').addEventListener('click', (e) => {
   document.querySelectorAll('#basemap-cards .bm-card').forEach(c => c.classList.remove('active'));
   card.classList.add('active');
   switchBasemap(card.dataset.key);
+  saveUiState();
 });
 
 // ---- 枠スクリーンショット ----
@@ -6542,6 +6541,131 @@ function updateSidebarWidth() {
 window.addEventListener('resize', updateSidebarWidth);
 updateSidebarWidth();
 
+// ---- UI状態の永続化（localStorage）----
+const _UI_STATE_KEY = 'teledrop-ui-state';
+
+function saveUiState() {
+  try {
+    localStorage.setItem(_UI_STATE_KEY, JSON.stringify({
+      basemap:             currentBasemap,
+      overlay:             currentOverlay,
+      overlayOpacity:      sliderCs.value,
+      contourVisible:      contourCard.classList.contains('active'),
+      contourDem:          selContourDem.value,
+      contourInterval:     selContourInterval.value,
+      magneticVisible:     magneticCard.classList.contains('active'),
+      magneticModel:       selMagneticModel.value,
+      magneticInterval:    selMagneticCombined.value,
+      magneticColor:       selMagneticColor.value,
+      terrain3d:           terrain3dCard.classList.contains('active'),
+      terrainExaggeration: selTerrainExaggeration.value,
+      sidebarPanel:        _sidebarCurrentPanel,
+      sidebarOpen:         _sidebarOpen,
+    }));
+  } catch {}
+}
+
+function restoreUiState() {
+  try {
+    const s = JSON.parse(localStorage.getItem(_UI_STATE_KEY));
+    if (!s) return;
+
+    // ベースマップ
+    if (s.basemap) {
+      const card = document.querySelector(`#basemap-cards .bm-card[data-key="${s.basemap}"]`);
+      if (card) {
+        document.querySelectorAll('#basemap-cards .bm-card').forEach(c => c.classList.remove('active'));
+        card.classList.add('active');
+        switchBasemap(s.basemap);
+      }
+    }
+
+    // 透明度スライダー
+    if (s.overlayOpacity != null) {
+      sliderCs.value = s.overlayOpacity;
+      updateSliderGradient(sliderCs);
+    }
+
+    // 等高線
+    if (s.contourDem) {
+      selContourDem.value = s.contourDem;
+      selContourDem._csRefresh?.();
+      contourState.demMode = s.contourDem;
+    }
+    if (s.contourInterval) {
+      selContourInterval.value = s.contourInterval;
+      selContourInterval._csRefresh?.();
+      userContourInterval = parseFloat(s.contourInterval) || 5;
+    }
+    if (s.contourVisible) {
+      contourCard.classList.add('active');
+      applyContourInterval(userContourInterval);
+      setAllContourVisibility(map, 'visible');
+    }
+
+    // 磁北線
+    if (s.magneticModel) {
+      selMagneticModel.value = s.magneticModel;
+      selMagneticModel._csRefresh?.();
+    }
+    if (s.magneticInterval) {
+      selMagneticCombined.value = s.magneticInterval;
+      selMagneticCombined._csRefresh?.();
+      userMagneticInterval = parseInt(s.magneticInterval, 10) || 300;
+    }
+    if (s.magneticColor) {
+      selMagneticColor.value = s.magneticColor;
+      selMagneticColor._csRefresh?.();
+      applyMagneticLineColor();
+    }
+    if (s.magneticVisible) {
+      magneticCard.classList.add('active');
+      if (map.getLayer('magnetic-north-layer')) {
+        map.setLayoutProperty('magnetic-north-layer', 'visibility', 'visible');
+      }
+      updateMagneticAttribution();
+    }
+
+    // 3D地形
+    if (s.terrainExaggeration) {
+      selTerrainExaggeration.value = s.terrainExaggeration;
+      selTerrainExaggeration._csRefresh?.();
+    }
+    setTerrain3dEnabled(!!s.terrain3d, { updateCard: true });
+
+    // オーバーレイ
+    if (s.overlay && s.overlay !== 'none') {
+      const card = document.querySelector(`#overlay-cards .bm-card[data-key="${s.overlay}"]`);
+      if (card) {
+        document.querySelectorAll('#overlay-cards .bm-card').forEach(c => c.classList.remove('active'));
+        card.classList.add('active');
+        currentOverlay = s.overlay;
+        updateCsVisibility();
+        if (['cs', 'color-relief', 'slope', 'curvature', 'rrim'].includes(currentOverlay)) showMapLoading();
+      }
+    }
+
+    // タブ（サイドバーパネル）
+    if (s.sidebarPanel) {
+      _sidebarCurrentPanel = s.sidebarPanel;
+      _sidebarOpen = s.sidebarOpen !== false;
+      const btn = document.querySelector(`.sidebar-nav-btn[data-panel="${s.sidebarPanel}"]`);
+      const sbPanel = document.getElementById('sidebar-panel');
+      document.querySelectorAll('.sidebar-nav-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.sidebar-section').forEach(ss => ss.classList.remove('active'));
+      if (_sidebarOpen && btn) {
+        sbPanel.classList.remove('sb-hidden');
+        btn.classList.add('active');
+        const panelEl = document.getElementById('panel-' + s.sidebarPanel);
+        if (panelEl) panelEl.classList.add('active');
+      } else {
+        sbPanel.classList.add('sb-hidden');
+      }
+      requestAnimationFrame(updateSidebarWidth);
+    }
+  } catch {}
+}
+
 document.querySelectorAll('.sidebar-nav-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     const panel = btn.dataset.panel;
@@ -6563,6 +6687,7 @@ document.querySelectorAll('.sidebar-nav-btn').forEach(btn => {
     // CSSアニメーション完了後に幅を反映
     // display:none は即時反映されるため rAF 1フレームで幅を取得可能
     requestAnimationFrame(updateSidebarWidth);
+    saveUiState();
   });
 });
 
