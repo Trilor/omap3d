@@ -451,22 +451,24 @@ maplibregl.addProtocol('gsjdem', async (params, abortController) => {
   ========================================================
 */
 
-// ガウシアンカーネルキャッシュ: kernelRadius → tf.Tensor4D (kept, [kH,kW,1,1])
-// 同一ズームレベルでは kernelRadius がほぼ一定なので大幅に再計算を削減できる。
+// ガウシアンカーネルキャッシュ: kernelRadius → { kX: [1,k,1,1], kY: [k,1,1,1] }
+// ガウシアンは分離可能（G(x,y)=g(x)×g(y)）なので水平・垂直の1Dカーネル2本に分解する。
+// 2D conv(k²回/px) → 1D×2パス(2k回/px) で演算量が約20分の1に削減される。
 const _csKernelCache = new Map();
 function _getCsKernel(kernelRadius, sigma) {
   if (_csKernelCache.has(kernelRadius)) return _csKernelCache.get(kernelRadius);
   const kernelDim = kernelRadius * 2 + 1;
-  const kExp = tf.keep(tf.tidy(() => {
-    const [kx, ky] = tf.meshgrid(
-      tf.linspace(-kernelRadius, kernelRadius, kernelDim),
-      tf.linspace(-kernelRadius, kernelRadius, kernelDim)
+  const kernels = tf.tidy(() => {
+    const g = tf.exp(
+      tf.neg(tf.linspace(-kernelRadius, kernelRadius, kernelDim).square().div(2 * sigma * sigma))
     );
-    return tf.exp(tf.neg(kx.square().add(ky.square()).div(2 * sigma * sigma)))
-      .expandDims(2).expandDims(3); // [kH,kW,1,1] — conv2d が要求する形状
-  }));
-  _csKernelCache.set(kernelRadius, kExp);
-  return kExp;
+    return {
+      kX: tf.keep(g.reshape([1, kernelDim, 1, 1])), // 水平パス用 [1,k,1,1]
+      kY: tf.keep(g.reshape([kernelDim, 1, 1, 1])), // 垂直パス用 [k,1,1,1]
+    };
+  });
+  _csKernelCache.set(kernelRadius, kernels);
+  return kernels;
 }
 
 // カラーランプ関数（tf.tidy 内で呼び出す）
@@ -584,22 +586,28 @@ maplibregl.addProtocol('dem2cs', async (params, abortController) => {
   let arrayBuffer;
   try {
     // Phase A: CPU→GPU転送（tensor2d生成）
-    const kExp = _getCsKernel(kernelRadius, sigma);
     const hT = tf.tensor2d(mergedHeights, [mergedSize, mergedSize]);
     const valid = hT.notEqual(-99999);
     const _csT2b = performance.now(); // CPU→GPU転送完了
 
-    // Phase B: Gaussian平滑化
+    // Phase B: Gaussian平滑化（分離畳み込み: 水平→垂直の2パスで演算量~20分の1）
+    // G(x,y)=g(x)×g(y) の分離可能性を利用し、2D conv(k²回/px) を 1D×2回(2k回/px) に分解
     const masked = tf.where(valid, hT, 0);
-    const kSum = tf.conv2d(
-      valid.cast('float32').expandDims(2).expandDims(0), kExp, 1, 'valid'
-    ).squeeze([0, 3]);
-    const sHRaw = tf.conv2d(
-      masked.expandDims(2).expandDims(0), kExp, 1, 'valid'
-    ).squeeze([0, 3]).div(kSum);
+    const validF = valid.cast('float32');
+    const { kX, kY } = _getCsKernel(kernelRadius, sigma); // 分離1Dカーネルペアを取得
+    // 水平パス: [mergedSize, mergedSize] → [mergedSize, mergedSize-2r]
+    const maskedH = tf.conv2d(masked.expandDims(2).expandDims(0), kX, 1, 'valid').squeeze([0, 3]);
+    const validH  = tf.conv2d(validF.expandDims(2).expandDims(0), kX, 1, 'valid').squeeze([0, 3]);
+    masked.dispose(); validF.dispose();
+    // 垂直パス: [mergedSize, mergedSize-2r] → [mergedSize-2r, mergedSize-2r]
+    const maskedHV = tf.conv2d(maskedH.expandDims(2).expandDims(0), kY, 1, 'valid').squeeze([0, 3]);
+    const kSum     = tf.conv2d(validH.expandDims(2).expandDims(0), kY, 1, 'valid').squeeze([0, 3]);
+    maskedH.dispose(); validH.dispose();
+    const sHRaw = maskedHV.div(kSum);
+    maskedHV.dispose(); kSum.dispose();
     const validCrop = valid.slice([buffer, buffer], [tileSize + 2, tileSize + 2]);
     const sH = tf.where(validCrop, sHRaw, tf.fill([tileSize + 2, tileSize + 2], -99999));
-    [masked, kSum, sHRaw, validCrop].forEach(t => t.dispose());
+    [sHRaw, validCrop].forEach(t => t.dispose());
     const _csT2c = performance.now(); // Gaussian完了
 
     // Phase C: Sobel傾斜（3×3 conv2d）
@@ -1010,20 +1018,25 @@ maplibregl.addProtocol('dem2curve', async (params, abortController) => {
       }
     }
 
-    // ── ④ ガウシアン平滑化（CS立体図と同じカーネルキャッシュを使用） ──
-    const kExp = _getCsKernel(kernelRadius, sigma);
+    // ── ④ ガウシアン平滑化（分離畳み込み: CS立体図と同一ロジック） ──
+    const { kX: kX2, kY: kY2 } = _getCsKernel(kernelRadius, sigma);
     const hT   = tf.tensor2d(mergedHeights, [mergedSize, mergedSize]);
     const valid   = hT.notEqual(-99999);
     const masked  = tf.where(valid, hT, 0);
-    const kSum    = tf.conv2d(
-      valid.cast('float32').expandDims(2).expandDims(0), kExp, 1, 'valid'
-    ).squeeze([0, 3]);
-    const sHRaw   = tf.conv2d(
-      masked.expandDims(2).expandDims(0), kExp, 1, 'valid'
-    ).squeeze([0, 3]).div(kSum);
+    const validF2 = valid.cast('float32');
+    // 水平パス
+    const maskedH2 = tf.conv2d(masked.expandDims(2).expandDims(0), kX2, 1, 'valid').squeeze([0, 3]);
+    const validH2  = tf.conv2d(validF2.expandDims(2).expandDims(0), kX2, 1, 'valid').squeeze([0, 3]);
+    masked.dispose(); validF2.dispose();
+    // 垂直パス
+    const maskedHV2 = tf.conv2d(maskedH2.expandDims(2).expandDims(0), kY2, 1, 'valid').squeeze([0, 3]);
+    const kSum2     = tf.conv2d(validH2.expandDims(2).expandDims(0), kY2, 1, 'valid').squeeze([0, 3]);
+    maskedH2.dispose(); validH2.dispose();
+    const sHRaw   = maskedHV2.div(kSum2);
+    maskedHV2.dispose(); kSum2.dispose();
     const validCrop = valid.slice([buffer, buffer], [tileSize + 2, tileSize + 2]);
     const smoothedT = tf.where(validCrop, sHRaw, tf.zerosLike(sHRaw));
-    [masked, kSum, sHRaw, validCrop].forEach(t => t.dispose());
+    [sHRaw, validCrop].forEach(t => t.dispose());
 
     // cc 係数（CS立体図と同一; terrainScale のみ適用・redAndBlueIntensity は 1 固定）
     const cc = pixelLength < 68
