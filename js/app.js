@@ -5893,6 +5893,7 @@ selContourDem.addEventListener('change', () => {
   }
   // 色別等高線オーバーレイ選択中の場合はソース切り替えに追従
   if (currentOverlay === 'color-contour') updateCsVisibility();
+  updateShareableUrl();
   saveUiState();
 });
 
@@ -5944,6 +5945,7 @@ selMagneticModel.addEventListener('change', async () => {
   _globalMagneticLines = null; // グローバル磁北線キャッシュをクリア
   updateMagneticNorth();
   updateMagneticAttribution();
+  updateShareableUrl();
   saveUiState();
 });
 // 初期モデルをロード（国土地理院2020 がデフォルト）
@@ -6605,8 +6607,10 @@ function updateShareableUrl() {
     p.set('contour', '1');
     const ci = selContourInterval.value;
     if (ci !== '5') p.set('cont_int', ci); else p.delete('cont_int');
+    const cd = selContourDem.value;
+    if (cd !== 'q1m') p.set('cont_dem', cd); else p.delete('cont_dem');
   } else {
-    p.delete('contour'); p.delete('cont_int');
+    p.delete('contour'); p.delete('cont_int'); p.delete('cont_dem');
   }
 
   // 磁北線（OFF → 省略; ON時のみ明示）
@@ -6614,8 +6618,10 @@ function updateShareableUrl() {
     p.set('magnetic', '1');
     const mi = selMagneticCombined.value;
     if (mi !== '300') p.set('mag_int', mi); else p.delete('mag_int');
+    const mm = selMagneticModel.value;
+    if (mm !== 'gsi2020') p.set('mag_model', mm); else p.delete('mag_model');
   } else {
-    p.delete('magnetic'); p.delete('mag_int');
+    p.delete('magnetic'); p.delete('mag_int'); p.delete('mag_model');
   }
 
   // 3D地形（OFF → 省略）
@@ -6662,11 +6668,12 @@ function restoreUiState() {
     sliderCs.value = targetOpacity;
     updateSliderGradient(sliderCs);
 
-    // 等高線DEMソース（localStorageのみ）
-    if (s.contourDem) {
-      selContourDem.value = s.contourDem;
+    // 等高線DEMソース：URL > localStorage
+    const targetContDem = up.get('cont_dem') || s.contourDem;
+    if (targetContDem) {
+      selContourDem.value = targetContDem;
       selContourDem._csRefresh?.();
-      contourState.demMode = s.contourDem;
+      contourState.demMode = targetContDem;
     }
     // 等高線間隔：URL > localStorage
     const targetContInt = up.get('cont_int') || s.contourInterval;
@@ -6683,8 +6690,9 @@ function restoreUiState() {
       setAllContourVisibility(map, 'visible');
     }
 
-    // 磁北線モデル・色（localStorageのみ）
-    if (s.magneticModel) { selMagneticModel.value = s.magneticModel; selMagneticModel._csRefresh?.(); }
+    // 磁北線モデル：URL > localStorage
+    const targetMagModel = up.get('mag_model') || s.magneticModel;
+    if (targetMagModel) { selMagneticModel.value = targetMagModel; selMagneticModel._csRefresh?.(); }
     if (s.magneticColor) {
       selMagneticColor.value = s.magneticColor; selMagneticColor._csRefresh?.();
       applyMagneticLineColor();
