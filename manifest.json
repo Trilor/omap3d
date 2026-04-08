@@ -1,0 +1,21 @@
+{
+  "name": "TeleDrop",
+  "short_name": "TeleDrop",
+  "description": "オリエンテーリング向け3D地図・ルート振り返りビューア",
+  "start_url": "/",
+  "display": "minimal-ui",
+  "background_color": "#1a1a2e",
+  "theme_color": "#25556f",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
