@@ -72,6 +72,8 @@ let _updateGlobeBg = null;
   KMZ から読み込んだ画像レイヤーは後から動的に追加します。
   ========================================================
 */
+let _restoredFromStorage = false; // localStorageから位置を復元した場合true（OriLibreのjumpTo抑制用）
+
 const map = new maplibregl.Map({
 
   container: 'map',
@@ -117,7 +119,10 @@ const map = new maplibregl.Map({
     if (!location.hash) {
       try {
         const s = JSON.parse(localStorage.getItem(_LS_KEY));
-        if (s) return { center: [s.lng, s.lat], zoom: s.zoom, pitch: s.pitch, bearing: s.bearing };
+        if (s) {
+          _restoredFromStorage = true;
+          return { center: [s.lng, s.lat], zoom: s.zoom, pitch: s.pitch, bearing: s.bearing };
+        }
       } catch {}
     }
     return {};
@@ -461,10 +466,11 @@ map.on('load', async () => {
     // 初期レイヤーを追加（デフォルト: PLATEAU）
     updateBuildingLayer();
 
-    // isomizer の project-config.yml が別のcenterを持つ場合があるため、
-    // URLハッシュがない場合のみ初期位置（京都大学）へ戻す
-    // hash:true で MapLibre がURLハッシュから位置を復元済みの場合は上書きしない
-    if (!location.hash) {
+    // isomizer の project-config.yml が別のcenterを持つ場合があるため完了後に位置を復元する。
+    // ただし以下の場合は上書きしない:
+    //   - URLハッシュあり: MapLibreのhash:trueが復元済み
+    //   - localStorageから復元済み: Map初期化時に前回位置を適用済み
+    if (!location.hash && !_restoredFromStorage) {
       map.jumpTo({
         center: INITIAL_CENTER, zoom: INITIAL_ZOOM, pitch: INITIAL_PITCH, bearing: INITIAL_BEARING
       });
