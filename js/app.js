@@ -5340,6 +5340,7 @@ sliderCs.addEventListener('input', () => {
       if (map.getLayer(layer.layerId)) map.setPaintProperty(layer.layerId, 'raster-opacity', v);
     });
   }
+  updateShareableUrl();
   saveUiState();
   });
 
@@ -5729,7 +5730,11 @@ async function updateBuildingLayer() {
   updatePlateauAttribution();
 }
 
-document.getElementById('sel-building').addEventListener('change', updateBuildingLayer);
+document.getElementById('sel-building').addEventListener('change', () => {
+  updateBuildingLayer();
+  updateShareableUrl();
+  saveUiState();
+});
 
 // ---- 3D建物カード クリックでトグル ----
 const building3dCard = document.getElementById('building3d-card');
@@ -5750,6 +5755,8 @@ async function setBuilding3dEnabled(enabled, { updateCard = true } = {}) {
 building3dCard.addEventListener('click', (e) => {
   if (e.target.closest('.custom-select-wrap') || e.target.closest('select')) return;
   void setBuilding3dEnabled(!building3dCard.classList.contains('active'), { updateCard: true });
+  updateShareableUrl();
+  saveUiState();
 });
 
 // ---- 3D地形カード クリックでトグル + 誇張率セレクト ----
@@ -5769,6 +5776,7 @@ function setTerrain3dEnabled(enabled, { updateCard = true } = {}) {
 terrain3dCard.addEventListener('click', (e) => {
   if (e.target.closest('.custom-select-wrap') || e.target.closest('select')) return;
   setTerrain3dEnabled(!terrain3dCard.classList.contains('active'), { updateCard: true });
+  updateShareableUrl();
   saveUiState();
 });
 
@@ -5776,6 +5784,7 @@ selTerrainExaggeration.addEventListener('change', () => {
   if (terrain3dCard.classList.contains('active')) {
     setTerrain3dEnabled(true, { updateCard: false });
   }
+  updateShareableUrl();
   saveUiState();
 });
 
@@ -5872,6 +5881,7 @@ contourCard.addEventListener('click', (e) => {
   const isActive = contourCard.classList.toggle('active');
   const vis = isActive ? 'visible' : 'none';
   setAllContourVisibility(map, vis);
+  updateShareableUrl();
   saveUiState();
 });
 
@@ -5893,6 +5903,7 @@ selContourInterval.addEventListener('change', () => {
     userContourInterval = iv;
     applyContourInterval(iv);
   }
+  updateShareableUrl();
   saveUiState();
 });
 
@@ -5923,6 +5934,7 @@ magneticCard.addEventListener('click', (e) => {
     map.setLayoutProperty('magnetic-north-layer', 'visibility', isActive ? 'visible' : 'none');
   }
   updateMagneticAttribution();
+  updateShareableUrl();
   saveUiState();
 });
 
@@ -5944,6 +5956,7 @@ selMagneticCombined.addEventListener('change', () => {
     userMagneticInterval = val;
   }
   updateMagneticNorth();
+  updateShareableUrl();
   saveUiState();
 });
 
@@ -6561,35 +6574,80 @@ function saveUiState() {
       magneticColor:       selMagneticColor.value,
       terrain3d:           terrain3dCard.classList.contains('active'),
       terrainExaggeration: selTerrainExaggeration.value,
+      building:            building3dCard.classList.contains('active'),
+      buildingSrc:         document.getElementById('sel-building')?.value ?? 'plateau',
       sidebarPanel:        _sidebarCurrentPanel,
       sidebarOpen:         _sidebarOpen,
     }));
   } catch {}
 }
 
-// URLクエリパラメータ（?base=X&overlay=Y）を更新する（Q地図MapLibre版と同方式）
-// MapLibreが管理する #hash（位置）とは独立して管理し、共有URLとして機能する
+// URLクエリパラメータを更新する（Q地図MapLibre版と同方式: ?params#hash）
+// デフォルト値は省略してURLを短く保つ
 function updateShareableUrl() {
   const p = new URLSearchParams(location.search);
+
+  // ベースマップ（デフォルト: orilibre → 省略）
   if (currentBasemap && currentBasemap !== 'orilibre') p.set('base', currentBasemap);
   else p.delete('base');
+
+  // オーバーレイ（デフォルト: none → 省略）
   if (currentOverlay && currentOverlay !== 'none') p.set('overlay', currentOverlay);
   else p.delete('overlay');
+
+  // 透明度（デフォルト: 1.0 → 省略）
+  const opacity = parseFloat(sliderCs.value);
+  if (Math.abs(opacity - 1.0) > 0.005) p.set('opacity', opacity);
+  else p.delete('opacity');
+
+  // 等高線（OFF → 省略; ON時のみ明示）
+  if (contourCard.classList.contains('active')) {
+    p.set('contour', '1');
+    const ci = selContourInterval.value;
+    if (ci !== '5') p.set('cont_int', ci); else p.delete('cont_int');
+  } else {
+    p.delete('contour'); p.delete('cont_int');
+  }
+
+  // 磁北線（OFF → 省略; ON時のみ明示）
+  if (magneticCard.classList.contains('active')) {
+    p.set('magnetic', '1');
+    const mi = selMagneticCombined.value;
+    if (mi !== '300') p.set('mag_int', mi); else p.delete('mag_int');
+  } else {
+    p.delete('magnetic'); p.delete('mag_int');
+  }
+
+  // 3D地形（OFF → 省略）
+  if (terrain3dCard.classList.contains('active')) {
+    p.set('terrain', '1');
+    const ex = selTerrainExaggeration.value;
+    if (ex !== '1') p.set('exag', ex); else p.delete('exag');
+  } else {
+    p.delete('terrain'); p.delete('exag');
+  }
+
+  // 建物（OFF → 省略）
+  if (building3dCard.classList.contains('active')) {
+    p.set('building', '1');
+    const bs = document.getElementById('sel-building')?.value ?? 'plateau';
+    if (bs !== 'plateau') p.set('bld_src', bs); else p.delete('bld_src');
+  } else {
+    p.delete('building'); p.delete('bld_src');
+  }
+
   const qs = p.toString();
-  // history.replaceState でブラウザ履歴を汚さずURLを更新（MapLibreの#hashは保持）
   history.replaceState(null, '', location.pathname + (qs ? '?' + qs : '') + location.hash);
 }
 
 function restoreUiState() {
   try {
-    // URLクエリ（シェアURL）を最優先、次にlocalStorage（前回の個人設定）
-    const urlParams  = new URLSearchParams(location.search);
-    const urlBase    = urlParams.get('base');
-    const urlOverlay = urlParams.get('overlay');
-    const s = JSON.parse(localStorage.getItem(_UI_STATE_KEY) || 'null') || {};
+    // URLクエリ（シェアURL）を最優先、次にlocalStorage
+    const up = new URLSearchParams(location.search);
+    const s  = JSON.parse(localStorage.getItem(_UI_STATE_KEY) || 'null') || {};
 
-    // ベースマップ：URLクエリ > localStorage
-    const targetBase = urlBase || s.basemap;
+    // ベースマップ：URL > localStorage
+    const targetBase = up.get('base') || s.basemap;
     if (targetBase) {
       const card = document.querySelector(`#basemap-cards .bm-card[data-key="${targetBase}"]`);
       if (card) {
@@ -6599,45 +6657,48 @@ function restoreUiState() {
       }
     }
 
-    // 透明度スライダー
-    if (s.overlayOpacity != null) {
-      sliderCs.value = s.overlayOpacity;
-      updateSliderGradient(sliderCs);
-    }
+    // 透明度：URL > localStorage
+    const targetOpacity = up.has('opacity') ? parseFloat(up.get('opacity')) : parseFloat(s.overlayOpacity ?? 1);
+    sliderCs.value = targetOpacity;
+    updateSliderGradient(sliderCs);
 
-    // 等高線
+    // 等高線DEMソース（localStorageのみ）
     if (s.contourDem) {
       selContourDem.value = s.contourDem;
       selContourDem._csRefresh?.();
       contourState.demMode = s.contourDem;
     }
-    if (s.contourInterval) {
-      selContourInterval.value = s.contourInterval;
+    // 等高線間隔：URL > localStorage
+    const targetContInt = up.get('cont_int') || s.contourInterval;
+    if (targetContInt) {
+      selContourInterval.value = targetContInt;
       selContourInterval._csRefresh?.();
-      userContourInterval = parseFloat(s.contourInterval) || 5;
+      userContourInterval = parseFloat(targetContInt) || 5;
     }
-    if (s.contourVisible) {
+    // 等高線表示：URL > localStorage
+    const contourOn = up.has('contour') ? up.get('contour') === '1' : !!s.contourVisible;
+    if (contourOn) {
       contourCard.classList.add('active');
       applyContourInterval(userContourInterval);
       setAllContourVisibility(map, 'visible');
     }
 
-    // 磁北線
-    if (s.magneticModel) {
-      selMagneticModel.value = s.magneticModel;
-      selMagneticModel._csRefresh?.();
-    }
-    if (s.magneticInterval) {
-      selMagneticCombined.value = s.magneticInterval;
-      selMagneticCombined._csRefresh?.();
-      userMagneticInterval = parseInt(s.magneticInterval, 10) || 300;
-    }
+    // 磁北線モデル・色（localStorageのみ）
+    if (s.magneticModel) { selMagneticModel.value = s.magneticModel; selMagneticModel._csRefresh?.(); }
     if (s.magneticColor) {
-      selMagneticColor.value = s.magneticColor;
-      selMagneticColor._csRefresh?.();
+      selMagneticColor.value = s.magneticColor; selMagneticColor._csRefresh?.();
       applyMagneticLineColor();
     }
-    if (s.magneticVisible) {
+    // 磁北線間隔：URL > localStorage
+    const targetMagInt = up.get('mag_int') || s.magneticInterval;
+    if (targetMagInt) {
+      selMagneticCombined.value = targetMagInt;
+      selMagneticCombined._csRefresh?.();
+      userMagneticInterval = parseInt(targetMagInt, 10) || 300;
+    }
+    // 磁北線表示：URL > localStorage
+    const magneticOn = up.has('magnetic') ? up.get('magnetic') === '1' : !!s.magneticVisible;
+    if (magneticOn) {
       magneticCard.classList.add('active');
       if (map.getLayer('magnetic-north-layer')) {
         map.setLayoutProperty('magnetic-north-layer', 'visibility', 'visible');
@@ -6645,15 +6706,23 @@ function restoreUiState() {
       updateMagneticAttribution();
     }
 
-    // 3D地形
-    if (s.terrainExaggeration) {
-      selTerrainExaggeration.value = s.terrainExaggeration;
-      selTerrainExaggeration._csRefresh?.();
-    }
-    setTerrain3dEnabled(!!s.terrain3d, { updateCard: true });
+    // 地形誇張倍率：URL > localStorage
+    const targetExag = up.get('exag') || s.terrainExaggeration;
+    if (targetExag) { selTerrainExaggeration.value = targetExag; selTerrainExaggeration._csRefresh?.(); }
+    // 3D地形表示：URL > localStorage
+    const terrainOn = up.has('terrain') ? up.get('terrain') === '1' : !!s.terrain3d;
+    setTerrain3dEnabled(terrainOn, { updateCard: true });
 
-    // オーバーレイ：URLクエリ > localStorage
-    const targetOverlay = urlOverlay || s.overlay;
+    // 建物ソース：URL > localStorage
+    const targetBldSrc = up.get('bld_src') || s.buildingSrc || 'plateau';
+    const selBldEl = document.getElementById('sel-building');
+    if (selBldEl) { selBldEl.value = targetBldSrc; selBldEl._csRefresh?.(); }
+    // 建物表示：URL > localStorage
+    const buildingOn = up.has('building') ? up.get('building') === '1' : !!s.building;
+    void setBuilding3dEnabled(buildingOn, { updateCard: true });
+
+    // オーバーレイ：URL > localStorage
+    const targetOverlay = up.get('overlay') || s.overlay;
     if (targetOverlay && targetOverlay !== 'none') {
       const card = document.querySelector(`#overlay-cards .bm-card[data-key="${targetOverlay}"]`);
       if (card) {
