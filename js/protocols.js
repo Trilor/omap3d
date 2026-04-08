@@ -140,7 +140,7 @@ async function fetchTerrainDemBitmap(z, x, y, signal) {
   // Q地図1mの提供が不安定な場合でも DEM5A/DEM10B で素早くテレインを返すため。
   // AbortSignal.any は Chrome116+/Firefox115+ で使用可能。
   const qSignal = (typeof AbortSignal.any === 'function')
-    ? AbortSignal.any([signal, AbortSignal.timeout(3000)])
+    ? AbortSignal.any([signal, AbortSignal.timeout(5000)])
     : signal;
 
   async function toImageData(url, s = signal) {
@@ -253,16 +253,23 @@ function _cachedFetchImageData(url, signal) {
   const promise = (async () => {
     try {
       const r = await fetch(url, signal ? { signal } : undefined);
-      if (!r.ok) return null;
+      if (!r.ok) return null; // 404等は正規の「データなし」→キャッシュ保持で再リクエスト抑制
       const bm = await createImageBitmap(await r.blob());
       const cv = new OffscreenCanvas(bm.width, bm.height);
       cv.getContext('2d').drawImage(bm, 0, 0);
       bm.close();
       return cv.getContext('2d').getImageData(0, 0, cv.width, cv.height);
-    } catch { return null; }
+    } catch {
+      // タイムアウト・ネットワークエラーは一時的な失敗→即キャッシュ削除して再試行可能に
+      _demTileFetchCache.delete(url);
+      return null;
+    }
   })();
   _demTileFetchCache.set(url, promise);
-  promise.finally(() => setTimeout(() => _demTileFetchCache.delete(url), _DEM_TILE_CACHE_TTL));
+  // 成功・404のTTL削除: 新しいプロミスに上書きされていた場合は削除しない（競合防止）
+  promise.finally(() => setTimeout(() => {
+    if (_demTileFetchCache.get(url) === promise) _demTileFetchCache.delete(url);
+  }, _DEM_TILE_CACHE_TTL));
   return promise;
 }
 // regionalDemBase : 地域DEMのベースURL（dem2cs://地域層の場合のみ指定）
@@ -301,7 +308,7 @@ async function fetchCompositeDemBitmap(
   // Q地図1mの提供が不安定な場合でも他ソースで素早くCS立体図を返すため。
   // キャッシュヒット時はシグナルは無視されるが、初回fetchの品質維持のために残す。
   const qSignal = useQ && (typeof AbortSignal.any === 'function')
-    ? AbortSignal.any([signal, AbortSignal.timeout(3000)])
+    ? AbortSignal.any([signal, AbortSignal.timeout(5000)])
     : signal;
 
   // _cachedFetchImageData でURL単位のPromise共有 → 同一URLの重複fetchを排除
