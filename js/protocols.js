@@ -220,7 +220,7 @@ async function fetchTerrainDemBitmap(z, x, y, signal) {
 // 複数タイルが同時に tf.browser.toPixels を呼ぶとGPUキューが詰まり
 // 先頭タイルが数秒待たされる。同時実行を2に制限して待ち時間を均等化する。
 // ================================================================
-const _GPU_TRANSFER_CONCURRENCY = 2;
+const _GPU_TRANSFER_CONCURRENCY = 4;
 let _gpuTransferActive = 0;
 const _gpuTransferQueue = [];
 function _acquireGpuTransfer() {
@@ -665,7 +665,7 @@ maplibregl.addProtocol('dem2cs', async (params, abortController) => {
     csRittaizuTensor.dispose();
     const _csT5 = performance.now(); // toPixels完了
 
-    const blob = await outCanvas.convertToBlob({ type: 'image/png' });
+    const blob = await outCanvas.convertToBlob({ type: 'image/webp', quality: 0.92 });
     arrayBuffer = await blob.arrayBuffer();
     const _csT6 = performance.now();
     console.log(
@@ -1112,7 +1112,7 @@ maplibregl.addProtocol('dem2curve', async (params, abortController) => {
     await tf.browser.toPixels(cvNorm, outCanvas);
     cvNorm.dispose();
     curvatureTensor.dispose();
-    return { data: await outCanvas.convertToBlob({ type: 'image/png' }).then(b => b.arrayBuffer()) };
+    return { data: await outCanvas.convertToBlob({ type: 'image/webp', quality: 0.92 }).then(b => b.arrayBuffer()) };
   } catch { return { data: _transparentPngBuffer() }; }
 });
 
@@ -1308,7 +1308,7 @@ maplibregl.addProtocol('dem2rrim', async (params, abortController) => {
       rrimNorm.dispose();
       rrimTensor.dispose();
       const _rrimT5 = performance.now(); // toPixels完了
-      const rrimBlob = await outCanvas.convertToBlob({ type: 'image/png' });
+      const rrimBlob = await outCanvas.convertToBlob({ type: 'image/webp', quality: 0.92 });
       rrimArrayBuffer = await rrimBlob.arrayBuffer();
       const _rrimT6 = performance.now();
       console.log(
