@@ -272,6 +272,26 @@ function _cachedFetchImageData(url, signal) {
   }, _DEM_TILE_CACHE_TTL));
   return promise;
 }
+// 合成タイルの出力サイズ（tileSize:512 のMapLibreソース定義と整合）
+const _COMPOSITE_TARGET_SIZE = 512;
+
+// ImageData を _COMPOSITE_TARGET_SIZE の ImageData にスケーリング（最近傍補間で高度値を保持）
+// DEM5A/DEM10B は 256px、Q地図は 512px と異なるため合成前に統一する
+function _scaleToTarget(imgData) {
+  if (!imgData) return null;
+  if (imgData.width === _COMPOSITE_TARGET_SIZE && imgData.height === _COMPOSITE_TARGET_SIZE) {
+    return imgData; // 既にターゲットサイズなのでそのまま返す
+  }
+  // 元サイズのcanvasにputImageDataしてからTARGETサイズに描画
+  const src = new OffscreenCanvas(imgData.width, imgData.height);
+  src.getContext('2d').putImageData(imgData, 0, 0);
+  const dst = new OffscreenCanvas(_COMPOSITE_TARGET_SIZE, _COMPOSITE_TARGET_SIZE);
+  const dstCtx = dst.getContext('2d');
+  dstCtx.imageSmoothingEnabled = false; // 最近傍補間（高度値が変わらないよう保護）
+  dstCtx.drawImage(src, 0, 0, _COMPOSITE_TARGET_SIZE, _COMPOSITE_TARGET_SIZE);
+  return dstCtx.getImageData(0, 0, _COMPOSITE_TARGET_SIZE, _COMPOSITE_TARGET_SIZE);
+}
+
 // regionalDemBase : 地域DEMのベースURL（dem2cs://地域層の場合のみ指定）
 // regionalDemExt  : 地域DEMの拡張子（'png' または 'webp'）
 // regionalDemOrder: 地域DEM URL の軸順序（'xy' または 'yx'）
@@ -312,24 +332,31 @@ async function fetchCompositeDemBitmap(
     : signal;
 
   // _cachedFetchImageData でURL単位のPromise共有 → 同一URLの重複fetchを排除
-  const [qData, sData, landData, rData] = await Promise.all([
+  const [qRaw, sRaw, landRaw, rRaw] = await Promise.all([
     qUrl     ? _cachedFetchImageData(qUrl, qSignal) : Promise.resolve(null),
     sUrl     ? _cachedFetchImageData(sUrl)          : Promise.resolve(null),
     landUrl  ? _cachedFetchImageData(landUrl)       : Promise.resolve(null),
     // 湖水深タイルはコメントアウト（2026-03-23 廃止）
     rUrl     ? _cachedFetchImageData(rUrl)          : Promise.resolve(null),
   ]);
-  if (!qData && !sData && !landData && !rData) return null;
+  if (!qRaw && !sRaw && !landRaw && !rRaw) return null;
+
+  // 各ソースを _COMPOSITE_TARGET_SIZE(512px) に統一
+  // DEM5A/DEM10B は 256px PNG、Q地図は 512px WebP → サイズ不一致を解消
+  const qData    = _scaleToTarget(qRaw);
+  const sData    = _scaleToTarget(sRaw);
+  const landData = _scaleToTarget(landRaw);
+  const rData    = _scaleToTarget(rRaw);
 
   function isNodata(d, i) {
     return (d[i] === 128 && d[i + 1] === 0 && d[i + 2] === 0) || d[i + 3] !== 255;
   }
 
-  // 合成先を全 nodata で初期化し、低優先度から順に上書き
-  const { width, height: h } = (qData ?? sData ?? landData ?? rData);
-  const cv  = new OffscreenCanvas(width, h);
+  // 常に 512×512 で合成（tileSize:512 のソース定義と整合）
+  const T = _COMPOSITE_TARGET_SIZE;
+  const cv  = new OffscreenCanvas(T, T);
   const ctx = cv.getContext('2d');
-  const out = ctx.createImageData(width, h);
+  const out = ctx.createImageData(T, T);
   const o = out.data;
   for (let i = 0; i < o.length; i += 4) { o[i] = 128; o[i + 3] = 255; } // all nodata
 
