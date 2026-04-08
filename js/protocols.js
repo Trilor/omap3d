@@ -682,8 +682,12 @@ maplibregl.addProtocol('dem2cs', async (params, abortController) => {
     const blob = await outCanvas.convertToBlob({ type: 'image/webp', quality: 0.92 });
     arrayBuffer = await blob.arrayBuffer();
     const _csT6 = performance.now();
+    const _csDemSrcs = effectiveRegionalBase ? 'R+Q+5A+10B'
+      : demMode === null         ? 'Q+5A+10B'
+      : demMode === 'land+dem5a' ? '5A+10B'
+      : '10B';
     console.log(
-      `[dem2cs] z${zoomLevel} ${tileX},${tileY} sigma=${sigma.toFixed(1)} k=${kernelRadius*2+1}px | ` +
+      `[dem2cs] z${zoomLevel} ${tileX},${tileY} dem:${_csDemSrcs} sigma=${sigma.toFixed(1)} k=${kernelRadius*2+1}px | ` +
       `fetch:${(_csT1-_csT0).toFixed(0)}  ` +
       `wait:${(_csT2b-_csT2).toFixed(0)}  ` +
       `gauss:${(_csT2c-_csT2b).toFixed(0)}  ` +
@@ -1337,8 +1341,12 @@ maplibregl.addProtocol('dem2rrim', async (params, abortController) => {
       const rrimBlob = await outCanvas.convertToBlob({ type: 'image/webp', quality: 0.92 });
       rrimArrayBuffer = await rrimBlob.arrayBuffer();
       const _rrimT6 = performance.now();
+      const _rrimDemSrcs = effectiveRegionalBase ? 'R+Q+5A+10B'
+        : demMode === null     ? 'Q+5A+10B'
+        : demMode === 'land+dem5a' ? '5A+10B'
+        : '10B';
       console.log(
-        `[dem2rrim] z${zoomLevel} ${tileX},${tileY} | ` +
+        `[dem2rrim] z${zoomLevel} ${tileX},${tileY} dem:${_rrimDemSrcs} | ` +
         `fetch:${(_rrimT1-_rrimT0).toFixed(0)}ms  ` +
         `merge+decode:${(_rrimT2-_rrimT1).toFixed(0)}ms  ` +
         `GPU(MPI 8dir×${RRIM_RADIUS}step):${(_rrimT3-_rrimT2).toFixed(0)}ms  ` +
