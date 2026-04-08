@@ -462,10 +462,13 @@ map.on('load', async () => {
     updateBuildingLayer();
 
     // isomizer の project-config.yml が別のcenterを持つ場合があるため、
-    // 完了後に京都大学（INITIAL_CENTER）へ強制的に戻す
-    map.jumpTo({
-      center: INITIAL_CENTER, zoom: INITIAL_ZOOM, pitch: INITIAL_PITCH, bearing: INITIAL_BEARING
-    });
+    // URLハッシュがない場合のみ初期位置（京都大学）へ戻す
+    // hash:true で MapLibre がURLハッシュから位置を復元済みの場合は上書きしない
+    if (!location.hash) {
+      map.jumpTo({
+        center: INITIAL_CENTER, zoom: INITIAL_ZOOM, pitch: INITIAL_PITCH, bearing: INITIAL_BEARING
+      });
+    }
   }
 
   catch (e) {
@@ -862,6 +865,21 @@ map.on('load', async () => {
 
   // ⑤ テレインマスタ → フレームの順で自動読み込みする
   autoLoadTerrains();
+
+  // オーバーレイ選択状態をlocalStorageから復元（リロード時維持）
+  try {
+    const _savedOverlay = localStorage.getItem('teledrop-overlay');
+    if (_savedOverlay && _savedOverlay !== 'none') {
+      const _card = document.querySelector(`#overlay-cards .bm-card[data-key="${_savedOverlay}"]`);
+      if (_card) {
+        document.querySelectorAll('#overlay-cards .bm-card').forEach(c => c.classList.remove('active'));
+        _card.classList.add('active');
+        currentOverlay = _savedOverlay;
+        updateCsVisibility();
+        if (['cs', 'color-relief', 'slope', 'curvature', 'rrim'].includes(currentOverlay)) showMapLoading();
+      }
+    }
+  } catch {}
 
   console.log('3D OMap Viewer 初期化完了（OriLibreベースマップ）');
 });
@@ -4304,6 +4322,7 @@ document.getElementById('overlay-cards').addEventListener('click', (e) => {
   document.querySelectorAll('#overlay-cards .bm-card').forEach(c => c.classList.remove('active'));
   card.classList.add('active');
   currentOverlay = card.dataset.key;
+  try { localStorage.setItem('teledrop-overlay', currentOverlay); } catch {}
   updateCsVisibility();
   // CS立体図・生成系オーバーレイ選択時はローディング表示（idle で非表示）
   if (currentOverlay === 'cs' || currentOverlay === 'color-relief' || currentOverlay === 'slope' || currentOverlay === 'curvature' || currentOverlay === 'rrim') showMapLoading();
