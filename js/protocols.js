@@ -647,33 +647,33 @@ maplibregl.addProtocol('dem2cs', async (params, abortController) => {
   // セマフォで同時toPixels実行数を制限（GPUキュー詰まり防止）
   const outCanvas = new OffscreenCanvas(tileSize, tileSize);
   const csNorm = csRittaizuTensor.div(255);
+  // セマフォでtoPixels+convertToBlob全体を直列化（GPU同期＋PNGエンコードの競合防止）
   await _acquireGpuTransfer();
+  let arrayBuffer;
   try {
     await tf.browser.toPixels(csNorm, outCanvas); // GPU→CPU同期点
+    csNorm.dispose();
+    csRittaizuTensor.dispose();
+    const _csT5 = performance.now(); // toPixels完了
+    const blob = await outCanvas.convertToBlob({ type: 'image/png' });
+    arrayBuffer = await blob.arrayBuffer();
+    const _csT6 = performance.now();
+    console.log(
+      `[dem2cs] z${zoomLevel} ${tileX},${tileY} sigma=${sigma.toFixed(1)} k=${kernelRadius*2+1}px | ` +
+      `fetch:${(_csT1-_csT0).toFixed(0)}  ` +
+      `merge:${(_csT2-_csT1).toFixed(0)}  ` +
+      `upload:${(_csT2b-_csT2).toFixed(0)}  ` +
+      `gauss:${(_csT2c-_csT2b).toFixed(0)}  ` +
+      `sobel:${(_csT2d-_csT2c).toFixed(0)}  ` +
+      `lap:${(_csT3-_csT2d).toFixed(0)}  ` +
+      `blend:${(_csT4-_csT3).toFixed(0)}  ` +
+      `toPixels:${(_csT5-_csT4).toFixed(0)}  ` +
+      `blob:${(_csT6-_csT5).toFixed(0)}  ` +
+      `total:${(_csT6-_csT0).toFixed(0)}ms`
+    );
   } finally {
     _releaseGpuTransfer();
   }
-  csNorm.dispose();
-  csRittaizuTensor.dispose();
-  const _csT5 = performance.now(); // toPixels完了（GPU→CPU転送）
-
-  const blob = await outCanvas.convertToBlob({ type: 'image/png' });
-  const arrayBuffer = await blob.arrayBuffer();
-  const _csT6 = performance.now(); // convertToBlob+arrayBuffer完了（PNGエンコード）
-
-  console.log(
-    `[dem2cs] z${zoomLevel} ${tileX},${tileY} sigma=${sigma.toFixed(1)} k=${kernelRadius*2+1}px | ` +
-    `fetch:${(_csT1-_csT0).toFixed(0)}  ` +
-    `merge:${(_csT2-_csT1).toFixed(0)}  ` +
-    `upload:${(_csT2b-_csT2).toFixed(0)}  ` +
-    `gauss:${(_csT2c-_csT2b).toFixed(0)}  ` +
-    `sobel:${(_csT2d-_csT2c).toFixed(0)}  ` +
-    `lap:${(_csT3-_csT2d).toFixed(0)}  ` +
-    `blend:${(_csT4-_csT3).toFixed(0)}  ` +
-    `toPixels:${(_csT5-_csT4).toFixed(0)}  ` +
-    `blob:${(_csT6-_csT5).toFixed(0)}  ` +
-    `total:${(_csT6-_csT0).toFixed(0)}ms`
-  );
 
   return { data: arrayBuffer };
   } catch { return { data: _transparentPngBuffer() }; }
@@ -1284,28 +1284,33 @@ maplibregl.addProtocol('dem2rrim', async (params, abortController) => {
     [demTensor, validMask, demFilled, demCenter, mpiTensor].forEach(t => t.dispose());
     const _rrimT4 = performance.now(); // RRIM合成完了
 
-    // ── ⑥ 出力（セマフォでGPUキュー詰まり防止）──
+    // ── ⑥ 出力（セマフォでtoPixels+blob全体を直列化）──
     const outCanvas = new OffscreenCanvas(tileSize, tileSize);
     const rrimNorm = rrimTensor.div(255);
     await _acquireGpuTransfer();
+    let rrimArrayBuffer;
     try {
       await tf.browser.toPixels(rrimNorm, outCanvas);
+      rrimNorm.dispose();
+      rrimTensor.dispose();
+      const _rrimT5 = performance.now(); // toPixels完了
+      const rrimBlob = await outCanvas.convertToBlob({ type: 'image/png' });
+      rrimArrayBuffer = await rrimBlob.arrayBuffer();
+      const _rrimT6 = performance.now();
+      console.log(
+        `[dem2rrim] z${zoomLevel} ${tileX},${tileY} | ` +
+        `fetch:${(_rrimT1-_rrimT0).toFixed(0)}ms  ` +
+        `merge+decode:${(_rrimT2-_rrimT1).toFixed(0)}ms  ` +
+        `GPU(MPI 8dir×${RRIM_RADIUS}step):${(_rrimT3-_rrimT2).toFixed(0)}ms  ` +
+        `GPU(sobel+rrim):${(_rrimT4-_rrimT3).toFixed(0)}ms  ` +
+        `toPixels:${(_rrimT5-_rrimT4).toFixed(0)}ms  ` +
+        `blob:${(_rrimT6-_rrimT5).toFixed(0)}ms  ` +
+        `total:${(_rrimT6-_rrimT0).toFixed(0)}ms`
+      );
     } finally {
       _releaseGpuTransfer();
     }
-    rrimNorm.dispose();
-    rrimTensor.dispose();
-    const _rrimT5 = performance.now(); // 出力完了
-    console.log(
-      `[dem2rrim] z${zoomLevel} ${tileX},${tileY} | ` +
-      `fetch:${(_rrimT1-_rrimT0).toFixed(0)}ms  ` +
-      `merge+decode:${(_rrimT2-_rrimT1).toFixed(0)}ms  ` +
-      `GPU(MPI 8dir×${RRIM_RADIUS}step):${(_rrimT3-_rrimT2).toFixed(0)}ms  ` +
-      `GPU(sobel+rrim):${(_rrimT4-_rrimT3).toFixed(0)}ms  ` +
-      `output:${(_rrimT5-_rrimT4).toFixed(0)}ms  ` +
-      `total:${(_rrimT5-_rrimT0).toFixed(0)}ms`
-    );
-    return { data: await outCanvas.convertToBlob({ type: 'image/png' }).then(b => b.arrayBuffer()) };
+    return { data: rrimArrayBuffer };
   } catch { return { data: _transparentPngBuffer() }; }
 });
 
