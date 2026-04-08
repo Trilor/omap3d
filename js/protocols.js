@@ -121,7 +121,7 @@ maplibregl.addProtocol('pmtiles', pmtilesProtocol.tile.bind(pmtilesProtocol));
   ========================================================
 */
 async function fetchTerrainDemBitmap(z, x, y, signal) {
-  const dem10bUrl = `${LAND_DEM_BASE}/${z}/${x}/${y}.png`;         // DEM10B: 10mメッシュ・全国カバレッジ（maxzoom 14）
+  const dem10bUrl = z <= 14 ? `${LAND_DEM_BASE}/${z}/${x}/${y}.png` : null; // DEM10B: maxzoom 14（z15+は404になるため省略）
   const dem5aUrl  = `${DEM5A_BASE}/${z}/${x}/${y}.png`;             // DEM5A:  5mメッシュ・基盤地図情報（maxzoom 15）
   const qUrl      = `${QCHIZU_PROXY_BASE}/${z}/${x}/${y}.webp`;     // Q地図1m: CF Workers プロキシ経由（maxzoom 16）
   // terrain-dem ソースの maxzoom を 15 に設定しているため、
@@ -158,7 +158,7 @@ async function fetchTerrainDemBitmap(z, x, y, signal) {
   }
 
   const [dem10b, dem5a, qData] = await Promise.all([
-    toImageData(dem10bUrl),
+    dem10bUrl ? toImageData(dem10bUrl) : Promise.resolve(null),
     toImageData(dem5aUrl),
     toImageData(qUrl, qSignal),
   ]);
@@ -293,7 +293,7 @@ async function fetchCompositeDemBitmap(
   const useS    = demMode === null || demMode === 'dem5a' || demMode === 'land+dem5a'; // DEM5A: 全合成 or 単独 or land+dem5a
   const useLand = demMode === null || demMode === 'land' || demMode === 'land+dem5a'; // DEM10B: 全合成 or 単独 or land+dem5a
   const sUrl    = useS    ? `${DEM5A_BASE}/${z}/${x}/${y}.png`         : null;
-  const landUrl = useLand ? `${LAND_DEM_BASE}/${z}/${x}/${y}.png`      : null;
+  const landUrl = (useLand && z <= 14) ? `${LAND_DEM_BASE}/${z}/${x}/${y}.png` : null; // DEM10B: maxzoom 14
   const qUrl    = useQ    ? `${QCHIZU_PROXY_BASE}/${z}/${x}/${y}.webp` : null;
   // 湖水深タイルはコメントアウト（2026-03-23 廃止）
   // const lUrl  = `${LAKEDEPTH_BASE}/${z}/${x}/${y}.png`;
