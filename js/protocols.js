@@ -575,94 +575,95 @@ maplibregl.addProtocol('dem2cs', async (params, abortController) => {
 
   const _csT2 = performance.now(); // merge+decode完了
 
-  // ── ④ GPU演算フェーズ ──
-
-  // Phase A: CPU→GPU転送（tensor2d生成）
-  const kExp = _getCsKernel(kernelRadius, sigma);
-  const hT = tf.tensor2d(mergedHeights, [mergedSize, mergedSize]);
-  const valid = hT.notEqual(-99999);
-  const _csT2b = performance.now(); // CPU→GPU転送完了
-
-  // Phase B: Gaussian平滑化（最も重い conv2d）
-  const masked = tf.where(valid, hT, 0);
-  const kSum = tf.conv2d(
-    valid.cast('float32').expandDims(2).expandDims(0), kExp, 1, 'valid'
-  ).squeeze([0, 3]);
-  const sHRaw = tf.conv2d(
-    masked.expandDims(2).expandDims(0), kExp, 1, 'valid'
-  ).squeeze([0, 3]).div(kSum);
-  const validCrop = valid.slice([buffer, buffer], [tileSize + 2, tileSize + 2]);
-  const sH = tf.where(validCrop, sHRaw, tf.fill([tileSize + 2, tileSize + 2], -99999));
-  [masked, kSum, sHRaw, validCrop].forEach(t => t.dispose());
-  const _csT2c = performance.now(); // Gaussian完了
-
-  // Phase C: Sobel傾斜（3×3 conv2d）
-  const slopeT = tf.tidy(() => {
-    const rawCrop = tf.where(
-      valid.slice([buffer - 1, buffer - 1], [tileSize + 2, tileSize + 2]),
-      hT.slice([buffer - 1, buffer - 1], [tileSize + 2, tileSize + 2]),
-      tf.zeros([tileSize + 2, tileSize + 2])
-    );
-    const rawIn = rawCrop.expandDims(0).expandDims(-1);
-    const sobelX = tf.tensor4d([-1, 0, 1, -2, 0, 2, -1, 0, 1], [3, 3, 1, 1]);
-    const sobelY = tf.tensor4d([-1, -2, -1, 0, 0, 0, 1, 2, 1], [3, 3, 1, 1]);
-    const dzdx = tf.conv2d(rawIn, sobelX, 1, 'valid').squeeze([0, 3]).div(8 * pixelLength);
-    const dzdy = tf.conv2d(rawIn, sobelY, 1, 'valid').squeeze([0, 3]).div(8 * pixelLength);
-    return tf.atan(dzdx.square().add(dzdy.square()).sqrt()).mul(180 / Math.PI);
-  });
-  const _csT2d = performance.now(); // Sobel完了
-
-  // Phase D: Laplacian曲率（3×3 conv2d on Gaussian済みデータ）
-  const cellArea = pixelLength * pixelLength;
-  const curvatureT = tf.tidy(() => {
-    const lapKernel = tf.tensor4d([0,-1,0,-1,4,-1,0,-1,0], [3,3,1,1]).div(cellArea);
-    return tf.conv2d(sH.expandDims(0).expandDims(-1), lapKernel, 1, 'valid').squeeze([0,3]);
-  });
-  sH.dispose();
-  const _csT3 = performance.now(); // Laplacian完了
-
-  // ── ⑤ 5レイヤー合成（GPU）──
-  const cc = pixelLength < 68
-    ? Math.max(pixelLength / 2, 1.1) * Math.sqrt(terrainScale) * redAndBlueIntensity
-    : 0.188 * Math.pow(pixelLength, 1.232) * Math.sqrt(terrainScale) * redAndBlueIntensity;
-
-  const hCrop = hT.slice([buffer, buffer], [tileSize, tileSize]);
-  const csRittaizuTensor = tf.tidy(() => {
-    const blend    = (a, b, alpha) => a.mul(1 - alpha).add(b.mul(alpha));
-    const mulBlend = (a, b) => a.mul(b.div(255));
-    const L1 = _csRamp(0, 3000, { r: 100, g: 100, b: 100 }, { r: 255, g: 255, b: 255 }, hCrop);
-    const L2 = _csRamp(-0.25/cc, 0.05/cc, { r: 42, g: 92, b: 170 }, { r: 255, g: 255, b: 255 }, curvatureT);
-    const L3 = _csRamp(0, 60, { r: 255, g: 255, b: 255 }, { r: 189, g: 74, b: 29 }, slopeT);
-    const L4 = _csRampMid(-0.2/cc, 0.2/cc, { r: 0, g: 0, b: 255 }, { r: 255, g: 255, b: 240 }, { r: 255, g: 0, b: 0 }, curvatureT);
-    const L5 = _csRamp(0, 90, { r: 255, g: 255, b: 255 }, { r: 0, g: 0, b: 0 }, slopeT);
-    const rgb = mulBlend(blend(blend(blend(L1, L2, 0.5), L3, 0.5), L4, 0.5), L5);
-    const alphaT = tf.where(hCrop.notEqual(-99999), tf.scalar(255), tf.scalar(0))
-      .reshape([tileSize, tileSize, 1]);
-    return tf.concat([rgb, alphaT], -1);
-  });
-  [hT, valid, hCrop, curvatureT, slopeT].forEach(t => t.dispose());
-  const _csT4 = performance.now(); // 5レイヤー合成完了
-
-  // ── ⑥ 出力 ──
-  // セマフォで同時toPixels実行数を制限（GPUキュー詰まり防止）
-  const outCanvas = new OffscreenCanvas(tileSize, tileSize);
-  const csNorm = csRittaizuTensor.div(255);
-  // セマフォでtoPixels+convertToBlob全体を直列化（GPU同期＋PNGエンコードの競合防止）
+  // ── ④〜⑥ GPU演算〜出力（セマフォで同時実行数制限）──
+  // TensorFlow.jsはGPU演算を遅延実行するため、toPixels呼び出し時に全タイルの
+  // 積み残し演算が一気に実行される。fetch後に大量タイルが同時にGPU処理に入ると
+  // GPU作業キューが飽和し toPixels が数秒待たされる。
+  // セマフォをGPUアップロード前から取得することで、GPU演算全体を2タイル同時に制限する。
   await _acquireGpuTransfer();
   let arrayBuffer;
   try {
-    await tf.browser.toPixels(csNorm, outCanvas); // GPU→CPU同期点
+    // Phase A: CPU→GPU転送（tensor2d生成）
+    const kExp = _getCsKernel(kernelRadius, sigma);
+    const hT = tf.tensor2d(mergedHeights, [mergedSize, mergedSize]);
+    const valid = hT.notEqual(-99999);
+    const _csT2b = performance.now(); // CPU→GPU転送完了
+
+    // Phase B: Gaussian平滑化
+    const masked = tf.where(valid, hT, 0);
+    const kSum = tf.conv2d(
+      valid.cast('float32').expandDims(2).expandDims(0), kExp, 1, 'valid'
+    ).squeeze([0, 3]);
+    const sHRaw = tf.conv2d(
+      masked.expandDims(2).expandDims(0), kExp, 1, 'valid'
+    ).squeeze([0, 3]).div(kSum);
+    const validCrop = valid.slice([buffer, buffer], [tileSize + 2, tileSize + 2]);
+    const sH = tf.where(validCrop, sHRaw, tf.fill([tileSize + 2, tileSize + 2], -99999));
+    [masked, kSum, sHRaw, validCrop].forEach(t => t.dispose());
+    const _csT2c = performance.now(); // Gaussian完了
+
+    // Phase C: Sobel傾斜（3×3 conv2d）
+    const slopeT = tf.tidy(() => {
+      const rawCrop = tf.where(
+        valid.slice([buffer - 1, buffer - 1], [tileSize + 2, tileSize + 2]),
+        hT.slice([buffer - 1, buffer - 1], [tileSize + 2, tileSize + 2]),
+        tf.zeros([tileSize + 2, tileSize + 2])
+      );
+      const rawIn = rawCrop.expandDims(0).expandDims(-1);
+      const sobelX = tf.tensor4d([-1, 0, 1, -2, 0, 2, -1, 0, 1], [3, 3, 1, 1]);
+      const sobelY = tf.tensor4d([-1, -2, -1, 0, 0, 0, 1, 2, 1], [3, 3, 1, 1]);
+      const dzdx = tf.conv2d(rawIn, sobelX, 1, 'valid').squeeze([0, 3]).div(8 * pixelLength);
+      const dzdy = tf.conv2d(rawIn, sobelY, 1, 'valid').squeeze([0, 3]).div(8 * pixelLength);
+      return tf.atan(dzdx.square().add(dzdy.square()).sqrt()).mul(180 / Math.PI);
+    });
+    const _csT2d = performance.now(); // Sobel完了
+
+    // Phase D: Laplacian曲率（3×3 conv2d）
+    const cellArea = pixelLength * pixelLength;
+    const curvatureT = tf.tidy(() => {
+      const lapKernel = tf.tensor4d([0,-1,0,-1,4,-1,0,-1,0], [3,3,1,1]).div(cellArea);
+      return tf.conv2d(sH.expandDims(0).expandDims(-1), lapKernel, 1, 'valid').squeeze([0,3]);
+    });
+    sH.dispose();
+    const _csT3 = performance.now(); // Laplacian完了
+
+    // ── ⑤ 5レイヤー合成（GPU）──
+    const cc = pixelLength < 68
+      ? Math.max(pixelLength / 2, 1.1) * Math.sqrt(terrainScale) * redAndBlueIntensity
+      : 0.188 * Math.pow(pixelLength, 1.232) * Math.sqrt(terrainScale) * redAndBlueIntensity;
+
+    const hCrop = hT.slice([buffer, buffer], [tileSize, tileSize]);
+    const csRittaizuTensor = tf.tidy(() => {
+      const blend    = (a, b, alpha) => a.mul(1 - alpha).add(b.mul(alpha));
+      const mulBlend = (a, b) => a.mul(b.div(255));
+      const L1 = _csRamp(0, 3000, { r: 100, g: 100, b: 100 }, { r: 255, g: 255, b: 255 }, hCrop);
+      const L2 = _csRamp(-0.25/cc, 0.05/cc, { r: 42, g: 92, b: 170 }, { r: 255, g: 255, b: 255 }, curvatureT);
+      const L3 = _csRamp(0, 60, { r: 255, g: 255, b: 255 }, { r: 189, g: 74, b: 29 }, slopeT);
+      const L4 = _csRampMid(-0.2/cc, 0.2/cc, { r: 0, g: 0, b: 255 }, { r: 255, g: 255, b: 240 }, { r: 255, g: 0, b: 0 }, curvatureT);
+      const L5 = _csRamp(0, 90, { r: 255, g: 255, b: 255 }, { r: 0, g: 0, b: 0 }, slopeT);
+      const rgb = mulBlend(blend(blend(blend(L1, L2, 0.5), L3, 0.5), L4, 0.5), L5);
+      const alphaT = tf.where(hCrop.notEqual(-99999), tf.scalar(255), tf.scalar(0))
+        .reshape([tileSize, tileSize, 1]);
+      return tf.concat([rgb, alphaT], -1);
+    });
+    [hT, valid, hCrop, curvatureT, slopeT].forEach(t => t.dispose());
+    const _csT4 = performance.now(); // 5レイヤー合成完了
+
+    // ── ⑥ 出力 ──
+    const outCanvas = new OffscreenCanvas(tileSize, tileSize);
+    const csNorm = csRittaizuTensor.div(255);
+    await tf.browser.toPixels(csNorm, outCanvas);
     csNorm.dispose();
     csRittaizuTensor.dispose();
     const _csT5 = performance.now(); // toPixels完了
+
     const blob = await outCanvas.convertToBlob({ type: 'image/png' });
     arrayBuffer = await blob.arrayBuffer();
     const _csT6 = performance.now();
     console.log(
       `[dem2cs] z${zoomLevel} ${tileX},${tileY} sigma=${sigma.toFixed(1)} k=${kernelRadius*2+1}px | ` +
       `fetch:${(_csT1-_csT0).toFixed(0)}  ` +
-      `merge:${(_csT2-_csT1).toFixed(0)}  ` +
-      `upload:${(_csT2b-_csT2).toFixed(0)}  ` +
+      `wait:${(_csT2b-_csT2).toFixed(0)}  ` +
       `gauss:${(_csT2c-_csT2b).toFixed(0)}  ` +
       `sobel:${(_csT2d-_csT2c).toFixed(0)}  ` +
       `lap:${(_csT3-_csT2d).toFixed(0)}  ` +
