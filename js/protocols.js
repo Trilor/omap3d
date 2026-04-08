@@ -216,6 +216,29 @@ async function fetchTerrainDemBitmap(z, x, y, signal) {
 */
 
 // ================================================================
+// GPU→CPU転送セマフォ（toPixels の同時実行数を制限）
+// 複数タイルが同時に tf.browser.toPixels を呼ぶとGPUキューが詰まり
+// 先頭タイルが数秒待たされる。同時実行を2に制限して待ち時間を均等化する。
+// ================================================================
+const _GPU_TRANSFER_CONCURRENCY = 2;
+let _gpuTransferActive = 0;
+const _gpuTransferQueue = [];
+function _acquireGpuTransfer() {
+  if (_gpuTransferActive < _GPU_TRANSFER_CONCURRENCY) {
+    _gpuTransferActive++;
+    return Promise.resolve();
+  }
+  return new Promise(resolve => _gpuTransferQueue.push(resolve));
+}
+function _releaseGpuTransfer() {
+  if (_gpuTransferQueue.length > 0) {
+    _gpuTransferQueue.shift()();
+  } else {
+    _gpuTransferActive--;
+  }
+}
+
+// ================================================================
 // DEMタイルfetchキャッシュ（URL単位でPromiseを共有）
 // 隣接タイル同士が同じ近傍URLを要求する重複fetchを排除する。
 // z18のような高ズームでは隣接タイル間の重複が多く、初めて見る場所でも効果がある。
@@ -621,9 +644,15 @@ maplibregl.addProtocol('dem2cs', async (params, abortController) => {
   const _csT4 = performance.now(); // 5レイヤー合成完了
 
   // ── ⑥ 出力 ──
+  // セマフォで同時toPixels実行数を制限（GPUキュー詰まり防止）
   const outCanvas = new OffscreenCanvas(tileSize, tileSize);
   const csNorm = csRittaizuTensor.div(255);
-  await tf.browser.toPixels(csNorm, outCanvas); // GPU→CPU同期点（GPUキュー待ちが発生しやすい）
+  await _acquireGpuTransfer();
+  try {
+    await tf.browser.toPixels(csNorm, outCanvas); // GPU→CPU同期点
+  } finally {
+    _releaseGpuTransfer();
+  }
   csNorm.dispose();
   csRittaizuTensor.dispose();
   const _csT5 = performance.now(); // toPixels完了（GPU→CPU転送）
@@ -1255,10 +1284,15 @@ maplibregl.addProtocol('dem2rrim', async (params, abortController) => {
     [demTensor, validMask, demFilled, demCenter, mpiTensor].forEach(t => t.dispose());
     const _rrimT4 = performance.now(); // RRIM合成完了
 
-    // ── ⑥ 出力 ──
+    // ── ⑥ 出力（セマフォでGPUキュー詰まり防止）──
     const outCanvas = new OffscreenCanvas(tileSize, tileSize);
     const rrimNorm = rrimTensor.div(255);
-    await tf.browser.toPixels(rrimNorm, outCanvas);
+    await _acquireGpuTransfer();
+    try {
+      await tf.browser.toPixels(rrimNorm, outCanvas);
+    } finally {
+      _releaseGpuTransfer();
+    }
     rrimNorm.dispose();
     rrimTensor.dispose();
     const _rrimT5 = performance.now(); // 出力完了
