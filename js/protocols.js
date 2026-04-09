@@ -308,7 +308,7 @@ async function fetchCompositeDemBitmap(
   regionalDemExt = 'png',
   demMode = null,
   regionalDemOrder = 'xy',
-  tileOutputSize = _COMPOSITE_TARGET_SIZE
+  tileOutputSize = null  // null = 自動: Q地図使用時→512px、DEM5A/DEM10Bのみ→256px
 ) {
   const useQ    = demMode === null; // Q地図: 全合成モードのみ使用
   const useS    = demMode === null || demMode === 'dem5a' || demMode === 'land+dem5a'; // DEM5A: 全合成 or 単独 or land+dem5a
@@ -353,8 +353,9 @@ async function fetchCompositeDemBitmap(
     return (d[i] === 128 && d[i + 1] === 0 && d[i + 2] === 0) || d[i + 3] !== 255;
   }
 
-  // tileOutputSize × tileOutputSize で合成
-  const T = tileOutputSize;
+  // Q地図(512px)が参加する場合のみ512pxに統一。DEM5A/DEM10Bのみなら256pxネイティブサイズを維持。
+  // 呼び出し元から明示的に指定された場合はそちらを優先する。
+  const T = tileOutputSize ?? (useQ ? _COMPOSITE_TARGET_SIZE : 256);
   const cv  = new OffscreenCanvas(T, T);
   const ctx = cv.getContext('2d');
   const out = ctx.createImageData(T, T);
