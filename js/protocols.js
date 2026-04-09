@@ -815,9 +815,9 @@ maplibregl.addProtocol('dem2slope', async (params, abortController) => {
     const regionalDemExt = regionalDemBase ? ext : null;
     const regionalDemOrder = regionalDemBase ? tileOrder : 'xy';
 
-    const demMode = zoomLevel <= 10 ? 'land'
-                  : zoomLevel <= 12 ? 'land+dem5a'
-                  : null;
+    // ズーム別 DEMソース選択（最大 DEM5A まで使用・Q地図1mは使わない）:
+    //   z≤10: DEM10Bのみ / z≥11: DEM10B+DEM5A
+    const demMode = zoomLevel <= 10 ? 'land' : 'land+dem5a';
 
     const [center, right, down, downRight] = await Promise.all([
       fetchCompositeDemBitmap(zoomLevel, tileX, tileY, abortController.signal, regionalDemBase, regionalDemExt, demMode, regionalDemOrder),
@@ -919,9 +919,9 @@ maplibregl.addProtocol('dem2relief', async (params, abortController) => {
     if (!m) return { data: _transparentPngBuffer() };
     const [, z, x, y] = m;
 
-    // ズーム別 DEMソース選択（dem2cs:// と同じ基準）:
-    //   z≤10: DEM10Bのみ / z11-13: DEM10B+DEM5A / z≥14: DEM10B+DEM5A+Q地図1m
-    const demMode = +z <= 10 ? 'land' : +z <= 12 ? 'land+dem5a' : null;
+    // ズーム別 DEMソース選択（最大 DEM5A まで使用・Q地図1mは使わない）:
+    //   z≤10: DEM10Bのみ / z≥11: DEM10B+DEM5A
+    const demMode = +z <= 10 ? 'land' : 'land+dem5a';
     // 合成 DEM ビットマップを取得（Q地図 > 陸域統合 > 湖水深 の優先順）
     // データなし（海域・範囲外・404・CORS）の場合は透明タイルを返す
     const bitmap = await fetchCompositeDemBitmap(z, x, y, abortController.signal, null, 'png', demMode);
@@ -1003,12 +1003,12 @@ maplibregl.addProtocol('dem2curve', async (params, abortController) => {
     const regionalDemExt  = regionalDemBase ? ext : null;
     const regionalDemOrder = regionalDemBase ? tileOrder : 'xy';
 
-    const demMode = zoomLevel <= 10 ? 'land'
-                  : zoomLevel <= 12 ? 'land+dem5a'
-                  : null;
-    const effectiveRegionalBase  = zoomLevel >= 17 ? regionalDemBase : null;
-    const effectiveRegionalExt   = effectiveRegionalBase ? regionalDemExt : null;
-    const effectiveRegionalOrder = effectiveRegionalBase ? regionalDemOrder : 'xy';
+    // ズーム別 DEMソース選択（最大 DEM5A まで使用・Q地図1mおよび地域DEMは使わない）:
+    //   z≤10: DEM10Bのみ / z≥11: DEM10B+DEM5A
+    const demMode = zoomLevel <= 10 ? 'land' : 'land+dem5a';
+    const effectiveRegionalBase  = null;
+    const effectiveRegionalExt   = null;
+    const effectiveRegionalOrder = 'xy';
 
     // ── ① 9タイル取得（CS立体図と同じ） ──
     const neighborOffsets = [
