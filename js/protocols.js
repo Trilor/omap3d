@@ -342,10 +342,11 @@ async function fetchCompositeDemBitmap(
   ]);
   if (!qRaw && !sRaw && !landRaw && !rRaw) return null;
 
-  // Q地図(512px)が参加する場合のみ512pxに統一。DEM5A/DEM10Bのみなら256pxネイティブサイズを維持。
+  // Q地図が実際にデータを返した場合のみ512pxに統一。DEM5A/DEM10Bのみなら256pxネイティブサイズを維持。
+  // useQ（使う意図）ではなくqRaw（実際のデータ有無）で判定することで、
+  // Q地図nodata時にDEM5AをNN拡大して2×2ブロックが生じる問題を回避する。
   // 呼び出し元から明示的に指定された場合はそちらを優先する。
-  // ※ null を _scaleToTarget に渡すと targetSize=null になり壊れるため、先に T を確定してから渡す。
-  const T = tileOutputSize ?? (useQ ? _COMPOSITE_TARGET_SIZE : 256);
+  const T = tileOutputSize ?? (qRaw ? _COMPOSITE_TARGET_SIZE : 256);
   const qData    = _scaleToTarget(qRaw,    T);
   const sData    = _scaleToTarget(sRaw,    T);
   const landData = _scaleToTarget(landRaw, T);
@@ -1234,17 +1235,31 @@ maplibregl.addProtocol('dem2rrim', async (params, abortController) => {
     const mergedSize  = tileSize + buffer * 2;
 
     // ── ② 9タイル結合 ──
+    // Q地図カバレッジ境界では隣接タイルのサイズが中央タイルと異なる場合がある（512px vs 256px）。
+    // サイズ不一致のタイルは NN でリスケールして統一する（NumPNG の高度値を保護するため NN 必須）。
     const mergedCanvas = new OffscreenCanvas(mergedSize, mergedSize);
     const mc = mergedCanvas.getContext('2d');
     bitmaps.forEach((bmp, idx) => {
       if (!bmp) return;
       if (idx === 4) {
         mc.drawImage(bmp, 0, 0, tileSize, tileSize, buffer, buffer, tileSize, tileSize);
+        bmp.close();
       } else {
+        // Q地図カバレッジ境界では隣接タイルが中央と異なるサイズになる場合がある。
+        // NN でリスケールして統一（NumPNG 高度値保護のため NN 必須）。
+        let src = bmp;
+        if (bmp.width !== tileSize) {
+          const tmpCv = new OffscreenCanvas(tileSize, tileSize);
+          const tmpCtx = tmpCv.getContext('2d');
+          tmpCtx.imageSmoothingEnabled = false;
+          tmpCtx.drawImage(bmp, 0, 0, tileSize, tileSize);
+          bmp.close();
+          src = tmpCv; // OffscreenCanvas は close 不要
+        }
         const { sx, sy, sWidth: sw, sHeight: sh, dx, dy } = _calculateTilePosition(idx, tileSize, buffer);
-        mc.drawImage(bmp, sx, sy, sw, sh, dx, dy, sw, sh);
+        mc.drawImage(src, sx, sy, sw, sh, dx, dy, sw, sh);
+        if (src === bmp) bmp.close(); // リスケールしなかった場合のみ close
       }
-      bmp.close();
     });
 
     // ── ③ NumPNG → Float32Array ──
