@@ -1249,34 +1249,72 @@ maplibregl.addProtocol('dem2rrim', async (params, abortController) => {
 
     // ── ③ NumPNG → Float32Array ──
     const mergedPx = mc.getImageData(0, 0, mergedSize, mergedSize).data;
-    const mergedHeights = new Float32Array(mergedSize * mergedSize);
+    let mergedHeights = new Float32Array(mergedSize * mergedSize);
     for (let i = 0; i < mergedHeights.length; i++) {
       const p = i * 4;
       mergedHeights[i] = _getNumpngHeight(mergedPx[p], mergedPx[p + 1], mergedPx[p + 2], mergedPx[p + 3]);
     }
     const _rrimT2 = performance.now(); // merge+decode完了
 
+    // ── ③.5 アップサンプリング（DEM5A/10B = 256px の場合、高さ値を bilinear で 512px に補間） ──
+    // NumPNG RGB は非線形エンコードのため、デコード後 Float32Array を TF.js でリサイズする。
+    // Q地図(512px)と同等の演算解像度になり、MPI・Sobel のディテールが向上する。
+    let effTileSize   = tileSize;
+    let effMergedSize = mergedSize;
+    let effBuffer     = buffer;
+    let effPixelLen   = pixelLength;
+    if (tileSize === 256) {
+      const upTileSize   = 512;
+      const upBuffer     = buffer * 2;
+      const upMergedSize = upTileSize + upBuffer * 2;
+
+      const hTensor    = tf.tensor2d(mergedHeights, [mergedSize, mergedSize]);
+      const validMaskU = hTensor.notEqual(-99999);
+      // nodata を 0 埋めしてからリサイズ（-99999 の値が隣接ピクセルに漏れないよう）
+      const filled     = tf.where(validMaskU, hTensor, tf.zerosLike(hTensor));
+      const hResized   = tf.image.resizeBilinear(
+        filled.reshape([1, mergedSize, mergedSize, 1]),
+        [upMergedSize, upMergedSize]
+      ).squeeze([0, 3]);
+      // validMask もリサイズして境界ピクセルの nodata 状態を復元
+      const validUpF   = tf.image.resizeBilinear(
+        validMaskU.toFloat().reshape([1, mergedSize, mergedSize, 1]),
+        [upMergedSize, upMergedSize]
+      ).squeeze([0, 3]);
+      const restored   = tf.where(validUpF.greater(0.5), hResized, tf.fill([upMergedSize, upMergedSize], -99999));
+      [hTensor, validMaskU, filled, hResized, validUpF].forEach(t => t.dispose());
+
+      const upData = await restored.data();
+      restored.dispose();
+
+      effTileSize   = upTileSize;
+      effMergedSize = upMergedSize;
+      effBuffer     = upBuffer;
+      effPixelLen   = _calculatePixelResolution(upTileSize, zoomLevel, tileY);
+      mergedHeights = new Float32Array(upData);
+    }
+
     // ── ④ MPI 計算（全GPU、CPU往復なし） ──
     // tf.roll は TF.js 4.x に存在しないため、tf.slice で「r ステップ先の中央領域」を切り出して代用。
-    // buffer >= radius なので境界折り返しは発生しない。
-    const demTensor = tf.tensor2d(mergedHeights, [mergedSize, mergedSize]);
+    // effBuffer >= radius なので境界折り返しは発生しない。
+    const demTensor = tf.tensor2d(mergedHeights, [effMergedSize, effMergedSize]);
     const validMask = demTensor.notEqual(-99999);
     // nodata を 0 埋め（隣接nodata域の MPI への影響を最小化）
     const demFilled = tf.tidy(() => tf.where(validMask, demTensor, tf.zerosLike(demTensor)));
-    // 中央タイル領域の基準スライス [buffer, buffer] サイズ [tileSize, tileSize]
-    const demCenter = tf.tidy(() => demFilled.slice([buffer, buffer], [tileSize, tileSize]));
+    // 中央タイル領域の基準スライス [effBuffer, effBuffer] サイズ [effTileSize, effTileSize]
+    const demCenter = tf.tidy(() => demFilled.slice([effBuffer, effBuffer], [effTileSize, effTileSize]));
 
     let mpiSum = null;
     for (const [dirY, dirX] of _RRIM_DIRS) {
       // この方向の1ステップあたりの実距離
-      const distUnit = Math.sqrt((dirX * pixelLength) ** 2 + (dirY * pixelLength) ** 2);
+      const distUnit = Math.sqrt((dirX * effPixelLen) ** 2 + (dirY * effPixelLen) ** 2);
       let maxTan = null;
       for (let r = 1; r <= radius; r++) {
-        // r ステップ先の領域を slice で切り出す（buffer のおかげで範囲外にならない）
-        const offY = buffer + r * dirY;
-        const offX = buffer + r * dirX;
+        // r ステップ先の領域を slice で切り出す（effBuffer のおかげで範囲外にならない）
+        const offY = effBuffer + r * dirY;
+        const offX = effBuffer + r * dirX;
         const tangent = tf.tidy(() =>
-          demFilled.slice([offY, offX], [tileSize, tileSize])
+          demFilled.slice([offY, offX], [effTileSize, effTileSize])
             .sub(demCenter).div(r * distUnit)
         );
         if (maxTan === null) {
@@ -1307,18 +1345,18 @@ maplibregl.addProtocol('dem2rrim', async (params, abortController) => {
 
       // 傾斜: Sobel（中央差分）→ atan(|∇h|) in radians
       const rawCrop = tf.where(
-        validMask.slice([buffer - 1, buffer - 1], [tileSize + 2, tileSize + 2]),
-        demTensor.slice([buffer - 1, buffer - 1], [tileSize + 2, tileSize + 2]),
-        tf.zeros([tileSize + 2, tileSize + 2])
+        validMask.slice([effBuffer - 1, effBuffer - 1], [effTileSize + 2, effTileSize + 2]),
+        demTensor.slice([effBuffer - 1, effBuffer - 1], [effTileSize + 2, effTileSize + 2]),
+        tf.zeros([effTileSize + 2, effTileSize + 2])
       );
       const rawIn  = rawCrop.expandDims(0).expandDims(-1);
       const sobelX = tf.tensor4d([-1, 0, 1, -2, 0, 2, -1, 0, 1], [3, 3, 1, 1]);
       const sobelY = tf.tensor4d([-1, -2, -1, 0, 0, 0, 1, 2, 1], [3, 3, 1, 1]);
-      const dzdx   = tf.conv2d(rawIn, sobelX, 1, 'valid').squeeze([0, 3]).div(8 * pixelLength);
-      const dzdy   = tf.conv2d(rawIn, sobelY, 1, 'valid').squeeze([0, 3]).div(8 * pixelLength);
+      const dzdx   = tf.conv2d(rawIn, sobelX, 1, 'valid').squeeze([0, 3]).div(8 * effPixelLen);
+      const dzdy   = tf.conv2d(rawIn, sobelY, 1, 'valid').squeeze([0, 3]).div(8 * effPixelLen);
       const slopeT = tf.atan(dzdx.square().add(dzdy.square()).sqrt()); // radians
 
-      // mpiTensor はすでに [tileSize, tileSize]（demCenter と同サイズ）
+      // mpiTensor はすでに [effTileSize, effTileSize]（demCenter と同サイズ）
       const mpiCrop = mpiTensor;
 
       // 傾斜正規化: 0〜1、gamma=0.8
@@ -1344,16 +1382,16 @@ maplibregl.addProtocol('dem2rrim', async (params, abortController) => {
       const bOut = bSlope.mul(bMpi).div(255).clipByValue(0, 255).round();
 
       // nodata → アルファ 0
-      const hCrop  = demTensor.slice([buffer, buffer], [tileSize, tileSize]);
+      const hCrop  = demTensor.slice([effBuffer, effBuffer], [effTileSize, effTileSize]);
       const alphaT = tf.where(hCrop.notEqual(-99999), tf.scalar(255), tf.scalar(0))
-        .reshape([tileSize, tileSize, 1]);
+        .reshape([effTileSize, effTileSize, 1]);
       return tf.concat([tf.stack([rOut, gOut, bOut], -1), alphaT], -1);
     });
     [demTensor, validMask, demFilled, demCenter, mpiTensor].forEach(t => t.dispose());
     const _rrimT4 = performance.now(); // RRIM合成完了
 
     // ── ⑥ 出力（toPixelsまでセマフォ制御・blob変換はCPUなので解放後に実行）──
-    const outCanvas = new OffscreenCanvas(tileSize, tileSize);
+    const outCanvas = new OffscreenCanvas(effTileSize, effTileSize);
     const rrimNorm = rrimTensor.div(255);
     if (abortController.signal.aborted) throw new DOMException('Tile request aborted', 'AbortError');
     await _acquireGpuTransfer();
@@ -1375,8 +1413,9 @@ maplibregl.addProtocol('dem2rrim', async (params, abortController) => {
         : demMode === null     ? 'Q+5A+10B'
         : demMode === 'land+dem5a' ? '5A+10B'
         : '10B';
+      const _rrimUpMsg = effTileSize > tileSize ? ` up:${tileSize}→${effTileSize}` : '';
       console.log(
-        `[dem2rrim] z${zoomLevel} ${tileX},${tileY} dem:${_rrimDemSrcs} | ` +
+        `[dem2rrim] z${zoomLevel} ${tileX},${tileY} dem:${_rrimDemSrcs}${_rrimUpMsg} | ` +
         `fetch:${(_rrimT1-_rrimT0).toFixed(0)}ms  ` +
         `merge+decode:${(_rrimT2-_rrimT1).toFixed(0)}ms  ` +
         `GPU(MPI 8dir×${RRIM_RADIUS}step):${(_rrimT3-_rrimT2).toFixed(0)}ms  ` +
