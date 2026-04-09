@@ -3,7 +3,7 @@
   "short_name": "TeleDrop",
   "description": "オリエンテーリング向け3D地図・ルート振り返りビューア",
   "start_url": "/",
-  "display": "minimal-ui",
+  "display": "browser",
   "background_color": "#1a1a2e",
   "theme_color": "#25556f",
   "icons": [
