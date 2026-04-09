@@ -275,21 +275,21 @@ function _cachedFetchImageData(url, signal) {
 // 合成タイルの出力サイズ（tileSize:512 のMapLibreソース定義と整合）
 const _COMPOSITE_TARGET_SIZE = 512;
 
-// ImageData を _COMPOSITE_TARGET_SIZE の ImageData にスケーリング（最近傍補間で高度値を保持）
+// ImageData を targetSize の ImageData にスケーリング（最近傍補間で高度値を保持）
 // DEM5A/DEM10B は 256px、Q地図は 512px と異なるため合成前に統一する
-function _scaleToTarget(imgData) {
+function _scaleToTarget(imgData, targetSize = _COMPOSITE_TARGET_SIZE) {
   if (!imgData) return null;
-  if (imgData.width === _COMPOSITE_TARGET_SIZE && imgData.height === _COMPOSITE_TARGET_SIZE) {
+  if (imgData.width === targetSize && imgData.height === targetSize) {
     return imgData; // 既にターゲットサイズなのでそのまま返す
   }
-  // 元サイズのcanvasにputImageDataしてからTARGETサイズに描画
+  // 元サイズのcanvasにputImageDataしてからtargetSizeに描画
   const src = new OffscreenCanvas(imgData.width, imgData.height);
   src.getContext('2d').putImageData(imgData, 0, 0);
-  const dst = new OffscreenCanvas(_COMPOSITE_TARGET_SIZE, _COMPOSITE_TARGET_SIZE);
+  const dst = new OffscreenCanvas(targetSize, targetSize);
   const dstCtx = dst.getContext('2d');
   dstCtx.imageSmoothingEnabled = false; // 最近傍補間（高度値が変わらないよう保護）
-  dstCtx.drawImage(src, 0, 0, _COMPOSITE_TARGET_SIZE, _COMPOSITE_TARGET_SIZE);
-  return dstCtx.getImageData(0, 0, _COMPOSITE_TARGET_SIZE, _COMPOSITE_TARGET_SIZE);
+  dstCtx.drawImage(src, 0, 0, targetSize, targetSize);
+  return dstCtx.getImageData(0, 0, targetSize, targetSize);
 }
 
 // regionalDemBase : 地域DEMのベースURL（dem2cs://地域層の場合のみ指定）
@@ -307,7 +307,8 @@ async function fetchCompositeDemBitmap(
   regionalDemBase = null,
   regionalDemExt = 'png',
   demMode = null,
-  regionalDemOrder = 'xy'
+  regionalDemOrder = 'xy',
+  tileOutputSize = _COMPOSITE_TARGET_SIZE
 ) {
   const useQ    = demMode === null; // Q地図: 全合成モードのみ使用
   const useS    = demMode === null || demMode === 'dem5a' || demMode === 'land+dem5a'; // DEM5A: 全合成 or 単独 or land+dem5a
@@ -341,19 +342,19 @@ async function fetchCompositeDemBitmap(
   ]);
   if (!qRaw && !sRaw && !landRaw && !rRaw) return null;
 
-  // 各ソースを _COMPOSITE_TARGET_SIZE(512px) に統一
+  // 各ソースを tileOutputSize に統一
   // DEM5A/DEM10B は 256px PNG、Q地図は 512px WebP → サイズ不一致を解消
-  const qData    = _scaleToTarget(qRaw);
-  const sData    = _scaleToTarget(sRaw);
-  const landData = _scaleToTarget(landRaw);
-  const rData    = _scaleToTarget(rRaw);
+  const qData    = _scaleToTarget(qRaw,    tileOutputSize);
+  const sData    = _scaleToTarget(sRaw,    tileOutputSize);
+  const landData = _scaleToTarget(landRaw, tileOutputSize);
+  const rData    = _scaleToTarget(rRaw,    tileOutputSize);
 
   function isNodata(d, i) {
     return (d[i] === 128 && d[i + 1] === 0 && d[i + 2] === 0) || d[i + 3] !== 255;
   }
 
-  // 常に 512×512 で合成（tileSize:512 のソース定義と整合）
-  const T = _COMPOSITE_TARGET_SIZE;
+  // tileOutputSize × tileOutputSize で合成
+  const T = tileOutputSize;
   const cv  = new OffscreenCanvas(T, T);
   const ctx = cv.getContext('2d');
   const out = ctx.createImageData(T, T);
@@ -819,11 +820,12 @@ maplibregl.addProtocol('dem2slope', async (params, abortController) => {
     //   z≤10: DEM10Bのみ / z≥11: DEM10B+DEM5A
     const demMode = zoomLevel <= 10 ? 'land' : 'land+dem5a';
 
+    // tileOutputSize=256: DEM5A(256px)をそのまま出力。tileSize:512のソース定義でMapLibreがバイリニア補間して表示
     const [center, right, down, downRight] = await Promise.all([
-      fetchCompositeDemBitmap(zoomLevel, tileX, tileY, abortController.signal, regionalDemBase, regionalDemExt, demMode, regionalDemOrder),
-      fetchCompositeDemBitmap(zoomLevel, tileX + 1, tileY, abortController.signal, regionalDemBase, regionalDemExt, demMode, regionalDemOrder),
-      fetchCompositeDemBitmap(zoomLevel, tileX, tileY + 1, abortController.signal, regionalDemBase, regionalDemExt, demMode, regionalDemOrder),
-      fetchCompositeDemBitmap(zoomLevel, tileX + 1, tileY + 1, abortController.signal, regionalDemBase, regionalDemExt, demMode, regionalDemOrder),
+      fetchCompositeDemBitmap(zoomLevel, tileX, tileY, abortController.signal, regionalDemBase, regionalDemExt, demMode, regionalDemOrder, 256),
+      fetchCompositeDemBitmap(zoomLevel, tileX + 1, tileY, abortController.signal, regionalDemBase, regionalDemExt, demMode, regionalDemOrder, 256),
+      fetchCompositeDemBitmap(zoomLevel, tileX, tileY + 1, abortController.signal, regionalDemBase, regionalDemExt, demMode, regionalDemOrder, 256),
+      fetchCompositeDemBitmap(zoomLevel, tileX + 1, tileY + 1, abortController.signal, regionalDemBase, regionalDemExt, demMode, regionalDemOrder, 256),
     ]);
     if (!center) return { data: _transparentPngBuffer() };
 
@@ -924,7 +926,8 @@ maplibregl.addProtocol('dem2relief', async (params, abortController) => {
     const demMode = +z <= 10 ? 'land' : 'land+dem5a';
     // 合成 DEM ビットマップを取得（Q地図 > 陸域統合 > 湖水深 の優先順）
     // データなし（海域・範囲外・404・CORS）の場合は透明タイルを返す
-    const bitmap = await fetchCompositeDemBitmap(z, x, y, abortController.signal, null, 'png', demMode);
+    // tileOutputSize=256: DEM5A(256px)をそのまま出力。tileSize:512のソース定義でMapLibreがバイリニア補間して表示
+    const bitmap = await fetchCompositeDemBitmap(z, x, y, abortController.signal, null, 'png', demMode, 'xy', 256);
     if (!bitmap) return { data: _transparentPngBuffer() };
 
     // NumPNG → RGB 色別標高図へ変換
@@ -1011,6 +1014,7 @@ maplibregl.addProtocol('dem2curve', async (params, abortController) => {
     const effectiveRegionalOrder = 'xy';
 
     // ── ① 9タイル取得（CS立体図と同じ） ──
+    // tileOutputSize=256: DEM5A(256px)をそのまま出力。tileSize:512のソース定義でMapLibreがバイリニア補間して表示
     const neighborOffsets = [
       [-1, -1], [0, -1], [1, -1],
       [-1,  0], [0,  0], [1,  0],
@@ -1021,7 +1025,7 @@ maplibregl.addProtocol('dem2curve', async (params, abortController) => {
         zoomLevel, tileX + dx, tileY + dy,
         abortController.signal,
         effectiveRegionalBase, effectiveRegionalExt,
-        demMode, effectiveRegionalOrder
+        demMode, effectiveRegionalOrder, 256
       )
     ));
     if (!bitmaps[4]) return { data: _transparentPngBuffer() };
