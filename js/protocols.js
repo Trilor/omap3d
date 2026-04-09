@@ -275,6 +275,20 @@ function _cachedFetchImageData(url, signal) {
 // 合成タイルの出力サイズ（tileSize:512 のMapLibreソース定義と整合）
 const _COMPOSITE_TARGET_SIZE = 512;
 
+// 最終出力画像（RGB）を 512px に bilinear 拡大して返す。
+// 入力DEMデータ（NumPNG高度値）ではなく完成済みRGB画像を対象とするため
+// bilinear補間しても高度値の破壊は起きない。
+// DEM5A(256px)出力をtileSize:512のMapLibreソースと一致させ格子の視認性を下げる。
+function _upscaleTo512(canvas) {
+  if (canvas.width === _COMPOSITE_TARGET_SIZE) return canvas;
+  const dst = new OffscreenCanvas(_COMPOSITE_TARGET_SIZE, _COMPOSITE_TARGET_SIZE);
+  const ctx = dst.getContext('2d');
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(canvas, 0, 0, _COMPOSITE_TARGET_SIZE, _COMPOSITE_TARGET_SIZE);
+  return dst;
+}
+
 // ImageData を targetSize の ImageData にスケーリング（最近傍補間で高度値を保持）
 // DEM5A/DEM10B は 256px、Q地図は 512px と異なるため合成前に統一する
 function _scaleToTarget(imgData, targetSize = _COMPOSITE_TARGET_SIZE) {
@@ -898,7 +912,7 @@ maplibregl.addProtocol('dem2slope', async (params, abortController) => {
     }
 
     outCtx.putImageData(outImageData, 0, 0);
-    const blob = await outCanvas.convertToBlob({ type: 'image/png' });
+    const blob = await _upscaleTo512(outCanvas).convertToBlob({ type: 'image/png' });
     return { data: await blob.arrayBuffer() };
   } catch {
     return { data: _transparentPngBuffer() };
@@ -960,7 +974,7 @@ maplibregl.addProtocol('dem2relief', async (params, abortController) => {
     }
 
     ctx.putImageData(imageData, 0, 0);
-    const blob = await canvas.convertToBlob({ type: 'image/png' });
+    const blob = await _upscaleTo512(canvas).convertToBlob({ type: 'image/png' });
     return { data: await blob.arrayBuffer() };
 
   } catch {
@@ -1164,7 +1178,7 @@ maplibregl.addProtocol('dem2curve', async (params, abortController) => {
     await tf.browser.toPixels(cvNorm, outCanvas);
     cvNorm.dispose();
     curvatureTensor.dispose();
-    return { data: await outCanvas.convertToBlob({ type: 'image/webp', quality: 0.92 }).then(b => b.arrayBuffer()) };
+    return { data: await _upscaleTo512(outCanvas).convertToBlob({ type: 'image/webp', quality: 0.92 }).then(b => b.arrayBuffer()) };
   } catch(e) {
     if (e?.name === 'AbortError') throw e;
     return { data: _transparentPngBuffer() };
@@ -1383,7 +1397,7 @@ maplibregl.addProtocol('dem2rrim', async (params, abortController) => {
       const _rrimT5 = performance.now(); // toPixels完了
       _releaseGpuTransfer(); // blob変換はCPU処理なのでGPUスロットを即返却
       _rrimGpuReleased = true;
-      const rrimBlob = await outCanvas.convertToBlob({ type: 'image/webp', quality: 0.92 });
+      const rrimBlob = await _upscaleTo512(outCanvas).convertToBlob({ type: 'image/webp', quality: 0.92 });
       rrimArrayBuffer = await rrimBlob.arrayBuffer();
       const _rrimT6 = performance.now();
       const _rrimDemSrcs = effectiveRegionalBase ? 'R+Q+5A+10B'
