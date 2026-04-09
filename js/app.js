@@ -708,7 +708,7 @@ map.on('load', async () => {
     type: 'raster',
     source: 'cs-relief',
     layout: { visibility: 'none' },
-    paint: { 'raster-opacity': CS_INITIAL_OPACITY },
+    paint: { 'raster-opacity': CS_INITIAL_OPACITY, 'raster-fade-duration': 0, 'raster-opacity-transition': { duration: 0, delay: 0 } },
   }, map.getLayer('contour-regular-dem1a') ? 'contour-regular-dem1a' : undefined);
 
   /*
@@ -744,7 +744,7 @@ map.on('load', async () => {
       type: 'raster',
       source: layer.sourceId,
       layout: { visibility: 'none' },
-      paint: { 'raster-opacity': 1.0, 'raster-fade-duration': 150 },
+      paint: { 'raster-opacity': 1.0, 'raster-fade-duration': 0, 'raster-opacity-transition': { duration: 0, delay: 0 } },
     });
   }
 
