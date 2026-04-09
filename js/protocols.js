@@ -342,20 +342,18 @@ async function fetchCompositeDemBitmap(
   ]);
   if (!qRaw && !sRaw && !landRaw && !rRaw) return null;
 
-  // 各ソースを tileOutputSize に統一
-  // DEM5A/DEM10B は 256px PNG、Q地図は 512px WebP → サイズ不一致を解消
-  const qData    = _scaleToTarget(qRaw,    tileOutputSize);
-  const sData    = _scaleToTarget(sRaw,    tileOutputSize);
-  const landData = _scaleToTarget(landRaw, tileOutputSize);
-  const rData    = _scaleToTarget(rRaw,    tileOutputSize);
+  // Q地図(512px)が参加する場合のみ512pxに統一。DEM5A/DEM10Bのみなら256pxネイティブサイズを維持。
+  // 呼び出し元から明示的に指定された場合はそちらを優先する。
+  // ※ null を _scaleToTarget に渡すと targetSize=null になり壊れるため、先に T を確定してから渡す。
+  const T = tileOutputSize ?? (useQ ? _COMPOSITE_TARGET_SIZE : 256);
+  const qData    = _scaleToTarget(qRaw,    T);
+  const sData    = _scaleToTarget(sRaw,    T);
+  const landData = _scaleToTarget(landRaw, T);
+  const rData    = _scaleToTarget(rRaw,    T);
 
   function isNodata(d, i) {
     return (d[i] === 128 && d[i + 1] === 0 && d[i + 2] === 0) || d[i + 3] !== 255;
   }
-
-  // Q地図(512px)が参加する場合のみ512pxに統一。DEM5A/DEM10Bのみなら256pxネイティブサイズを維持。
-  // 呼び出し元から明示的に指定された場合はそちらを優先する。
-  const T = tileOutputSize ?? (useQ ? _COMPOSITE_TARGET_SIZE : 256);
   const cv  = new OffscreenCanvas(T, T);
   const ctx = cv.getContext('2d');
   const out = ctx.createImageData(T, T);
