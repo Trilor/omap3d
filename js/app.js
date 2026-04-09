@@ -4245,6 +4245,9 @@ function updateCsVisibility() {
 
   if (map.getLayer('cs-relief-layer')) {
     map.setLayoutProperty('cs-relief-layer', 'visibility', show1m ? 'visible' : 'none');
+    if (show1m) {
+      map.setPaintProperty('cs-relief-layer', 'raster-opacity', parseFloat(sliderCs.value));
+    }
   }
   REGIONAL_CS_LAYERS.forEach(layer => {
     if (map.getLayer(layer.layerId)) {
