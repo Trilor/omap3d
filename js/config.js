@@ -43,6 +43,11 @@ export const CS_RELIEF_URL = `dem2cs://${QCHIZU_DEM_BASE.replace(/^https?:\/\//,
 //   minzoom    : 表示開始ズーム
 //   bounds     : [west, south, east, north] 表示範囲
 //   attribution: データ帰属表記
+//   format     : 省略時は NumPNG（標高 = (R×2^16 + G×2^8 + B) × 0.01 − 0m基準）
+//                'terrain-rgb' の場合は Mapbox Terrain-RGB 形式
+//                  標高 = −10,000 + (R×256×256 + G×256 + B) × 0.1
+//                  ※ dem2cs:// / dem2rrim:// は現時点で NumPNG のみ対応。
+//                  ※ terrain-rgb エントリは _makeOverlayLayers() で自動除外される。
 export const REGIONAL_DEM_SOURCES = [
   // ── 東北 ──────────────────────────────────────────────
   {
@@ -52,13 +57,65 @@ export const REGIONAL_DEM_SOURCES = [
     bounds: [140.2, 37.7, 141.7, 39.0],
     attribution: '<a href="https://www.geospatial.jp/ckan/dataset/rinya-miyagi-maptiles" target="_blank">【宮城県】林野庁PNG標高タイルを加工して作成</a>',
   },
+  {
+    id: 'yamagata-shonai', region: '山形県（庄内）',
+    demUrl: 'rinya-tiles.geospatial.jp/dem_028_2025/{z}/{x}/{y}.png',
+    maxzoom: 18, minzoom: 18,
+    bounds: [139.4, 38.5, 140.5, 39.5],
+    attribution: '<a href="https://www.geospatial.jp/ckan/dataset/028_syounai" target="_blank">【山形県（庄内）】林野庁PNG標高タイルを加工して作成</a>',
+  },
   // ── 関東 ──────────────────────────────────────────────
+  {
+    id: 'tochigi', region: '栃木県',
+    demUrl: 'rinya-tochigi.geospatial.jp/2023/rinya/tile/terrainRGB/{z}/{x}/{y}.png',
+    format: 'terrain-rgb',
+    maxzoom: 18, minzoom: 18,
+    bounds: [139.3, 36.1, 140.4, 37.2],
+    attribution: '<a href="https://www.geospatial.jp/ckan/dataset/dem05_tochigi" target="_blank">【栃木県】林野庁Terrain-RGBタイル</a>',
+  },
   {
     id: 'kanagawa', region: '神奈川県',
     demUrl: 'forestgeo.info/opendata/14_kanagawa/dem_2022/{z}/{x}/{y}.png',
     maxzoom: 18, minzoom: 18,
     bounds: [138.9, 35.1, 139.8, 35.7],
     attribution: '<a href="https://www.geospatial.jp/ckan/dataset/rinya-kanagawa-maptiles2" target="_blank">【神奈川県】林野庁PNG標高タイルを加工して作成</a>',
+  },
+  // ── 北陸 ──────────────────────────────────────────────
+  {
+    id: 'toyama', region: '富山県',
+    demUrl: 'forestgeo.info/opendata/16_toyama/dem_2021/{z}/{x}/{y}.png',
+    maxzoom: 18, minzoom: 18,
+    bounds: [136.5, 36.5, 137.8, 36.9],
+    attribution: '<a href="https://www.geospatial.jp/ckan/dataset/rinya-toyama-maptiles" target="_blank">【富山県】林野庁PNG標高タイルを加工して作成</a>',
+  },
+  // ── 中部（甲信越・東海） ───────────────────────────────
+  {
+    id: 'yamanashi', region: '山梨県',
+    demUrl: 'forestgeo.info/opendata/19_yamanashi/dem_2024/{z}/{x}/{y}.png',
+    maxzoom: 18, minzoom: 18,
+    bounds: [138.3, 35.2, 139.1, 35.9],
+    attribution: '<a href="https://www.geospatial.jp/ckan/dataset/rinya-nagano-maptiles" target="_blank">【山梨県】林野庁PNG標高タイルを加工して作成</a>',
+  },
+  {
+    id: 'nagano-inatani', region: '長野県（伊那谷）',
+    demUrl: 'rinya-tiles.geospatial.jp/dem_067_2025/{z}/{x}/{y}.png',
+    maxzoom: 18, minzoom: 18,
+    bounds: [137.7, 35.5, 138.3, 36.4],
+    attribution: '<a href="https://www.geospatial.jp/ckan/dataset/inatani_067" target="_blank">【長野県（伊那谷）】林野庁PNG標高タイルを加工して作成</a>',
+  },
+  {
+    id: 'aichi-owari', region: '愛知県（尾張西三河）',
+    demUrl: 'rinya-tiles.geospatial.jp/dem_078_2025/{z}/{x}/{y}.png',
+    maxzoom: 18, minzoom: 18,
+    bounds: [136.5, 34.8, 137.5, 35.5],
+    attribution: '<a href="https://www.geospatial.jp/ckan/dataset/owarinishimikawa_078" target="_blank">【愛知県（尾張西三河）】林野庁PNG標高タイルを加工して作成</a>',
+  },
+  {
+    id: 'aichi-higashimikawa', region: '愛知県（東三河）',
+    demUrl: 'rinya-tiles.geospatial.jp/dem_079_2025/{z}/{x}/{y}.png',
+    maxzoom: 18, minzoom: 18,
+    bounds: [137.3, 34.6, 138.1, 35.3],
+    attribution: '<a href="https://www.geospatial.jp/ckan/dataset/higashimikawa_079" target="_blank">【愛知県（東三河）】林野庁PNG標高タイルを加工して作成</a>',
   },
   // ── 近畿 ──────────────────────────────────────────────
   {
@@ -82,14 +139,6 @@ export const REGIONAL_DEM_SOURCES = [
     bounds: [134.2, 34.2, 135.4, 35.7],
     attribution: '<a href="https://tiles.gsj.jp/tiles/elev/tiles.html" target="_blank">【兵庫県】産総研PNG標高タイルを加工して作成</a>',
   },
-  // ── 中部（甲信越・東海） ───────────────────────────────
-  {
-    id: 'yamanashi', region: '山梨県',
-    demUrl: 'forestgeo.info/opendata/19_yamanashi/dem_2024/{z}/{x}/{y}.png',
-    maxzoom: 18, minzoom: 18,
-    bounds: [138.3, 35.2, 139.1, 35.9],
-    attribution: '<a href="https://www.geospatial.jp/ckan/dataset/rinya-nagano-maptiles" target="_blank">【山梨県】林野庁PNG標高タイルを加工して作成</a>',
-  },
   // ── 中国 ──────────────────────────────────────────────
   {
     id: 'tottori', region: '鳥取県',
@@ -107,11 +156,77 @@ export const REGIONAL_DEM_SOURCES = [
   },
   // ── 四国 ──────────────────────────────────────────────
   {
-    id: 'tokushima', region: '徳島県',
+    id: 'tokushima-yoshinogawa', region: '徳島県（吉野川）',
+    demUrl: 'rinya-tiles.geospatial.jp/dem_116_2025/{z}/{x}/{y}.png',
+    maxzoom: 18, minzoom: 18,
+    bounds: [133.8, 33.8, 134.7, 34.3],
+    attribution: '<a href="https://www.geospatial.jp/ckan/dataset/yoshinokawa_116" target="_blank">【徳島県（吉野川）】林野庁PNG標高タイルを加工して作成</a>',
+  },
+  {
+    id: 'tokushima', region: '徳島県（那賀・海部川）',
     demUrl: 'rinya-tiles.geospatial.jp/dem_117_2025/{z}/{x}/{y}.png',
     maxzoom: 18, minzoom: 18,
     bounds: [133.7, 33.7, 134.9, 34.4],
-    attribution: '<a href="https://www.geospatial.jp/ckan/dataset/tokushima_aerial_laser" target="_blank">【徳島県】林野庁PNG標高タイルを加工して作成</a>',
+    attribution: '<a href="https://www.geospatial.jp/ckan/dataset/tokushima_aerial_laser" target="_blank">【徳島県（那賀・海部川）】林野庁PNG標高タイルを加工して作成</a>',
+  },
+  {
+    id: 'ehime', region: '愛媛県',
+    demUrl: 'forestgeo.info/opendata/38_ehime/dem_2019/{z}/{x}/{y}.png',
+    maxzoom: 18, minzoom: 18,
+    bounds: [132.0, 33.0, 133.7, 34.3],
+    attribution: '<a href="https://www.geospatial.jp/ckan/dataset/rinya-ehime-maptiles" target="_blank">【愛媛県】林野庁PNG標高タイルを加工して作成</a>',
+  },
+  {
+    id: 'kochi', region: '高知県',
+    demUrl: 'rinya-kochi.geospatial.jp/2023/rinya/tile/terrainRGB/{z}/{x}/{y}.png',
+    format: 'terrain-rgb',
+    maxzoom: 18, minzoom: 18,
+    bounds: [132.4, 32.7, 134.4, 34.1],
+    attribution: '<a href="https://www.geospatial.jp/ckan/dataset/dem05_kochi" target="_blank">【高知県】林野庁Terrain-RGBタイル</a>',
+  },
+  // ── 九州 ──────────────────────────────────────────────
+  {
+    id: 'nagasaki', region: '長崎県',
+    demUrl: 'forestgeo.info/opendata/42_nagasaki/dem_2022/{z}/{x}/{y}.png',
+    maxzoom: 18, minzoom: 18,
+    bounds: [129.2, 32.5, 130.3, 34.0],
+    attribution: '<a href="https://www.geospatial.jp/ckan/dataset/rinya-nagasaki-maptiles" target="_blank">【長崎県】林野庁PNG標高タイルを加工して作成</a>',
+  },
+  {
+    id: 'oita-south', region: '大分県（大分南部）',
+    demUrl: 'rinya-tiles.geospatial.jp/dem_143_2025/{z}/{x}/{y}.png',
+    maxzoom: 18, minzoom: 18,
+    bounds: [131.0, 32.8, 131.8, 33.5],
+    attribution: '<a href="https://www.geospatial.jp/ckan/dataset/oita_aerial_laser" target="_blank">【大分県（大分南部）】林野庁PNG標高タイルを加工して作成</a>',
+  },
+  // ── 広域・災害復旧 ─────────────────────────────────────
+  {
+    id: 'r0207flood', region: '令和2年7月豪雨',
+    demUrl: 'rinya-tiles.geospatial.jp/dem_r0207tr_2025/{z}/{x}/{y}.png',
+    maxzoom: 18, minzoom: 18,
+    bounds: [130.3, 32.1, 131.3, 32.8],
+    attribution: '<a href="https://www.geospatial.jp/ckan/dataset/r2_7_gouu" target="_blank">【令和2年7月豪雨】林野庁PNG標高タイルを加工して作成</a>',
+  },
+  {
+    id: 'h3007flood', region: '平成30年7月豪雨',
+    demUrl: 'rinya-tiles.geospatial.jp/dem_h3007tr_2025/{z}/{x}/{y}.png',
+    maxzoom: 18, minzoom: 18,
+    bounds: [132.0, 34.0, 134.5, 35.0],
+    attribution: '<a href="https://www.geospatial.jp/ckan/dataset/h30_7_gouu" target="_blank">【平成30年7月豪雨】林野庁PNG標高タイルを加工して作成</a>',
+  },
+  {
+    id: 'h28kumamoto', region: '平成28年熊本地震',
+    demUrl: 'rinya-tiles.geospatial.jp/dem_h28eq_2025/{z}/{x}/{y}.png',
+    maxzoom: 18, minzoom: 18,
+    bounds: [130.6, 32.6, 131.2, 33.0],
+    attribution: '<a href="https://www.geospatial.jp/ckan/dataset/h28_kumamoto_earthquake_aerial_laser" target="_blank">【平成28年熊本地震】林野庁PNG標高タイルを加工して作成</a>',
+  },
+  {
+    id: 'r06noto', region: '令和6年能登半島地震',
+    demUrl: 'rinya-tiles.geospatial.jp/dem_r06eq_2025/{z}/{x}/{y}.png',
+    maxzoom: 18, minzoom: 18,
+    bounds: [136.7, 37.0, 137.5, 37.8],
+    attribution: '<a href="https://www.geospatial.jp/ckan/dataset/r6_noto-peninsula-earthquake" target="_blank">【令和6年能登半島地震】林野庁PNG標高タイルを加工して作成</a>',
   },
 ];
 
@@ -119,17 +234,20 @@ export const REGIONAL_DEM_SOURCES = [
 // protocol  : 'dem2cs://' / 'dem2rrim://' など
 // prefix    : sourceId・layerId の先頭に付く文字列（例: 'cs-', 'rrim-'）
 // labelType : label に使うオーバーレイ名（例: 'CS立体図', '赤色立体図'）
+// ※ format: 'terrain-rgb' のエントリは dem2cs:// 等が未対応のため自動除外する
 function _makeOverlayLayers(sources, protocol, prefix, labelType) {
-  return sources.map(s => ({
-    sourceId:    `${prefix}${s.id}`,
-    layerId:     `${prefix}${s.id}-layer`,
-    tileUrl:     `${protocol}${s.demUrl}`,
-    label:       `${labelType}（0.5m）— ${s.region}`,
-    maxzoom:     s.maxzoom,
-    minzoom:     s.minzoom,
-    bounds:      s.bounds,
-    attribution: s.attribution,
-  }));
+  return sources
+    .filter(s => !s.format)
+    .map(s => ({
+      sourceId:    `${prefix}${s.id}`,
+      layerId:     `${prefix}${s.id}-layer`,
+      tileUrl:     `${protocol}${s.demUrl}`,
+      label:       `${labelType}（0.5m）— ${s.region}`,
+      maxzoom:     s.maxzoom,
+      minzoom:     s.minzoom,
+      bounds:      s.bounds,
+      attribution: s.attribution,
+    }));
 }
 
 // ★ デバイスごとの物理PPI定義（実寸縮尺計算に使用）階層構造
