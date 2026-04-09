@@ -4664,7 +4664,7 @@ function updateColorReliefSource() {
 // getBounds() の lng/lat 均等分割より描画済みキャンバス領域に忠実で
 // テレインタイルが確実にロードされているエリアのみを対象にできる。
 // exaggerated:false で地形誇張の影響を受けない実際の標高値を取得する。
-function autoFitColorRelief() {
+function autoFitColorRelief(_retry = false) {
   // 低ズームでは地形タイルの同時リクエスト数を抑えるためグリッドを縮小
   const GRID = map.getZoom() <= 9 ? 10 : 20; // 10×10=100点 or 20×20=400点
   // map.unproject() は CSS 論理ピクセルを期待するため offsetWidth/offsetHeight を使用する
@@ -4687,7 +4687,11 @@ function autoFitColorRelief() {
     }
   }
 
-  if (!isFinite(globalMin) || !isFinite(globalMax)) return;
+  if (!isFinite(globalMin) || !isFinite(globalMax)) {
+    // 地形タイル未ロードの場合、idle 後に1回だけリトライ
+    if (!_retry) map.once('idle', () => { if (currentOverlay === 'color-relief') autoFitColorRelief(true); });
+    return;
+  }
 
   const step = 10;
   crMin = Math.max(0, Math.floor(globalMin / step) * step);
@@ -4967,7 +4971,7 @@ function estimateScreenSlopeDegrees(px, py, deltaPx = 4) {
   return Math.atan(Math.sqrt(gx * gx + gy * gy)) * 180 / Math.PI;
 }
 
-function autoFitSlopeRelief() {
+function autoFitSlopeRelief(_retry = false) {
   const GRID = map.getZoom() <= 9 ? 10 : 20;
   const canvas = map.getCanvas();
   const w = canvas.offsetWidth;
@@ -4985,7 +4989,10 @@ function autoFitSlopeRelief() {
     }
   }
 
-  if (!isFinite(globalMin) || !isFinite(globalMax)) return;
+  if (!isFinite(globalMin) || !isFinite(globalMax)) {
+    if (!_retry) map.once('idle', () => { if (currentOverlay === 'slope') autoFitSlopeRelief(true); });
+    return;
+  }
   srMin = Math.max(0, Math.floor(globalMin));
   srMax = Math.min(90, Math.ceil(globalMax));
   if (srMax <= srMin) srMax = Math.min(90, srMin + 1);
@@ -5287,7 +5294,7 @@ function estimateScreenCurvature(px, py, deltaPx = 4) {
 }
 
 // ---- 色別曲率: 表示範囲から自動フィット ----
-function autoFitCurvatureRelief() {
+function autoFitCurvatureRelief(_retry = false) {
   const GRID = map.getZoom() <= 9 ? 8 : 15;
   const canvas = map.getCanvas();
   const w = canvas.offsetWidth;
@@ -5307,7 +5314,10 @@ function autoFitCurvatureRelief() {
     }
   }
 
-  if (!isFinite(globalMin) || !isFinite(globalMax)) return;
+  if (!isFinite(globalMin) || !isFinite(globalMax)) {
+    if (!_retry) map.once('idle', () => { if (currentOverlay === 'curvature') autoFitCurvatureRelief(true); });
+    return;
+  }
 
   const step = 0.001;
   // 余白 10% を加えてスライダー上限内に収める
