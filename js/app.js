@@ -36,7 +36,7 @@
 
 import { getDeclination, setDeclinationModel } from './magneticDeclination.js';
 import {
-  DEM1A_BASE, DEM5A_BASE,
+  QCHIZU_DEM_BASE, QCHIZU_PROXY_BASE, DEM5A_BASE, DEM1A_BASE,
   // LAKEDEPTH_BASE, LAKEDEPTH_STANDARD_BASE, // 湖水深タイルは廃止（2026-03-23）
   TERRAIN_URL, CS_RELIEF_URL,
   REGIONAL_CS_LAYERS, REGIONAL_RRIM_LAYERS,
@@ -49,10 +49,10 @@ import {
 
 import {
   contourState,
-  contourLayerIds, DEM5A_CONTOUR_LAYER_IDS,
-  COLOR_CONTOUR_Q_IDS, COLOR_CONTOUR_DEM5A_IDS,
+  contourLayerIds, DEM5A_CONTOUR_LAYER_IDS, DEM1A_CONTOUR_LAYER_IDS,
+  COLOR_CONTOUR_Q_IDS, COLOR_CONTOUR_DEM5A_IDS, COLOR_CONTOUR_DEM1A_IDS,
   setAllContourVisibility, buildColorContourExpr, buildContourThresholds,
-  buildContourTileUrl, buildSeamlessContourTileUrl,
+  buildContourTileUrl, buildSeamlessContourTileUrl, buildDem1aContourTileUrl,
 } from './contours.js';
 
 
@@ -157,7 +157,7 @@ const map = new maplibregl.Map({
 map.addControl(new maplibregl.AttributionControl({
   compact: true,
   customAttribution:
-    '<a href="https://maps.gsi.go.jp/development/ichiran.html#dem" target="_blank" rel="noopener">地理院DEM1A</a>' +
+    '<a href="https://www.geospatial.jp/ckan/dataset/qchizu_94dem_99gsi" target="_blank" rel="noopener">Q地図1mDEM</a>' +
     '/<a href="https://maps.gsi.go.jp/development/ichiran.html#dem" target="_blank" rel="noopener">地理院DEM5A</a>' +
     '/<a href="https://maps.gsi.go.jp/development/ichiran.html#dem" target="_blank" rel="noopener">地理院DEM10B</a>' +
     'を加工して作成',
@@ -320,13 +320,15 @@ map.on('load', async () => {
   isomizer（design-plan.yml）がこのソースを参照してスタイリングできる。
   ========================================================
 */
-  // DEM1A 1m 等高線ソース（地理院公式・最高精度）
+  // Q地図 1m 等高線ソース
+  // Cloudflare Worker プロキシ経由で CORS を解決し、worker: true（バックグラウンドスレッド）で安定動作させる
   try {
+    // worker: true 使用時は絶対 URL が必要（Worker 内では相対パスが解決されないため）
     contourState.q1mSource = new mlcontour.DemSource({
-      url: `${DEM1A_BASE}/{z}/{x}/{y}.png`,
+      url: `${location.origin}${QCHIZU_PROXY_BASE}/{z}/{x}/{y}.webp`,
       encoding: 'numpng',
       minzoom: 0,
-      maxzoom: 17,
+      maxzoom: 16,
       worker: true,
       cacheSize: 100,
       timeoutMs: 30_000,
@@ -338,13 +340,13 @@ map.on('load', async () => {
       maxzoom: 15, // z15タイルをz16以上でオーバーズーム
       attribution: '',
     });
-    console.log('DEM1A 等高線ソース登録完了');
+    console.log('Q地図 1m 等高線ソース登録完了');
   } catch (e) {
-    console.warn('DEM1A DemSource の初期化に失敗:', e);
+    console.warn('Q地図 DemSource の初期化に失敗:', e);
   }
 
 
-  // DEM5A 5m 等高線ソース（DEM1Aカバレッジ外の補完用）
+  // DEM5A 5m 等高線ソース（Q地図と完全独立・標高タイルのある範囲で全域描画）
   try {
     contourState.dem5aSource = new mlcontour.DemSource({
       url: `${DEM5A_BASE}/{z}/{x}/{y}.png`,
@@ -365,6 +367,29 @@ map.on('load', async () => {
     console.log('DEM5A 等高線ソース登録完了');
   } catch (e) {
     console.warn('DEM5A DemSource の初期化に失敗:', e);
+  }
+
+  // 地理院 DEM1A 1m 等高線ソース（DEM5Aと同設定・maxzoomのみ17）
+  try {
+    contourState.dem1aSource = new mlcontour.DemSource({
+      url: `${DEM1A_BASE}/{z}/{x}/{y}.png`,
+      encoding: 'numpng',
+      minzoom: 0,
+      maxzoom: 17,
+      worker: true,
+      cacheSize: 100,
+      timeoutMs: 30_000,
+    });
+    contourState.dem1aSource.setupMaplibre(maplibregl);
+    map.addSource('contour-source-dem1a', {
+      type: 'vector',
+      tiles: [buildDem1aContourTileUrl(userContourInterval)],
+      maxzoom: 15, // z15タイルをz16以上でオーバーズーム
+      attribution: '',
+    });
+    console.log('DEM1A 等高線ソース登録完了');
+  } catch (e) {
+    console.warn('DEM1A DemSource の初期化に失敗:', e);
   }
 
   /*
@@ -537,15 +562,38 @@ map.on('load', async () => {
       }, firstQchizuId);
     }
 
+    // ① DEM1A等高線（DEM5Aの下）
+    if (map.getSource('contour-source-dem1a')) {
+      map.addLayer({
+        id: 'contour-regular-dem1a',
+        type: 'line',
+        source: 'contour-source-dem1a',
+        'source-layer': 'contours',
+        filter: ['!=', ['get', 'level'], 1],
+        layout: { 'visibility': 'none', 'line-join': 'round', 'line-cap': 'round' },
+        paint: { 'line-color': '#c86400', 'line-width': 1.0, 'line-opacity': 0.85 },
+      }, firstQchizuId);
+      map.addLayer({
+        id: 'contour-index-dem1a',
+        type: 'line',
+        source: 'contour-source-dem1a',
+        'source-layer': 'contours',
+        filter: ['==', ['get', 'level'], 1],
+        layout: { 'visibility': 'none', 'line-join': 'round', 'line-cap': 'round' },
+        paint: { 'line-color': '#c86400', 'line-width': 1.79, 'line-opacity': 1.0 },
+      }, firstQchizuId);
+    }
+
     // contourState.seamlessLayerIds は湖水深廃止により空配列
     contourState.seamlessLayerIds = [];
 
     // OriLibre の水域フィルレイヤーが等高線の上に配置されるため最上位へ移動。
-    // 移動順: DEM5A < DEM1A の順（DEM1Aが最終的に一番上）。
-    ['contour-regular-dem5a', 'contour-index-dem5a',
+    // 移動順: DEM1A < DEM5A < Q地図 の順（Q地図が最終的に一番上）。
+    ['contour-regular-dem1a', 'contour-index-dem1a',
+     'contour-regular-dem5a', 'contour-index-dem5a',
      ...contourLayerIds,
     ].forEach(id => { if (map.getLayer(id)) map.moveLayer(id); });
-    console.log('等高線レイヤー追加完了（DEM1A + DEM5A）');
+    console.log('等高線レイヤー追加完了（Q地図 + DEM5A + DEM1A）');
   }
 
   // 色別等高線レイヤー（オーバーレイ「色別等高線」選択時に表示）
@@ -571,6 +619,7 @@ map.on('load', async () => {
     };
     addColorContourPair('', 'contour-source');
     addColorContourPair('-dem5a', 'contour-source-dem5a');
+    addColorContourPair('-dem1a', 'contour-source-dem1a');
     console.log('色別等高線レイヤー追加完了');
   }
 
@@ -589,7 +638,7 @@ map.on('load', async () => {
   // min/max パラメータはスライダー操作時に setTiles() で動的更新する
   map.addSource('color-relief', {
     type: 'raster',
-    tiles: [`dem2relief://${DEM1A_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.png?min=0&max=500&_init=1`],
+    tiles: [`dem2relief://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp?min=0&max=500&_init=1`],
     tileSize: 512,
     minzoom: 5,
     maxzoom: 16, // z16はQ地図で生成可能（CS/RRIMと同設計）
@@ -606,12 +655,12 @@ map.on('load', async () => {
     // 常に visible を維持し opacity=0 で非表示制御する
     layout: { visibility: 'visible' },
     paint: { 'raster-opacity': 0, 'raster-fade-duration': 0, 'raster-opacity-transition': { duration: 0, delay: 0 } },
-  }, map.getLayer('contour-regular-dem5a') ? 'contour-regular-dem5a' : undefined);
+  }, map.getLayer('contour-regular-dem1a') ? 'contour-regular-dem1a' : undefined);
 
   // 傾斜量図（dem2slope://プロトコル）
   map.addSource('slope-relief', {
     type: 'raster',
-    tiles: [`dem2slope://${DEM1A_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.png?min=0&max=45&_init=1`],
+    tiles: [`dem2slope://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp?min=0&max=45&_init=1`],
     tileSize: 512,
     minzoom: 5,
     maxzoom: 16, // z16はQ地図で生成可能（CS/RRIMと同設計）
@@ -623,12 +672,12 @@ map.on('load', async () => {
     source: 'slope-relief',
     layout: { visibility: 'visible' },
     paint: { 'raster-opacity': 0, 'raster-fade-duration': 0, 'raster-opacity-transition': { duration: 0, delay: 0 } },
-  }, map.getLayer('contour-regular-dem5a') ? 'contour-regular-dem5a' : undefined);
+  }, map.getLayer('contour-regular-dem1a') ? 'contour-regular-dem1a' : undefined);
 
   // 色別曲率図（dem2curve://プロトコル）
   map.addSource('curvature-relief', {
     type: 'raster',
-    tiles: [`dem2curve://${DEM1A_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.png?min=-0.25&max=0.25&_init=1`],
+    tiles: [`dem2curve://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp?min=-0.25&max=0.25&_init=1`],
     tileSize: 512,
     minzoom: 5,
     maxzoom: 16, // z16はQ地図で生成可能（CS/RRIMと同設計）
@@ -640,13 +689,13 @@ map.on('load', async () => {
     source: 'curvature-relief',
     layout: { visibility: 'visible' },
     paint: { 'raster-opacity': 0, 'raster-fade-duration': 0, 'raster-opacity-transition': { duration: 0, delay: 0 } },
-  }, map.getLayer('contour-regular-dem5a') ? 'contour-regular-dem5a' : undefined);
+  }, map.getLayer('contour-regular-dem1a') ? 'contour-regular-dem1a' : undefined);
 
 
   // 赤色立体地図（dem2rrim://プロトコル）
   map.addSource('rrim-relief', {
     type: 'raster',
-    tiles: [`dem2rrim://${DEM1A_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.png?_init=1`],
+    tiles: [`dem2rrim://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp?_init=1`],
     tileSize: 512,
     minzoom: 5,
     maxzoom: 15, // DEM5A 上限に合わせる（z16+ はオーバーズーム）
@@ -658,7 +707,7 @@ map.on('load', async () => {
     source: 'rrim-relief',
     layout: { visibility: 'none' },
     paint: { 'raster-opacity': 0, 'raster-fade-duration': 0, 'raster-opacity-transition': { duration: 0, delay: 0 } },
-  }, map.getLayer('contour-regular-dem5a') ? 'contour-regular-dem5a' : undefined);
+  }, map.getLayer('contour-regular-dem1a') ? 'contour-regular-dem1a' : undefined);
 
   // CS立体図（ブラウザ生成・Q地図DEMから動的生成）
   map.addSource('cs-relief', {
@@ -676,7 +725,7 @@ map.on('load', async () => {
     source: 'cs-relief',
     layout: { visibility: 'none' },
     paint: { 'raster-opacity': CS_INITIAL_OPACITY, 'raster-fade-duration': 0, 'raster-opacity-transition': { duration: 0, delay: 0 } },
-  }, map.getLayer('contour-regular-dem5a') ? 'contour-regular-dem5a' : undefined);
+  }, map.getLayer('contour-regular-dem1a') ? 'contour-regular-dem1a' : undefined);
 
   /*
       ========================================================
@@ -4186,11 +4235,15 @@ function updateCsVisibility() {
   const ccBaseVis = showColorContour ? 'visible' : 'none';
   COLOR_CONTOUR_Q_IDS.forEach(id => {
     if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility',
-      (ccBaseVis === 'visible' && contourState.demMode === 'dem1a') ? 'visible' : 'none');
+      (ccBaseVis === 'visible' && contourState.demMode === 'q1m') ? 'visible' : 'none');
   });
   COLOR_CONTOUR_DEM5A_IDS.forEach(id => {
     if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility',
       (ccBaseVis === 'visible' && contourState.demMode === 'dem5a') ? 'visible' : 'none');
+  });
+  COLOR_CONTOUR_DEM1A_IDS.forEach(id => {
+    if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility',
+      (ccBaseVis === 'visible' && contourState.demMode === 'dem1a') ? 'visible' : 'none');
   });
 
   // CS立体図: 他の生成系オーバーレイ選択時は非表示
@@ -4441,7 +4494,7 @@ let _crTileTimer = null;
 // 色別等高線の line-color を crMin/crMax に合わせて再設定
 function updateColorContourColors() {
   const expr = buildColorContourExpr(crMin, crMax);
-  [...COLOR_CONTOUR_Q_IDS, ...COLOR_CONTOUR_DEM5A_IDS].forEach(id => {
+  [...COLOR_CONTOUR_Q_IDS, ...COLOR_CONTOUR_DEM5A_IDS, ...COLOR_CONTOUR_DEM1A_IDS].forEach(id => {
     if (map.getLayer(id)) map.setPaintProperty(id, 'line-color', expr);
   });
 }
@@ -4451,7 +4504,7 @@ let _crRepaintTimer = null;
 function applyColorReliefTiles() {
   if (!map.getSource('color-relief')) return;
   map.getSource('color-relief').setTiles([
-    `dem2relief://${DEM1A_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.png?min=${crMin}&max=${crMax}`
+    `dem2relief://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp?min=${crMin}&max=${crMax}`
   ]);
   clearTimeout(_crRepaintTimer);
   let remaining = 20; // 20 × 100ms = 2 秒
@@ -4755,7 +4808,7 @@ let _srRepaintTimer = null;
 function applySlopeReliefTiles() {
   if (!map.getSource('slope-relief')) return;
   map.getSource('slope-relief').setTiles([
-    `dem2slope://${DEM1A_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.png?min=${srMin}&max=${srMax}`
+    `dem2slope://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp?min=${srMin}&max=${srMax}`
   ]);
   clearTimeout(_srRepaintTimer);
   let remaining = 20;
@@ -5054,7 +5107,7 @@ let _cvRepaintTimer = null;
 function applyCurvatureReliefTiles() {
   if (!map.getSource('curvature-relief')) return;
   map.getSource('curvature-relief').setTiles([
-    `dem2curve://${DEM1A_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.png?min=${cvMin.toFixed(3)}&max=${cvMax.toFixed(3)}`
+    `dem2curve://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp?min=${cvMin.toFixed(3)}&max=${cvMax.toFixed(3)}`
   ]);
   clearTimeout(_cvRepaintTimer);
   let remaining = 20;
@@ -5814,15 +5867,21 @@ function getEffectiveContourInterval() {
 function applyContourInterval(intervalM) {
   const newUrl      = buildContourTileUrl(intervalM);
   const newUrlDem5a = buildSeamlessContourTileUrl(intervalM);
+  const newUrlDem1a = buildDem1aContourTileUrl(intervalM);
+  // 湖水深等高線は廃止（2026-03-23）
+  // const newUrlLake  = buildLakeContourTileUrl(intervalM);
   // 各ソースを個別にチェック（1つが未登録でも他のソースは更新し続ける）
   const hasQchizu = newUrl      && map.getSource('contour-source');
   const hasDem5a  = newUrlDem5a && map.getSource('contour-source-dem5a');
-  if (!hasQchizu && !hasDem5a) return;
+  const hasDem1a  = newUrlDem1a && map.getSource('contour-source-dem1a');
+  // const hasLake   = newUrlLake  && map.getSource('contour-source-lake');
+  if (!hasQchizu && !hasDem5a && !hasDem1a) return;
   // setTiles でタイルキャッシュをクリアして新 URL を設定する。
   // 空配列を一度セットしてから新 URL をセットすることで、
   // MapLibre のタイルキャッシュを確実にフラッシュしてタイル再取得を強制する。
   if (hasQchizu) { map.getSource('contour-source').setTiles([]); map.getSource('contour-source').setTiles([newUrl]); }
   if (hasDem5a)  { map.getSource('contour-source-dem5a').setTiles([]); map.getSource('contour-source-dem5a').setTiles([newUrlDem5a]); }
+  if (hasDem1a)  { map.getSource('contour-source-dem1a').setTiles([]); map.getSource('contour-source-dem1a').setTiles([newUrlDem1a]); }
   // if (hasLake)   map.getSource('contour-source-lake').setTiles([newUrlLake]);
   // 初期 visibility:none で追加されるため、ここで visible に設定する（フリック防止のため none は経由しない）
   if (contourCard.classList.contains('active')) setAllContourVisibility(map, 'visible');
@@ -5870,7 +5929,7 @@ contourCard.addEventListener('click', (e) => {
 
 // ---- 等高線 DEMソースセレクト ----
 selContourDem.addEventListener('change', () => {
-  contourState.demMode = selContourDem.value; // 'dem1a' / 'dem5a'
+  contourState.demMode = selContourDem.value; // 'q1m' / 'dem5a'
   if (contourCard.classList.contains('active')) {
     setAllContourVisibility(map, 'visible');
   }
@@ -6591,7 +6650,7 @@ function updateShareableUrl() {
     const ci = selContourInterval.value;
     if (ci !== '5') p.set('cont_int', ci); else p.delete('cont_int');
     const cd = selContourDem.value;
-    if (cd !== 'dem1a') p.set('cont_dem', cd); else p.delete('cont_dem');
+    if (cd !== 'q1m') p.set('cont_dem', cd); else p.delete('cont_dem');
   } else {
     p.set('contour', '0'); p.delete('cont_int'); p.delete('cont_dem');
   }
@@ -9362,6 +9421,7 @@ function _addPreviewContourAndNorth(m) {
   if (contourCard.classList.contains('active') && contourState.q1mSource) {
     const iv  = getEffectiveContourInterval();
     const url = contourState.demMode === 'dem5a' ? buildSeamlessContourTileUrl(iv)
+              : contourState.demMode === 'dem1a' ? buildDem1aContourTileUrl(iv)
               : buildContourTileUrl(iv);
     if (url) {
       m.addSource('prev-contour', { type: 'vector', tiles: [url], maxzoom: 14, attribution: '' });
