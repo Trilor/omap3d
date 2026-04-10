@@ -216,27 +216,29 @@ async function fetchTerrainDemBitmap(z, x, y, signal) {
 */
 
 // ================================================================
+// 汎用セマフォファクトリ（同時実行数を制限するPromiseキュー）
+// ================================================================
+function _createSemaphore(concurrency) {
+  let active = 0;
+  const queue = [];
+  return {
+    acquire: () => active < concurrency
+      ? (active++, Promise.resolve())
+      : new Promise(resolve => queue.push(resolve)),
+    release: () => queue.length > 0 ? queue.shift()() : active--,
+  };
+}
+
 // GPU→CPU転送セマフォ（toPixels の同時実行数を制限）
 // 複数タイルが同時に tf.browser.toPixels を呼ぶとGPUキューが詰まり
-// 先頭タイルが数秒待たされる。同時実行を2に制限して待ち時間を均等化する。
-// ================================================================
-const _GPU_TRANSFER_CONCURRENCY = 4;
-let _gpuTransferActive = 0;
-const _gpuTransferQueue = [];
-function _acquireGpuTransfer() {
-  if (_gpuTransferActive < _GPU_TRANSFER_CONCURRENCY) {
-    _gpuTransferActive++;
-    return Promise.resolve();
-  }
-  return new Promise(resolve => _gpuTransferQueue.push(resolve));
-}
-function _releaseGpuTransfer() {
-  if (_gpuTransferQueue.length > 0) {
-    _gpuTransferQueue.shift()();
-  } else {
-    _gpuTransferActive--;
-  }
-}
+// 先頭タイルが数秒待たされる。同時実行を4に制限して待ち時間を均等化する。
+const _gpuTransferSem = _createSemaphore(4);
+function _acquireGpuTransfer() { return _gpuTransferSem.acquire(); }
+function _releaseGpuTransfer() { _gpuTransferSem.release(); }
+
+// DEMフェッチセマフォ（地理院サーバーのレート制限対策）
+// 同時フェッチ数を抑えることで個々のリクエストを速やかに完了させる
+const _demFetchSem = _createSemaphore(8);
 
 // ================================================================
 // DEMタイルfetchキャッシュ（URL単位でPromiseを共有）
@@ -247,25 +249,11 @@ function _releaseGpuTransfer() {
 const _demTileFetchCache = new Map();
 const _DEM_TILE_CACHE_TTL = 15000; // 15秒保持（近傍タイルの処理完了まで十分な時間）
 
-// DEMフェッチ並列数制限（地理院サーバーのレート制限対策）
-// 同時フェッチ数を抑えることで個々のリクエストを速やかに完了させる
-const _DEM_FETCH_CONCURRENCY = 8;
-let _demFetchActive = 0;
-const _demFetchQueue = [];
-function _acquireFetchSlot() {
-  if (_demFetchActive < _DEM_FETCH_CONCURRENCY) { _demFetchActive++; return Promise.resolve(); }
-  return new Promise(resolve => _demFetchQueue.push(resolve));
-}
-function _releaseFetchSlot() {
-  if (_demFetchQueue.length > 0) { _demFetchQueue.shift()(); }
-  else { _demFetchActive--; }
-}
-
 function _cachedFetchImageData(url, signal) {
   const hit = _demTileFetchCache.get(url);
   if (hit) return hit;
   const promise = (async () => {
-    await _acquireFetchSlot();
+    await _demFetchSem.acquire();
     try {
       const r = await fetch(url, signal ? { signal } : undefined);
       if (!r.ok) return null; // 404等は正規の「データなし」→キャッシュ保持で再リクエスト抑制
@@ -279,7 +267,7 @@ function _cachedFetchImageData(url, signal) {
       _demTileFetchCache.delete(url);
       return null;
     } finally {
-      _releaseFetchSlot();
+      _demFetchSem.release();
     }
   })();
   _demTileFetchCache.set(url, promise);
@@ -295,7 +283,7 @@ const _COMPOSITE_TARGET_SIZE = 256;
 // 最終出力画像（RGB）を _COMPOSITE_TARGET_SIZE にリサイズして返す。
 // 入力DEMデータ（NumPNG高度値）ではなく完成済みRGB画像を対象とするため
 // bilinear補間しても高度値の破壊は起きない。
-function _upscaleTo512(canvas) {
+function _rescaleComposite(canvas) {
   if (canvas.width === _COMPOSITE_TARGET_SIZE) return canvas;
   const dst = new OffscreenCanvas(_COMPOSITE_TARGET_SIZE, _COMPOSITE_TARGET_SIZE);
   const ctx = dst.getContext('2d');
@@ -935,7 +923,7 @@ maplibregl.addProtocol('dem2slope', async (params, abortController) => {
     }
 
     outCtx.putImageData(outImageData, 0, 0);
-    const blob = await _upscaleTo512(outCanvas).convertToBlob({ type: 'image/png' });
+    const blob = await _rescaleComposite(outCanvas).convertToBlob({ type: 'image/png' });
     return { data: await blob.arrayBuffer() };
   } catch {
     return { data: _transparentPngBuffer() };
@@ -999,7 +987,7 @@ maplibregl.addProtocol('dem2relief', async (params, abortController) => {
     }
 
     ctx.putImageData(imageData, 0, 0);
-    const blob = await _upscaleTo512(canvas).convertToBlob({ type: 'image/png' });
+    const blob = await _rescaleComposite(canvas).convertToBlob({ type: 'image/png' });
     return { data: await blob.arrayBuffer() };
 
   } catch {
@@ -1206,7 +1194,7 @@ maplibregl.addProtocol('dem2curve', async (params, abortController) => {
     await tf.browser.toPixels(cvNorm, outCanvas);
     cvNorm.dispose();
     curvatureTensor.dispose();
-    return { data: await _upscaleTo512(outCanvas).convertToBlob({ type: 'image/webp', quality: 0.92 }).then(b => b.arrayBuffer()) };
+    return { data: await _rescaleComposite(outCanvas).convertToBlob({ type: 'image/webp', quality: 0.92 }).then(b => b.arrayBuffer()) };
   } catch(e) {
     if (e?.name === 'AbortError') throw e;
     return { data: _transparentPngBuffer() };
@@ -1431,7 +1419,7 @@ maplibregl.addProtocol('dem2rrim', async (params, abortController) => {
       const _rrimT5 = performance.now(); // toPixels完了
       _releaseGpuTransfer(); // blob変換はCPU処理なのでGPUスロットを即返却
       _rrimGpuReleased = true;
-      const rrimBlob = await _upscaleTo512(outCanvas).convertToBlob({ type: 'image/webp', quality: 0.92 });
+      const rrimBlob = await _rescaleComposite(outCanvas).convertToBlob({ type: 'image/webp', quality: 0.92 });
       rrimArrayBuffer = await rrimBlob.arrayBuffer();
       const _rrimT6 = performance.now();
       const _rrimDemSrcs = demMode === null              ? 'R+Q+5A+10B'
