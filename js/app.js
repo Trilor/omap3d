@@ -724,15 +724,14 @@ map.on('load', async () => {
   });
 
   // 都道府県別CS立体図（0.5m）のソース・レイヤーを動的追加
-  // ソースの minzoom を 16 に下げることで、ズーム16でも表示可能にする
-  // （z=17 では地域DEMが無い場合でも Q地図 DEM にフォールバックして描画）
   // 地域別CS・RRIM共通のソース/レイヤー追加関数
+  // minzoom はサーバー側の実際の下限値（config で定義）。表示制御は visibility で別途行う。
   function _addRegionalLayer(layer) {
     const srcCfg = {
       type: 'raster',
       tiles: [layer.tileUrl],
       tileSize: _rasterTileSize,
-      minzoom: Math.min(layer.minzoom, 16),
+      minzoom: layer.minzoom,
       maxzoom: layer.maxzoom,
       bounds: layer.bounds,
       attribution: '',
@@ -4119,7 +4118,7 @@ function updateRegionalAttribution() {
   _lastAttrKey = key;
   const html = REGIONAL_CS_LAYERS
     .filter(l =>
-      z >= Math.min(l.minzoom, 16) &&
+      z >= 16 &&
       b.getWest()  < l.bounds[2] &&
       b.getEast()  > l.bounds[0] &&
       b.getSouth() < l.bounds[3] &&
