@@ -3,7 +3,7 @@
    MapLibre の addProtocol() でブラウザ内 DEM 変換を実現します
    ================================================================ */
 
-import { QCHIZU_DEM_BASE, QCHIZU_PROXY_BASE, DEM5A_BASE, LAND_DEM_BASE } from './config.js';
+import { QCHIZU_DEM_BASE, QCHIZU_PROXY_BASE, DEM5A_BASE, DEM10B_BASE } from './config.js';
 // DEM1A_BASE: protocols.js では未使用（等高線用のみ app.js で使用）
 // 湖水深・湖水面タイルはコメントアウト済み（2026-03-23 廃止）
 // import { DEM1A_BASE, LAKEDEPTH_BASE, LAKEDEPTH_STANDARD_BASE } from './config.js';
@@ -121,7 +121,7 @@ maplibregl.addProtocol('pmtiles', pmtilesProtocol.tile.bind(pmtilesProtocol));
   ========================================================
 */
 async function fetchTerrainDemBitmap(z, x, y, signal) {
-  const dem10bUrl = z <= 14 ? `${LAND_DEM_BASE}/${z}/${x}/${y}.png` : null; // DEM10B: maxzoom 14（z15+は404になるため省略）
+  const dem10bUrl = z <= 14 ? `${DEM10B_BASE}/${z}/${x}/${y}.png` : null; // DEM10B: maxzoom 14（z15+は404になるため省略）
   const dem5aUrl  = `${DEM5A_BASE}/${z}/${x}/${y}.png`;             // DEM5A:  5mメッシュ・基盤地図情報（maxzoom 15）
   const qUrl      = `${QCHIZU_PROXY_BASE}/${z}/${x}/${y}.webp`;     // Q地図1m: CF Workers プロキシ経由（maxzoom 16）
   // terrain-dem ソースの maxzoom を 15 に設定しているため、
@@ -310,8 +310,8 @@ function _scaleToTarget(imgData, targetSize = _COMPOSITE_TARGET_SIZE) {
 // regionalDemExt  : 地域DEMの拡張子（'png' または 'webp'）
 // regionalDemOrder: 地域DEM URL の軸順序（'xy' または 'yx'）
 // demMode: null          → DEM10B + DEM5A + Q地図1m（z13-16用）
-//          'land'        → DEM10Bのみ（z≤10用）
-//          'land+dem5a'  → DEM10B + DEM5A（z11-12用）
+//          'dem10b'        → DEM10Bのみ（z≤10用）
+//          'dem10b+dem5a'  → DEM10B + DEM5A（z11-12用）
 //          'dem5a'       → DEM5Aのみ
 async function fetchCompositeDemBitmap(
   z,
@@ -325,10 +325,10 @@ async function fetchCompositeDemBitmap(
   tileOutputSize = null  // null = 自動: Q地図使用時→512px、DEM5A/DEM10Bのみ→256px
 ) {
   const useQ    = demMode === null; // Q地図: 全合成モードのみ使用
-  const useS    = demMode === null || demMode === 'dem5a' || demMode === 'land+dem5a'; // DEM5A: 全合成 or 単独 or land+dem5a
-  const useLand = demMode === null || demMode === 'land' || demMode === 'land+dem5a'; // DEM10B: 全合成 or 単独 or land+dem5a
+  const useS    = demMode === null || demMode === 'dem5a'  || demMode === 'dem10b+dem5a'; // DEM5A:  全合成 or 単独 or dem10b+dem5a
+  const useDem10b = demMode === null || demMode === 'dem10b' || demMode === 'dem10b+dem5a'; // DEM10B: 全合成 or 単独 or dem10b+dem5a
   const sUrl    = (useS && z <= 15) ? `${DEM5A_BASE}/${z}/${x}/${y}.png` : null; // DEM5A: maxzoom 15
-  const landUrl = (useLand && z <= 14) ? `${LAND_DEM_BASE}/${z}/${x}/${y}.png` : null; // DEM10B: maxzoom 14
+  const dem10bUrl = (useDem10b && z <= 14) ? `${DEM10B_BASE}/${z}/${x}/${y}.png` : null; // DEM10B: maxzoom 14
   const qUrl    = useQ    ? `${QCHIZU_PROXY_BASE}/${z}/${x}/${y}.webp` : null;
   // 湖水深タイルはコメントアウト（2026-03-23 廃止）
   // const lUrl  = `${LAKEDEPTH_BASE}/${z}/${x}/${y}.png`;
@@ -347,14 +347,14 @@ async function fetchCompositeDemBitmap(
     : signal;
 
   // _cachedFetchImageData でURL単位のPromise共有 → 同一URLの重複fetchを排除
-  const [qRaw, sRaw, landRaw, rRaw] = await Promise.all([
+  const [qRaw, sRaw, dem10bRaw, rRaw] = await Promise.all([
     qUrl     ? _cachedFetchImageData(qUrl, qSignal) : Promise.resolve(null),
     sUrl     ? _cachedFetchImageData(sUrl)          : Promise.resolve(null),
-    landUrl  ? _cachedFetchImageData(landUrl)       : Promise.resolve(null),
+    dem10bUrl  ? _cachedFetchImageData(dem10bUrl)       : Promise.resolve(null),
     // 湖水深タイルはコメントアウト（2026-03-23 廃止）
     rUrl     ? _cachedFetchImageData(rUrl)          : Promise.resolve(null),
   ]);
-  if (!qRaw && !sRaw && !landRaw && !rRaw) return null;
+  if (!qRaw && !sRaw && !dem10bRaw && !rRaw) return null;
 
   // Q地図が実際にデータを返した場合のみ512pxに統一。DEM5A/DEM10Bのみなら256pxネイティブサイズを維持。
   // useQ（使う意図）ではなくqRaw（実際のデータ有無）で判定することで、
@@ -363,7 +363,7 @@ async function fetchCompositeDemBitmap(
   const T = tileOutputSize ?? (qRaw ? _COMPOSITE_TARGET_SIZE : 256);
   const qData    = _scaleToTarget(qRaw,    T);
   const sData    = _scaleToTarget(sRaw,    T);
-  const landData = _scaleToTarget(landRaw, T);
+  const dem10bData = _scaleToTarget(dem10bRaw, T);
   const rData    = _scaleToTarget(rRaw,    T);
 
   function isNodata(d, i) {
@@ -388,11 +388,11 @@ async function fetchCompositeDemBitmap(
   }
 
   // 優先度 中: DEM10B（GSI 10mDEM・全国カバレッジ保証）
-  if (landData) {
-    const land = landData.data;
+  if (dem10bData) {
+    const dem10b = dem10bData.data;
     for (let i = 0; i < o.length; i += 4) {
-      if (isNodata(land, i)) continue;
-      o[i] = land[i]; o[i + 1] = land[i + 1]; o[i + 2] = land[i + 2]; o[i + 3] = 255;
+      if (isNodata(dem10b, i)) continue;
+      o[i] = dem10b[i]; o[i + 1] = dem10b[i + 1]; o[i + 2] = dem10b[i + 2]; o[i + 3] = 255;
     }
   }
 
@@ -554,7 +554,7 @@ maplibregl.addProtocol('dem2cs', async (params, abortController) => {
   //   z≤12: DEM10B + DEM5A（低〜中ズーム・Q地図は不要）
   //   z13-15: DEM10B + DEM5A + Q地図1m（高ズーム・フル合成）
   //   z≥16: DEM10B + DEM5A + Q地図1m + 地域DEM 0.5m（最高ズーム・地域DEMが最優先）
-  const demMode = zoomLevel <= 12 ? 'land+dem5a'
+  const demMode = zoomLevel <= 12 ? 'dem10b+dem5a'
                 : null; // z13以上は全ソース合成
   // z<16 では地域DEM を使わない（地域DEMは z≥16 の高ズームでのみ有効）
   const effectiveRegionalBase = zoomLevel >= 16 ? regionalDemBase : null;
@@ -724,7 +724,7 @@ maplibregl.addProtocol('dem2cs', async (params, abortController) => {
     const _csT6 = performance.now();
     const _csDemSrcs = effectiveRegionalBase ? 'R+Q+5A+10B'
       : demMode === null         ? 'Q+5A+10B'
-      : demMode === 'land+dem5a' ? '5A+10B'
+      : demMode === 'dem10b+dem5a' ? '5A+10B'
       : '10B';
     console.log(
       `[dem2cs] z${zoomLevel} ${tileX},${tileY} dem:${_csDemSrcs} sigma=${sigma.toFixed(1)} k=${kernelRadius*2+1}px | ` +
@@ -830,7 +830,7 @@ maplibregl.addProtocol('dem2slope', async (params, abortController) => {
 
     // ズーム別 DEMソース選択（最大 DEM5A まで使用・Q地図1mは使わない）:
     //   全ズーム: DEM10B+DEM5A（DEM5A優先）
-    const demMode = 'land+dem5a';
+    const demMode = 'dem10b+dem5a';
 
     // tileOutputSize=256: DEM5A(256px)をそのまま出力。tileSize:512のソース定義でMapLibreがバイリニア補間して表示
     const [center, right, down, downRight] = await Promise.all([
@@ -935,7 +935,7 @@ maplibregl.addProtocol('dem2relief', async (params, abortController) => {
 
     // ズーム別 DEMソース選択（最大 DEM5A まで使用・Q地図1mは使わない）:
     //   全ズーム: DEM10B+DEM5A（DEM5A優先）
-    const demMode = 'land+dem5a';
+    const demMode = 'dem10b+dem5a';
     // 合成 DEM ビットマップを取得（Q地図 > 陸域統合 > 湖水深 の優先順）
     // データなし（海域・範囲外・404・CORS）の場合は透明タイルを返す
     // tileOutputSize=256: DEM5A(256px)をそのまま出力。tileSize:512のソース定義でMapLibreがバイリニア補間して表示
@@ -1020,7 +1020,7 @@ maplibregl.addProtocol('dem2curve', async (params, abortController) => {
 
     // ズーム別 DEMソース選択（最大 DEM5A まで使用・Q地図1mおよび地域DEMは使わない）:
     //   全ズーム: DEM10B+DEM5A（DEM5A優先）
-    const demMode = 'land+dem5a';
+    const demMode = 'dem10b+dem5a';
     const effectiveRegionalBase  = null;
     const effectiveRegionalExt   = null;
     const effectiveRegionalOrder = 'xy';
@@ -1214,7 +1214,7 @@ maplibregl.addProtocol('dem2rrim', async (params, abortController) => {
     const regionalDemBase  = baseUrl === QCHIZU_DEM_BASE ? null : baseUrl;
     const regionalDemExt   = regionalDemBase ? ext : null;
     const regionalDemOrder = regionalDemBase ? tileOrder : 'xy';
-    const demMode = zoomLevel <= 12 ? 'land+dem5a' : null;
+    const demMode = zoomLevel <= 12 ? 'dem10b+dem5a' : null;
     const effectiveRegionalBase  = zoomLevel >= 16 ? regionalDemBase : null;
     const effectiveRegionalExt   = effectiveRegionalBase ? regionalDemExt : null;
     const effectiveRegionalOrder = effectiveRegionalBase ? regionalDemOrder : 'xy';
@@ -1400,7 +1400,7 @@ maplibregl.addProtocol('dem2rrim', async (params, abortController) => {
       const _rrimT6 = performance.now();
       const _rrimDemSrcs = effectiveRegionalBase ? 'R+Q+5A+10B'
         : demMode === null     ? 'Q+5A+10B'
-        : demMode === 'land+dem5a' ? '5A+10B'
+        : demMode === 'dem10b+dem5a' ? '5A+10B'
         : '10B';
       console.log(
         `[dem2rrim] z${zoomLevel} ${tileX},${tileY} dem:${_rrimDemSrcs} | ` +

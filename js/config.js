@@ -21,7 +21,7 @@ export const DEM1A_BASE       = 'https://cyberjapandata.gsi.go.jp/xyz/dem1a_png'
 // 湖水深タイルは廃止（2026-03-23 コメントアウト）
 // export const LAKEDEPTH_BASE          = 'https://cyberjapandata.gsi.go.jp/xyz/lakedepth';
 // export const LAKEDEPTH_STANDARD_BASE = 'https://cyberjapandata.gsi.go.jp/xyz/lakedepth_standard';
-export const LAND_DEM_BASE    = 'https://cyberjapandata.gsi.go.jp/xyz/dem_png'; // 基盤地図情報DEM10B（10mメッシュ・全国カバレッジ）{z}/{x}/{y}.png
+export const DEM10B_BASE      = 'https://cyberjapandata.gsi.go.jp/xyz/dem_png'; // 基盤地図情報DEM10B（10mメッシュ・全国カバレッジ）{z}/{x}/{y}.png
 
 // gsjdem:// ハンドラは URL から z/x/y を抽出するだけなので任意のパスで可
 export const TERRAIN_URL = 'gsjdem://terrain/{z}/{x}/{y}.png';
