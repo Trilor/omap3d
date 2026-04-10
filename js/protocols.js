@@ -545,6 +545,7 @@ function _csRampMid(min, max, c0, c1, c2, t) {
 
 maplibregl.addProtocol('dem2cs', async (params, abortController) => {
   try {
+  if (_tfContextLost) return { data: _transparentPngBuffer() };
   const request = _parseProtocolTileRequest(params.url, 'dem2cs');
   if (!request) return { data: _transparentPngBuffer() };
   const { urlObj, baseUrl, tileOrder, zoomLevel, tileX, tileY, ext } = request;
@@ -1019,6 +1020,7 @@ maplibregl.addProtocol('dem2relief', async (params, abortController) => {
 
 maplibregl.addProtocol('dem2curve', async (params, abortController) => {
   try {
+    if (_tfContextLost) return { data: _transparentPngBuffer() };
     const request = _parseProtocolTileRequest(params.url, 'dem2curve');
     if (!request) return { data: _transparentPngBuffer() };
     const { urlObj, baseUrl, tileOrder, zoomLevel, tileX, tileY, ext } = request;
@@ -1225,6 +1227,7 @@ const _RRIM_DIRS = [[0,1],[1,1],[1,0],[1,-1],[0,-1],[-1,-1],[-1,0],[-1,1]];
 
 maplibregl.addProtocol('dem2rrim', async (params, abortController) => {
   try {
+    if (_tfContextLost) return { data: _transparentPngBuffer() };
     const request = _parseProtocolTileRequest(params.url, 'dem2rrim');
     if (!request) return { data: _transparentPngBuffer() };
     const { baseUrl, tileOrder, zoomLevel, tileX, tileY, ext } = request;
@@ -1447,5 +1450,41 @@ maplibregl.addProtocol('dem2rrim', async (params, abortController) => {
   }
 });
 
+
+// ================================================================
+// TF.js WebGL コンテキストロスト自動回復
+// GPU 圧迫で全 WebGL コンテキストが失われた後、MapLibre は自動復元するが
+// TF.js は古い（無効な）コンテキストを掴み続けるため CS/RRIM が無音で失敗し続ける。
+// webglcontextrestored でカーネルキャッシュを破棄し TF.js バックエンドを再初期化する。
+// ================================================================
+let _tfContextLost = false;
+
+tf.ready().then(() => {
+  const gl = tf.backend()?.gpgpu?.gl;
+  if (!gl) return; // CPU バックエンドのとき不要
+
+  gl.canvas.addEventListener('webglcontextlost', e => {
+    e.preventDefault(); // ブラウザにコンテキスト復元を促す
+    _tfContextLost = true;
+    console.warn('[protocols] TF.js WebGL コンテキストロスト');
+  });
+
+  gl.canvas.addEventListener('webglcontextrestored', async () => {
+    console.warn('[protocols] TF.js WebGL 復元 → バックエンド再初期化中...');
+    // 旧コンテキストで作成したカーネルキャッシュを破棄（そのまま使うと GPU エラー）
+    for (const { kX, kY } of _csKernelCache.values()) {
+      try { kX.dispose(); kY.dispose(); } catch { /* 無視 */ }
+    }
+    _csKernelCache.clear();
+    try {
+      await tf.setBackend('cpu');   // いったん CPU に退避
+      await tf.setBackend('webgl'); // 新しい WebGL コンテキストで再初期化
+      _tfContextLost = false;
+      console.log('[protocols] TF.js 再初期化完了');
+    } catch (e) {
+      console.error('[protocols] TF.js 再初期化失敗:', e);
+    }
+  });
+});
 
 export { fetchCompositeDemBitmap };
