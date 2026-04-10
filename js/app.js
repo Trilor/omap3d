@@ -226,8 +226,10 @@ const magneticNorthControl = {
     // 右J(S極#ccc): 外右縦→内縁弧CCW→底→外弧CW で閉じる
     icon.style.backgroundImage = `url("data:image/svg+xml;charset=utf-8,${encodeURIComponent(
       '<svg xmlns="http://www.w3.org/2000/svg" width="29" height="29" viewBox="0 0 29 29">' +
-      '<path d="M5.5,4 L11.5,4 L11.5,16 A3,3,0,0,1,14.5,19 L14.5,25 A9,9,0,0,0,5.5,16 Z" fill="#333"/>' +
-      '<path d="M23.5,4 L17.5,4 L17.5,16 A3,3,0,0,0,14.5,19 L14.5,25 A9,9,0,0,1,23.5,16 Z" fill="#ccc"/>' +
+      // 左J(N極#333): 内弧=CCW(sweep=0)で9時→6時短弧、外弧=CW(sweep=1)で6時→9時短弧
+      '<path d="M5.5,4 L11.5,4 L11.5,16 A3,3,0,0,0,14.5,19 L14.5,25 A9,9,0,0,1,5.5,16 Z" fill="#333"/>' +
+      // 右J(S極#ccc): 内弧=CW(sweep=1)で3時→6時短弧、外弧=CCW(sweep=0)で6時→3時短弧
+      '<path d="M23.5,4 L17.5,4 L17.5,16 A3,3,0,0,1,14.5,19 L14.5,25 A9,9,0,0,0,23.5,16 Z" fill="#ccc"/>' +
       '</svg>'
     )}")`;
     btn.appendChild(icon);
