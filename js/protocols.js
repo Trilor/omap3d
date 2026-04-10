@@ -309,10 +309,11 @@ function _scaleToTarget(imgData, targetSize = _COMPOSITE_TARGET_SIZE) {
 // regionalDemBase : 地域DEMのベースURL（dem2cs://地域層の場合のみ指定）
 // regionalDemExt  : 地域DEMの拡張子（'png' または 'webp'）
 // regionalDemOrder: 地域DEM URL の軸順序（'xy' または 'yx'）
-// demMode: null          → DEM10B + DEM5A + Q地図1m（z13-16用）
-//          'dem10b'        → DEM10Bのみ（z≤10用）
-//          'dem10b+dem5a'  → DEM10B + DEM5A（z11-12用）
-//          'dem5a'       → DEM5Aのみ
+// demMode: null               → DEM10B + DEM5A + Q地図1m + 地域DEM（z≥16用）
+//          'dem10b+dem5a+q'  → DEM10B + DEM5A + Q地図1m（地域DEM無し、z15用）
+//          'dem10b+dem5a'    → DEM10B + DEM5A（z14用）
+//          'dem10b'          → DEM10Bのみ（z≤13用）
+//          'dem5a'           → DEM5Aのみ
 async function fetchCompositeDemBitmap(
   z,
   x,
@@ -324,9 +325,9 @@ async function fetchCompositeDemBitmap(
   regionalDemOrder = 'xy',
   tileOutputSize = null  // null = 自動: Q地図使用時→512px、DEM5A/DEM10Bのみ→256px
 ) {
-  const useQ    = demMode === null; // Q地図: 全合成モードのみ使用
-  const useS    = demMode === null || demMode === 'dem5a'  || demMode === 'dem10b+dem5a'; // DEM5A:  全合成 or 単独 or dem10b+dem5a
-  const useDem10b = demMode === null || demMode === 'dem10b' || demMode === 'dem10b+dem5a'; // DEM10B: 全合成 or 単独 or dem10b+dem5a
+  const useQ    = demMode === null || demMode === 'dem10b+dem5a+q'; // Q地図: 全合成モードおよびz15用
+  const useS    = demMode === null || demMode === 'dem10b+dem5a+q' || demMode === 'dem5a' || demMode === 'dem10b+dem5a'; // DEM5A
+  const useDem10b = demMode === null || demMode === 'dem10b+dem5a+q' || demMode === 'dem10b' || demMode === 'dem10b+dem5a'; // DEM10B
   const sUrl    = (useS && z <= 15) ? `${DEM5A_BASE}/${z}/${x}/${y}.png` : null; // DEM5A: maxzoom 15
   const dem10bUrl = (useDem10b && z <= 14) ? `${DEM10B_BASE}/${z}/${x}/${y}.png` : null; // DEM10B: maxzoom 14
   const qUrl    = useQ    ? `${QCHIZU_PROXY_BASE}/${z}/${x}/${y}.webp` : null;
@@ -550,16 +551,17 @@ maplibregl.addProtocol('dem2cs', async (params, abortController) => {
   const regionalDemExt  = regionalDemBase ? ext : null;
   const regionalDemOrder = regionalDemBase ? tileOrder : 'xy';
 
-  // ズーム別 DEMソース選択:
+  // ズーム別 DEMソース選択（demModeで一元管理）:
   //   z≤13: DEM10Bのみ（1px=76m以上・DEM5Aは過剰）
   //   z14 : DEM10B + DEM5A（DEM10B最終有効zoom）
-  //   z15+: DEM5A + Q地図1m（DEM10Bはserver maxzoom 14で自動除外）
-  //   z≥16: + 地域DEM 0.5m（最優先）
+  //   z15 : DEM10B + DEM5A + Q地図1m
+  //   z≥16: 全ソース + 地域DEM 0.5m（null = 地域DEM有効）
   const demMode = zoomLevel <= 13 ? 'dem10b'
                 : zoomLevel === 14 ? 'dem10b+dem5a'
+                : zoomLevel === 15 ? 'dem10b+dem5a+q'
                 : null;
-  // z<16 では地域DEM を使わない（地域DEMは z≥16 の高ズームでのみ有効）
-  const effectiveRegionalBase = zoomLevel >= 16 ? regionalDemBase : null;
+  // demMode === null（z≥16）のみ地域DEMを使用
+  const effectiveRegionalBase = demMode === null ? regionalDemBase : null;
   const effectiveRegionalExt  = effectiveRegionalBase ? regionalDemExt : null;
   const effectiveRegionalOrder = effectiveRegionalBase ? regionalDemOrder : 'xy';
 
@@ -724,9 +726,9 @@ maplibregl.addProtocol('dem2cs', async (params, abortController) => {
     const blob = await outCanvas.convertToBlob({ type: 'image/webp', quality: 0.92 });
     arrayBuffer = await blob.arrayBuffer();
     const _csT6 = performance.now();
-    const _csDemSrcs = effectiveRegionalBase ? 'R+Q+5A+10B'
-      : demMode === null         ? 'Q+5A+10B'
-      : demMode === 'dem10b+dem5a' ? '5A+10B'
+    const _csDemSrcs = demMode === null            ? 'R+Q+5A+10B'
+      : demMode === 'dem10b+dem5a+q' ? 'Q+5A+10B'
+      : demMode === 'dem10b+dem5a'   ? '5A+10B'
       : '10B';
     console.log(
       `[dem2cs] z${zoomLevel} ${tileX},${tileY} dem:${_csDemSrcs} sigma=${sigma.toFixed(1)} k=${kernelRadius*2+1}px | ` +
@@ -1216,10 +1218,14 @@ maplibregl.addProtocol('dem2rrim', async (params, abortController) => {
     const regionalDemBase  = baseUrl === QCHIZU_DEM_BASE ? null : baseUrl;
     const regionalDemExt   = regionalDemBase ? ext : null;
     const regionalDemOrder = regionalDemBase ? tileOrder : 'xy';
+    // ズーム別 DEMソース選択（demModeで一元管理）:
+    //   z≤13: DEM10Bのみ / z14: +DEM5A / z15: +Q地図1m / z≥16(null): +地域DEM
     const demMode = zoomLevel <= 13 ? 'dem10b'
                   : zoomLevel === 14 ? 'dem10b+dem5a'
+                  : zoomLevel === 15 ? 'dem10b+dem5a+q'
                   : null;
-    const effectiveRegionalBase  = zoomLevel >= 16 ? regionalDemBase : null;
+    // demMode === null（z≥16）のみ地域DEMを使用
+    const effectiveRegionalBase  = demMode === null ? regionalDemBase : null;
     const effectiveRegionalExt   = effectiveRegionalBase ? regionalDemExt : null;
     const effectiveRegionalOrder = effectiveRegionalBase ? regionalDemOrder : 'xy';
 
@@ -1402,9 +1408,9 @@ maplibregl.addProtocol('dem2rrim', async (params, abortController) => {
       const rrimBlob = await _upscaleTo512(outCanvas).convertToBlob({ type: 'image/webp', quality: 0.92 });
       rrimArrayBuffer = await rrimBlob.arrayBuffer();
       const _rrimT6 = performance.now();
-      const _rrimDemSrcs = effectiveRegionalBase ? 'R+Q+5A+10B'
-        : demMode === null     ? 'Q+5A+10B'
-        : demMode === 'dem10b+dem5a' ? '5A+10B'
+      const _rrimDemSrcs = demMode === null              ? 'R+Q+5A+10B'
+        : demMode === 'dem10b+dem5a+q'   ? 'Q+5A+10B'
+        : demMode === 'dem10b+dem5a'     ? '5A+10B'
         : '10B';
       console.log(
         `[dem2rrim] z${zoomLevel} ${tileX},${tileY} dem:${_rrimDemSrcs} | ` +
