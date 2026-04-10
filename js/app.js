@@ -5867,8 +5867,6 @@ const selContourInterval = document.getElementById('sel-contour-interval');
 let userContourInterval = 5;
 // 最後に適用した間隔（連続 moveend での無駄な setTiles を防ぐ）
 let lastAppliedContourInterval = null;
-// z≤7 で等高線を非表示済みかどうか（moveend のたびに重複 setLayoutProperty するのを防ぐ）
-let contourHiddenByLowZoom = false;
 
 // zoom レベルに応じた有効な等高線間隔（m）を返す
 // 地理院地形図スケールとの対応：
@@ -5922,23 +5920,8 @@ function applyContourInterval(intervalM) {
 function updateContourAutoInterval() {
   if (!contourCard.classList.contains('active')) return;
 
-  const z = map.getZoom();
-
-  // zoom ≤ 2 では等高線を非表示
-  if (z <= 2) {
-    // 既に非表示済みなら setLayoutProperty の重複呼び出しを省略
-    if (!contourHiddenByLowZoom) {
-      setAllContourVisibility(map, 'none');
-      contourHiddenByLowZoom = true;
-    }
-    lastAppliedContourInterval = null; // zoom上昇時に再描画させる
-    return;
-  }
-  contourHiddenByLowZoom = false; // z>2 に戻ったらフラグをリセット
-
   // z0-z13 の等高線間隔は buildContourThresholds 内で固定値としてURLに埋め込み済みのため、
   // ズームレベルが変わっても URL は変化しない → setTiles を呼ばない。
-  // z≤7 から復帰した場合（lastAppliedContourInterval === null）のみ再適用する。
   if (lastAppliedContourInterval === null) {
     applyContourInterval(userContourInterval);
   }
