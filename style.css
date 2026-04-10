@@ -1283,9 +1283,10 @@ body {
   right: 1px;
   min-height: 20px;
   font-size: var(--font-xs);
+  font-weight: 500;
   padding: 0 5px 1px;
-  color: var(--on-primary);
-  background: var(--overlay-base);
+  color: #111;
+  background: rgba(255, 255, 255, 0.88);
   backdrop-filter: blur(2px);
   -webkit-backdrop-filter: blur(2px);
   display: flex;
@@ -1295,7 +1296,8 @@ body {
 }
 
 .bm-card.active .bm-card-label {
-  background: color-mix(in srgb, var(--primary) 75%, transparent);
+  background: var(--primary);
+  color: #fff;
 }
 
 /* ---- レイヤートグルカード（等高線・磁北線 / 3D表示）横並びレイアウト ---- */
