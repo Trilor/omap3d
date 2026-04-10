@@ -247,10 +247,25 @@ function _releaseGpuTransfer() {
 const _demTileFetchCache = new Map();
 const _DEM_TILE_CACHE_TTL = 15000; // 15秒保持（近傍タイルの処理完了まで十分な時間）
 
+// DEMフェッチ並列数制限（地理院サーバーのレート制限対策）
+// 同時フェッチ数を抑えることで個々のリクエストを速やかに完了させる
+const _DEM_FETCH_CONCURRENCY = 8;
+let _demFetchActive = 0;
+const _demFetchQueue = [];
+function _acquireFetchSlot() {
+  if (_demFetchActive < _DEM_FETCH_CONCURRENCY) { _demFetchActive++; return Promise.resolve(); }
+  return new Promise(resolve => _demFetchQueue.push(resolve));
+}
+function _releaseFetchSlot() {
+  if (_demFetchQueue.length > 0) { _demFetchQueue.shift()(); }
+  else { _demFetchActive--; }
+}
+
 function _cachedFetchImageData(url, signal) {
   const hit = _demTileFetchCache.get(url);
   if (hit) return hit;
   const promise = (async () => {
+    await _acquireFetchSlot();
     try {
       const r = await fetch(url, signal ? { signal } : undefined);
       if (!r.ok) return null; // 404等は正規の「データなし」→キャッシュ保持で再リクエスト抑制
@@ -263,6 +278,8 @@ function _cachedFetchImageData(url, signal) {
       // タイムアウト・ネットワークエラーは一時的な失敗→即キャッシュ削除して再試行可能に
       _demTileFetchCache.delete(url);
       return null;
+    } finally {
+      _releaseFetchSlot();
     }
   })();
   _demTileFetchCache.set(url, promise);
