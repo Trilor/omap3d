@@ -701,7 +701,7 @@ map.on('load', async () => {
     tiles: [`dem2rrim://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp?_init=1`],
     tileSize: 256,
     minzoom: 5,
-    maxzoom: 17, // Q地図1m は z16 まで実データあり、z17 は MapLibre がオーバーズーム
+    maxzoom: 16, // Q地図1m は z16 まで実データあり、z17+ は MapLibre がオーバーズーム
     attribution: '',
   });
   map.addLayer({
