@@ -639,7 +639,7 @@ map.on('load', async () => {
   map.addSource('color-relief', {
     type: 'raster',
     tiles: [`dem2relief://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp?min=0&max=500&_init=1`],
-    tileSize: 512,
+    tileSize: 256,
     minzoom: 5,
     maxzoom: 16, // z16はQ地図で生成可能（CS/RRIMと同設計）
     attribution: '',
@@ -661,7 +661,7 @@ map.on('load', async () => {
   map.addSource('slope-relief', {
     type: 'raster',
     tiles: [`dem2slope://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp?min=0&max=45&_init=1`],
-    tileSize: 512,
+    tileSize: 256,
     minzoom: 5,
     maxzoom: 16, // z16はQ地図で生成可能（CS/RRIMと同設計）
     attribution: '',
@@ -678,7 +678,7 @@ map.on('load', async () => {
   map.addSource('curvature-relief', {
     type: 'raster',
     tiles: [`dem2curve://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp?min=-0.25&max=0.25&_init=1`],
-    tileSize: 512,
+    tileSize: 256,
     minzoom: 5,
     maxzoom: 16, // z16はQ地図で生成可能（CS/RRIMと同設計）
     attribution: '',
@@ -696,7 +696,7 @@ map.on('load', async () => {
   map.addSource('rrim-relief', {
     type: 'raster',
     tiles: [`dem2rrim://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp?_init=1`],
-    tileSize: 512,
+    tileSize: 256,
     minzoom: 5,
     maxzoom: 15, // DEM5A 上限に合わせる（z16+ はオーバーズーム）
     attribution: '',
@@ -713,7 +713,7 @@ map.on('load', async () => {
   map.addSource('cs-relief', {
     type: 'raster',
     tiles: [CS_RELIEF_URL],
-    tileSize: 512,
+    tileSize: 256,
     minzoom: 5,
     maxzoom: 15, // DEM5A 上限に合わせる（z16+ はMapLibreオーバーズーム）
     attribution: '',
@@ -746,7 +746,7 @@ map.on('load', async () => {
     const srcCfg = {
       type: 'raster',
       tiles: [layer.tileUrl],
-      tileSize: 512,
+      tileSize: 256,
       minzoom: layer.minzoom,
       maxzoom: layer.maxzoom,
       bounds: layer.bounds,
