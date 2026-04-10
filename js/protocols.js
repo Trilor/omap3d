@@ -317,6 +317,7 @@ function _scaleToTarget(imgData, targetSize = _COMPOSITE_TARGET_SIZE) {
 //          'dem10b+dem5a'    → DEM10B + DEM5A（z14用）
 //          'dem10b'          → DEM10Bのみ（z≤13用）
 //          'dem5a'           → DEM5Aのみ
+//          'q'               → Q地図1mのみ（qonlyソース用・z16専用）
 async function fetchCompositeDemBitmap(
   z,
   x,
@@ -328,9 +329,9 @@ async function fetchCompositeDemBitmap(
   regionalDemOrder = 'xy',
   tileOutputSize = null  // null = 自動: Q地図使用時→512px、DEM5A/DEM10Bのみ→256px
 ) {
-  const useQ    = demMode === null || demMode === 'dem10b+dem5a+q'; // Q地図: 全合成モードおよびz15用
-  const useS    = demMode === null || demMode === 'dem10b+dem5a+q' || demMode === 'dem5a' || demMode === 'dem10b+dem5a'; // DEM5A
-  const useDem10b = demMode === null || demMode === 'dem10b+dem5a+q' || demMode === 'dem10b' || demMode === 'dem10b+dem5a'; // DEM10B
+  const useQ    = demMode === null || demMode === 'dem10b+dem5a+q' || demMode === 'q'; // Q地図: 全合成・z15・qonlyモード
+  const useS    = demMode === null || demMode === 'dem10b+dem5a+q' || demMode === 'dem5a' || demMode === 'dem10b+dem5a'; // DEM5A（qonlyでは使わない）
+  const useDem10b = demMode === null || demMode === 'dem10b+dem5a+q' || demMode === 'dem10b' || demMode === 'dem10b+dem5a'; // DEM10B（qonlyでは使わない）
   const rUrl = (useQ && regionalDemBase)
     ? regionalDemOrder === 'yx'
       ? `${regionalDemBase}/${z}/${y}/${x}.${regionalDemExt}`
@@ -346,7 +347,7 @@ async function fetchCompositeDemBitmap(
 
   const sUrl     = (useS      && z <= 15) ? `${DEM5A_BASE}/${z}/${x}/${y}.png`         : null; // DEM5A: maxzoom 15
   const dem10bUrl = (useDem10b && z <= 14) ? `${DEM10B_BASE}/${z}/${x}/${y}.png`        : null; // DEM10B: maxzoom 14
-  const qUrl     = (useQ      && z <= 16) ? `${QCHIZU_PROXY_BASE}/${z}/${x}/${y}.webp` : null; // Q地図1m: maxzoom 16
+  const qUrl     = useQ ? `${QCHIZU_PROXY_BASE}/${z}/${x}/${y}.webp` : null; // Q地図1m: maxzoom 16（z16+はsource maxzoom側で制御）
 
   // _cachedFetchImageData でURL単位のPromise共有 → 同一URLの重複fetchを排除
   const [qRaw, sRaw, dem10bRaw, rRaw] = await Promise.all([
@@ -553,11 +554,14 @@ maplibregl.addProtocol('dem2cs', async (params, abortController) => {
   const regionalDemOrder = regionalDemBase ? tileOrder : 'xy';
 
   // ズーム別 DEMソース選択（demModeで一元管理）:
+  //   qonly=1: Q地図のみ（qonlyソース用）
   //   z≤13: DEM10Bのみ（1px=76m以上・DEM5Aは過剰）
   //   z14 : DEM10B + DEM5A（DEM10B最終有効zoom）
   //   z15 : DEM10B + DEM5A + Q地図1m
   //   z≥16: 全ソース + 地域DEM 0.5m（null = 地域DEM有効）
-  const demMode = zoomLevel <= 13 ? 'dem10b'
+  const qonly = urlObj.searchParams.get('qonly') === '1';
+  const demMode = qonly ? 'q'
+                : zoomLevel <= 13 ? 'dem10b'
                 : zoomLevel === 14 ? 'dem10b+dem5a'
                 : zoomLevel === 15 ? 'dem10b+dem5a+q'
                 : null;
@@ -833,8 +837,10 @@ maplibregl.addProtocol('dem2slope', async (params, abortController) => {
     const regionalDemOrder = regionalDemBase ? tileOrder : 'xy';
 
     // ズーム別 DEMソース選択（CS/RRIMと同設計）:
-    //   z≤13: DEM10Bのみ / z14: +DEM5A / z15: +Q地図1m / z≥16(null): +地域DEM
-    const demMode = zoomLevel <= 13 ? 'dem10b'
+    //   qonly=1: Q地図のみ / z≤13: DEM10Bのみ / z14: +DEM5A / z15: +Q地図1m / z≥16(null): +地域DEM
+    const qonly = urlObj.searchParams.get('qonly') === '1';
+    const demMode = qonly ? 'q'
+                  : zoomLevel <= 13 ? 'dem10b'
                   : zoomLevel === 14 ? 'dem10b+dem5a'
                   : zoomLevel === 15 ? 'dem10b+dem5a+q'
                   : null;
@@ -944,8 +950,10 @@ maplibregl.addProtocol('dem2relief', async (params, abortController) => {
     const [, z, x, y] = m;
 
     // ズーム別 DEMソース選択（CS/RRIMと同設計）:
-    //   z≤13: DEM10Bのみ / z14: +DEM5A / z15: +Q地図1m / z≥16(null): Q地図+DEM5A（地域DEM無し）
-    const demMode = +z <= 13 ? 'dem10b'
+    //   qonly=1: Q地図のみ / z≤13: DEM10Bのみ / z14: +DEM5A / z15: +Q地図1m / z≥16(null): Q地図+DEM5A（地域DEM無し）
+    const qonly = urlObj.searchParams.get('qonly') === '1';
+    const demMode = qonly ? 'q'
+                  : +z <= 13 ? 'dem10b'
                   : +z === 14 ? 'dem10b+dem5a'
                   : +z === 15 ? 'dem10b+dem5a+q'
                   : null;
@@ -1032,8 +1040,10 @@ maplibregl.addProtocol('dem2curve', async (params, abortController) => {
     const regionalDemOrder = regionalDemBase ? tileOrder : 'xy';
 
     // ズーム別 DEMソース選択（CS/RRIMと同設計）:
-    //   z≤13: DEM10Bのみ / z14: +DEM5A / z15: +Q地図1m / z≥16(null): +地域DEM
-    const demMode = zoomLevel <= 13 ? 'dem10b'
+    //   qonly=1: Q地図のみ / z≤13: DEM10Bのみ / z14: +DEM5A / z15: +Q地図1m / z≥16(null): +地域DEM
+    const qonly = urlObj.searchParams.get('qonly') === '1';
+    const demMode = qonly ? 'q'
+                  : zoomLevel <= 13 ? 'dem10b'
                   : zoomLevel === 14 ? 'dem10b+dem5a'
                   : zoomLevel === 15 ? 'dem10b+dem5a+q'
                   : null;
@@ -1238,14 +1248,16 @@ maplibregl.addProtocol('dem2rrim', async (params, abortController) => {
     if (_tfContextLost) return { data: _transparentPngBuffer() };
     const request = _parseProtocolTileRequest(params.url, 'dem2rrim');
     if (!request) return { data: _transparentPngBuffer() };
-    const { baseUrl, tileOrder, zoomLevel, tileX, tileY, ext } = request;
+    const { urlObj, baseUrl, tileOrder, zoomLevel, tileX, tileY, ext } = request;
 
     const regionalDemBase  = baseUrl === QCHIZU_DEM_BASE ? null : baseUrl;
     const regionalDemExt   = regionalDemBase ? ext : null;
     const regionalDemOrder = regionalDemBase ? tileOrder : 'xy';
     // ズーム別 DEMソース選択（demModeで一元管理）:
-    //   z≤13: DEM10Bのみ / z14: +DEM5A / z15: +Q地図1m / z≥16(null): +地域DEM
-    const demMode = zoomLevel <= 13 ? 'dem10b'
+    //   qonly=1: Q地図のみ / z≤13: DEM10Bのみ / z14: +DEM5A / z15: +Q地図1m / z≥16(null): +地域DEM
+    const qonly = urlObj.searchParams.get('qonly') === '1';
+    const demMode = qonly ? 'q'
+                  : zoomLevel <= 13 ? 'dem10b'
                   : zoomLevel === 14 ? 'dem10b+dem5a'
                   : zoomLevel === 15 ? 'dem10b+dem5a+q'
                   : null;

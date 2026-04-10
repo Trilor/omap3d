@@ -644,7 +644,7 @@ map.on('load', async () => {
     tiles: [`dem2relief://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp?min=0&max=500&_init=1`],
     tileSize: 256,
     minzoom: 5,
-    maxzoom: 16, // Q地図1m は z16 まで実データあり、z17+ は MapLibre がオーバーズーム
+    maxzoom: 15, // z16+ は MapLibre がオーバーズーム（DEM5A 上限に合わせる）
     attribution: '',
   });
   // 色別標高図レイヤーは等高線レイヤーの下（beforeId）に挿入する。
@@ -666,7 +666,7 @@ map.on('load', async () => {
     tiles: [`dem2slope://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp?min=0&max=45&_init=1`],
     tileSize: 256,
     minzoom: 5,
-    maxzoom: 16, // Q地図1m は z16 まで実データあり、z17+ は MapLibre がオーバーズーム
+    maxzoom: 15, // z16+ は MapLibre がオーバーズーム（DEM5A 上限に合わせる）
     attribution: '',
   });
   map.addLayer({
@@ -683,7 +683,7 @@ map.on('load', async () => {
     tiles: [`dem2curve://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp?min=-0.25&max=0.25&_init=1`],
     tileSize: 256,
     minzoom: 5,
-    maxzoom: 16, // Q地図1m は z16 まで実データあり、z17+ は MapLibre がオーバーズーム
+    maxzoom: 15, // z16+ は MapLibre がオーバーズーム（DEM5A 上限に合わせる）
     attribution: '',
   });
   map.addLayer({
@@ -701,7 +701,7 @@ map.on('load', async () => {
     tiles: [`dem2rrim://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp?_init=1`],
     tileSize: 256,
     minzoom: 5,
-    maxzoom: 16, // Q地図1m は z16 まで実データあり、z17+ は MapLibre がオーバーズーム
+    maxzoom: 15, // z16+ は MapLibre がオーバーズーム（DEM5A 上限に合わせる）
     attribution: '',
   });
   map.addLayer({
@@ -718,7 +718,7 @@ map.on('load', async () => {
     tiles: [CS_RELIEF_URL],
     tileSize: 256,
     minzoom: 5,
-    maxzoom: 16, // Q地図1m は z16 まで実データあり、z17+ は MapLibre がオーバーズーム
+    maxzoom: 15, // z16+ は MapLibre がオーバーズーム（DEM5A 上限に合わせる）
     attribution: '',
   });
 
@@ -729,6 +729,37 @@ map.on('load', async () => {
     layout: { visibility: 'none' },
     paint: { 'raster-opacity': CS_INITIAL_OPACITY, 'raster-fade-duration': 0, 'raster-opacity-transition': { duration: 0, delay: 0 } },
   }, map.getLayer('contour-regular-dem1a') ? 'contour-regular-dem1a' : undefined);
+
+  // ── Q地図専用オーバーレイ（z16実データ・各メインソースの上に重ねる） ──────────────
+  // Q地図1m は z16 タイルを持つため、各オーバーレイを Q地図のみモード（qonly=1）で
+  // minzoom:16/maxzoom:16 の独立ソースとして追加。
+  // z16+ でメインソースのオーバーズームに替わって Q地図 z16 の高品質データを表示する。
+  // Q地図カバレッジ外では null タイルを返すためメインソースのオーバーズームが透けて見える。
+  const _qBase = QCHIZU_DEM_BASE.replace(/^https?:\/\//, '');
+  [
+    { id: 'color-qchizu',    proto: 'dem2relief', params: 'min=0&max=500',           opacity: 'visible',  init: 0 },
+    { id: 'slope-qchizu',    proto: 'dem2slope',  params: 'min=0&max=45',            opacity: 'visible',  init: 0 },
+    { id: 'curvature-qchizu',proto: 'dem2curve',  params: 'min=-0.25&max=0.25',      opacity: 'visible',  init: 0 },
+    { id: 'rrim-qchizu',     proto: 'dem2rrim',   params: '',                        opacity: 'none',     init: 0 },
+    { id: 'cs-qchizu',       proto: 'dem2cs',     params: '',                        opacity: 'none',     init: CS_INITIAL_OPACITY },
+  ].forEach(({ id, proto, params, opacity, init }) => {
+    const qs = params ? `${params}&qonly=1` : 'qonly=1';
+    map.addSource(id, {
+      type: 'raster',
+      tiles: [`${proto}://${_qBase}/{z}/{x}/{y}.webp?${qs}`],
+      tileSize: 256,
+      minzoom: 16,
+      maxzoom: 16, // Q地図1m z16 実データ・z17+ は MapLibre がオーバーズーム
+      attribution: '',
+    });
+    map.addLayer({
+      id: `${id}-layer`,
+      type: 'raster',
+      source: id,
+      layout: { visibility: opacity },
+      paint: { 'raster-opacity': init, 'raster-fade-duration': 0, 'raster-opacity-transition': { duration: 0, delay: 0 } },
+    }, map.getLayer('contour-regular-dem1a') ? 'contour-regular-dem1a' : undefined);
+  });
 
   /*
       ========================================================
@@ -4200,26 +4231,32 @@ function updateCsVisibility() {
   const overlay    = currentOverlay;
 
   // 色別標高図の表示制御（visibility ではなく opacity で切替 — WebGL 初期化を常時維持するため）
+  const sliderVal = parseFloat(document.getElementById('slider-cs').value);
   const showColorRelief = overlay === 'color-relief';
   if (map.getLayer('color-relief-layer')) {
-    const crOpacity = showColorRelief ? parseFloat(document.getElementById('slider-cs').value) : 0;
+    const crOpacity = showColorRelief ? sliderVal : 0;
     map.setPaintProperty('color-relief-layer', 'raster-opacity', crOpacity);
+    if (map.getLayer('color-qchizu-layer')) map.setPaintProperty('color-qchizu-layer', 'raster-opacity', crOpacity);
   }
   const showSlopeRelief = overlay === 'slope';
   if (map.getLayer('slope-relief-layer')) {
-    const slopeOpacity = showSlopeRelief ? parseFloat(document.getElementById('slider-cs').value) : 0;
+    const slopeOpacity = showSlopeRelief ? sliderVal : 0;
     map.setPaintProperty('slope-relief-layer', 'raster-opacity', slopeOpacity);
+    if (map.getLayer('slope-qchizu-layer')) map.setPaintProperty('slope-qchizu-layer', 'raster-opacity', slopeOpacity);
   }
   const showCurvatureRelief = overlay === 'curvature';
   if (map.getLayer('curvature-relief-layer')) {
-    const curvOpacity = showCurvatureRelief ? parseFloat(document.getElementById('slider-cs').value) : 0;
+    const curvOpacity = showCurvatureRelief ? sliderVal : 0;
     map.setPaintProperty('curvature-relief-layer', 'raster-opacity', curvOpacity);
+    if (map.getLayer('curvature-qchizu-layer')) map.setPaintProperty('curvature-qchizu-layer', 'raster-opacity', curvOpacity);
   }
   const showRrimRelief = overlay === 'rrim';
   if (map.getLayer('rrim-relief-layer')) {
     map.setLayoutProperty('rrim-relief-layer', 'visibility', showRrimRelief ? 'visible' : 'none');
+    if (map.getLayer('rrim-qchizu-layer')) map.setLayoutProperty('rrim-qchizu-layer', 'visibility', showRrimRelief ? 'visible' : 'none');
     if (showRrimRelief) {
-      map.setPaintProperty('rrim-relief-layer', 'raster-opacity', parseFloat(document.getElementById('slider-cs').value));
+      map.setPaintProperty('rrim-relief-layer', 'raster-opacity', sliderVal);
+      if (map.getLayer('rrim-qchizu-layer')) map.setPaintProperty('rrim-qchizu-layer', 'raster-opacity', sliderVal);
     }
   }
   // スライダーはカード選択だけで表示（オーバーレイトグルのON/OFFに依存しない）
@@ -4263,8 +4300,10 @@ function updateCsVisibility() {
 
   if (map.getLayer('cs-relief-layer')) {
     map.setLayoutProperty('cs-relief-layer', 'visibility', show1m ? 'visible' : 'none');
+    if (map.getLayer('cs-qchizu-layer')) map.setLayoutProperty('cs-qchizu-layer', 'visibility', show1m ? 'visible' : 'none');
     if (show1m) {
       map.setPaintProperty('cs-relief-layer', 'raster-opacity', parseFloat(sliderCs.value));
+      if (map.getLayer('cs-qchizu-layer')) map.setPaintProperty('cs-qchizu-layer', 'raster-opacity', parseFloat(sliderCs.value));
     }
   }
   REGIONAL_CS_LAYERS.forEach(layer => {
@@ -4508,6 +4547,9 @@ function applyColorReliefTiles() {
   if (!map.getSource('color-relief')) return;
   map.getSource('color-relief').setTiles([
     `dem2relief://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp?min=${crMin}&max=${crMax}`
+  ]);
+  if (map.getSource('color-qchizu')) map.getSource('color-qchizu').setTiles([
+    `dem2relief://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp?min=${crMin}&max=${crMax}&qonly=1`
   ]);
   clearTimeout(_crRepaintTimer);
   let remaining = 20; // 20 × 100ms = 2 秒
@@ -4913,6 +4955,9 @@ function applySlopeReliefTiles() {
   map.getSource('slope-relief').setTiles([
     `dem2slope://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp?min=${srMin}&max=${srMax}`
   ]);
+  if (map.getSource('slope-qchizu')) map.getSource('slope-qchizu').setTiles([
+    `dem2slope://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp?min=${srMin}&max=${srMax}&qonly=1`
+  ]);
   clearTimeout(_srRepaintTimer);
   let remaining = 20;
   const repaint = () => {
@@ -5191,6 +5236,9 @@ function applyCurvatureReliefTiles() {
   map.getSource('curvature-relief').setTiles([
     `dem2curve://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp?min=${cvMin.toFixed(3)}&max=${cvMax.toFixed(3)}`
   ]);
+  if (map.getSource('curvature-qchizu')) map.getSource('curvature-qchizu').setTiles([
+    `dem2curve://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp?min=${cvMin.toFixed(3)}&max=${cvMax.toFixed(3)}&qonly=1`
+  ]);
   clearTimeout(_cvRepaintTimer);
   let remaining = 20;
   const repaint = () => {
@@ -5386,6 +5434,7 @@ sliderCs.addEventListener('input', () => {
   updateSliderGradient(sliderCs);
   if (map.getLayer('cs-relief-layer')) {
     map.setPaintProperty('cs-relief-layer', 'raster-opacity', v);
+    if (map.getLayer('cs-qchizu-layer')) map.setPaintProperty('cs-qchizu-layer', 'raster-opacity', v);
   }
   REGIONAL_CS_LAYERS.forEach(layer => {
     if (map.getLayer(layer.layerId)) {
@@ -5395,15 +5444,19 @@ sliderCs.addEventListener('input', () => {
   // 色別標高図: 選択中のときのみ opacity を更新（非表示時は 0 を維持）
   if (currentOverlay === 'color-relief' && map.getLayer('color-relief-layer')) {
     map.setPaintProperty('color-relief-layer', 'raster-opacity', v);
+    if (map.getLayer('color-qchizu-layer')) map.setPaintProperty('color-qchizu-layer', 'raster-opacity', v);
   }
   if (currentOverlay === 'slope' && map.getLayer('slope-relief-layer')) {
     map.setPaintProperty('slope-relief-layer', 'raster-opacity', v);
+    if (map.getLayer('slope-qchizu-layer')) map.setPaintProperty('slope-qchizu-layer', 'raster-opacity', v);
   }
   if (currentOverlay === 'rrim' && map.getLayer('rrim-relief-layer')) {
     map.setPaintProperty('rrim-relief-layer', 'raster-opacity', v);
+    if (map.getLayer('rrim-qchizu-layer')) map.setPaintProperty('rrim-qchizu-layer', 'raster-opacity', v);
   }
   if (currentOverlay === 'curvature' && map.getLayer('curvature-relief-layer')) {
     map.setPaintProperty('curvature-relief-layer', 'raster-opacity', v);
+    if (map.getLayer('curvature-qchizu-layer')) map.setPaintProperty('curvature-qchizu-layer', 'raster-opacity', v);
   }
   if (currentOverlay === 'rrim') {
     REGIONAL_RRIM_LAYERS.forEach(layer => {
