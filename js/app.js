@@ -730,7 +730,7 @@ map.on('load', async () => {
     const srcCfg = {
       type: 'raster',
       tiles: [layer.tileUrl],
-      tileSize: _rasterTileSize,
+      tileSize: 512,
       minzoom: layer.minzoom,
       maxzoom: layer.maxzoom,
       bounds: layer.bounds,
