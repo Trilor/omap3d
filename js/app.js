@@ -4683,50 +4683,140 @@ function updateColorReliefSource() {
 // テレインタイルが確実にロードされているエリアのみを対象にできる。
 // exaggerated:false で地形誇張の影響を受けない実際の標高値を取得する。
 
-// 3D地形オフ時でも queryTerrainElevation() を使えるよう、一時的に terrain を有効化して
-// タイル読み込みを待ってからサンプリング関数を実行し、元の状態に復元するヘルパー。
-async function _withTerrainQuery(fn) {
-  const hadTerrain = !!map.getTerrain();
-  if (!hadTerrain) {
-    map.setTerrain({ source: 'terrain-dem', exaggeration: 1.0 });
-    // terrain-dem タイルが読み込まれるまで待つ（最大3秒でタイムアウト）
-    await Promise.race([
-      new Promise(r => map.once('idle', r)),
-      new Promise(r => setTimeout(r, 3000)),
-    ]);
-  }
-  try { fn(); } finally {
-    if (!hadTerrain) map.setTerrain(null);
-  }
+// ================================================================
+// DEMタイル直接サンプリング（queryTerrainElevation 不使用・3D地形有効化不要）
+// tileSize:256 設定に合わせて fetchZoom = round(viewZoom + 1)、上限z15
+// ================================================================
+
+function _demFetchZoom() {
+  return Math.min(15, Math.round(map.getZoom() + 1));
+}
+
+// lng/lat → タイル座標 (z, x, y)
+function _lngLatToTileXY(lng, lat, z) {
+  const n = 1 << z;
+  const x = Math.floor((lng + 180) / 360 * n);
+  const latRad = lat * Math.PI / 180;
+  const y = Math.floor((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2 * n);
+  return { x: Math.max(0, Math.min(n - 1, x)), y: Math.max(0, Math.min(n - 1, y)) };
+}
+
+// lng/lat → タイル内ピクセル座標
+function _lngLatToPixelInTile(lng, lat, z, tx, ty, tileSize) {
+  const n = 1 << z;
+  const px = ((lng + 180) / 360 * n - tx) * tileSize;
+  const latRad = lat * Math.PI / 180;
+  const py = ((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2 * n - ty) * tileSize;
+  return {
+    px: Math.floor(Math.max(0, Math.min(tileSize - 1, px))),
+    py: Math.floor(Math.max(0, Math.min(tileSize - 1, py))),
+  };
+}
+
+// 地理院 NumPNG 標高デコード（(R×2^16 + G×2^8 + B) × 0.01、負値対応）
+function _readNumPng(imgData, px, py) {
+  const i = (py * imgData.width + px) * 4;
+  if (imgData.data[i + 3] === 0) return null; // nodata
+  const v = imgData.data[i] * 65536 + imgData.data[i + 1] * 256 + imgData.data[i + 2];
+  return (v >= 8388608 ? v - 16777216 : v) * 0.01;
+}
+
+// タイル ImageData のキャッシュ（同一サンプリング内の重複 fetch を排除）
+const _demDirectCache = new Map();
+function _fetchDemImageData(url) {
+  if (_demDirectCache.has(url)) return _demDirectCache.get(url);
+  const p = (async () => {
+    try {
+      const r = await fetch(url);
+      if (!r.ok) return null;
+      const bm = await createImageBitmap(await r.blob());
+      const cv = new OffscreenCanvas(bm.width, bm.height);
+      cv.getContext('2d').drawImage(bm, 0, 0);
+      bm.close();
+      return cv.getContext('2d').getImageData(0, 0, cv.width, cv.height);
+    } catch { return null; }
+  })();
+  _demDirectCache.set(url, p);
+  setTimeout(() => _demDirectCache.delete(url), 60000);
+  return p;
+}
+
+// lngLat の標高を DEM タイルから直接取得
+async function _demElevationAt(lngLat, z) {
+  const { x, y } = _lngLatToTileXY(lngLat.lng, lngLat.lat, z);
+  const url = z >= 15
+    ? `${QCHIZU_DEM_BASE}/${z}/${x}/${y}.webp`
+    : `${DEM5A_BASE}/${z}/${x}/${y}.png`;
+  const imgData = await _fetchDemImageData(url);
+  if (!imgData) return null;
+  const { px, py } = _lngLatToPixelInTile(lngLat.lng, lngLat.lat, z, x, y, imgData.width);
+  return _readNumPng(imgData, px, py);
+}
+
+// 傾斜角（度）を DEM 直接サンプリングで計算
+async function _estimateSlopeDirect(px, py, z, deltaPx) {
+  const canvas = map.getCanvas();
+  if (px + deltaPx >= canvas.offsetWidth || py + deltaPx >= canvas.offsetHeight) return null;
+  const p00 = map.unproject([px, py]);
+  const p10 = map.unproject([px + deltaPx, py]);
+  const p01 = map.unproject([px, py + deltaPx]);
+  const [h00, h10, h01] = await Promise.all([
+    _demElevationAt(p00, z), _demElevationAt(p10, z), _demElevationAt(p01, z),
+  ]);
+  if (h00 == null || h10 == null || h01 == null) return null;
+  const dX = turf.distance(turf.point([p00.lng, p00.lat]), turf.point([p10.lng, p10.lat]), { units: 'kilometers' }) * 1000;
+  const dY = turf.distance(turf.point([p00.lng, p00.lat]), turf.point([p01.lng, p01.lat]), { units: 'kilometers' }) * 1000;
+  if (!(dX > 0) || !(dY > 0)) return null;
+  return Math.atan(Math.sqrt(((h00 - h10) / dX) ** 2 + ((h00 - h01) / dY) ** 2)) * 180 / Math.PI;
+}
+
+// 曲率を DEM 直接サンプリングで計算（estimateScreenCurvature と同一の cc 正規化を適用）
+async function _estimateCurvatureDirect(px, py, z, deltaPx) {
+  const canvas = map.getCanvas();
+  if (px - deltaPx < 0 || px + deltaPx >= canvas.offsetWidth ||
+      py - deltaPx < 0 || py + deltaPx >= canvas.offsetHeight) return null;
+  const pC = map.unproject([px, py]);
+  const pR = map.unproject([px + deltaPx, py]);
+  const pL = map.unproject([px - deltaPx, py]);
+  const pD = map.unproject([px, py + deltaPx]);
+  const pU = map.unproject([px, py - deltaPx]);
+  const [hC, hR, hL, hD, hU] = await Promise.all([
+    _demElevationAt(pC, z), _demElevationAt(pR, z), _demElevationAt(pL, z),
+    _demElevationAt(pD, z), _demElevationAt(pU, z),
+  ]);
+  if ([hC, hR, hL, hD, hU].some(h => h == null)) return null;
+  const dX = turf.distance(turf.point([pC.lng, pC.lat]), turf.point([pR.lng, pR.lat]), { units: 'kilometers' }) * 1000;
+  const dY = turf.distance(turf.point([pC.lng, pC.lat]), turf.point([pD.lng, pD.lat]), { units: 'kilometers' }) * 1000;
+  if (!(dX > 0) || !(dY > 0)) return null;
+  // プロトコルと同式: neg(Laplacian) / cc
+  const laplacian = -((hR - 2 * hC + hL) / (dX * dX) + (hD - 2 * hC + hU) / (dY * dY));
+  const pixelLength = 156543.04 * Math.cos(map.getCenter().lat * Math.PI / 180) / Math.pow(2, map.getZoom()) * 0.5;
+  const cc = pixelLength < 68 ? Math.max(pixelLength / 2, 1.1) : 0.188 * Math.pow(pixelLength, 1.232);
+  return laplacian / cc;
 }
 
 async function autoFitColorRelief() {
-  await _withTerrainQuery(() => {
-    const GRID = map.getZoom() <= 9 ? 10 : 20; // 10×10=100点 or 20×20=400点
-    // map.unproject() は CSS 論理ピクセルを期待するため offsetWidth/offsetHeight を使用する
-    // （canvas.width/height は DPR 倍の物理ピクセルのため使用してはいけない）
-    const canvas = map.getCanvas();
-    const w = canvas.offsetWidth;
-    const h = canvas.offsetHeight;
-    let globalMin = Infinity, globalMax = -Infinity;
-    for (let r = 0; r < GRID; r++) {
-      for (let c = 0; c < GRID; c++) {
-        const px = (c + 0.5) / GRID * w;
-        const py = (r + 0.5) / GRID * h;
-        const lngLat = map.unproject([px, py]);
-        const elev = map.queryTerrainElevation(lngLat, { exaggerated: false });
-        if (elev == null) continue;
-        if (elev < globalMin) globalMin = elev;
-        if (elev > globalMax) globalMax = elev;
-      }
-    }
-    if (!isFinite(globalMin) || !isFinite(globalMax)) return;
-    const step = 10;
-    crMin = Math.max(0, Math.floor(globalMin / step) * step);
-    crMax = Math.ceil(globalMax  / step) * step;
-    if (crMax <= crMin) crMax = crMin + step;
-    updateColorReliefSource();
-  });
+  const GRID = map.getZoom() <= 9 ? 10 : 20;
+  const z = _demFetchZoom();
+  const canvas = map.getCanvas();
+  const w = canvas.offsetWidth, h = canvas.offsetHeight;
+  const promises = [];
+  for (let r = 0; r < GRID; r++)
+    for (let c = 0; c < GRID; c++)
+      promises.push(_demElevationAt(map.unproject([(c + 0.5) / GRID * w, (r + 0.5) / GRID * h]), z));
+  const elevations = await Promise.all(promises);
+  let globalMin = Infinity, globalMax = -Infinity;
+  for (const e of elevations) {
+    if (e == null) continue;
+    if (e < globalMin) globalMin = e;
+    if (e > globalMax) globalMax = e;
+  }
+  if (!isFinite(globalMin) || !isFinite(globalMax)) return;
+  const step = 10;
+  crMin = Math.max(0, Math.floor(globalMin / step) * step);
+  crMax = Math.ceil(globalMax / step) * step;
+  if (crMax <= crMin) crMax = crMin + step;
+  updateColorReliefSource();
 }
 
 document.getElementById('cr-autofit-btn')?.addEventListener('click', autoFitColorRelief);
@@ -4981,47 +5071,29 @@ function updateSlopeReliefSource() {
   updateSlopeReliefSource();
 })();
 
-function estimateScreenSlopeDegrees(px, py, deltaPx = 4) {
-  const canvas = map.getCanvas();
-  if (px + deltaPx >= canvas.offsetWidth || py + deltaPx >= canvas.offsetHeight) return null;
-  const p00 = map.unproject([px, py]);
-  const p10 = map.unproject([px + deltaPx, py]);
-  const p01 = map.unproject([px, py + deltaPx]);
-  const h00 = map.queryTerrainElevation(p00, { exaggerated: false });
-  const h10 = map.queryTerrainElevation(p10, { exaggerated: false });
-  const h01 = map.queryTerrainElevation(p01, { exaggerated: false });
-  if (h00 == null || h10 == null || h01 == null) return null;
-  const dX = turf.distance(turf.point([p00.lng, p00.lat]), turf.point([p10.lng, p10.lat]), { units: 'kilometers' }) * 1000;
-  const dY = turf.distance(turf.point([p00.lng, p00.lat]), turf.point([p01.lng, p01.lat]), { units: 'kilometers' }) * 1000;
-  if (!(dX > 0) || !(dY > 0)) return null;
-  const gx = (h00 - h10) / dX;
-  const gy = (h00 - h01) / dY;
-  return Math.atan(Math.sqrt(gx * gx + gy * gy)) * 180 / Math.PI;
-}
 
 async function autoFitSlopeRelief() {
-  await _withTerrainQuery(() => {
-    const GRID = map.getZoom() <= 9 ? 10 : 20;
-    const canvas = map.getCanvas();
-    const w = canvas.offsetWidth;
-    const h = canvas.offsetHeight;
-    let globalMin = Infinity, globalMax = -Infinity;
-    for (let r = 0; r < GRID; r++) {
-      for (let c = 0; c < GRID; c++) {
-        const px = (c + 0.5) / GRID * w;
-        const py = (r + 0.5) / GRID * h;
-        const slope = estimateScreenSlopeDegrees(px, py);
-        if (slope == null) continue;
-        if (slope < globalMin) globalMin = slope;
-        if (slope > globalMax) globalMax = slope;
-      }
-    }
-    if (!isFinite(globalMin) || !isFinite(globalMax)) return;
-    srMin = Math.max(0, Math.floor(globalMin));
-    srMax = Math.min(90, Math.ceil(globalMax));
-    if (srMax <= srMin) srMax = Math.min(90, srMin + 1);
-    updateSlopeReliefSource();
-  });
+  const GRID = map.getZoom() <= 9 ? 10 : 20;
+  const z = _demFetchZoom();
+  const canvas = map.getCanvas();
+  const w = canvas.offsetWidth, h = canvas.offsetHeight;
+  const deltaPx = 4;
+  const promises = [];
+  for (let r = 0; r < GRID; r++)
+    for (let c = 0; c < GRID; c++)
+      promises.push(_estimateSlopeDirect((c + 0.5) / GRID * w, (r + 0.5) / GRID * h, z, deltaPx));
+  const slopes = await Promise.all(promises);
+  let globalMin = Infinity, globalMax = -Infinity;
+  for (const s of slopes) {
+    if (s == null) continue;
+    if (s < globalMin) globalMin = s;
+    if (s > globalMax) globalMax = s;
+  }
+  if (!isFinite(globalMin) || !isFinite(globalMax)) return;
+  srMin = Math.max(0, Math.floor(globalMin));
+  srMax = Math.min(90, Math.ceil(globalMax));
+  if (srMax <= srMin) srMax = Math.min(90, srMin + 1);
+  updateSlopeReliefSource();
 }
 
 document.getElementById('sr-autofit-btn')?.addEventListener('click', autoFitSlopeRelief);
@@ -5271,82 +5343,33 @@ function updateCurvatureReliefSource() {
   updateCurvatureReliefSource();
 })();
 
-// ---- 色別曲率: 現在のズーム・緯度から pixelLength を推定（プロトコルと同じ式） ----
-function _estimateCurvaturePixelLength() {
-  const z = map.getZoom();
-  const lat = map.getCenter().lat;
-  // tileSize=512 相当 (256/512=0.5) ← dem2curve プロトコルの設定に合わせる
-  return 156543.04 * Math.cos(lat * Math.PI / 180) / Math.pow(2, z) * 0.5;
-}
-
-// スクリーン座標 (px, py) の曲率を推定（5点有限差分ラプラシアン + cc 正規化）
-// プロトコルの neg(Laplacian(smoothed)) / cc に相当する値を返す
-function estimateScreenCurvature(px, py, deltaPx = 4) {
-  const canvas = map.getCanvas();
-  if (px - deltaPx < 0 || px + deltaPx >= canvas.offsetWidth ||
-      py - deltaPx < 0 || py + deltaPx >= canvas.offsetHeight) return null;
-
-  const pC  = map.unproject([px,           py          ]);
-  const pR  = map.unproject([px + deltaPx, py          ]);
-  const pL  = map.unproject([px - deltaPx, py          ]);
-  const pD  = map.unproject([px,           py + deltaPx]);
-  const pU  = map.unproject([px,           py - deltaPx]);
-
-  const hC = map.queryTerrainElevation(pC, { exaggerated: false });
-  const hR = map.queryTerrainElevation(pR, { exaggerated: false });
-  const hL = map.queryTerrainElevation(pL, { exaggerated: false });
-  const hD = map.queryTerrainElevation(pD, { exaggerated: false });
-  const hU = map.queryTerrainElevation(pU, { exaggerated: false });
-  if ([hC, hR, hL, hD, hU].some(h => h == null)) return null;
-
-  const dX = turf.distance(turf.point([pC.lng, pC.lat]), turf.point([pR.lng, pR.lat]), { units: 'kilometers' }) * 1000;
-  const dY = turf.distance(turf.point([pC.lng, pC.lat]), turf.point([pD.lng, pD.lat]), { units: 'kilometers' }) * 1000;
-  if (!(dX > 0) || !(dY > 0)) return null;
-
-  // 5点ラプラシアン: (h+1 - 2h0 + h-1) / d^2 を x・y 方向で合算
-  const lapX = (hR - 2 * hC + hL) / (dX * dX);
-  const lapY = (hD - 2 * hC + hU) / (dY * dY);
-  // プロトコルは neg(Laplacian) → 符号反転
-  const laplacian = -(lapX + lapY);
-
-  // cc 係数（プロトコルと同式・terrainScale=1 固定）
-  const pixelLength = _estimateCurvaturePixelLength();
-  const cc = pixelLength < 68
-    ? Math.max(pixelLength / 2, 1.1)
-    : 0.188 * Math.pow(pixelLength, 1.232);
-
-  return laplacian / cc;
-}
-
 // ---- 色別曲率: 表示範囲から自動フィット ----
 async function autoFitCurvatureRelief() {
-  await _withTerrainQuery(() => {
-    const GRID = map.getZoom() <= 9 ? 8 : 15;
-    const canvas = map.getCanvas();
-    const w = canvas.offsetWidth;
-    const h = canvas.offsetHeight;
-    // deltaPx: グリッドサイズに対応した有限差分幅（小さすぎると noisy）
-    const deltaPx = Math.max(4, Math.round(w / (GRID * 3)));
-    let globalMin = Infinity, globalMax = -Infinity;
-    for (let r = 0; r < GRID; r++) {
-      for (let c = 0; c < GRID; c++) {
-        const px = (c + 0.5) / GRID * w;
-        const py = (r + 0.5) / GRID * h;
-        const curv = estimateScreenCurvature(px, py, deltaPx);
-        if (curv == null) continue;
-        if (curv < globalMin) globalMin = curv;
-        if (curv > globalMax) globalMax = curv;
-      }
-    }
-    if (!isFinite(globalMin) || !isFinite(globalMax)) return;
-    const step = 0.001;
-    // 余白 10% を加えてスライダー上限内に収める
-    const margin = Math.max((globalMax - globalMin) * 0.1, step);
-    cvMin = Math.max(-0.1, Math.round((globalMin - margin) / step) * step);
-    cvMax = Math.min( 0.1, Math.round((globalMax + margin) / step) * step);
-    if (cvMax <= cvMin) cvMax = Math.min(0.1, cvMin + step);
-    updateCurvatureReliefSource();
-  });
+  const GRID = map.getZoom() <= 9 ? 8 : 15;
+  const z = _demFetchZoom();
+  const canvas = map.getCanvas();
+  const w = canvas.offsetWidth, h = canvas.offsetHeight;
+  // deltaPx: グリッドサイズに対応した有限差分幅（小さすぎると noisy）
+  const deltaPx = Math.max(4, Math.round(w / (GRID * 3)));
+  const promises = [];
+  for (let r = 0; r < GRID; r++)
+    for (let c = 0; c < GRID; c++)
+      promises.push(_estimateCurvatureDirect((c + 0.5) / GRID * w, (r + 0.5) / GRID * h, z, deltaPx));
+  const curvatures = await Promise.all(promises);
+  let globalMin = Infinity, globalMax = -Infinity;
+  for (const cv of curvatures) {
+    if (cv == null) continue;
+    if (cv < globalMin) globalMin = cv;
+    if (cv > globalMax) globalMax = cv;
+  }
+  if (!isFinite(globalMin) || !isFinite(globalMax)) return;
+  const step = 0.001;
+  // 余白 10% を加えてスライダー上限内に収める
+  const margin = Math.max((globalMax - globalMin) * 0.1, step);
+  cvMin = Math.max(-0.1, Math.round((globalMin - margin) / step) * step);
+  cvMax = Math.min( 0.1, Math.round((globalMax + margin) / step) * step);
+  if (cvMax <= cvMin) cvMax = Math.min(0.1, cvMin + step);
+  updateCurvatureReliefSource();
 }
 
 document.getElementById('cv-autofit-btn')?.addEventListener('click', autoFitCurvatureRelief);
