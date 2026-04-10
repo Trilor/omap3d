@@ -733,6 +733,7 @@ maplibregl.addProtocol('dem2cs', async (params, abortController) => {
     const _csDemSrcs = demMode === null            ? 'R+Q+5A+10B'
       : demMode === 'dem10b+dem5a+q' ? 'Q+5A+10B'
       : demMode === 'dem10b+dem5a'   ? '5A+10B'
+      : demMode === 'q'             ? 'Q'
       : '10B';
     console.log(
       `[dem2cs] z${zoomLevel} ${tileX},${tileY} dem:${_csDemSrcs} sigma=${sigma.toFixed(1)} k=${kernelRadius*2+1}px | ` +
@@ -1448,6 +1449,7 @@ maplibregl.addProtocol('dem2rrim', async (params, abortController) => {
       const _rrimDemSrcs = demMode === null              ? 'R+Q+5A+10B'
         : demMode === 'dem10b+dem5a+q'   ? 'Q+5A+10B'
         : demMode === 'dem10b+dem5a'     ? '5A+10B'
+        : demMode === 'q'               ? 'Q'
         : '10B';
       console.log(
         `[dem2rrim] z${zoomLevel} ${tileX},${tileY} dem:${_rrimDemSrcs} | ` +
