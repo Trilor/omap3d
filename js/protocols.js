@@ -272,13 +272,12 @@ function _cachedFetchImageData(url, signal) {
   }, _DEM_TILE_CACHE_TTL));
   return promise;
 }
-// 合成タイルの出力サイズ（tileSize:512 のMapLibreソース定義と整合）
-const _COMPOSITE_TARGET_SIZE = 512;
+// 合成タイルの出力サイズ（tileSize:256 のMapLibreソース定義と整合）
+const _COMPOSITE_TARGET_SIZE = 256;
 
-// 最終出力画像（RGB）を 512px に bilinear 拡大して返す。
+// 最終出力画像（RGB）を _COMPOSITE_TARGET_SIZE にリサイズして返す。
 // 入力DEMデータ（NumPNG高度値）ではなく完成済みRGB画像を対象とするため
 // bilinear補間しても高度値の破壊は起きない。
-// DEM5A(256px)出力をtileSize:512のMapLibreソースと一致させ格子の視認性を下げる。
 function _upscaleTo512(canvas) {
   if (canvas.width === _COMPOSITE_TARGET_SIZE) return canvas;
   const dst = new OffscreenCanvas(_COMPOSITE_TARGET_SIZE, _COMPOSITE_TARGET_SIZE);
