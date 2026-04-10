@@ -230,9 +230,8 @@ function _createSemaphore(concurrency) {
 }
 
 // GPU計算セマフォ（TF.js GPU処理全体の同時実行数を制限）
-// 同時実行が多いとGPUテクスチャが積み上がりWebGLコンテキストロストの原因になる。
-// concurrency=2 でGPUメモリ使用量を抑えてクラッシュを回避する。
-const _gpuTransferSem = _createSemaphore(2);
+// 複数タイルが同時に tf.browser.toPixels を呼ぶとGPUキューが詰まるため制限する。
+const _gpuTransferSem = _createSemaphore(4);
 function _acquireGpuTransfer() { return _gpuTransferSem.acquire(); }
 function _releaseGpuTransfer() { _gpuTransferSem.release(); }
 
