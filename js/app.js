@@ -4682,41 +4682,51 @@ function updateColorReliefSource() {
 // getBounds() の lng/lat 均等分割より描画済みキャンバス領域に忠実で
 // テレインタイルが確実にロードされているエリアのみを対象にできる。
 // exaggerated:false で地形誇張の影響を受けない実際の標高値を取得する。
-function autoFitColorRelief(_retry = false) {
-  // 低ズームでは地形タイルの同時リクエスト数を抑えるためグリッドを縮小
-  const GRID = map.getZoom() <= 9 ? 10 : 20; // 10×10=100点 or 20×20=400点
-  // map.unproject() は CSS 論理ピクセルを期待するため offsetWidth/offsetHeight を使用する
-  // （canvas.width/height は DPR 倍の物理ピクセルのため使用してはいけない）
-  const canvas = map.getCanvas();
-  const w = canvas.offsetWidth;
-  const h = canvas.offsetHeight;
 
-  let globalMin = Infinity, globalMax = -Infinity;
+// 3D地形オフ時でも queryTerrainElevation() を使えるよう、一時的に terrain を有効化して
+// タイル読み込みを待ってからサンプリング関数を実行し、元の状態に復元するヘルパー。
+async function _withTerrainQuery(fn) {
+  const hadTerrain = !!map.getTerrain();
+  if (!hadTerrain) {
+    map.setTerrain({ source: 'terrain-dem', exaggeration: 1.0 });
+    // terrain-dem タイルが読み込まれるまで待つ（最大3秒でタイムアウト）
+    await Promise.race([
+      new Promise(r => map.once('idle', r)),
+      new Promise(r => setTimeout(r, 3000)),
+    ]);
+  }
+  try { fn(); } finally {
+    if (!hadTerrain) map.setTerrain(null);
+  }
+}
 
-  for (let r = 0; r < GRID; r++) {
-    for (let c = 0; c < GRID; c++) {
-      const px = (c + 0.5) / GRID * w;
-      const py = (r + 0.5) / GRID * h;
-      const lngLat = map.unproject([px, py]);
-      const elev = map.queryTerrainElevation(lngLat, { exaggerated: false });
-      if (elev == null) continue;
-      if (elev < globalMin) globalMin = elev;
-      if (elev > globalMax) globalMax = elev;
+async function autoFitColorRelief() {
+  await _withTerrainQuery(() => {
+    const GRID = map.getZoom() <= 9 ? 10 : 20; // 10×10=100点 or 20×20=400点
+    // map.unproject() は CSS 論理ピクセルを期待するため offsetWidth/offsetHeight を使用する
+    // （canvas.width/height は DPR 倍の物理ピクセルのため使用してはいけない）
+    const canvas = map.getCanvas();
+    const w = canvas.offsetWidth;
+    const h = canvas.offsetHeight;
+    let globalMin = Infinity, globalMax = -Infinity;
+    for (let r = 0; r < GRID; r++) {
+      for (let c = 0; c < GRID; c++) {
+        const px = (c + 0.5) / GRID * w;
+        const py = (r + 0.5) / GRID * h;
+        const lngLat = map.unproject([px, py]);
+        const elev = map.queryTerrainElevation(lngLat, { exaggerated: false });
+        if (elev == null) continue;
+        if (elev < globalMin) globalMin = elev;
+        if (elev > globalMax) globalMax = elev;
+      }
     }
-  }
-
-  if (!isFinite(globalMin) || !isFinite(globalMax)) {
-    // 地形タイル未ロードの場合、idle 後に1回だけリトライ
-    if (!_retry) map.once('idle', () => { if (currentOverlay === 'color-relief') autoFitColorRelief(true); });
-    return;
-  }
-
-  const step = 10;
-  crMin = Math.max(0, Math.floor(globalMin / step) * step);
-  crMax = Math.ceil(globalMax  / step) * step;
-  if (crMax <= crMin) crMax = crMin + step;
-
-  updateColorReliefSource();
+    if (!isFinite(globalMin) || !isFinite(globalMax)) return;
+    const step = 10;
+    crMin = Math.max(0, Math.floor(globalMin / step) * step);
+    crMax = Math.ceil(globalMax  / step) * step;
+    if (crMax <= crMin) crMax = crMin + step;
+    updateColorReliefSource();
+  });
 }
 
 document.getElementById('cr-autofit-btn')?.addEventListener('click', autoFitColorRelief);
@@ -4989,32 +4999,29 @@ function estimateScreenSlopeDegrees(px, py, deltaPx = 4) {
   return Math.atan(Math.sqrt(gx * gx + gy * gy)) * 180 / Math.PI;
 }
 
-function autoFitSlopeRelief(_retry = false) {
-  const GRID = map.getZoom() <= 9 ? 10 : 20;
-  const canvas = map.getCanvas();
-  const w = canvas.offsetWidth;
-  const h = canvas.offsetHeight;
-  let globalMin = Infinity, globalMax = -Infinity;
-
-  for (let r = 0; r < GRID; r++) {
-    for (let c = 0; c < GRID; c++) {
-      const px = (c + 0.5) / GRID * w;
-      const py = (r + 0.5) / GRID * h;
-      const slope = estimateScreenSlopeDegrees(px, py);
-      if (slope == null) continue;
-      if (slope < globalMin) globalMin = slope;
-      if (slope > globalMax) globalMax = slope;
+async function autoFitSlopeRelief() {
+  await _withTerrainQuery(() => {
+    const GRID = map.getZoom() <= 9 ? 10 : 20;
+    const canvas = map.getCanvas();
+    const w = canvas.offsetWidth;
+    const h = canvas.offsetHeight;
+    let globalMin = Infinity, globalMax = -Infinity;
+    for (let r = 0; r < GRID; r++) {
+      for (let c = 0; c < GRID; c++) {
+        const px = (c + 0.5) / GRID * w;
+        const py = (r + 0.5) / GRID * h;
+        const slope = estimateScreenSlopeDegrees(px, py);
+        if (slope == null) continue;
+        if (slope < globalMin) globalMin = slope;
+        if (slope > globalMax) globalMax = slope;
+      }
     }
-  }
-
-  if (!isFinite(globalMin) || !isFinite(globalMax)) {
-    if (!_retry) map.once('idle', () => { if (currentOverlay === 'slope') autoFitSlopeRelief(true); });
-    return;
-  }
-  srMin = Math.max(0, Math.floor(globalMin));
-  srMax = Math.min(90, Math.ceil(globalMax));
-  if (srMax <= srMin) srMax = Math.min(90, srMin + 1);
-  updateSlopeReliefSource();
+    if (!isFinite(globalMin) || !isFinite(globalMax)) return;
+    srMin = Math.max(0, Math.floor(globalMin));
+    srMax = Math.min(90, Math.ceil(globalMax));
+    if (srMax <= srMin) srMax = Math.min(90, srMin + 1);
+    updateSlopeReliefSource();
+  });
 }
 
 document.getElementById('sr-autofit-btn')?.addEventListener('click', autoFitSlopeRelief);
@@ -5312,39 +5319,34 @@ function estimateScreenCurvature(px, py, deltaPx = 4) {
 }
 
 // ---- 色別曲率: 表示範囲から自動フィット ----
-function autoFitCurvatureRelief(_retry = false) {
-  const GRID = map.getZoom() <= 9 ? 8 : 15;
-  const canvas = map.getCanvas();
-  const w = canvas.offsetWidth;
-  const h = canvas.offsetHeight;
-  // deltaPx: グリッドサイズに対応した有限差分幅（小さすぎると noisy）
-  const deltaPx = Math.max(4, Math.round(w / (GRID * 3)));
-  let globalMin = Infinity, globalMax = -Infinity;
-
-  for (let r = 0; r < GRID; r++) {
-    for (let c = 0; c < GRID; c++) {
-      const px = (c + 0.5) / GRID * w;
-      const py = (r + 0.5) / GRID * h;
-      const curv = estimateScreenCurvature(px, py, deltaPx);
-      if (curv == null) continue;
-      if (curv < globalMin) globalMin = curv;
-      if (curv > globalMax) globalMax = curv;
+async function autoFitCurvatureRelief() {
+  await _withTerrainQuery(() => {
+    const GRID = map.getZoom() <= 9 ? 8 : 15;
+    const canvas = map.getCanvas();
+    const w = canvas.offsetWidth;
+    const h = canvas.offsetHeight;
+    // deltaPx: グリッドサイズに対応した有限差分幅（小さすぎると noisy）
+    const deltaPx = Math.max(4, Math.round(w / (GRID * 3)));
+    let globalMin = Infinity, globalMax = -Infinity;
+    for (let r = 0; r < GRID; r++) {
+      for (let c = 0; c < GRID; c++) {
+        const px = (c + 0.5) / GRID * w;
+        const py = (r + 0.5) / GRID * h;
+        const curv = estimateScreenCurvature(px, py, deltaPx);
+        if (curv == null) continue;
+        if (curv < globalMin) globalMin = curv;
+        if (curv > globalMax) globalMax = curv;
+      }
     }
-  }
-
-  if (!isFinite(globalMin) || !isFinite(globalMax)) {
-    if (!_retry) map.once('idle', () => { if (currentOverlay === 'curvature') autoFitCurvatureRelief(true); });
-    return;
-  }
-
-  const step = 0.001;
-  // 余白 10% を加えてスライダー上限内に収める
-  const margin = Math.max((globalMax - globalMin) * 0.1, step);
-  cvMin = Math.max(-0.1, Math.round((globalMin - margin) / step) * step);
-  cvMax = Math.min( 0.1, Math.round((globalMax + margin) / step) * step);
-  if (cvMax <= cvMin) cvMax = Math.min(0.1, cvMin + step);
-
-  updateCurvatureReliefSource();
+    if (!isFinite(globalMin) || !isFinite(globalMax)) return;
+    const step = 0.001;
+    // 余白 10% を加えてスライダー上限内に収める
+    const margin = Math.max((globalMax - globalMin) * 0.1, step);
+    cvMin = Math.max(-0.1, Math.round((globalMin - margin) / step) * step);
+    cvMax = Math.min( 0.1, Math.round((globalMax + margin) / step) * step);
+    if (cvMax <= cvMin) cvMax = Math.min(0.1, cvMin + step);
+    updateCurvatureReliefSource();
+  });
 }
 
 document.getElementById('cv-autofit-btn')?.addEventListener('click', autoFitCurvatureRelief);
