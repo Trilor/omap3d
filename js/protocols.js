@@ -309,30 +309,6 @@ function _scaleToTarget(imgData, targetSize = _COMPOSITE_TARGET_SIZE) {
   return dstCtx.getImageData(0, 0, targetSize, targetSize);
 }
 
-// DEMタイルを maxZ まで実データでフェッチし、z > maxZ の場合は親タイルをクロップして代用する。
-// 各DEMソースの maxzoom を超えるズームレベルでも空白タイルにならずオーバーレイを維持できる。
-async function _fetchDemCropped(baseUrl, ext, z, x, y, maxZ, signal = null) {
-  const dz = Math.max(0, z - maxZ);        // 親タイル方向への距離（0 = クランプ不要）
-  const pz = z - dz;                        // 実際にフェッチするズームレベル
-  const px = x >> dz;                       // 親タイルの x
-  const py = y >> dz;                       // 親タイルの y
-  const url = `${baseUrl}/${pz}/${px}/${py}.${ext}`;
-  const data = signal ? await _cachedFetchImageData(url, signal) : await _cachedFetchImageData(url);
-  if (!data || dz === 0) return data;       // dz=0 はそのまま返す
-  // 親タイルから対象サブ領域を切り出してオリジナルタイルサイズにスケールアップ
-  const W  = data.width;
-  const sz = Math.max(1, W >> dz);          // サブ領域のピクセルサイズ
-  const ox = (x - (px << dz)) * sz;         // 親タイル内の左上 x オフセット
-  const oy = (y - (py << dz)) * sz;         // 親タイル内の左上 y オフセット
-  const src = new OffscreenCanvas(W, W);
-  src.getContext('2d').putImageData(data, 0, 0);
-  const dst = new OffscreenCanvas(W, W);
-  const dstCtx = dst.getContext('2d');
-  dstCtx.imageSmoothingEnabled = false;     // 最近傍補間（高度値の破壊を防ぐ）
-  dstCtx.drawImage(src, ox, oy, sz, sz, 0, 0, W, W);
-  return dstCtx.getImageData(0, 0, W, W);
-}
-
 // regionalDemBase : 地域DEMのベースURL（dem2cs://地域層の場合のみ指定）
 // regionalDemExt  : 地域DEMの拡張子（'png' または 'webp'）
 // regionalDemOrder: 地域DEM URL の軸順序（'xy' または 'yx'）
@@ -368,13 +344,16 @@ async function fetchCompositeDemBitmap(
     ? AbortSignal.any([signal, AbortSignal.timeout(5000)])
     : signal;
 
-  // _fetchDemCropped: maxzoom超えの場合は親タイルをクロップして代用（オーバーレイ消え防止）
-  // Q地図1m: maxzoom 16 / DEM5A: maxzoom 15 / DEM10B: maxzoom 14
+  const sUrl     = (useS      && z <= 15) ? `${DEM5A_BASE}/${z}/${x}/${y}.png`         : null; // DEM5A: maxzoom 15
+  const dem10bUrl = (useDem10b && z <= 14) ? `${DEM10B_BASE}/${z}/${x}/${y}.png`        : null; // DEM10B: maxzoom 14
+  const qUrl     = (useQ      && z <= 16) ? `${QCHIZU_PROXY_BASE}/${z}/${x}/${y}.webp` : null; // Q地図1m: maxzoom 16
+
+  // _cachedFetchImageData でURL単位のPromise共有 → 同一URLの重複fetchを排除
   const [qRaw, sRaw, dem10bRaw, rRaw] = await Promise.all([
-    useQ      ? _fetchDemCropped(QCHIZU_PROXY_BASE, 'webp', z, x, y, 16, qSignal) : Promise.resolve(null),
-    useS      ? _fetchDemCropped(DEM5A_BASE,        'png',  z, x, y, 15)           : Promise.resolve(null),
-    useDem10b ? _fetchDemCropped(DEM10B_BASE,       'png',  z, x, y, 14)           : Promise.resolve(null),
-    rUrl      ? _cachedFetchImageData(rUrl)                                          : Promise.resolve(null),
+    qUrl      ? _cachedFetchImageData(qUrl, qSignal) : Promise.resolve(null),
+    sUrl      ? _cachedFetchImageData(sUrl)           : Promise.resolve(null),
+    dem10bUrl ? _cachedFetchImageData(dem10bUrl)      : Promise.resolve(null),
+    rUrl      ? _cachedFetchImageData(rUrl)           : Promise.resolve(null),
   ]);
   if (!qRaw && !sRaw && !dem10bRaw && !rRaw) return null;
 
