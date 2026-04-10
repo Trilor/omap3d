@@ -333,7 +333,7 @@ async function fetchCompositeDemBitmap(
   const useDem10b = demMode === null || demMode === 'dem10b+dem5a+q' || demMode === 'dem10b' || demMode === 'dem10b+dem5a'; // DEM10B
   const sUrl    = (useS && z <= 15) ? `${DEM5A_BASE}/${z}/${x}/${y}.png` : null; // DEM5A: maxzoom 15
   const dem10bUrl = (useDem10b && z <= 14) ? `${DEM10B_BASE}/${z}/${x}/${y}.png` : null; // DEM10B: maxzoom 14
-  const qUrl    = useQ    ? `${QCHIZU_PROXY_BASE}/${z}/${x}/${y}.webp` : null;
+  const qUrl    = (useQ && z <= 16) ? `${QCHIZU_PROXY_BASE}/${z}/${x}/${y}.webp` : null; // Q地図1m: maxzoom 16
   // 湖水深タイルはコメントアウト（2026-03-23 廃止）
   // const lUrl  = `${LAKEDEPTH_BASE}/${z}/${x}/${y}.png`;
   // const lsUrl = `${LAKEDEPTH_STANDARD_BASE}/${z}/${x}/${y}.png`;
