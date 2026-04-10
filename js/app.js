@@ -641,7 +641,7 @@ map.on('load', async () => {
     tiles: [`dem2relief://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp?min=0&max=500&_init=1`],
     tileSize: 512,
     minzoom: 5,
-    maxzoom: 15, // DEM5Aの提供上限(15)に合わせる
+    maxzoom: 16, // z16はQ地図で生成可能（CS/RRIMと同設計）
     attribution: '',
   });
   // 色別標高図レイヤーは等高線レイヤーの下（beforeId）に挿入する。
@@ -663,7 +663,7 @@ map.on('load', async () => {
     tiles: [`dem2slope://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp?min=0&max=45&_init=1`],
     tileSize: 512,
     minzoom: 5,
-    maxzoom: 15, // DEM5Aの提供上限(15)に合わせる
+    maxzoom: 16, // z16はQ地図で生成可能（CS/RRIMと同設計）
     attribution: '',
   });
   map.addLayer({
@@ -680,7 +680,7 @@ map.on('load', async () => {
     tiles: [`dem2curve://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp?min=-0.25&max=0.25&_init=1`],
     tileSize: 512,
     minzoom: 5,
-    maxzoom: 15, // DEM5Aの提供上限(15)に合わせる
+    maxzoom: 16, // z16はQ地図で生成可能（CS/RRIMと同設計）
     attribution: '',
   });
   map.addLayer({

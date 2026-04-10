@@ -832,16 +832,22 @@ maplibregl.addProtocol('dem2slope', async (params, abortController) => {
     const regionalDemExt = regionalDemBase ? ext : null;
     const regionalDemOrder = regionalDemBase ? tileOrder : 'xy';
 
-    // ズーム別 DEMソース選択（Q地図1mは使わない）:
-    //   z≤13: DEM10Bのみ / z14+: DEM10B+DEM5A（DEM10Bはz15+で自動除外）
-    const demMode = zoomLevel <= 13 ? 'dem10b' : 'dem10b+dem5a';
+    // ズーム別 DEMソース選択（CS/RRIMと同設計）:
+    //   z≤13: DEM10Bのみ / z14: +DEM5A / z15: +Q地図1m / z≥16(null): +地域DEM
+    const demMode = zoomLevel <= 13 ? 'dem10b'
+                  : zoomLevel === 14 ? 'dem10b+dem5a'
+                  : zoomLevel === 15 ? 'dem10b+dem5a+q'
+                  : null;
+    const effectiveRegionalBase = demMode === null ? regionalDemBase : null;
+    const effectiveRegionalExt  = effectiveRegionalBase ? regionalDemExt : null;
+    const effectiveRegionalOrder = effectiveRegionalBase ? regionalDemOrder : 'xy';
 
-    // tileOutputSize=256: DEM5A(256px)をそのまま出力。tileSize:512のソース定義でMapLibreがバイリニア補間して表示
+    // tileOutputSize=null: Q地図使用時は512px、DEM5A/10Bのみ時は256px（自動）
     const [center, right, down, downRight] = await Promise.all([
-      fetchCompositeDemBitmap(zoomLevel, tileX, tileY, abortController.signal, regionalDemBase, regionalDemExt, demMode, regionalDemOrder, 256),
-      fetchCompositeDemBitmap(zoomLevel, tileX + 1, tileY, abortController.signal, regionalDemBase, regionalDemExt, demMode, regionalDemOrder, 256),
-      fetchCompositeDemBitmap(zoomLevel, tileX, tileY + 1, abortController.signal, regionalDemBase, regionalDemExt, demMode, regionalDemOrder, 256),
-      fetchCompositeDemBitmap(zoomLevel, tileX + 1, tileY + 1, abortController.signal, regionalDemBase, regionalDemExt, demMode, regionalDemOrder, 256),
+      fetchCompositeDemBitmap(zoomLevel, tileX, tileY, abortController.signal, effectiveRegionalBase, effectiveRegionalExt, demMode, effectiveRegionalOrder, null),
+      fetchCompositeDemBitmap(zoomLevel, tileX + 1, tileY, abortController.signal, effectiveRegionalBase, effectiveRegionalExt, demMode, effectiveRegionalOrder, null),
+      fetchCompositeDemBitmap(zoomLevel, tileX, tileY + 1, abortController.signal, effectiveRegionalBase, effectiveRegionalExt, demMode, effectiveRegionalOrder, null),
+      fetchCompositeDemBitmap(zoomLevel, tileX + 1, tileY + 1, abortController.signal, effectiveRegionalBase, effectiveRegionalExt, demMode, effectiveRegionalOrder, null),
     ]);
     if (!center) return { data: _transparentPngBuffer() };
 
@@ -937,13 +943,15 @@ maplibregl.addProtocol('dem2relief', async (params, abortController) => {
     if (!m) return { data: _transparentPngBuffer() };
     const [, z, x, y] = m;
 
-    // ズーム別 DEMソース選択（Q地図1mは使わない）:
-    //   z≤13: DEM10Bのみ / z14+: DEM10B+DEM5A（DEM10Bはz15+で自動除外）
-    const demMode = +z <= 13 ? 'dem10b' : 'dem10b+dem5a';
-    // 合成 DEM ビットマップを取得（Q地図 > 陸域統合 > 湖水深 の優先順）
+    // ズーム別 DEMソース選択（CS/RRIMと同設計）:
+    //   z≤13: DEM10Bのみ / z14: +DEM5A / z15: +Q地図1m / z≥16(null): Q地図+DEM5A（地域DEM無し）
+    const demMode = +z <= 13 ? 'dem10b'
+                  : +z === 14 ? 'dem10b+dem5a'
+                  : +z === 15 ? 'dem10b+dem5a+q'
+                  : null;
     // データなし（海域・範囲外・404・CORS）の場合は透明タイルを返す
-    // tileOutputSize=256: DEM5A(256px)をそのまま出力。tileSize:512のソース定義でMapLibreがバイリニア補間して表示
-    const bitmap = await fetchCompositeDemBitmap(z, x, y, abortController.signal, null, 'png', demMode, 'xy', 256);
+    // tileOutputSize=null: Q地図使用時は512px、DEM5A/10Bのみ時は256px（自動）
+    const bitmap = await fetchCompositeDemBitmap(z, x, y, abortController.signal, null, 'png', demMode, 'xy', null);
     if (!bitmap) return { data: _transparentPngBuffer() };
 
     // NumPNG → RGB 色別標高図へ変換
@@ -1022,15 +1030,18 @@ maplibregl.addProtocol('dem2curve', async (params, abortController) => {
     const regionalDemExt  = regionalDemBase ? ext : null;
     const regionalDemOrder = regionalDemBase ? tileOrder : 'xy';
 
-    // ズーム別 DEMソース選択（Q地図1mおよび地域DEMは使わない）:
-    //   z≤13: DEM10Bのみ / z14+: DEM10B+DEM5A（DEM10Bはz15+で自動除外）
-    const demMode = zoomLevel <= 13 ? 'dem10b' : 'dem10b+dem5a';
-    const effectiveRegionalBase  = null;
-    const effectiveRegionalExt   = null;
-    const effectiveRegionalOrder = 'xy';
+    // ズーム別 DEMソース選択（CS/RRIMと同設計）:
+    //   z≤13: DEM10Bのみ / z14: +DEM5A / z15: +Q地図1m / z≥16(null): +地域DEM
+    const demMode = zoomLevel <= 13 ? 'dem10b'
+                  : zoomLevel === 14 ? 'dem10b+dem5a'
+                  : zoomLevel === 15 ? 'dem10b+dem5a+q'
+                  : null;
+    const effectiveRegionalBase  = demMode === null ? regionalDemBase : null;
+    const effectiveRegionalExt   = effectiveRegionalBase ? regionalDemExt : null;
+    const effectiveRegionalOrder = effectiveRegionalBase ? regionalDemOrder : 'xy';
 
     // ── ① 9タイル取得（CS立体図と同じ） ──
-    // tileOutputSize=256: DEM5A(256px)をそのまま出力。tileSize:512のソース定義でMapLibreがバイリニア補間して表示
+    // tileOutputSize=null: Q地図使用時は512px、DEM5A/10Bのみ時は256px（自動）
     const neighborOffsets = [
       [-1, -1], [0, -1], [1, -1],
       [-1,  0], [0,  0], [1,  0],
@@ -1041,7 +1052,7 @@ maplibregl.addProtocol('dem2curve', async (params, abortController) => {
         zoomLevel, tileX + dx, tileY + dy,
         abortController.signal,
         effectiveRegionalBase, effectiveRegionalExt,
-        demMode, effectiveRegionalOrder, 256
+        demMode, effectiveRegionalOrder, null
       )
     ));
     if (!bitmaps[4]) return { data: _transparentPngBuffer() };
