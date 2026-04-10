@@ -644,7 +644,7 @@ map.on('load', async () => {
     tiles: [`dem2relief://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp?min=0&max=500&_init=1`],
     tileSize: 256,
     minzoom: 5,
-    maxzoom: 15, // DEM5A 上限に合わせる（z16+ はMapLibreオーバーズーム）
+    maxzoom: 18, // 地域DEM は z18 まで実データあり、z19+ は MapLibre がオーバーズーム
     attribution: '',
   });
   // 色別標高図レイヤーは等高線レイヤーの下（beforeId）に挿入する。
@@ -666,7 +666,7 @@ map.on('load', async () => {
     tiles: [`dem2slope://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp?min=0&max=45&_init=1`],
     tileSize: 256,
     minzoom: 5,
-    maxzoom: 15, // DEM5A 上限に合わせる（z16+ はMapLibreオーバーズーム）
+    maxzoom: 18, // 地域DEM は z18 まで実データあり、z19+ は MapLibre がオーバーズーム
     attribution: '',
   });
   map.addLayer({
@@ -683,7 +683,7 @@ map.on('load', async () => {
     tiles: [`dem2curve://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp?min=-0.25&max=0.25&_init=1`],
     tileSize: 256,
     minzoom: 5,
-    maxzoom: 15, // DEM5A 上限に合わせる（z16+ はMapLibreオーバーズーム）
+    maxzoom: 18, // 地域DEM は z18 まで実データあり、z19+ は MapLibre がオーバーズーム
     attribution: '',
   });
   map.addLayer({
@@ -701,7 +701,7 @@ map.on('load', async () => {
     tiles: [`dem2rrim://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp?_init=1`],
     tileSize: 256,
     minzoom: 5,
-    maxzoom: 16, // Q地図1m は z16 まで実データあり、z17+ は MapLibre がオーバーズーム
+    maxzoom: 18, // 地域DEM は z18 まで実データあり、z19+ は MapLibre がオーバーズーム
     attribution: '',
   });
   map.addLayer({
@@ -718,7 +718,7 @@ map.on('load', async () => {
     tiles: [CS_RELIEF_URL],
     tileSize: 256,
     minzoom: 5,
-    maxzoom: 15, // DEM5A 上限に合わせる（z16+ はMapLibreオーバーズーム）
+    maxzoom: 18, // 地域DEM は z18 まで実データあり、z19+ は MapLibre がオーバーズーム
     attribution: '',
   });
 
