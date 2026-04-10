@@ -337,6 +337,7 @@ map.on('load', async () => {
     map.addSource('contour-source', {
       type: 'vector',
       tiles: [buildContourTileUrl(userContourInterval)],
+      minzoom: 3,
       maxzoom: 15, // z15タイルをz16以上でオーバーズーム
       attribution: '',
     });
@@ -361,6 +362,7 @@ map.on('load', async () => {
     map.addSource('contour-source-dem5a', {
       type: 'vector',
       tiles: [buildSeamlessContourTileUrl(userContourInterval)],
+      minzoom: 3,
       maxzoom: 15, // z15タイルをz16以上でオーバーズーム
       attribution: '',
     });
@@ -384,6 +386,7 @@ map.on('load', async () => {
     map.addSource('contour-source-dem1a', {
       type: 'vector',
       tiles: [buildDem1aContourTileUrl(userContourInterval)],
+      minzoom: 3,
       maxzoom: 15, // z15タイルをz16以上でオーバーズーム
       attribution: '',
     });
@@ -5921,8 +5924,8 @@ function updateContourAutoInterval() {
 
   const z = map.getZoom();
 
-  // zoom ≤ 7 では等高線を非表示
-  if (z <= 7) {
+  // zoom ≤ 2 では等高線を非表示
+  if (z <= 2) {
     // 既に非表示済みなら setLayoutProperty の重複呼び出しを省略
     if (!contourHiddenByLowZoom) {
       setAllContourVisibility(map, 'none');
@@ -5931,7 +5934,7 @@ function updateContourAutoInterval() {
     lastAppliedContourInterval = null; // zoom上昇時に再描画させる
     return;
   }
-  contourHiddenByLowZoom = false; // z>7 に戻ったらフラグをリセット
+  contourHiddenByLowZoom = false; // z>2 に戻ったらフラグをリセット
 
   // z0-z13 の等高線間隔は buildContourThresholds 内で固定値としてURLに埋め込み済みのため、
   // ズームレベルが変わっても URL は変化しない → setTiles を呼ばない。
