@@ -138,7 +138,7 @@ const map = new maplibregl.Map({
   locale: {
     'NavigationControl.ZoomIn':           'ズームイン',
     'NavigationControl.ZoomOut':          'ズームアウト',
-    'NavigationControl.ResetBearing':     '北を上にリセット',
+    'NavigationControl.ResetBearing':     '真北を上にする',
     'FullscreenControl.Enter':            '全画面表示',
     'FullscreenControl.Exit':             '全画面表示を終了',
     'GeolocateControl.FindMyLocation':    '現在地を表示',
