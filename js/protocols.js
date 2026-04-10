@@ -3,10 +3,7 @@
    MapLibre の addProtocol() でブラウザ内 DEM 変換を実現します
    ================================================================ */
 
-import { QCHIZU_DEM_BASE, QCHIZU_PROXY_BASE, DEM5A_BASE, DEM10B_BASE } from './config.js';
-// DEM1A_BASE: protocols.js では未使用（等高線用のみ app.js で使用）
-// 湖水深・湖水面タイルはコメントアウト済み（2026-03-23 廃止）
-// import { DEM1A_BASE, LAKEDEPTH_BASE, LAKEDEPTH_STANDARD_BASE } from './config.js';
+import { DEM1A_BASE, DEM5A_BASE, DEM10B_BASE } from './config.js';
 
 // ================================================================
 // 共通フォールバック: 1×1 透明 PNG の ArrayBuffer
@@ -110,42 +107,28 @@ maplibregl.addProtocol('pmtiles', pmtilesProtocol.tile.bind(pmtilesProtocol));
 
 /*
   ========================================================
-  3D地形用 DEM 合成（Q地図1m > DEM5A > DEM10B）
-  q地図 maplibre 版の demTranscoderProtocol.js を参考に実装。
+  3D地形用 DEM 合成（DEM1A > DEM5A > DEM10B）
   優先度:
-    1. Q地図1m DEM（CF Workers プロキシ経由・maxzoom 16・最高品質）
+    1. DEM1A（地理院 1mDEM・maxzoom 17・最高品質）
     2. DEM5A（地理院 5mDEM・基盤地図情報・maxzoom 15）
     3. DEM10B（地理院 10mDEM・全国カバレッジ保証・maxzoom 14）
   全タイル共通の国土地理院 NumPNG 形式（R=high, G=mid, B=low, nodata=R128,G0,B0）。
-  湖水深合成は廃止（コメントアウト済み）。
   ========================================================
 */
 async function fetchTerrainDemBitmap(z, x, y, signal) {
-  const dem10bUrl = z <= 14 ? `${DEM10B_BASE}/${z}/${x}/${y}.png` : null; // DEM10B: maxzoom 14（z15+は404になるため省略）
-  const dem5aUrl  = `${DEM5A_BASE}/${z}/${x}/${y}.png`;             // DEM5A:  5mメッシュ・基盤地図情報（maxzoom 15）
-  const qUrl      = `${QCHIZU_PROXY_BASE}/${z}/${x}/${y}.webp`;     // Q地図1m: CF Workers プロキシ経由（maxzoom 16）
-  // terrain-dem ソースの maxzoom を 15 に設定しているため、
-  // MapLibre は z≤15 のタイルのみ要求し z16+ は自動オーバーズームする。
-  // よって DEM5A(max z15) は常にデータあり、DEM10B(max z14) は z15 で404になるが
-  // DEM5A がカバーするため問題なし。
+  const dem10bUrl = z <= 14 ? `${DEM10B_BASE}/${z}/${x}/${y}.png` : null; // DEM10B: maxzoom 14
+  const dem5aUrl  = z <= 15 ? `${DEM5A_BASE}/${z}/${x}/${y}.png`  : null; // DEM5A:  maxzoom 15
+  const dem1aUrl  = `${DEM1A_BASE}/${z}/${x}/${y}.png`;                    // DEM1A:  maxzoom 17
 
   // 全ソースを 256×256 に正規化して返す。
-  // Q地図は512×512 WebP のためリサイズが必要。
   // ★ imageSmoothingEnabled = false（最近傍補間）必須:
   //   バイリニア補間だと nodata(R=128,G=0,B=0) と有効データ(R≈0) の境界で
   //   中間値 R≈64 が生成され、NumPNG として約 42000m と解釈されスパイクになる。
   const TARGET = 256;
 
-  // Q地図1m 用タイムアウト付きシグナル（3秒）
-  // Q地図1mの提供が不安定な場合でも DEM5A/DEM10B で素早くテレインを返すため。
-  // AbortSignal.any は Chrome116+/Firefox115+ で使用可能。
-  const qSignal = (typeof AbortSignal.any === 'function')
-    ? AbortSignal.any([signal, AbortSignal.timeout(5000)])
-    : signal;
-
-  async function toImageData(url, s = signal) {
+  async function toImageData(url) {
     try {
-      const r = await fetch(url, { signal: s });
+      const r = await fetch(url, { signal });
       if (!r.ok) return null;
       const bm = await createImageBitmap(await r.blob());
       const cv = new OffscreenCanvas(TARGET, TARGET);
@@ -157,12 +140,12 @@ async function fetchTerrainDemBitmap(z, x, y, signal) {
     } catch { return null; }
   }
 
-  const [dem10b, dem5a, qData] = await Promise.all([
+  const [dem10b, dem5a, dem1a] = await Promise.all([
     dem10bUrl ? toImageData(dem10bUrl) : Promise.resolve(null),
-    toImageData(dem5aUrl),
-    toImageData(qUrl, qSignal),
+    dem5aUrl  ? toImageData(dem5aUrl)  : Promise.resolve(null),
+    toImageData(dem1aUrl),
   ]);
-  if (!dem10b && !dem5a && !qData) return null;
+  if (!dem10b && !dem5a && !dem1a) return null;
 
   function isNodata(d, i) {
     return (d[i] === 128 && d[i + 1] === 0 && d[i + 2] === 0) || d[i + 3] !== 255;
@@ -193,12 +176,12 @@ async function fetchTerrainDemBitmap(z, x, y, signal) {
     }
   }
 
-  // 優先度 高: Q地図1m（CF Workers プロキシ経由）
-  if (qData) {
-    const q = qData.data;
+  // 優先度 高: DEM1A（1mメッシュ・地理院公式）
+  if (dem1a) {
+    const d = dem1a.data;
     for (let i = 0; i < o.length; i += 4) {
-      if (isNodata(q, i)) continue;
-      o[i] = q[i]; o[i + 1] = q[i + 1]; o[i + 2] = q[i + 2]; o[i + 3] = 255;
+      if (isNodata(d, i)) continue;
+      o[i] = d[i]; o[i + 1] = d[i + 1]; o[i + 2] = d[i + 2]; o[i + 3] = 255;
     }
   }
 
@@ -309,8 +292,8 @@ function _scaleToTarget(imgData, targetSize = _COMPOSITE_TARGET_SIZE) {
 // regionalDemBase : 地域DEMのベースURL（dem2cs://地域層の場合のみ指定）
 // regionalDemExt  : 地域DEMの拡張子（'png' または 'webp'）
 // regionalDemOrder: 地域DEM URL の軸順序（'xy' または 'yx'）
-// demMode: null               → DEM10B + DEM5A + Q地図1m + 地域DEM（z≥16用）
-//          'dem10b+dem5a+q'  → DEM10B + DEM5A + Q地図1m（地域DEM無し、z15用）
+// demMode: null               → DEM10B + DEM5A + DEM1A + 地域DEM（z≥16用）
+//          'dem10b+dem5a+q'  → DEM10B + DEM5A + DEM1A（地域DEM無し、z15用）※名称はq互換維持
 //          'dem10b+dem5a'    → DEM10B + DEM5A（z14用）
 //          'dem10b'          → DEM10Bのみ（z≤13用）
 //          'dem5a'           → DEM5Aのみ
@@ -323,49 +306,36 @@ async function fetchCompositeDemBitmap(
   regionalDemExt = 'png',
   demMode = null,
   regionalDemOrder = 'xy',
-  tileOutputSize = null  // null = 自動: Q地図使用時→512px、DEM5A/DEM10Bのみ→256px
+  tileOutputSize = null  // null = 自動: DEM1A使用時→256px、地域DEM使用時→512px
 ) {
-  const useQ    = demMode === null || demMode === 'dem10b+dem5a+q'; // Q地図: 全合成モードおよびz15用
-  const useS    = demMode === null || demMode === 'dem10b+dem5a+q' || demMode === 'dem5a' || demMode === 'dem10b+dem5a'; // DEM5A
+  void signal; // キャッシュ共有のため個別signalは使用しない（互換性のために引数を保持）
+  const use1a    = demMode === null || demMode === 'dem10b+dem5a+q'; // DEM1A: 全合成モードおよびz15+用
+  const useS     = demMode === null || demMode === 'dem10b+dem5a+q' || demMode === 'dem5a' || demMode === 'dem10b+dem5a'; // DEM5A
   const useDem10b = demMode === null || demMode === 'dem10b+dem5a+q' || demMode === 'dem10b' || demMode === 'dem10b+dem5a'; // DEM10B
-  const sUrl    = (useS && z <= 15) ? `${DEM5A_BASE}/${z}/${x}/${y}.png` : null; // DEM5A: maxzoom 15
+  const dem1aUrl  = use1a             ? `${DEM1A_BASE}/${z}/${x}/${y}.png`  : null; // DEM1A: maxzoom 17
+  const sUrl      = (useS && z <= 15) ? `${DEM5A_BASE}/${z}/${x}/${y}.png`  : null; // DEM5A: maxzoom 15
   const dem10bUrl = (useDem10b && z <= 14) ? `${DEM10B_BASE}/${z}/${x}/${y}.png` : null; // DEM10B: maxzoom 14
-  const qUrl    = useQ    ? `${QCHIZU_PROXY_BASE}/${z}/${x}/${y}.webp` : null;
-  // 湖水深タイルはコメントアウト（2026-03-23 廃止）
-  // const lUrl  = `${LAKEDEPTH_BASE}/${z}/${x}/${y}.png`;
-  // const lsUrl = `${LAKEDEPTH_STANDARD_BASE}/${z}/${x}/${y}.png`;
-  const rUrl = (useQ && regionalDemBase)
+  const rUrl = (use1a && regionalDemBase)
     ? regionalDemOrder === 'yx'
       ? `${regionalDemBase}/${z}/${y}/${x}.${regionalDemExt}`
       : `${regionalDemBase}/${z}/${x}/${y}.${regionalDemExt}`
     : null;
 
-  // Q地図1m 用タイムアウト付きシグナル（3秒）
-  // Q地図1mの提供が不安定な場合でも他ソースで素早くCS立体図を返すため。
-  // キャッシュヒット時はシグナルは無視されるが、初回fetchの品質維持のために残す。
-  const qSignal = useQ && (typeof AbortSignal.any === 'function')
-    ? AbortSignal.any([signal, AbortSignal.timeout(5000)])
-    : signal;
-
   // _cachedFetchImageData でURL単位のPromise共有 → 同一URLの重複fetchを排除
-  const [qRaw, sRaw, dem10bRaw, rRaw] = await Promise.all([
-    qUrl     ? _cachedFetchImageData(qUrl, qSignal) : Promise.resolve(null),
-    sUrl     ? _cachedFetchImageData(sUrl)          : Promise.resolve(null),
-    dem10bUrl  ? _cachedFetchImageData(dem10bUrl)       : Promise.resolve(null),
-    // 湖水深タイルはコメントアウト（2026-03-23 廃止）
-    rUrl     ? _cachedFetchImageData(rUrl)          : Promise.resolve(null),
+  const [dem1aRaw, sRaw, dem10bRaw, rRaw] = await Promise.all([
+    dem1aUrl  ? _cachedFetchImageData(dem1aUrl)  : Promise.resolve(null),
+    sUrl      ? _cachedFetchImageData(sUrl)      : Promise.resolve(null),
+    dem10bUrl ? _cachedFetchImageData(dem10bUrl) : Promise.resolve(null),
+    rUrl      ? _cachedFetchImageData(rUrl)      : Promise.resolve(null),
   ]);
-  if (!qRaw && !sRaw && !dem10bRaw && !rRaw) return null;
+  if (!dem1aRaw && !sRaw && !dem10bRaw && !rRaw) return null;
 
-  // Q地図が実際にデータを返した場合のみ512pxに統一。DEM5A/DEM10Bのみなら256pxネイティブサイズを維持。
-  // useQ（使う意図）ではなくqRaw（実際のデータ有無）で判定することで、
-  // Q地図nodata時にDEM5AをNN拡大して2×2ブロックが生じる問題を回避する。
-  // 呼び出し元から明示的に指定された場合はそちらを優先する。
-  const T = tileOutputSize ?? (qRaw ? _COMPOSITE_TARGET_SIZE : 256);
-  const qData    = _scaleToTarget(qRaw,    T);
-  const sData    = _scaleToTarget(sRaw,    T);
+  // 地域DEM使用時のみ512px、それ以外はDEM1Aネイティブ256px
+  const T = tileOutputSize ?? (rRaw ? _COMPOSITE_TARGET_SIZE : 256);
+  const dem1aData  = _scaleToTarget(dem1aRaw, T);
+  const sData      = _scaleToTarget(sRaw,     T);
   const dem10bData = _scaleToTarget(dem10bRaw, T);
-  const rData    = _scaleToTarget(rRaw,    T);
+  const rData      = _scaleToTarget(rRaw,     T);
 
   function isNodata(d, i) {
     return (d[i] === 128 && d[i + 1] === 0 && d[i + 2] === 0) || d[i + 3] !== 255;
@@ -397,12 +367,12 @@ async function fetchCompositeDemBitmap(
     }
   }
 
-  // 優先度 高: Q地図 DEM
-  if (qData) {
-    const q = qData.data;
+  // 優先度 高: DEM1A（地理院 1mDEM）
+  if (dem1aData) {
+    const d = dem1aData.data;
     for (let i = 0; i < o.length; i += 4) {
-      if (isNodata(q, i)) continue;
-      o[i] = q[i]; o[i + 1] = q[i + 1]; o[i + 2] = q[i + 2]; o[i + 3] = 255;
+      if (isNodata(d, i)) continue;
+      o[i] = d[i]; o[i + 1] = d[i + 1]; o[i + 2] = d[i + 2]; o[i + 3] = 255;
     }
   }
 
@@ -547,7 +517,7 @@ maplibregl.addProtocol('dem2cs', async (params, abortController) => {
   const terrainScale = Math.max(parseFloat(urlObj.searchParams.get('terrainScale') ?? '1') || 1, 0.1);
   const redAndBlueIntensity = Math.max(parseFloat(urlObj.searchParams.get('redBlueIntensity') ?? '1') || 1, 0.1);
 
-  const regionalDemBase = (baseUrl === QCHIZU_DEM_BASE) ? null : baseUrl;
+  const regionalDemBase = (baseUrl === DEM1A_BASE) ? null : baseUrl;
   const regionalDemExt  = regionalDemBase ? ext : null;
   const regionalDemOrder = regionalDemBase ? tileOrder : 'xy';
 
@@ -828,7 +798,7 @@ maplibregl.addProtocol('dem2slope', async (params, abortController) => {
     const { urlObj, baseUrl, tileOrder, zoomLevel, tileX, tileY, ext } = request;
     const min = parseFloat(urlObj.searchParams.get('min') ?? '0');
     const max = parseFloat(urlObj.searchParams.get('max') ?? '45');
-    const regionalDemBase = (baseUrl === QCHIZU_DEM_BASE) ? null : baseUrl;
+    const regionalDemBase = (baseUrl === DEM1A_BASE) ? null : baseUrl;
     const regionalDemExt = regionalDemBase ? ext : null;
     const regionalDemOrder = regionalDemBase ? tileOrder : 'xy';
 
@@ -1026,7 +996,7 @@ maplibregl.addProtocol('dem2curve', async (params, abortController) => {
     const curveMax = parseFloat(urlObj.searchParams.get('max') ??  '1.0');
     const curveRange = (curveMax - curveMin) || 1;
 
-    const regionalDemBase = (baseUrl === QCHIZU_DEM_BASE) ? null : baseUrl;
+    const regionalDemBase = (baseUrl === DEM1A_BASE) ? null : baseUrl;
     const regionalDemExt  = regionalDemBase ? ext : null;
     const regionalDemOrder = regionalDemBase ? tileOrder : 'xy';
 
@@ -1226,7 +1196,7 @@ maplibregl.addProtocol('dem2rrim', async (params, abortController) => {
     if (!request) return { data: _transparentPngBuffer() };
     const { baseUrl, tileOrder, zoomLevel, tileX, tileY, ext } = request;
 
-    const regionalDemBase  = baseUrl === QCHIZU_DEM_BASE ? null : baseUrl;
+    const regionalDemBase  = baseUrl === DEM1A_BASE ? null : baseUrl;
     const regionalDemExt   = regionalDemBase ? ext : null;
     const regionalDemOrder = regionalDemBase ? tileOrder : 'xy';
     // ズーム別 DEMソース選択（demModeで一元管理）:

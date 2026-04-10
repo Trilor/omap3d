@@ -7,17 +7,9 @@
     ★ カスタマイズポイント：各種URLと初期パラメータをここで変更します
     ======================================================== */
 
-// ★ DEM タイルのベース URL
-// Q地図 DEM / DEM5A / 湖水深タイルは共に国土地理院 NumPNG 形式（x=2^16R+2^8G+B, u=0.01m）
-// gsjdem:// プロトコルが Q地図 > DEM5A > 湖水深 の優先順で合成し Terrarium 形式に変換する。
-// DEM5A・湖水深タイルは標準の {z}/{x}/{y} 順。
-export const QCHIZU_DEM_BASE  = 'https://qchizu3.xsrv.jp/mapdata/d52001';
-// Cloudflare Pages Functions 経由の CORS プロキシ URL（mlcontour worker: true を可能にするため）
-// functions/qchizu/[[path]].js が /qchizu/* を https://qchizu3.xsrv.jp/* にプロキシする
-// /qchizu/mapdata/d52001/{z}/{x}/{y}.webp → qchizu3.xsrv.jp/mapdata/d52001/{z}/{x}/{y}.webp
-export const QCHIZU_PROXY_BASE = '/qchizu/mapdata/d52001';
-export const DEM5A_BASE       = 'https://cyberjapandata.gsi.go.jp/xyz/dem5a_png'; // 基盤地図情報DEM5A {z}/{x}/{y}.png
-export const DEM1A_BASE       = 'https://cyberjapandata.gsi.go.jp/xyz/dem1a_png'; // 基盤地図情報DEM1A {z}/{x}/{y}.png
+// ★ DEM タイルのベース URL（すべて国土地理院 NumPNG 形式）
+export const DEM1A_BASE       = 'https://cyberjapandata.gsi.go.jp/xyz/dem1a_png'; // 基盤地図情報DEM1A 1m {z}/{x}/{y}.png maxzoom:17
+export const DEM5A_BASE       = 'https://cyberjapandata.gsi.go.jp/xyz/dem5a_png'; // 基盤地図情報DEM5A 5m {z}/{x}/{y}.png maxzoom:15
 // 湖水深タイルは廃止（2026-03-23 コメントアウト）
 // export const LAKEDEPTH_BASE          = 'https://cyberjapandata.gsi.go.jp/xyz/lakedepth';
 // export const LAKEDEPTH_STANDARD_BASE = 'https://cyberjapandata.gsi.go.jp/xyz/lakedepth_standard';
@@ -30,9 +22,9 @@ export const TERRAIN_URL = 'gsjdem://terrain/{z}/{x}/{y}.png';
 //   isomizer と設定データはローカルコピーを使用（js/isomizer/ 以下）
 //   Japan版: 国土地理院ベクタータイル + OpenFreeMap + 産総研等高線 + 農林水産省筆ポリゴン
 
-// ★ CS立体図（ブラウザ生成・Q地図DEMから動的生成）
-//   dem2cs:// プロトコルでQ地図DEMタイルをリアルタイムにCS立体図へ変換します。
-export const CS_RELIEF_URL = `dem2cs://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp`;
+// ★ CS立体図（ブラウザ生成・DEM1Aから動的生成）
+//   dem2cs:// プロトコルで地理院DEM1AタイルをリアルタイムにCS立体図へ変換します。
+export const CS_RELIEF_URL = `dem2cs://${DEM1A_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.png`;
 
 // ★ 地域別高精度DEMソース定義（0.5m DEM が公開されている地域）
 //   各エントリは CS立体図・赤色立体図・傾斜量図など複数のオーバーレイの派生元となる。
