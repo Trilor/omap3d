@@ -215,8 +215,23 @@ const magneticNorthControl = {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.title = '磁北を上にする';
-    btn.style.cssText = 'display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:bold;color:inherit;';
-    btn.textContent = 'MN';
+    // U字磁石SVGアイコン（コンパスと同配色: N極=濃色#333, S極=淡色#ccc）
+    // maplibregl-ctrl-icon を使い MapLibre のボタンスタイルに準拠
+    const icon = document.createElement('span');
+    icon.className = 'maplibregl-ctrl-icon';
+    icon.setAttribute('aria-hidden', 'true');
+    icon.style.backgroundImage = `url("data:image/svg+xml;charset=utf-8,${encodeURIComponent(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="29" height="29" viewBox="0 0 29 29">' +
+      // N極（左アーム・濃色）
+      '<rect x="6" y="4" width="6" height="14" fill="#333"/>' +
+      // S極（右アーム・淡色）
+      '<rect x="17" y="4" width="6" height="14" fill="#ccc"/>' +
+      // 底面U字カーブ（太線ストローク・中間色）
+      // M9 18: 左アーム中心下端 / A5.5 6 0 0 1 20 18: 右アーム中心下端へ時計回り弧
+      '<path d="M9 18 A5.5 6 0 0 1 20 18" stroke="#888" stroke-width="6" fill="none" stroke-linecap="butt"/>' +
+      '</svg>'
+    )}")`;
+    btn.appendChild(icon);
     btn.addEventListener('click', () => {
       const center = m.getCenter();
       const decl   = getDeclination(center.lat, center.lng);
