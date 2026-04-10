@@ -229,10 +229,10 @@ function _createSemaphore(concurrency) {
   };
 }
 
-// GPU→CPU転送セマフォ（toPixels の同時実行数を制限）
-// 複数タイルが同時に tf.browser.toPixels を呼ぶとGPUキューが詰まり
-// 先頭タイルが数秒待たされる。同時実行を4に制限して待ち時間を均等化する。
-const _gpuTransferSem = _createSemaphore(4);
+// GPU計算セマフォ（TF.js GPU処理全体の同時実行数を制限）
+// 同時実行が多いとGPUテクスチャが積み上がりWebGLコンテキストロストの原因になる。
+// concurrency=2 でGPUメモリ使用量を抑えてクラッシュを回避する。
+const _gpuTransferSem = _createSemaphore(2);
 function _acquireGpuTransfer() { return _gpuTransferSem.acquire(); }
 function _releaseGpuTransfer() { _gpuTransferSem.release(); }
 
@@ -1102,7 +1102,14 @@ maplibregl.addProtocol('dem2curve', async (params, abortController) => {
       }
     }
 
-    // ── ④ ガウシアン平滑化（分離畳み込み: CS立体図と同一ロジック） ──
+    // ── ④ GPU 計算（セマフォ取得） ──
+    if (abortController.signal.aborted) throw new DOMException('Tile request aborted', 'AbortError');
+    await _acquireGpuTransfer();
+    if (abortController.signal.aborted) { _releaseGpuTransfer(); throw new DOMException('Tile request aborted', 'AbortError'); }
+    let _curveGpuReleased = false;
+    try {
+
+    // ── ⑤ ガウシアン平滑化（分離畳み込み: CS立体図と同一ロジック） ──
     const { kX: kX2, kY: kY2 } = _getCsKernel(kernelRadius, sigma);
     const hT   = tf.tensor2d(mergedHeights, [mergedSize, mergedSize]);
     const valid   = hT.notEqual(-99999);
@@ -1196,7 +1203,12 @@ maplibregl.addProtocol('dem2curve', async (params, abortController) => {
     await tf.browser.toPixels(cvNorm, outCanvas);
     cvNorm.dispose();
     curvatureTensor.dispose();
+    _releaseGpuTransfer();
+    _curveGpuReleased = true;
     return { data: await _rescaleComposite(outCanvas).convertToBlob({ type: 'image/webp', quality: 0.92 }).then(b => b.arrayBuffer()) };
+    } finally {
+      if (!_curveGpuReleased) _releaseGpuTransfer();
+    }
   } catch(e) {
     if (e?.name === 'AbortError') throw e;
     return { data: _transparentPngBuffer() };
