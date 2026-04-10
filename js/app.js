@@ -724,7 +724,7 @@ map.on('load', async () => {
   });
 
   // 都道府県別CS立体図（0.5m）のソース・レイヤーを動的追加
-  // ソースの minzoom を 17 に下げることで、ズーム17でも表示可能にする
+  // ソースの minzoom を 16 に下げることで、ズーム16でも表示可能にする
   // （z=17 では地域DEMが無い場合でも Q地図 DEM にフォールバックして描画）
   // 地域別CS・RRIM共通のソース/レイヤー追加関数
   function _addRegionalLayer(layer) {
@@ -732,7 +732,7 @@ map.on('load', async () => {
       type: 'raster',
       tiles: [layer.tileUrl],
       tileSize: _rasterTileSize,
-      minzoom: Math.min(layer.minzoom, 17),
+      minzoom: Math.min(layer.minzoom, 16),
       maxzoom: layer.maxzoom,
       bounds: layer.bounds,
       attribution: '',
@@ -4105,7 +4105,7 @@ function updateRegionalAttribution() {
   const _csOverlay  = currentOverlay;
   const _csBasemap  = currentBasemap;
   const _csKey      = _csOverlay !== 'none' ? _csOverlay : _csBasemap;
-  const csRegionalOn = (_csKey === 'cs' || _csKey === 'cs-0.5m') && map.getZoom() >= 17;
+  const csRegionalOn = (_csKey === 'cs' || _csKey === 'cs-0.5m') && map.getZoom() >= 16;
   if (!csRegionalOn) {
     attrEl.innerHTML = '';
     _lastAttrKey = null;
@@ -4119,7 +4119,7 @@ function updateRegionalAttribution() {
   _lastAttrKey = key;
   const html = REGIONAL_CS_LAYERS
     .filter(l =>
-      z >= Math.min(l.minzoom, 17) &&
+      z >= Math.min(l.minzoom, 16) &&
       b.getWest()  < l.bounds[2] &&
       b.getEast()  > l.bounds[0] &&
       b.getSouth() < l.bounds[3] &&
@@ -4241,7 +4241,7 @@ function updateCsVisibility() {
   // 'cs'（統合キー）または旧 'cs-0.5m'（ベースマップ用に残存）はプログレッシブ表示
   // z>=17 で 1m を下敷きにした上に 0.5m を重ねる。旧 'cs-1m' は 1m のみ。
   const show1m  = !!csKey && csKey !== 'none';
-  const show05m = !!csKey && csKey !== 'cs-1m' && z >= 17;
+  const show05m = !!csKey && csKey !== 'cs-1m' && z >= 16;
 
   if (map.getLayer('cs-relief-layer')) {
     map.setLayoutProperty('cs-relief-layer', 'visibility', show1m ? 'visible' : 'none');
@@ -4259,7 +4259,7 @@ function updateCsVisibility() {
   });
 
   // 赤色立体図: rrim 選択時 z>=17 で地域DEMレイヤーを重ねる
-  const showRrim05m = showRrimRelief && z >= 17;
+  const showRrim05m = showRrimRelief && z >= 16;
   REGIONAL_RRIM_LAYERS.forEach(layer => {
     if (map.getLayer(layer.layerId)) {
       map.setLayoutProperty(layer.layerId, 'visibility', showRrim05m ? 'visible' : 'none');

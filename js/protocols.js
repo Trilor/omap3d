@@ -553,13 +553,13 @@ maplibregl.addProtocol('dem2cs', async (params, abortController) => {
   // ズーム別 DEMソース選択:
   //   z≤10: DEM10Bのみ（低ズームは解像度差が無意味・最軽量）
   //   z11-13: DEM10B + DEM5A（中ズーム・Q地図は不要）
-  //   z14-16: DEM10B + DEM5A + Q地図1m（高ズーム・フル合成）
-  //   z≥17: DEM10B + DEM5A + Q地図1m + 地域DEM 0.5m（最高ズーム・地域DEMが最優先）
+  //   z14-15: DEM10B + DEM5A + Q地図1m（高ズーム・フル合成）
+  //   z≥16: DEM10B + DEM5A + Q地図1m + 地域DEM 0.5m（最高ズーム・地域DEMが最優先）
   const demMode = zoomLevel <= 10 ? 'land'
                 : zoomLevel <= 12 ? 'land+dem5a'
                 : null; // z14以上は全ソース合成
-  // z<17 では地域DEM を使わない（地域DEMは z≥17 の高ズームでのみ有効）
-  const effectiveRegionalBase = zoomLevel >= 17 ? regionalDemBase : null;
+  // z<16 では地域DEM を使わない（地域DEMは z≥16 の高ズームでのみ有効）
+  const effectiveRegionalBase = zoomLevel >= 16 ? regionalDemBase : null;
   const effectiveRegionalExt  = effectiveRegionalBase ? regionalDemExt : null;
   const effectiveRegionalOrder = effectiveRegionalBase ? regionalDemOrder : 'xy';
 
@@ -1217,7 +1217,7 @@ maplibregl.addProtocol('dem2rrim', async (params, abortController) => {
     const regionalDemExt   = regionalDemBase ? ext : null;
     const regionalDemOrder = regionalDemBase ? tileOrder : 'xy';
     const demMode = zoomLevel <= 10 ? 'land' : zoomLevel <= 12 ? 'land+dem5a' : null;
-    const effectiveRegionalBase  = zoomLevel >= 17 ? regionalDemBase : null;
+    const effectiveRegionalBase  = zoomLevel >= 16 ? regionalDemBase : null;
     const effectiveRegionalExt   = effectiveRegionalBase ? regionalDemExt : null;
     const effectiveRegionalOrder = effectiveRegionalBase ? regionalDemOrder : 'xy';
 
