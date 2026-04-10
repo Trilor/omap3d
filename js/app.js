@@ -279,10 +279,6 @@ map.on('load', async () => {
   // → 256px タイルを ~171 CSS px（=256物理px）に縮小表示 → シャープ（Q地図と同等）
   // DPR=1.0 のとき tileSize=256 → round(viewZoom + 1.0) → 通常どおり viewZoom+1
   const _rasterTileSize = Math.round(256 / (window.devicePixelRatio || 1));
-  // 512px 出力オーバーレイ（CS立体図・赤色立体図）向けのDPR連動サイズ
-  // DPR=1.5 のとき tileSize=341 → round(viewZoom + 0.585) → z≥15.4 で z16 タイル取得
-  // → Q地図/地域DEM（z16対応）による高解像度生成が活きる
-  const _overlayTileSize = Math.round(512 / (window.devicePixelRatio || 1));
 
   Object.entries(BASEMAPS).filter(([, cfg]) => cfg.url).forEach(([key, cfg]) => {
     map.addSource(key, {
@@ -684,9 +680,9 @@ map.on('load', async () => {
   map.addSource('rrim-relief', {
     type: 'raster',
     tiles: [`dem2rrim://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp?_init=1`],
-    tileSize: _overlayTileSize, // DPR連動: DPR=1.5→341px → z≥15.4でz16タイルを要求
+    tileSize: 512,
     minzoom: 5,
-    maxzoom: 16, // z16はQ地図/地域DEMで生成可能（DEM5Aのみのz17+は不要）
+    maxzoom: 15, // DEM5A 上限に合わせる（z16+ はオーバーズーム）
     attribution: '',
   });
   map.addLayer({
@@ -701,9 +697,9 @@ map.on('load', async () => {
   map.addSource('cs-relief', {
     type: 'raster',
     tiles: [CS_RELIEF_URL],
-    tileSize: _overlayTileSize, // DPR連動: DPR=1.5→341px → z≥15.4でz16タイルを要求
+    tileSize: 512,
     minzoom: 5,
-    maxzoom: 16, // z16はQ地図/地域DEMで生成可能（DEM5Aのみのz17+は不要）
+    maxzoom: 15, // DEM5A 上限に合わせる（z16+ はMapLibreオーバーズーム）
     attribution: '',
   });
 
