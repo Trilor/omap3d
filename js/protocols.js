@@ -551,11 +551,13 @@ maplibregl.addProtocol('dem2cs', async (params, abortController) => {
   const regionalDemOrder = regionalDemBase ? tileOrder : 'xy';
 
   // ズーム別 DEMソース選択:
-  //   z≤12: DEM10B + DEM5A（低〜中ズーム・Q地図は不要）
-  //   z13-15: DEM10B + DEM5A + Q地図1m（高ズーム・フル合成）
-  //   z≥16: DEM10B + DEM5A + Q地図1m + 地域DEM 0.5m（最高ズーム・地域DEMが最優先）
-  const demMode = zoomLevel <= 12 ? 'dem10b+dem5a'
-                : null; // z13以上は全ソース合成
+  //   z≤13: DEM10Bのみ（1px=76m以上・DEM5Aは過剰）
+  //   z14 : DEM10B + DEM5A（DEM10B最終有効zoom）
+  //   z15+: DEM5A + Q地図1m（DEM10Bはserver maxzoom 14で自動除外）
+  //   z≥16: + 地域DEM 0.5m（最優先）
+  const demMode = zoomLevel <= 13 ? 'dem10b'
+                : zoomLevel === 14 ? 'dem10b+dem5a'
+                : null;
   // z<16 では地域DEM を使わない（地域DEMは z≥16 の高ズームでのみ有効）
   const effectiveRegionalBase = zoomLevel >= 16 ? regionalDemBase : null;
   const effectiveRegionalExt  = effectiveRegionalBase ? regionalDemExt : null;
@@ -828,9 +830,9 @@ maplibregl.addProtocol('dem2slope', async (params, abortController) => {
     const regionalDemExt = regionalDemBase ? ext : null;
     const regionalDemOrder = regionalDemBase ? tileOrder : 'xy';
 
-    // ズーム別 DEMソース選択（最大 DEM5A まで使用・Q地図1mは使わない）:
-    //   全ズーム: DEM10B+DEM5A（DEM5A優先）
-    const demMode = 'dem10b+dem5a';
+    // ズーム別 DEMソース選択（Q地図1mは使わない）:
+    //   z≤13: DEM10Bのみ / z14+: DEM10B+DEM5A（DEM10Bはz15+で自動除外）
+    const demMode = zoomLevel <= 13 ? 'dem10b' : 'dem10b+dem5a';
 
     // tileOutputSize=256: DEM5A(256px)をそのまま出力。tileSize:512のソース定義でMapLibreがバイリニア補間して表示
     const [center, right, down, downRight] = await Promise.all([
@@ -933,9 +935,9 @@ maplibregl.addProtocol('dem2relief', async (params, abortController) => {
     if (!m) return { data: _transparentPngBuffer() };
     const [, z, x, y] = m;
 
-    // ズーム別 DEMソース選択（最大 DEM5A まで使用・Q地図1mは使わない）:
-    //   全ズーム: DEM10B+DEM5A（DEM5A優先）
-    const demMode = 'dem10b+dem5a';
+    // ズーム別 DEMソース選択（Q地図1mは使わない）:
+    //   z≤13: DEM10Bのみ / z14+: DEM10B+DEM5A（DEM10Bはz15+で自動除外）
+    const demMode = +z <= 13 ? 'dem10b' : 'dem10b+dem5a';
     // 合成 DEM ビットマップを取得（Q地図 > 陸域統合 > 湖水深 の優先順）
     // データなし（海域・範囲外・404・CORS）の場合は透明タイルを返す
     // tileOutputSize=256: DEM5A(256px)をそのまま出力。tileSize:512のソース定義でMapLibreがバイリニア補間して表示
@@ -1018,9 +1020,9 @@ maplibregl.addProtocol('dem2curve', async (params, abortController) => {
     const regionalDemExt  = regionalDemBase ? ext : null;
     const regionalDemOrder = regionalDemBase ? tileOrder : 'xy';
 
-    // ズーム別 DEMソース選択（最大 DEM5A まで使用・Q地図1mおよび地域DEMは使わない）:
-    //   全ズーム: DEM10B+DEM5A（DEM5A優先）
-    const demMode = 'dem10b+dem5a';
+    // ズーム別 DEMソース選択（Q地図1mおよび地域DEMは使わない）:
+    //   z≤13: DEM10Bのみ / z14+: DEM10B+DEM5A（DEM10Bはz15+で自動除外）
+    const demMode = zoomLevel <= 13 ? 'dem10b' : 'dem10b+dem5a';
     const effectiveRegionalBase  = null;
     const effectiveRegionalExt   = null;
     const effectiveRegionalOrder = 'xy';
@@ -1214,7 +1216,9 @@ maplibregl.addProtocol('dem2rrim', async (params, abortController) => {
     const regionalDemBase  = baseUrl === QCHIZU_DEM_BASE ? null : baseUrl;
     const regionalDemExt   = regionalDemBase ? ext : null;
     const regionalDemOrder = regionalDemBase ? tileOrder : 'xy';
-    const demMode = zoomLevel <= 12 ? 'dem10b+dem5a' : null;
+    const demMode = zoomLevel <= 13 ? 'dem10b'
+                  : zoomLevel === 14 ? 'dem10b+dem5a'
+                  : null;
     const effectiveRegionalBase  = zoomLevel >= 16 ? regionalDemBase : null;
     const effectiveRegionalExt   = effectiveRegionalBase ? regionalDemExt : null;
     const effectiveRegionalOrder = effectiveRegionalBase ? regionalDemOrder : 'xy';
