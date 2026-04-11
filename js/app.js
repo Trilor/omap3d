@@ -4706,7 +4706,7 @@ function updateGradientTrack() {
 // タイル再フェッチのデバウンスタイマー（updateColorReliefSource での clearTimeout 用に残す）
 let _crTileTimer = null;
 // input 中の setPaintProperty スロットル（100ms）
-let _crContourThrottleTime = 0;
+let _crThrottleTime = 0;
 
 // 色別等高線の line-color を crMin/crMax に合わせて再設定
 function updateColorContourColors() {
@@ -4746,8 +4746,8 @@ function updateColorReliefUI() {
   updateGradientTrack();
   // setPaintProperty は重いため 100ms スロットル（タイル更新は change イベントで確定）
   const now = Date.now();
-  if (now - _crContourThrottleTime >= 100) {
-    _crContourThrottleTime = now;
+  if (now - _crThrottleTime >= 100) {
+    _crThrottleTime = now;
     updateColorContourColors();
   }
 }
