@@ -4744,7 +4744,7 @@ function updateColorReliefUI() {
   updateGradientTrack();
   updateColorContourColors();
   clearTimeout(_crTileTimer);
-  _crTileTimer = setTimeout(applyColorReliefTiles, 300);
+  _crTileTimer = setTimeout(applyColorReliefTiles, 1000);
 }
 
 // 確定時（ドラッグ終了・数値入力・自動フィット）はタイルを即座に更新
@@ -5154,7 +5154,7 @@ function updateSlopeReliefUI() {
   syncSlopeReliefUI();
   updateSlopeGradientTrack();
   clearTimeout(_srTileTimer);
-  _srTileTimer = setTimeout(applySlopeReliefTiles, 300);
+  _srTileTimer = setTimeout(applySlopeReliefTiles, 1000);
 }
 
 function updateSlopeReliefSource() {
@@ -5440,7 +5440,7 @@ function updateCurvatureReliefUI() {
   syncCurvatureReliefUI();
   updateCurvatureGradientTrack();
   clearTimeout(_cvTileTimer);
-  _cvTileTimer = setTimeout(applyCurvatureReliefTiles, 300);
+  _cvTileTimer = setTimeout(applyCurvatureReliefTiles, 1000);
 }
 
 function updateCurvatureReliefSource() {
