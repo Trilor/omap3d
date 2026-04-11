@@ -1285,7 +1285,7 @@ body {
   font-size: var(--font-xs);
   font-weight: 500;
   padding: 0 5px 1px;
-  color: #111;
+  color: var(--text-body);
   background: rgba(255, 255, 255, 0.88);
   backdrop-filter: blur(2px);
   -webkit-backdrop-filter: blur(2px);
@@ -5136,7 +5136,7 @@ h1, h2, h3, h4,
 /* ---- 検索バー: pill shape ---- */
 #unified-search-input {
   border-radius: 9999px !important;
-  padding-left: 18px !important;
+  padding-left: 30px !important;
   padding-right: 18px !important;
   border: var(--control-border) !important;
   box-shadow: var(--control-shadow) !important;
@@ -5149,7 +5149,7 @@ h1, h2, h3, h4,
 #place-search-input,
 .catalog-search-wrap input {
   border-radius: 9999px !important;
-  padding-left: 14px !important;
+  padding-left: 30px !important;
   padding-right: 14px !important;
   border-color: var(--border-light) !important;
 }
