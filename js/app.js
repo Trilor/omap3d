@@ -1876,6 +1876,9 @@ function selectMillerPref(pref) {
 function selectMillerTerrain(terrainId) {
   millerTerrain = terrainId;
   selectTerrain(terrainId);
+  // テレイン名を catalog 検索履歴に保存
+  const _tn = terrainMap.get(terrainId)?.name;
+  if (_tn) _historySave('sh_catalog', _tn);
   renderMillerColumns();
   // テレイン中心へ移動（ズームレベルは変えない）
   const t = terrainMap.get(terrainId);
@@ -3473,6 +3476,109 @@ function searchTerrains(q) {
   });
 }
 
+// ---- 検索履歴ユーティリティ ----
+const _HISTORY_MAX = 10;
+
+function _historyLoad(key) {
+  try { return JSON.parse(localStorage.getItem(key) ?? '[]'); } catch { return []; }
+}
+function _historySave(key, item) {
+  const list = _historyLoad(key).filter(v => v !== item);
+  list.unshift(item);
+  localStorage.setItem(key, JSON.stringify(list.slice(0, _HISTORY_MAX)));
+}
+function _historyDelete(key, item) {
+  const list = _historyLoad(key).filter(v => v !== item);
+  localStorage.setItem(key, JSON.stringify(list));
+}
+
+// unified-search 履歴ドロップダウンを表示（入力が空のときのみ）
+function _showUnifiedHistory() {
+  const results = document.getElementById('unified-search-results');
+  const msg     = document.getElementById('unified-search-msg');
+  const list    = _historyLoad('sh_unified');
+  if (list.length === 0) { results.innerHTML = ''; msg.textContent = ''; return; }
+  results.innerHTML = '';
+  msg.textContent = '';
+  const header = document.createElement('div');
+  header.className = 'search-history-header';
+  header.textContent = '最近の検索';
+  results.appendChild(header);
+  list.forEach(item => {
+    const el = document.createElement('div');
+    el.className = 'place-result-item search-history-item';
+    const iconEl = document.createElement('span');
+    iconEl.className = 'result-source-icon';
+    iconEl.textContent = '🕐';
+    el.appendChild(iconEl);
+    const nameEl = document.createElement('span');
+    nameEl.className = 'place-result-name';
+    nameEl.textContent = item;
+    el.appendChild(nameEl);
+    const delBtn = document.createElement('button');
+    delBtn.className = 'search-history-del';
+    delBtn.setAttribute('aria-label', '履歴から削除');
+    delBtn.textContent = '×';
+    delBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      _historyDelete('sh_unified', item);
+      _showUnifiedHistory();
+    });
+    el.appendChild(delBtn);
+    el.addEventListener('click', () => {
+      document.getElementById('unified-search-input').value = item;
+      updateClearBtn();
+      results.innerHTML = '';
+      clearTimeout(_searchTimer);
+      searchPlace();
+    });
+    results.appendChild(el);
+  });
+}
+
+// catalog-search 履歴ドロップダウンを表示
+function _showCatalogHistory() {
+  const container = document.getElementById('catalog-search-history');
+  if (!container) return;
+  const list = _historyLoad('sh_catalog');
+  if (list.length === 0) { container.innerHTML = ''; container.style.display = 'none'; return; }
+  container.innerHTML = '';
+  container.style.display = 'block';
+  const header = document.createElement('div');
+  header.className = 'search-history-header';
+  header.textContent = '最近の検索';
+  container.appendChild(header);
+  list.forEach(item => {
+    const el = document.createElement('div');
+    el.className = 'place-result-item search-history-item';
+    const iconEl = document.createElement('span');
+    iconEl.className = 'result-source-icon';
+    iconEl.textContent = '🕐';
+    el.appendChild(iconEl);
+    const nameEl = document.createElement('span');
+    nameEl.className = 'place-result-name';
+    nameEl.textContent = item;
+    el.appendChild(nameEl);
+    const delBtn = document.createElement('button');
+    delBtn.className = 'search-history-del';
+    delBtn.setAttribute('aria-label', '履歴から削除');
+    delBtn.textContent = '×';
+    delBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      _historyDelete('sh_catalog', item);
+      _showCatalogHistory();
+    });
+    el.appendChild(delBtn);
+    el.addEventListener('click', () => {
+      const inp = document.getElementById('catalog-search');
+      inp.value = item;
+      container.style.display = 'none';
+      renderMillerColumns();
+    });
+    container.appendChild(el);
+  });
+}
+
 function searchPlace() {
   const query   = document.getElementById('unified-search-input').value.trim();
   const msg     = document.getElementById('unified-search-msg');
@@ -3529,6 +3635,7 @@ function searchPlace() {
         });
       }
       document.getElementById('unified-search-input').value = t.name;
+      _historySave('sh_unified', t.name);
       updateClearBtn();
     });
     results.appendChild(el);
@@ -3585,6 +3692,7 @@ function searchPlace() {
         el.addEventListener('click', () => {
           map.flyTo({ center: [lng, lat], zoom: 15, duration: 1500 });
           document.getElementById('unified-search-input').value = item.properties.title;
+          _historySave('sh_unified', item.properties.title);
           msg.textContent = '';
           updateClearBtn();
         });
@@ -3602,17 +3710,35 @@ document.getElementById('unified-search-input').addEventListener('keydown', e =>
   if (e.key === 'Enter') { clearTimeout(_searchTimer); searchPlace(); }
 });
 
+// フォーカス時: 入力が空なら履歴を表示
+document.getElementById('unified-search-input').addEventListener('focus', () => {
+  const q = document.getElementById('unified-search-input').value.trim();
+  if (!q) _showUnifiedHistory();
+});
+
 // 入力中のライブ検索（350ms デバウンス）+ クリアボタン表示制御
 document.getElementById('unified-search-input').addEventListener('input', () => {
   updateClearBtn();
   clearTimeout(_searchTimer);
   const q = document.getElementById('unified-search-input').value.trim();
   if (!q) {
-    document.getElementById('unified-search-results').innerHTML = '';
+    _showUnifiedHistory();
     document.getElementById('unified-search-msg').textContent = '';
     return;
   }
+  document.getElementById('unified-search-results').innerHTML = '';
   _searchTimer = setTimeout(searchPlace, 350);
+});
+
+// フォーカスを外したとき履歴を閉じる（候補クリックは mousedown で先に発火するため delay）
+document.getElementById('unified-search-input').addEventListener('blur', () => {
+  setTimeout(() => {
+    const q = document.getElementById('unified-search-input').value.trim();
+    if (!q) {
+      document.getElementById('unified-search-results').innerHTML = '';
+      document.getElementById('unified-search-msg').textContent = '';
+    }
+  }, 200);
 });
 
 // クリアボタン
@@ -3752,8 +3878,27 @@ document.getElementById('frame-img-input').addEventListener('change', async (e) 
 });
 
 // ---- 地図カタログ: 検索バー ----
+document.getElementById('catalog-search').addEventListener('focus', () => {
+  const q = document.getElementById('catalog-search').value.trim();
+  if (!q) _showCatalogHistory();
+});
 document.getElementById('catalog-search').addEventListener('input', () => {
+  const q = document.getElementById('catalog-search').value.trim();
+  const hist = document.getElementById('catalog-search-history');
+  if (hist) hist.style.display = 'none';
   renderMillerColumns();
+});
+document.getElementById('catalog-search').addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    const q = document.getElementById('catalog-search').value.trim();
+    if (q) _historySave('sh_catalog', q);
+  }
+});
+document.getElementById('catalog-search').addEventListener('blur', () => {
+  setTimeout(() => {
+    const hist = document.getElementById('catalog-search-history');
+    if (hist) hist.style.display = 'none';
+  }, 200);
 });
 
 // ---- map_type チップフィルター ----

@@ -5154,6 +5154,53 @@ h1, h2, h3, h4,
   border-color: var(--border-light) !important;
 }
 
+/* ---- 検索履歴ドロップダウン ---- */
+.search-history-header {
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 6px 10px 2px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.search-history-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.search-history-del {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0 4px;
+  flex-shrink: 0;
+  opacity: 0.6;
+}
+.search-history-del:hover { opacity: 1; color: var(--text-primary); }
+#catalog-search-history {
+  display: none;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  margin-top: 4px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+#catalog-search-history .place-result-item {
+  padding: 7px 10px;
+  cursor: pointer;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+#catalog-search-history .place-result-item:hover {
+  background: var(--bg-hover);
+}
+
 /* ---- プライマリボタン: 鮮やかシアンベタ塗り ---- */
 .panel-btn-primary,
 #pc-sim-toggle-btn {
