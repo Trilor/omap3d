@@ -4705,8 +4705,8 @@ function updateGradientTrack() {
 
 // タイル再フェッチのデバウンスタイマー（updateColorReliefSource での clearTimeout 用に残す）
 let _crTileTimer = null;
-// input 中の setPaintProperty スロットル（100ms）
-let _crContourThrottleTime = 0;
+// input 中のタイル更新・setPaintProperty スロットル（100ms）
+let _crThrottleTime = 0;
 
 // 色別等高線の line-color を crMin/crMax に合わせて再設定
 function updateColorContourColors() {
@@ -4744,11 +4744,12 @@ function applyColorReliefTiles() {
 function updateColorReliefUI() {
   syncColorReliefUI();
   updateGradientTrack();
-  // setPaintProperty は重いため 100ms スロットル（タイル更新は change イベントで確定）
+  // タイル更新・setPaintProperty を 100ms スロットル（手を離したときは change イベントで確定）
   const now = Date.now();
-  if (now - _crContourThrottleTime >= 100) {
-    _crContourThrottleTime = now;
+  if (now - _crThrottleTime >= 100) {
+    _crThrottleTime = now;
     updateColorContourColors();
+    applyColorReliefTiles();
   }
 }
 
@@ -5132,6 +5133,7 @@ function updateSlopeGradientTrack() {
 
 let _srTileTimer = null;
 let _srRepaintTimer = null;
+let _srThrottleTime = 0;
 
 function applySlopeReliefTiles() {
   if (!map.getSource('slope-relief')) return;
@@ -5158,7 +5160,12 @@ function applySlopeReliefTiles() {
 function updateSlopeReliefUI() {
   syncSlopeReliefUI();
   updateSlopeGradientTrack();
-  // タイル更新は change イベントで確定するためデバウンス不要
+  // タイル更新を 100ms スロットル（手を離したときは change イベントで確定）
+  const now = Date.now();
+  if (now - _srThrottleTime >= 100) {
+    _srThrottleTime = now;
+    applySlopeReliefTiles();
+  }
 }
 
 function updateSlopeReliefSource() {
@@ -5417,6 +5424,7 @@ function updateCurvatureGradientTrack() {
 
 let _cvTileTimer = null;
 let _cvRepaintTimer = null;
+let _cvThrottleTime = 0;
 
 function applyCurvatureReliefTiles() {
   if (!map.getSource('curvature-relief')) return;
@@ -5443,7 +5451,12 @@ function applyCurvatureReliefTiles() {
 function updateCurvatureReliefUI() {
   syncCurvatureReliefUI();
   updateCurvatureGradientTrack();
-  // タイル更新は change イベントで確定するためデバウンス不要
+  // タイル更新を 100ms スロットル（手を離したときは change イベントで確定）
+  const now = Date.now();
+  if (now - _cvThrottleTime >= 100) {
+    _cvThrottleTime = now;
+    applyCurvatureReliefTiles();
+  }
 }
 
 function updateCurvatureReliefSource() {
