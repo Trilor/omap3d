@@ -4236,6 +4236,7 @@ function updateCsVisibility() {
 
   // 色別標高図の表示制御（visibility ではなく opacity で切替 — WebGL 初期化を常時維持するため）
   const sliderVal = parseFloat(document.getElementById('slider-cs').value);
+  const z = map.getZoom();
   const showColorRelief = overlay === 'color-relief';
   if (map.getLayer('color-relief-layer')) {
     const crOpacity = showColorRelief ? sliderVal : 0;
@@ -4320,7 +4321,6 @@ function updateCsVisibility() {
               : basemap.startsWith('cs-') ? basemap
               : null;
 
-  const z = map.getZoom();
   // 'cs'（統合キー）または旧 'cs-0.5m'（ベースマップ用に残存）はプログレッシブ表示
   // z>=17 で 1m を下敷きにした上に 0.5m を重ねる。旧 'cs-1m' は 1m のみ。
   const show1m  = !!csKey && csKey !== 'none';
