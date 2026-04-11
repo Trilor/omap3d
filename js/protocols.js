@@ -850,6 +850,7 @@ maplibregl.addProtocol('dem2slope', async (params, abortController) => {
     const effectiveRegionalOrder = effectiveRegionalBase ? regionalDemOrder : 'xy';
 
     // tileOutputSize=null: Q地図使用時は512px、DEM5A/10Bのみ時は256px（自動）
+    const _slopeT0 = performance.now();
     const [center, right, down, downRight] = await Promise.all([
       fetchCompositeDemBitmap(zoomLevel, tileX, tileY, abortController.signal, effectiveRegionalBase, effectiveRegionalExt, demMode, effectiveRegionalOrder, null),
       fetchCompositeDemBitmap(zoomLevel, tileX + 1, tileY, abortController.signal, effectiveRegionalBase, effectiveRegionalExt, demMode, effectiveRegionalOrder, null),
@@ -927,8 +928,22 @@ maplibregl.addProtocol('dem2slope', async (params, abortController) => {
     }
 
     outCtx.putImageData(outImageData, 0, 0);
-    const blob = await _rescaleComposite(outCanvas).convertToBlob({ type: 'image/png' });
-    return { data: await blob.arrayBuffer() };
+    const _slopeT1 = performance.now(); // fetch+演算完了
+    const slopeBlob = await _rescaleComposite(outCanvas).convertToBlob({ type: 'image/png' });
+    const slopeArrayBuffer = await slopeBlob.arrayBuffer();
+    const _slopeT2 = performance.now();
+    const _slopeDemSrcs = demMode === null            ? 'R+Q+5A+10B'
+      : demMode === 'dem10b+dem5a+q' ? 'Q+5A+10B'
+      : demMode === 'dem10b+dem5a'   ? '5A+10B'
+      : demMode === 'q'             ? 'Q'
+      : '10B';
+    console.log(
+      `[dem2slope] z${zoomLevel} ${tileX},${tileY} dem:${_slopeDemSrcs} range:${min}~${max}° | ` +
+      `fetch+calc:${(_slopeT1-_slopeT0).toFixed(0)}ms  ` +
+      `blob:${(_slopeT2-_slopeT1).toFixed(0)}ms  ` +
+      `total:${(_slopeT2-_slopeT0).toFixed(0)}ms`
+    );
+    return { data: slopeArrayBuffer };
   } catch {
     return { data: _transparentPngBuffer() };
   }
@@ -964,8 +979,10 @@ maplibregl.addProtocol('dem2relief', async (params, abortController) => {
 
     // データなし（海域・範囲外・404・CORS）の場合は透明タイルを返す
     // tileOutputSize=null: Q地図使用時は512px、DEM5A/10Bのみ時は256px（自動）
+    const _reliefT0 = performance.now();
     const bitmap = await fetchCompositeDemBitmap(z, x, y, abortController.signal, effectiveRegionalBase, effectiveRegionalExt ?? 'png', demMode, effectiveRegionalOrder, null);
     if (!bitmap) return { data: _transparentPngBuffer() };
+    const _reliefT1 = performance.now(); // fetch完了
 
     // NumPNG → RGB 色別標高図へ変換
     const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
@@ -997,8 +1014,23 @@ maplibregl.addProtocol('dem2relief', async (params, abortController) => {
     }
 
     ctx.putImageData(imageData, 0, 0);
-    const blob = await _rescaleComposite(canvas).convertToBlob({ type: 'image/png' });
-    return { data: await blob.arrayBuffer() };
+    const _reliefT2 = performance.now(); // 色変換完了
+    const reliefBlob = await _rescaleComposite(canvas).convertToBlob({ type: 'image/png' });
+    const reliefArrayBuffer = await reliefBlob.arrayBuffer();
+    const _reliefT3 = performance.now();
+    const _reliefDemSrcs = demMode === null            ? 'R+Q+5A+10B'
+      : demMode === 'dem10b+dem5a+q' ? 'Q+5A+10B'
+      : demMode === 'dem10b+dem5a'   ? '5A+10B'
+      : demMode === 'q'             ? 'Q'
+      : '10B';
+    console.log(
+      `[dem2relief] z${z} ${x},${y} dem:${_reliefDemSrcs} range:${min}~${max}m | ` +
+      `fetch:${(_reliefT1-_reliefT0).toFixed(0)}ms  ` +
+      `colorize:${(_reliefT2-_reliefT1).toFixed(0)}ms  ` +
+      `blob:${(_reliefT3-_reliefT2).toFixed(0)}ms  ` +
+      `total:${(_reliefT3-_reliefT0).toFixed(0)}ms`
+    );
+    return { data: reliefArrayBuffer };
 
   } catch {
     // いかなるエラーでも透明タイルを返してレンダリングループを保護する
@@ -1058,6 +1090,7 @@ maplibregl.addProtocol('dem2curve', async (params, abortController) => {
 
     // ── ① 9タイル取得（CS立体図と同じ） ──
     // tileOutputSize=null: Q地図使用時は512px、DEM5A/10Bのみ時は256px（自動）
+    const _curveT0 = performance.now();
     const neighborOffsets = [
       [-1, -1], [0, -1], [1, -1],
       [-1,  0], [0,  0], [1,  0],
@@ -1216,7 +1249,21 @@ maplibregl.addProtocol('dem2curve', async (params, abortController) => {
     curvatureTensor.dispose();
     _releaseGpuTransfer();
     _curveGpuReleased = true;
-    return { data: await _rescaleComposite(outCanvas).convertToBlob({ type: 'image/webp', quality: 0.92 }).then(b => b.arrayBuffer()) };
+    const _curveT1 = performance.now(); // GPU完了
+    const curveArrayBuffer = await _rescaleComposite(outCanvas).convertToBlob({ type: 'image/webp', quality: 0.92 }).then(b => b.arrayBuffer());
+    const _curveT2 = performance.now();
+    const _curveDemSrcs = demMode === null            ? 'R+Q+5A+10B'
+      : demMode === 'dem10b+dem5a+q' ? 'Q+5A+10B'
+      : demMode === 'dem10b+dem5a'   ? '5A+10B'
+      : demMode === 'q'             ? 'Q'
+      : '10B';
+    console.log(
+      `[dem2curve] z${zoomLevel} ${tileX},${tileY} dem:${_curveDemSrcs} range:${curveMin}~${curveMax} | ` +
+      `fetch:${(_curveT1-_curveT0).toFixed(0)}ms  ` +
+      `blob:${(_curveT2-_curveT1).toFixed(0)}ms  ` +
+      `total:${(_curveT2-_curveT0).toFixed(0)}ms`
+    );
+    return { data: curveArrayBuffer };
     } finally {
       if (!_curveGpuReleased) _releaseGpuTransfer();
     }
