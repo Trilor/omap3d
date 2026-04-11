@@ -936,31 +936,35 @@ maplibregl.addProtocol('dem2slope', async (params, abortController) => {
 
 maplibregl.addProtocol('dem2relief', async (params, abortController) => {
   try {
-    // URLスキームを https:// に置換して URL オブジェクトを生成
-    const rawUrl = params.url.replace(/^dem2relief:\/\//, 'https://');
-    const urlObj = new URL(rawUrl);
+    const request = _parseProtocolTileRequest(params.url, 'dem2relief');
+    if (!request) return { data: _transparentPngBuffer() };
+    const { urlObj, baseUrl, tileOrder, zoomLevel, tileX, tileY, ext } = request;
+    const z = zoomLevel, x = tileX, y = tileY;
 
     // クエリパラメータから min/max を取得（デフォルト 0〜3000m）
     const min = parseFloat(urlObj.searchParams.get('min') ?? '0');
     const max = parseFloat(urlObj.searchParams.get('max') ?? '3000');
     const range = max - min || 1; // ゼロ除算を防ぐ
 
-    // z/x/y の抽出（クエリパラメータを除いたパス部分から取得）
-    const m = urlObj.pathname.match(/\/(\d+)\/(\d+)\/(\d+)\.\w+/);
-    if (!m) return { data: _transparentPngBuffer() };
-    const [, z, x, y] = m;
+    const regionalDemBase  = (baseUrl === QCHIZU_DEM_BASE) ? null : baseUrl;
+    const regionalDemExt   = regionalDemBase ? ext : null;
+    const regionalDemOrder = regionalDemBase ? tileOrder : 'xy';
 
     // ズーム別 DEMソース選択（CS/RRIMと同設計）:
-    //   qonly=1: Q地図のみ / z≤13: DEM10Bのみ / z14: +DEM5A / z15: +Q地図1m / z≥16(null): Q地図+DEM5A（地域DEM無し）
+    //   qonly=1: Q地図のみ / z≤13: DEM10Bのみ / z14: +DEM5A / z15: +Q地図1m / z≥16(null): +地域DEM
     const qonly = urlObj.searchParams.get('qonly') === '1';
     const demMode = qonly ? 'q'
-                  : +z <= 13 ? 'dem10b'
-                  : +z === 14 ? 'dem10b+dem5a'
-                  : +z === 15 ? 'dem10b+dem5a+q'
+                  : z <= 13 ? 'dem10b'
+                  : z === 14 ? 'dem10b+dem5a'
+                  : z === 15 ? 'dem10b+dem5a+q'
                   : null;
+    const effectiveRegionalBase  = demMode === null ? regionalDemBase : null;
+    const effectiveRegionalExt   = effectiveRegionalBase ? regionalDemExt : null;
+    const effectiveRegionalOrder = effectiveRegionalBase ? regionalDemOrder : 'xy';
+
     // データなし（海域・範囲外・404・CORS）の場合は透明タイルを返す
     // tileOutputSize=null: Q地図使用時は512px、DEM5A/10Bのみ時は256px（自動）
-    const bitmap = await fetchCompositeDemBitmap(z, x, y, abortController.signal, null, 'png', demMode, 'xy', null);
+    const bitmap = await fetchCompositeDemBitmap(z, x, y, abortController.signal, effectiveRegionalBase, effectiveRegionalExt ?? 'png', demMode, effectiveRegionalOrder, null);
     if (!bitmap) return { data: _transparentPngBuffer() };
 
     // NumPNG → RGB 色別標高図へ変換
