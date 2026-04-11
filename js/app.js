@@ -4703,8 +4703,10 @@ function updateGradientTrack() {
   }
 }
 
-// タイル再フェッチのデバウンスタイマー
+// タイル再フェッチのデバウンスタイマー（updateColorReliefSource での clearTimeout 用に残す）
 let _crTileTimer = null;
+// input 中の setPaintProperty スロットル（100ms）
+let _crContourThrottleTime = 0;
 
 // 色別等高線の line-color を crMin/crMax に合わせて再設定
 function updateColorContourColors() {
@@ -4742,9 +4744,12 @@ function applyColorReliefTiles() {
 function updateColorReliefUI() {
   syncColorReliefUI();
   updateGradientTrack();
-  updateColorContourColors();
-  clearTimeout(_crTileTimer);
-  _crTileTimer = setTimeout(applyColorReliefTiles, 1000);
+  // setPaintProperty は重いため 100ms スロットル（タイル更新は change イベントで確定）
+  const now = Date.now();
+  if (now - _crContourThrottleTime >= 100) {
+    _crContourThrottleTime = now;
+    updateColorContourColors();
+  }
 }
 
 // 確定時（ドラッグ終了・数値入力・自動フィット）はタイルを即座に更新
@@ -5153,8 +5158,7 @@ function applySlopeReliefTiles() {
 function updateSlopeReliefUI() {
   syncSlopeReliefUI();
   updateSlopeGradientTrack();
-  clearTimeout(_srTileTimer);
-  _srTileTimer = setTimeout(applySlopeReliefTiles, 1000);
+  // タイル更新は change イベントで確定するためデバウンス不要
 }
 
 function updateSlopeReliefSource() {
@@ -5439,8 +5443,7 @@ function applyCurvatureReliefTiles() {
 function updateCurvatureReliefUI() {
   syncCurvatureReliefUI();
   updateCurvatureGradientTrack();
-  clearTimeout(_cvTileTimer);
-  _cvTileTimer = setTimeout(applyCurvatureReliefTiles, 1000);
+  // タイル更新は change イベントで確定するためデバウンス不要
 }
 
 function updateCurvatureReliefSource() {
