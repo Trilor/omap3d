@@ -40,6 +40,7 @@ import {
   // LAKEDEPTH_BASE, LAKEDEPTH_STANDARD_BASE, // 湖水深タイルは廃止（2026-03-23）
   TERRAIN_URL, CS_RELIEF_URL,
   REGIONAL_CS_LAYERS, REGIONAL_RRIM_LAYERS,
+  REGIONAL_RELIEF_LAYERS, REGIONAL_SLOPE_LAYERS, REGIONAL_CURVE_LAYERS,
   INITIAL_CENTER, INITIAL_ZOOM, INITIAL_PITCH, INITIAL_BEARING,
   TERRAIN_EXAGGERATION, OMAP_INITIAL_OPACITY, CS_INITIAL_OPACITY,
   EASE_DURATION, FIT_BOUNDS_PAD, FIT_BOUNDS_PAD_SIDEBAR, SIDEBAR_DEFAULT_WIDTH,
@@ -799,6 +800,9 @@ map.on('load', async () => {
 
   REGIONAL_CS_LAYERS.forEach(_addRegionalLayer);
   REGIONAL_RRIM_LAYERS.forEach(_addRegionalLayer);
+  REGIONAL_RELIEF_LAYERS.forEach(_addRegionalLayer);
+  REGIONAL_SLOPE_LAYERS.forEach(_addRegionalLayer);
+  REGIONAL_CURVE_LAYERS.forEach(_addRegionalLayer);
 
 // 磁北線 GeoJSON ソース＋レイヤー
   map.addSource('magnetic-north', {
@@ -4238,18 +4242,42 @@ function updateCsVisibility() {
     map.setPaintProperty('color-relief-layer', 'raster-opacity', crOpacity);
     if (map.getLayer('color-qchizu-layer')) map.setPaintProperty('color-qchizu-layer', 'raster-opacity', crOpacity);
   }
+  // 色別標高図: z≥16 で地域DEMレイヤーを重ねる（CS・RRIMと同設計）
+  const showRelief05m = showColorRelief && z >= 16;
+  REGIONAL_RELIEF_LAYERS.forEach(layer => {
+    if (map.getLayer(layer.layerId)) {
+      map.setLayoutProperty(layer.layerId, 'visibility', showRelief05m ? 'visible' : 'none');
+      if (showRelief05m) map.setPaintProperty(layer.layerId, 'raster-opacity', sliderVal);
+    }
+  });
   const showSlopeRelief = overlay === 'slope';
   if (map.getLayer('slope-relief-layer')) {
     const slopeOpacity = showSlopeRelief ? sliderVal : 0;
     map.setPaintProperty('slope-relief-layer', 'raster-opacity', slopeOpacity);
     if (map.getLayer('slope-qchizu-layer')) map.setPaintProperty('slope-qchizu-layer', 'raster-opacity', slopeOpacity);
   }
+  // 傾斜量図: z≥16 で地域DEMレイヤーを重ねる
+  const showSlope05m = showSlopeRelief && z >= 16;
+  REGIONAL_SLOPE_LAYERS.forEach(layer => {
+    if (map.getLayer(layer.layerId)) {
+      map.setLayoutProperty(layer.layerId, 'visibility', showSlope05m ? 'visible' : 'none');
+      if (showSlope05m) map.setPaintProperty(layer.layerId, 'raster-opacity', sliderVal);
+    }
+  });
   const showCurvatureRelief = overlay === 'curvature';
   if (map.getLayer('curvature-relief-layer')) {
     const curvOpacity = showCurvatureRelief ? sliderVal : 0;
     map.setPaintProperty('curvature-relief-layer', 'raster-opacity', curvOpacity);
     if (map.getLayer('curvature-qchizu-layer')) map.setPaintProperty('curvature-qchizu-layer', 'raster-opacity', curvOpacity);
   }
+  // 色別曲率図: z≥16 で地域DEMレイヤーを重ねる
+  const showCurve05m = showCurvatureRelief && z >= 16;
+  REGIONAL_CURVE_LAYERS.forEach(layer => {
+    if (map.getLayer(layer.layerId)) {
+      map.setLayoutProperty(layer.layerId, 'visibility', showCurve05m ? 'visible' : 'none');
+      if (showCurve05m) map.setPaintProperty(layer.layerId, 'raster-opacity', sliderVal);
+    }
+  });
   const showRrimRelief = overlay === 'rrim';
   if (map.getLayer('rrim-relief-layer')) {
     map.setLayoutProperty('rrim-relief-layer', 'visibility', showRrimRelief ? 'visible' : 'none');
@@ -4551,6 +4579,11 @@ function applyColorReliefTiles() {
   if (map.getSource('color-qchizu')) map.getSource('color-qchizu').setTiles([
     `dem2relief://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp?min=${crMin}&max=${crMax}&qonly=1`
   ]);
+  REGIONAL_RELIEF_LAYERS.forEach(layer => {
+    if (map.getSource(layer.sourceId)) map.getSource(layer.sourceId).setTiles([
+      `${layer.tileUrl.replace(/min=[^&]*&max=[^&?]*/, `min=${crMin}&max=${crMax}`)}`
+    ]);
+  });
   clearTimeout(_crRepaintTimer);
   let remaining = 20; // 20 × 100ms = 2 秒
   const repaint = () => {
@@ -4958,6 +4991,11 @@ function applySlopeReliefTiles() {
   if (map.getSource('slope-qchizu')) map.getSource('slope-qchizu').setTiles([
     `dem2slope://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp?min=${srMin}&max=${srMax}&qonly=1`
   ]);
+  REGIONAL_SLOPE_LAYERS.forEach(layer => {
+    if (map.getSource(layer.sourceId)) map.getSource(layer.sourceId).setTiles([
+      `${layer.tileUrl.replace(/min=[^&]*&max=[^&?]*/, `min=${srMin}&max=${srMax}`)}`
+    ]);
+  });
   clearTimeout(_srRepaintTimer);
   let remaining = 20;
   const repaint = () => {
@@ -5239,6 +5277,11 @@ function applyCurvatureReliefTiles() {
   if (map.getSource('curvature-qchizu')) map.getSource('curvature-qchizu').setTiles([
     `dem2curve://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp?min=${cvMin.toFixed(3)}&max=${cvMax.toFixed(3)}&qonly=1`
   ]);
+  REGIONAL_CURVE_LAYERS.forEach(layer => {
+    if (map.getSource(layer.sourceId)) map.getSource(layer.sourceId).setTiles([
+      `${layer.tileUrl.replace(/min=[^&]*&max=[^&?]*/, `min=${cvMin.toFixed(3)}&max=${cvMax.toFixed(3)}`)}`
+    ]);
+  });
   clearTimeout(_cvRepaintTimer);
   let remaining = 20;
   const repaint = () => {
@@ -5445,10 +5488,16 @@ sliderCs.addEventListener('input', () => {
   if (currentOverlay === 'color-relief' && map.getLayer('color-relief-layer')) {
     map.setPaintProperty('color-relief-layer', 'raster-opacity', v);
     if (map.getLayer('color-qchizu-layer')) map.setPaintProperty('color-qchizu-layer', 'raster-opacity', v);
+    REGIONAL_RELIEF_LAYERS.forEach(layer => {
+      if (map.getLayer(layer.layerId)) map.setPaintProperty(layer.layerId, 'raster-opacity', v);
+    });
   }
   if (currentOverlay === 'slope' && map.getLayer('slope-relief-layer')) {
     map.setPaintProperty('slope-relief-layer', 'raster-opacity', v);
     if (map.getLayer('slope-qchizu-layer')) map.setPaintProperty('slope-qchizu-layer', 'raster-opacity', v);
+    REGIONAL_SLOPE_LAYERS.forEach(layer => {
+      if (map.getLayer(layer.layerId)) map.setPaintProperty(layer.layerId, 'raster-opacity', v);
+    });
   }
   if (currentOverlay === 'rrim' && map.getLayer('rrim-relief-layer')) {
     map.setPaintProperty('rrim-relief-layer', 'raster-opacity', v);
@@ -5457,6 +5506,9 @@ sliderCs.addEventListener('input', () => {
   if (currentOverlay === 'curvature' && map.getLayer('curvature-relief-layer')) {
     map.setPaintProperty('curvature-relief-layer', 'raster-opacity', v);
     if (map.getLayer('curvature-qchizu-layer')) map.setPaintProperty('curvature-qchizu-layer', 'raster-opacity', v);
+    REGIONAL_CURVE_LAYERS.forEach(layer => {
+      if (map.getLayer(layer.layerId)) map.setPaintProperty(layer.layerId, 'raster-opacity', v);
+    });
   }
   if (currentOverlay === 'rrim') {
     REGIONAL_RRIM_LAYERS.forEach(layer => {
