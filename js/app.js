@@ -4711,6 +4711,8 @@ function updateGradientTrack() {
 let _crTileTimer = null;
 // input 中の setPaintProperty スロットル（100ms）
 let _crThrottleTime = 0;
+// ドラッグ中タイル更新スロットル（1秒に1回）
+let _crDragTileTime = 0;
 
 // 色別等高線の line-color を crMin/crMax に合わせて再設定
 function updateColorContourColors() {
@@ -4778,10 +4780,12 @@ function updateColorReliefSource() {
   const maxInput  = document.getElementById('cr-max-input');
   if (!minSlider || !maxSlider) return;
 
-  // ── スライダー: ドラッグ中は UI のみ即時更新、離したときにタイル確定 ──
+  // ── スライダー: ドラッグ中は UI 即時更新 + 1秒スロットルでタイル更新、離したときに確定 ──
   minSlider.addEventListener('input', () => {
     crMin = Math.min(parseInt(minSlider.value, 10), crMax);
     updateColorReliefUI();
+    const now = Date.now();
+    if (now - _crDragTileTime >= 1000) { _crDragTileTime = now; applyColorReliefTiles(); }
   });
   minSlider.addEventListener('change', () => {
     crMin = Math.min(parseInt(minSlider.value, 10), crMax);
@@ -4790,6 +4794,8 @@ function updateColorReliefSource() {
   maxSlider.addEventListener('input', () => {
     crMax = Math.max(parseInt(maxSlider.value, 10), crMin);
     updateColorReliefUI();
+    const now = Date.now();
+    if (now - _crDragTileTime >= 1000) { _crDragTileTime = now; applyColorReliefTiles(); }
   });
   maxSlider.addEventListener('change', () => {
     crMax = Math.max(parseInt(maxSlider.value, 10), crMin);
@@ -4860,6 +4866,8 @@ function updateColorReliefSource() {
       }
       clampCrValues();
       updateColorReliefUI();
+      const now = Date.now();
+      if (now - _crDragTileTime >= 1000) { _crDragTileTime = now; applyColorReliefTiles(); }
     }
 
     function finishDrag() {
@@ -4868,6 +4876,7 @@ function updateColorReliefSource() {
       dragPointerId = null;
       trackWrap.classList.remove('cr-dragging');
       selected.classList.remove('cr-dragging');
+      _crDragTileTime = 0; // 次回ドラッグ開始時にすぐ反映されるようリセット
       updateColorReliefSource();
     }
 
@@ -5136,6 +5145,7 @@ function updateSlopeGradientTrack() {
 
 let _srTileTimer = null;
 let _srRepaintTimer = null;
+let _srDragTileTime = 0; // ドラッグ中タイル更新スロットル（1秒に1回）
 
 function applySlopeReliefTiles() {
   if (!map.getSource('slope-relief')) return;
@@ -5187,6 +5197,8 @@ function updateSlopeReliefSource() {
   minSlider.addEventListener('input', () => {
     srMin = Math.min(parseInt(minSlider.value, 10), srMax);
     updateSlopeReliefUI();
+    const now = Date.now();
+    if (now - _srDragTileTime >= 1000) { _srDragTileTime = now; applySlopeReliefTiles(); }
   });
   minSlider.addEventListener('change', () => {
     srMin = Math.min(parseInt(minSlider.value, 10), srMax);
@@ -5195,6 +5207,8 @@ function updateSlopeReliefSource() {
   maxSlider.addEventListener('input', () => {
     srMax = Math.max(parseInt(maxSlider.value, 10), srMin);
     updateSlopeReliefUI();
+    const now = Date.now();
+    if (now - _srDragTileTime >= 1000) { _srDragTileTime = now; applySlopeReliefTiles(); }
   });
   maxSlider.addEventListener('change', () => {
     srMax = Math.max(parseInt(maxSlider.value, 10), srMin);
@@ -5263,6 +5277,8 @@ function updateSlopeReliefSource() {
       }
       clampSrValues();
       updateSlopeReliefUI();
+      const now = Date.now();
+      if (now - _srDragTileTime >= 1000) { _srDragTileTime = now; applySlopeReliefTiles(); }
     }
 
     function finishDrag() {
@@ -5271,6 +5287,7 @@ function updateSlopeReliefSource() {
       dragPointerId = null;
       trackWrap.classList.remove('cr-dragging');
       selected.classList.remove('cr-dragging');
+      _srDragTileTime = 0;
       updateSlopeReliefSource();
     }
 
@@ -5421,6 +5438,7 @@ function updateCurvatureGradientTrack() {
 
 let _cvTileTimer = null;
 let _cvRepaintTimer = null;
+let _cvDragTileTime = 0; // ドラッグ中タイル更新スロットル（1秒に1回）
 
 function applyCurvatureReliefTiles() {
   if (!map.getSource('curvature-relief')) return;
@@ -5472,6 +5490,8 @@ function updateCurvatureReliefSource() {
   minSlider.addEventListener('input', () => {
     cvMin = Math.min(parseFloat(minSlider.value), cvMax);
     updateCurvatureReliefUI();
+    const now = Date.now();
+    if (now - _cvDragTileTime >= 1000) { _cvDragTileTime = now; applyCurvatureReliefTiles(); }
   });
   minSlider.addEventListener('change', () => {
     cvMin = Math.min(parseFloat(minSlider.value), cvMax);
@@ -5480,6 +5500,8 @@ function updateCurvatureReliefSource() {
   maxSlider.addEventListener('input', () => {
     cvMax = Math.max(parseFloat(maxSlider.value), cvMin);
     updateCurvatureReliefUI();
+    const now = Date.now();
+    if (now - _cvDragTileTime >= 1000) { _cvDragTileTime = now; applyCurvatureReliefTiles(); }
   });
   maxSlider.addEventListener('change', () => {
     cvMax = Math.max(parseFloat(maxSlider.value), cvMin);
@@ -5542,6 +5564,8 @@ function updateCurvatureReliefSource() {
       }
       clampCvValues();
       updateCurvatureReliefUI();
+      const now = Date.now();
+      if (now - _cvDragTileTime >= 1000) { _cvDragTileTime = now; applyCurvatureReliefTiles(); }
     }
 
     function finishDrag() {
@@ -5550,6 +5574,7 @@ function updateCurvatureReliefSource() {
       dragPointerId = null;
       trackWrap.classList.remove('cr-dragging');
       selected.classList.remove('cr-dragging');
+      _cvDragTileTime = 0;
       updateCurvatureReliefSource();
     }
 
