@@ -3,7 +3,7 @@
    MapLibre の addProtocol() でブラウザ内 DEM 変換を実現します
    ================================================================ */
 
-import { QCHIZU_DEM_BASE, QCHIZU_PROXY_BASE, DEM5A_BASE, DEM10B_BASE } from './config.js';
+import { QCHIZU_DEM_BASE, QCHIZU_PROXY_BASE, DEM5A_BASE, DEM10B_BASE, RELIEF_PALETTES } from './config.js';
 // DEM1A_BASE: protocols.js では未使用（等高線用のみ app.js で使用）
 // 湖水深・湖水面タイルはコメントアウト済み（2026-03-23 廃止）
 // import { DEM1A_BASE, LAKEDEPTH_BASE, LAKEDEPTH_STANDARD_BASE } from './config.js';
@@ -781,25 +781,19 @@ maplibregl.addProtocol('dem2cs', async (params, abortController) => {
   ========================================================
 */
 
-// カラーパレット（正規化位置 t → RGB）
-const DEM2RELIEF_PALETTE = [
-  { t: 0.00, r:   0, g:   6, b: 251 }, // #0006FB
-  { t: 0.17, r:   0, g: 146, b: 251 }, // #0092FB
-  { t: 0.33, r:   0, g: 231, b: 251 }, // #00E7FB
-  { t: 0.50, r: 138, g: 247, b:   8 }, // #8AF708
-  { t: 0.67, r: 242, g: 249, b:  11 }, // #F2F90B
-  { t: 0.83, r: 242, g: 138, b:   9 }, // #F28A09
-  { t: 1.00, r: 242, g:  72, b:  11 }, // #F2480B
-];
+// パレット ID → stops を取得（存在しない場合は rainbow にフォールバック）
+function _getReliefPaletteStops(id) {
+  return (RELIEF_PALETTES.find(p => p.id === id) ?? RELIEF_PALETTES[0]).stops;
+}
 
 // パレット補間: 正規化値 t（0〜1）→ {r, g, b}
-function _dem2reliefColor(t) {
+// stops: RELIEF_PALETTES の stops 配列
+function _dem2reliefColor(t, stops) {
   t = Math.max(0, Math.min(1, t));
   let i = 0;
-  // 対応区間を線形探索（パレットサイズは固定8点なので十分高速）
-  while (i < DEM2RELIEF_PALETTE.length - 2 && DEM2RELIEF_PALETTE[i + 1].t <= t) i++;
-  const lo = DEM2RELIEF_PALETTE[i];
-  const hi = DEM2RELIEF_PALETTE[i + 1];
+  while (i < stops.length - 2 && stops[i + 1].t <= t) i++;
+  const lo = stops[i];
+  const hi = stops[i + 1];
   const n  = (t - lo.t) / (hi.t - lo.t); // 区間内の正規化位置（0〜1）
   return {
     r: Math.round(lo.r + n * (hi.r - lo.r)),
@@ -820,10 +814,10 @@ function _dem2reliefColor(t) {
   ========================================================
 */
 
-function _dem2slopeColor(slope, min, max) {
+function _dem2slopeColor(slope, min, max, stops) {
   const range = max - min || 1;
   const t = Math.max(0, Math.min(1, (slope - min) / range));
-  return _dem2reliefColor(t);
+  return _dem2reliefColor(t, stops);
 }
 
 maplibregl.addProtocol('dem2slope', async (params, abortController) => {
@@ -833,6 +827,7 @@ maplibregl.addProtocol('dem2slope', async (params, abortController) => {
     const { urlObj, baseUrl, tileOrder, zoomLevel, tileX, tileY, ext } = request;
     const min = parseFloat(urlObj.searchParams.get('min') ?? '0');
     const max = parseFloat(urlObj.searchParams.get('max') ?? '45');
+    const reliefStops = _getReliefPaletteStops(urlObj.searchParams.get('palette') ?? 'rainbow');
     const regionalDemBase = (baseUrl === QCHIZU_DEM_BASE) ? null : baseUrl;
     const regionalDemExt = regionalDemBase ? ext : null;
     const regionalDemOrder = regionalDemBase ? tileOrder : 'xy';
@@ -919,7 +914,7 @@ maplibregl.addProtocol('dem2slope', async (params, abortController) => {
           continue;
         }
 
-        const { r, g, b } = _dem2slopeColor(slope, min, max);
+        const { r, g, b } = _dem2slopeColor(slope, min, max, reliefStops);
         out[outputIndex] = r;
         out[outputIndex + 1] = g;
         out[outputIndex + 2] = b;
@@ -956,10 +951,11 @@ maplibregl.addProtocol('dem2relief', async (params, abortController) => {
     const { urlObj, baseUrl, tileOrder, zoomLevel, tileX, tileY, ext } = request;
     const z = zoomLevel, x = tileX, y = tileY;
 
-    // クエリパラメータから min/max を取得（デフォルト 0〜3000m）
+    // クエリパラメータから min/max/palette を取得（デフォルト 0〜3000m・rainbow）
     const min = parseFloat(urlObj.searchParams.get('min') ?? '0');
     const max = parseFloat(urlObj.searchParams.get('max') ?? '3000');
     const range = max - min || 1; // ゼロ除算を防ぐ
+    const reliefStops = _getReliefPaletteStops(urlObj.searchParams.get('palette') ?? 'rainbow');
 
     const regionalDemBase  = (baseUrl === QCHIZU_DEM_BASE) ? null : baseUrl;
     const regionalDemExt   = regionalDemBase ? ext : null;
@@ -1009,7 +1005,7 @@ maplibregl.addProtocol('dem2relief', async (params, abortController) => {
       const t = Math.max(0, Math.min(1, (height - min) / range));
 
       // パレット補間で RGB を決定し書き込み
-      const col = _dem2reliefColor(t);
+      const col = _dem2reliefColor(t, reliefStops);
       data[i] = col.r; data[i + 1] = col.g; data[i + 2] = col.b; data[i + 3] = 255;
     }
 
@@ -1071,6 +1067,7 @@ maplibregl.addProtocol('dem2curve', async (params, abortController) => {
     const curveMin = parseFloat(urlObj.searchParams.get('min') ?? '-1.0');
     const curveMax = parseFloat(urlObj.searchParams.get('max') ??  '1.0');
     const curveRange = (curveMax - curveMin) || 1;
+    const reliefStops = _getReliefPaletteStops(urlObj.searchParams.get('palette') ?? 'rainbow');
 
     const regionalDemBase = (baseUrl === QCHIZU_DEM_BASE) ? null : baseUrl;
     const regionalDemExt  = regionalDemBase ? ext : null;
@@ -1194,26 +1191,15 @@ maplibregl.addProtocol('dem2curve', async (params, abortController) => {
       // 0〜1 の正規化値
       const n = cTscaled.sub(curveMin).div(curveRange).clipByValue(0, 1);
 
-      // パレット は _dem2reliefColor 相当を GPU で計算
-      // DEM2RELIEF_PALETTE: 7点（t=0/0.17/0.33/0.50/0.67/0.83/1.00）
-      // GPU では区間ごとに線形補間するのが複雑なため、6段の piecewise 補間を実施
-      const P = [
-        [  0,   6, 251],
-        [  0, 146, 251],
-        [  0, 231, 251],
-        [138, 247,   8],
-        [242, 249,  11],
-        [242, 138,   9],
-        [242,  72,  11],
-      ];
-      const stops = [0, 0.17, 0.33, 0.50, 0.67, 0.83, 1.00];
+      // パレット は _dem2reliefColor 相当を GPU で計算（piecewise 線形補間）
+      const P     = reliefStops.map(s => [s.r, s.g, s.b]);
+      const tStops = reliefStops.map(s => s.t);
 
-      // piecewise blend: 6区間を重ねて加算（各区間で clamp した寄与を sum）
       let r = tf.zerosLike(n);
       let g = tf.zerosLike(n);
       let b = tf.zerosLike(n);
-      for (let i = 0; i < 6; i++) {
-        const t0 = stops[i], t1 = stops[i + 1];
+      for (let i = 0; i < P.length - 1; i++) {
+        const t0 = tStops[i], t1 = tStops[i + 1];
         const [r0, g0, b0] = P[i];
         const [r1, g1, b1] = P[i + 1];
         const seg = n.sub(t0).div(t1 - t0).clipByValue(0, 1);
@@ -1227,9 +1213,9 @@ maplibregl.addProtocol('dem2curve', async (params, abortController) => {
       }
       // n=1.0 の端点を加算
       const atEnd  = n.greaterEqual(1.0).cast('float32');
-      const rFinal = r.add(tf.scalar(P[6][0]).mul(atEnd));
-      const gFinal = g.add(tf.scalar(P[6][1]).mul(atEnd));
-      const bFinal = b.add(tf.scalar(P[6][2]).mul(atEnd));
+      const rFinal = r.add(tf.scalar(P[P.length - 1][0]).mul(atEnd));
+      const gFinal = g.add(tf.scalar(P[P.length - 1][1]).mul(atEnd));
+      const bFinal = b.add(tf.scalar(P[P.length - 1][2]).mul(atEnd));
 
       // nodata → アルファ 0
       const hCrop  = hT.slice([buffer, buffer], [tileSize, tileSize]);

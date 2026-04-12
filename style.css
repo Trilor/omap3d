@@ -4721,6 +4721,40 @@ label.setting-label {
    ============================================================ */
 
 /* コントロール全体のラッパー: カード一覧の直下に密着（区切り線なし） */
+/* ---- パレットピッカー ---- */
+.palette-picker-row {
+  width: 100%;
+  margin-bottom: 4px;
+}
+
+/* ボタン: グラデーションバー + 右端にシェブロン */
+.palette-picker-btn {
+  width: 100%;
+  height: 24px;
+  padding: 3px var(--chevron-pad-r) 3px 3px;
+  background-color: transparent !important; /* cascade-btn の background-color を上書き */
+}
+
+/* ドロップダウン内の各パレット行 */
+.palette-picker-item {
+  height: 22px;
+  margin: 2px 4px;
+  border-radius: 3px;
+  background-size: 100% 100%;
+  cursor: pointer;
+}
+.palette-picker-item:hover,
+.palette-picker-item.highlighted {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+.palette-picker-item.selected {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+/* selected の ::after チェックマークは不要なので非表示 */
+.palette-picker-item.selected::after { display: none; }
+
 .color-relief-ctrls {
   width: 100%;
   padding: 4px 8px 8px;

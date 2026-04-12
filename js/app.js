@@ -46,6 +46,7 @@ import {
   EASE_DURATION, FIT_BOUNDS_PAD, FIT_BOUNDS_PAD_SIDEBAR, SIDEBAR_DEFAULT_WIDTH,
   BASEMAPS,
   DEVICE_PPI_DATA, DEFAULT_DEVICE_PPI,
+  RELIEF_PALETTES,
 } from './config.js';
 
 import {
@@ -602,7 +603,7 @@ map.on('load', async () => {
   // 色別等高線レイヤー（オーバーレイ「色別等高線」選択時に表示）
   // 各 DEM ソースに対応した 3 セットを追加し、contourState.demMode に応じて排他表示する
   {
-    const colorExpr = buildColorContourExpr(crMin, crMax);
+    const colorExpr = buildColorContourExpr(crMin, crMax, getReliefPalette(crPaletteId));
     const addColorContourPair = (suffix, sourceId) => {
       if (!map.getSource(sourceId)) return;
       map.addLayer({
@@ -4632,79 +4633,74 @@ function syncColorReliefUI() {
   if (maxInput) maxInput.value = crMax;
 }
 
-// パレット定義（protocols.js の DEM2RELIEF_PALETTE と同色）
-const CR_PALETTE = [
-  { t: 0.00, r:   0, g:   6, b: 251 }, // #0006FB
-  { t: 0.17, r:   0, g: 146, b: 251 }, // #0092FB
-  { t: 0.33, r:   0, g: 231, b: 251 }, // #00E7FB
-  { t: 0.50, r: 138, g: 247, b:   8 }, // #8AF708
-  { t: 0.67, r: 242, g: 249, b:  11 }, // #F2F90B
-  { t: 0.83, r: 242, g: 138, b:   9 }, // #F28A09
-  { t: 1.00, r: 242, g:  72, b:  11 }, // #F2480B
-];
-const CR_PALETTE_GRADIENT = `linear-gradient(to right, ${CR_PALETTE.map(p => `rgb(${p.r},${p.g},${p.b}) ${(p.t * 100).toFixed(2)}%`).join(', ')})`;
+// 現在選択中のパレット ID（色別標高図・傾斜・曲率それぞれ独立）
+let crPaletteId = 'rainbow';
+let srPaletteId = 'rainbow';
+let cvPaletteId = 'rainbow';
 
-// バーのグラデーションを動的に更新する
-// min より左は最初の色、max より右は最後の色でベタ塗り、間は全パレットグラデーション
-function updateGradientTrack() {
-  const track     = document.querySelector('.cr-gradient-track');
-  const selected  = document.querySelector('.cr-selected-track');
-  const minSlider = document.getElementById('cr-min-slider');
-  if (!track || !minSlider) return;
+// パレット ID → stops を返すヘルパー（存在しない場合は rainbow にフォールバック）
+function getReliefPalette(id) {
+  return (RELIEF_PALETTES.find(p => p.id === id) ?? RELIEF_PALETTES[0]).stops;
+}
 
-  const tMin  = parseFloat(minSlider.min);
-  const tMax  = parseFloat(minSlider.max);
-  const range = tMax - tMin || 1;
+// パレット stops から CSS グラデーション文字列を生成
+function paletteGradientCss(stops) {
+  return `linear-gradient(to right, ${stops.map(p => `rgb(${p.r},${p.g},${p.b}) ${(p.t * 100).toFixed(1)}%`).join(', ')})`;
+}
 
-  const L = Math.max(0, Math.min(1, (crMin - tMin) / range)) * 100; // 左つまみ位置(%)
-  const R = Math.max(0, Math.min(1, (crMax - tMin) / range)) * 100; // 右つまみ位置(%)
+// グラデーショントラック共通描画ヘルパー
+// trackEl: .cr-gradient-track 相当要素, selectedEl: .cr-selected-track 相当要素
+// valMin/valMax: 現在の min/max 値, sliderMin/sliderMax: スライダーの範囲, palette: stops 配列
+function _applyGradientTrack(trackEl, selectedEl, valMin, valMax, sliderMin, sliderMax, palette) {
+  if (!trackEl) return;
+  const range = sliderMax - sliderMin || 1;
+  const L = Math.max(0, Math.min(1, (valMin - sliderMin) / range)) * 100;
+  const R = Math.max(0, Math.min(1, (valMax - sliderMin) / range)) * 100;
 
-  const c0 = `rgb(${CR_PALETTE[0].r},${CR_PALETTE[0].g},${CR_PALETTE[0].b})`;
-  const c1 = `rgb(${CR_PALETTE[CR_PALETTE.length-1].r},${CR_PALETTE[CR_PALETTE.length-1].g},${CR_PALETTE[CR_PALETTE.length-1].b})`;
+  const c0 = `rgb(${palette[0].r},${palette[0].g},${palette[0].b})`;
+  const c1 = `rgb(${palette[palette.length-1].r},${palette[palette.length-1].g},${palette[palette.length-1].b})`;
 
-  const stops = [];
-  // 左端〜min: 最初の色でベタ塗り
-  stops.push(`${c0} 0%`);
-  stops.push(`${c0} ${L.toFixed(2)}%`);
-  // min〜max: 全パレットグラデーション
-  for (const p of CR_PALETTE) {
-    const pos = (L + p.t * (R - L)).toFixed(2);
-    stops.push(`rgb(${p.r},${p.g},${p.b}) ${pos}%`);
+  const stops = [`${c0} 0%`, `${c0} ${L.toFixed(2)}%`];
+  for (const p of palette) {
+    stops.push(`rgb(${p.r},${p.g},${p.b}) ${(L + p.t * (R - L)).toFixed(2)}%`);
   }
-  // max〜右端: 最後の色でベタ塗り
-  stops.push(`${c1} ${R.toFixed(2)}%`);
-  stops.push(`${c1} 100%`);
+  stops.push(`${c1} ${R.toFixed(2)}%`, `${c1} 100%`);
+  trackEl.style.background = `linear-gradient(to right, ${stops.join(', ')})`;
 
-  const gradient = `linear-gradient(to right, ${stops.join(', ')})`;
-  track.style.background = gradient;
-
-  // 選択範囲だけ、つまみと同じ太さのグラデーションバーを重ねる
-  if (selected) {
-    const W = track.offsetWidth;
-    const selectedH = selected.offsetHeight || 14;
+  if (selectedEl) {
+    const W = trackEl.offsetWidth;
+    const selectedH = selectedEl.offsetHeight || 14;
     const radius = selectedH / 2;
-    const posMin = (L / 100) * W; // 左つまみ中心(トラック左端からpx)
-    const posMax = (R / 100) * W; // 右つまみ中心
+    const posMin = (L / 100) * W;
+    const posMax = (R / 100) * W;
     const selectedW = Math.max(selectedH, (posMax - posMin) + selectedH);
-    selected.style.left = `${posMin - radius}px`;
-    selected.style.width = `${selectedW}px`;
+    selectedEl.style.left = `${posMin - radius}px`;
+    selectedEl.style.width = `${selectedW}px`;
     if (selectedW <= selectedH) {
-      selected.style.background = `linear-gradient(to right, ${c0} 0%, ${c0} 50%, ${c1} 50%, ${c1} 100%)`;
+      selectedEl.style.background = `linear-gradient(to right, ${c0} 0%, ${c0} 50%, ${c1} 50%, ${c1} 100%)`;
     } else {
       const innerW = selectedW - selectedH;
-      const selectedStops = [
-        `${c0} 0px`,
-        `${c0} ${radius}px`,
-      ];
-      for (const p of CR_PALETTE) {
-        const pos = (radius + p.t * innerW).toFixed(2);
-        selectedStops.push(`rgb(${p.r},${p.g},${p.b}) ${pos}px`);
+      const selStops = [`${c0} 0px`, `${c0} ${radius}px`];
+      for (const p of palette) {
+        selStops.push(`rgb(${p.r},${p.g},${p.b}) ${(radius + p.t * innerW).toFixed(2)}px`);
       }
-      selectedStops.push(`${c1} ${(selectedW - radius).toFixed(2)}px`);
-      selectedStops.push(`${c1} 100%`);
-      selected.style.background = `linear-gradient(to right, ${selectedStops.join(', ')})`;
+      selStops.push(`${c1} ${(selectedW - radius).toFixed(2)}px`, `${c1} 100%`);
+      selectedEl.style.background = `linear-gradient(to right, ${selStops.join(', ')})`;
     }
   }
+}
+
+// 色別標高図トラック更新
+function updateGradientTrack() {
+  const minSlider = document.getElementById('cr-min-slider');
+  if (!minSlider) return;
+  _applyGradientTrack(
+    document.querySelector('.cr-gradient-track'),
+    document.querySelector('.cr-selected-track'),
+    crMin, crMax,
+    parseFloat(minSlider.min), parseFloat(minSlider.max),
+    getReliefPalette(crPaletteId)
+  );
 }
 
 // タイル再フェッチのデバウンスタイマー（updateColorReliefSource での clearTimeout 用に残す）
@@ -4714,9 +4710,9 @@ let _crThrottleTime = 0;
 // ドラッグ中タイル更新スロットル（1秒に1回）
 let _crDragTileTime = 0;
 
-// 色別等高線の line-color を crMin/crMax に合わせて再設定
+// 色別等高線の line-color を crMin/crMax/パレットに合わせて再設定
 function updateColorContourColors() {
-  const expr = buildColorContourExpr(crMin, crMax);
+  const expr = buildColorContourExpr(crMin, crMax, getReliefPalette(crPaletteId));
   [...COLOR_CONTOUR_Q_IDS, ...COLOR_CONTOUR_DEM5A_IDS, ...COLOR_CONTOUR_DEM1A_IDS].forEach(id => {
     if (map.getLayer(id)) map.setPaintProperty(id, 'line-color', expr);
   });
@@ -4727,14 +4723,14 @@ let _crRepaintTimer = null;
 function applyColorReliefTiles() {
   if (!map.getSource('color-relief')) return;
   map.getSource('color-relief').setTiles([
-    `dem2relief://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp?min=${crMin}&max=${crMax}`
+    `dem2relief://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp?min=${crMin}&max=${crMax}&palette=${crPaletteId}`
   ]);
   if (map.getSource('color-qchizu')) map.getSource('color-qchizu').setTiles([
-    `dem2relief://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp?min=${crMin}&max=${crMax}&qonly=1`
+    `dem2relief://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp?min=${crMin}&max=${crMax}&palette=${crPaletteId}&qonly=1`
   ]);
   REGIONAL_RELIEF_LAYERS.forEach(layer => {
     if (map.getSource(layer.sourceId)) map.getSource(layer.sourceId).setTiles([
-      `${layer.tileUrl.replace(/min=[^&]*&max=[^&?]*/, `min=${crMin}&max=${crMax}`)}`
+      `${layer.tileUrl.replace(/min=[^&]*&max=[^&?]*/, `min=${crMin}&max=${crMax}`)}&palette=${crPaletteId}`
     ]);
   });
   clearTimeout(_crRepaintTimer);
@@ -5097,50 +5093,15 @@ function syncSlopeReliefUI() {
 }
 
 function updateSlopeGradientTrack() {
-  const track = document.getElementById('sr-gradient-track');
-  const selected = document.getElementById('sr-selected-track');
   const minSlider = document.getElementById('sr-min-slider');
-  if (!track || !selected || !minSlider) return;
-
-  const tMin = parseFloat(minSlider.min);
-  const tMax = parseFloat(minSlider.max);
-  const range = tMax - tMin || 1;
-  const L = Math.max(0, Math.min(1, (srMin - tMin) / range)) * 100;
-  const R = Math.max(0, Math.min(1, (srMax - tMin) / range)) * 100;
-
-  const c0 = `rgb(${CR_PALETTE[0].r},${CR_PALETTE[0].g},${CR_PALETTE[0].b})`;
-  const c1 = `rgb(${CR_PALETTE[CR_PALETTE.length-1].r},${CR_PALETTE[CR_PALETTE.length-1].g},${CR_PALETTE[CR_PALETTE.length-1].b})`;
-
-  const stops = [`${c0} 0%`, `${c0} ${L.toFixed(2)}%`];
-  for (const p of CR_PALETTE) {
-    const pos = (L + p.t * (R - L)).toFixed(2);
-    stops.push(`rgb(${p.r},${p.g},${p.b}) ${pos}%`);
-  }
-  stops.push(`${c1} ${R.toFixed(2)}%`);
-  stops.push(`${c1} 100%`);
-  track.style.background = `linear-gradient(to right, ${stops.join(', ')})`;
-
-  const W = track.offsetWidth;
-  const selectedH = selected.offsetHeight || 20;
-  const radius = selectedH / 2;
-  const posMin = (L / 100) * W;
-  const posMax = (R / 100) * W;
-  const selectedW = Math.max(selectedH, (posMax - posMin) + selectedH);
-  selected.style.left = `${posMin - radius}px`;
-  selected.style.width = `${selectedW}px`;
-  if (selectedW <= selectedH) {
-    selected.style.background = `linear-gradient(to right, ${c0} 0%, ${c0} 50%, ${c1} 50%, ${c1} 100%)`;
-  } else {
-    const innerW = selectedW - selectedH;
-    const selectedStops = [`${c0} 0px`, `${c0} ${radius}px`];
-    for (const p of CR_PALETTE) {
-      const pos = (radius + p.t * innerW).toFixed(2);
-      selectedStops.push(`rgb(${p.r},${p.g},${p.b}) ${pos}px`);
-    }
-    selectedStops.push(`${c1} ${(selectedW - radius).toFixed(2)}px`);
-    selectedStops.push(`${c1} 100%`);
-    selected.style.background = `linear-gradient(to right, ${selectedStops.join(', ')})`;
-  }
+  if (!minSlider) return;
+  _applyGradientTrack(
+    document.getElementById('sr-gradient-track'),
+    document.getElementById('sr-selected-track'),
+    srMin, srMax,
+    parseFloat(minSlider.min), parseFloat(minSlider.max),
+    getReliefPalette(srPaletteId)
+  );
 }
 
 let _srTileTimer = null;
@@ -5150,14 +5111,14 @@ let _srDragTileTime = 0; // ドラッグ中タイル更新スロットル（1秒
 function applySlopeReliefTiles() {
   if (!map.getSource('slope-relief')) return;
   map.getSource('slope-relief').setTiles([
-    `dem2slope://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp?min=${srMin}&max=${srMax}`
+    `dem2slope://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp?min=${srMin}&max=${srMax}&palette=${srPaletteId}`
   ]);
   if (map.getSource('slope-qchizu')) map.getSource('slope-qchizu').setTiles([
-    `dem2slope://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp?min=${srMin}&max=${srMax}&qonly=1`
+    `dem2slope://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp?min=${srMin}&max=${srMax}&palette=${srPaletteId}&qonly=1`
   ]);
   REGIONAL_SLOPE_LAYERS.forEach(layer => {
     if (map.getSource(layer.sourceId)) map.getSource(layer.sourceId).setTiles([
-      `${layer.tileUrl.replace(/min=[^&]*&max=[^&?]*/, `min=${srMin}&max=${srMax}`)}`
+      `${layer.tileUrl.replace(/min=[^&]*&max=[^&?]*/, `min=${srMin}&max=${srMax}`)}&palette=${srPaletteId}`
     ]);
   });
   clearTimeout(_srRepaintTimer);
@@ -5390,50 +5351,15 @@ function syncCurvatureReliefUI() {
 }
 
 function updateCurvatureGradientTrack() {
-  const track    = document.getElementById('cv-gradient-track');
-  const selected = document.getElementById('cv-selected-track');
   const minSlider = document.getElementById('cv-min-slider');
-  if (!track || !selected || !minSlider) return;
-
-  const tMin  = parseFloat(minSlider.min);
-  const tMax  = parseFloat(minSlider.max);
-  const range = tMax - tMin || 1;
-  const L = Math.max(0, Math.min(1, (cvMin - tMin) / range)) * 100;
-  const R = Math.max(0, Math.min(1, (cvMax - tMin) / range)) * 100;
-
-  const c0 = `rgb(${CR_PALETTE[0].r},${CR_PALETTE[0].g},${CR_PALETTE[0].b})`;
-  const c1 = `rgb(${CR_PALETTE[CR_PALETTE.length-1].r},${CR_PALETTE[CR_PALETTE.length-1].g},${CR_PALETTE[CR_PALETTE.length-1].b})`;
-
-  const stops = [`${c0} 0%`, `${c0} ${L.toFixed(2)}%`];
-  for (const p of CR_PALETTE) {
-    const pos = (L + p.t * (R - L)).toFixed(2);
-    stops.push(`rgb(${p.r},${p.g},${p.b}) ${pos}%`);
-  }
-  stops.push(`${c1} ${R.toFixed(2)}%`);
-  stops.push(`${c1} 100%`);
-  track.style.background = `linear-gradient(to right, ${stops.join(', ')})`;
-
-  const W = track.offsetWidth;
-  const selectedH = selected.offsetHeight || 20;
-  const radius = selectedH / 2;
-  const posMin = (L / 100) * W;
-  const posMax = (R / 100) * W;
-  const selectedW = Math.max(selectedH, (posMax - posMin) + selectedH);
-  selected.style.left = `${posMin - radius}px`;
-  selected.style.width = `${selectedW}px`;
-  if (selectedW <= selectedH) {
-    selected.style.background = `linear-gradient(to right, ${c0} 0%, ${c0} 50%, ${c1} 50%, ${c1} 100%)`;
-  } else {
-    const innerW = selectedW - selectedH;
-    const selectedStops = [`${c0} 0px`, `${c0} ${radius}px`];
-    for (const p of CR_PALETTE) {
-      const pos = (radius + p.t * innerW).toFixed(2);
-      selectedStops.push(`rgb(${p.r},${p.g},${p.b}) ${pos}px`);
-    }
-    selectedStops.push(`${c1} ${(selectedW - radius).toFixed(2)}px`);
-    selectedStops.push(`${c1} 100%`);
-    selected.style.background = `linear-gradient(to right, ${selectedStops.join(', ')})`;
-  }
+  if (!minSlider) return;
+  _applyGradientTrack(
+    document.getElementById('cv-gradient-track'),
+    document.getElementById('cv-selected-track'),
+    cvMin, cvMax,
+    parseFloat(minSlider.min), parseFloat(minSlider.max),
+    getReliefPalette(cvPaletteId)
+  );
 }
 
 let _cvTileTimer = null;
@@ -5443,14 +5369,14 @@ let _cvDragTileTime = 0; // ドラッグ中タイル更新スロットル（1秒
 function applyCurvatureReliefTiles() {
   if (!map.getSource('curvature-relief')) return;
   map.getSource('curvature-relief').setTiles([
-    `dem2curve://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp?min=${cvMin.toFixed(3)}&max=${cvMax.toFixed(3)}`
+    `dem2curve://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp?min=${cvMin.toFixed(3)}&max=${cvMax.toFixed(3)}&palette=${cvPaletteId}`
   ]);
   if (map.getSource('curvature-qchizu')) map.getSource('curvature-qchizu').setTiles([
-    `dem2curve://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp?min=${cvMin.toFixed(3)}&max=${cvMax.toFixed(3)}&qonly=1`
+    `dem2curve://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp?min=${cvMin.toFixed(3)}&max=${cvMax.toFixed(3)}&palette=${cvPaletteId}&qonly=1`
   ]);
   REGIONAL_CURVE_LAYERS.forEach(layer => {
     if (map.getSource(layer.sourceId)) map.getSource(layer.sourceId).setTiles([
-      `${layer.tileUrl.replace(/min=[^&]*&max=[^&?]*/, `min=${cvMin.toFixed(3)}&max=${cvMax.toFixed(3)}`)}`
+      `${layer.tileUrl.replace(/min=[^&]*&max=[^&?]*/, `min=${cvMin.toFixed(3)}&max=${cvMax.toFixed(3)}`)}&palette=${cvPaletteId}`
     ]);
   });
   clearTimeout(_cvRepaintTimer);
@@ -11179,6 +11105,116 @@ document.getElementById('import-decide-btn').addEventListener('click', () => {
 })();
 
 /* ================================================================
+   PalettePicker — グラデーションバー表示のパレット選択ドロップダウン
+   ================================================================ */
+
+// containerEl: パレットピッカーを差し込む親要素
+// initialId: 初期パレット ID
+// onChange(id): パレット変更時コールバック
+// 戻り値: { getValue, setValue } API
+function makePalettePicker(containerEl, initialId, onChange) {
+  let currentId = initialId;
+
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'cascade-btn palette-picker-btn';
+
+  const panel = document.createElement('div');
+  panel.className = 'cascade-menu palette-picker-menu';
+  document.body.appendChild(panel);
+
+  function syncBtn() {
+    const stops = getReliefPalette(currentId);
+    btn.style.backgroundImage = `${paletteGradientCss(stops)}, var(--chevron-down)`;
+    btn.style.backgroundRepeat = 'no-repeat, no-repeat';
+    btn.style.backgroundSize = `calc(100% - 18px) calc(100% - 6px), var(--chevron-size-down)`;
+    btn.style.backgroundPosition = 'left 3px center, right var(--chevron-inset) center';
+  }
+
+  function buildItems() {
+    panel.innerHTML = '';
+    for (const pal of RELIEF_PALETTES) {
+      const item = document.createElement('div');
+      item.className = 'cascade-item palette-picker-item' + (pal.id === currentId ? ' selected' : '');
+      item.dataset.id = pal.id;
+      item.style.backgroundImage = paletteGradientCss(pal.stops);
+      item.title = pal.label;
+      panel.appendChild(item);
+    }
+  }
+
+  function openPanel() {
+    document.querySelectorAll('.palette-picker-menu.open').forEach(m => {
+      if (m !== panel) m.classList.remove('open');
+    });
+    buildItems();
+
+    panel.style.visibility = 'hidden';
+    panel.classList.add('open');
+    const panelH = panel.scrollHeight;
+    panel.classList.remove('open');
+    panel.style.visibility = '';
+
+    const r = btn.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - r.bottom;
+    const openUp = spaceBelow < panelH && r.top > spaceBelow;
+    panel.style.top  = openUp ? `${r.top - panelH - 2}px` : `${r.bottom + 2}px`;
+    panel.style.left = `${r.left}px`;
+    panel.style.width = `${r.width}px`;
+    panel.classList.toggle('open-up', openUp);
+    panel.classList.add('open');
+  }
+  function closePanel() { panel.classList.remove('open', 'open-up'); }
+
+  btn.addEventListener('mousedown', e => e.stopPropagation());
+  panel.addEventListener('mousedown', e => e.stopPropagation());
+  document.addEventListener('mousedown', closePanel);
+
+  btn.addEventListener('click', e => {
+    e.stopPropagation();
+    panel.classList.contains('open') ? closePanel() : openPanel();
+  });
+  panel.addEventListener('click', e => {
+    const item = e.target.closest('.palette-picker-item');
+    if (!item) return;
+    currentId = item.dataset.id;
+    syncBtn();
+    buildItems();
+    closePanel();
+    onChange(currentId);
+  });
+
+  containerEl.appendChild(btn);
+  syncBtn();
+
+  return {
+    getValue: () => currentId,
+    setValue: (id) => { currentId = id; syncBtn(); buildItems(); },
+  };
+}
+
+// 色別標高図・傾斜・曲率のパレットピッカーを初期化
+function initPalettePickers() {
+  const crContainer = document.getElementById('cr-palette-picker');
+  if (crContainer) makePalettePicker(crContainer, crPaletteId, id => {
+    crPaletteId = id;
+    updateColorReliefSource();
+  });
+
+  const srContainer = document.getElementById('sr-palette-picker');
+  if (srContainer) makePalettePicker(srContainer, srPaletteId, id => {
+    srPaletteId = id;
+    updateSlopeReliefSource();
+  });
+
+  const cvContainer = document.getElementById('cv-palette-picker');
+  if (cvContainer) makePalettePicker(cvContainer, cvPaletteId, id => {
+    cvPaletteId = id;
+    updateCurvatureReliefSource();
+  });
+}
+
+/* ================================================================
    CustomSelect — ネイティブ <select> をカスケードメニュー風UIに置き換え
    ブラウザはネイティブ select の open 状態をCSSで変更できないため、
    JS でカスタムドロップダウンを構築して .cascade-* クラスで統一する。
@@ -11344,3 +11380,4 @@ function initCustomSelects() {
 
 // DOM 構築完了後に実行（<script type="module"> は defer 相当で DOM 準備済み）
 initCustomSelects();
+initPalettePickers();

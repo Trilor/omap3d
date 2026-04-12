@@ -53,17 +53,24 @@ export function setAllContourVisibility(map, vis) {
 
 // ---- 色別等高線の line-color MapLibre 式を生成 ----
 // DEM2RELIEF_PALETTE に対応した補間式。min/max は色別標高図の crMin/crMax と共有する。
-export function buildColorContourExpr(min, max) {
+export function buildColorContourExpr(min, max, paletteStops) {
   const range = (max - min) || 1;
-  return ['interpolate', ['linear'], ['get', 'ele'],
-    min + 0.00 * range, '#0006FB',
-    min + 0.17 * range, '#0092FB',
-    min + 0.33 * range, '#00E7FB',
-    min + 0.50 * range, '#8AF708',
-    min + 0.67 * range, '#F2F90B',
-    min + 0.83 * range, '#F28A09',
-    min + 1.00 * range, '#F2480B',
+  // paletteStops 省略時は虹色（後方互換）
+  const stops = paletteStops ?? [
+    { t: 0.00, r:   0, g:   6, b: 251 },
+    { t: 0.17, r:   0, g: 146, b: 251 },
+    { t: 0.33, r:   0, g: 231, b: 251 },
+    { t: 0.50, r: 138, g: 247, b:   8 },
+    { t: 0.67, r: 242, g: 249, b:  11 },
+    { t: 0.83, r: 242, g: 138, b:   9 },
+    { t: 1.00, r: 242, g:  72, b:  11 },
   ];
+  const toHex = p => '#' + [p.r, p.g, p.b].map(v => v.toString(16).padStart(2, '0')).join('').toUpperCase();
+  const expr = ['interpolate', ['linear'], ['get', 'ele']];
+  for (const p of stops) {
+    expr.push(min + p.t * range, toHex(p));
+  }
+  return expr;
 }
 
 // ---- 等高線間隔ごとの mlcontour zoom threshold 設定を生成 ----
