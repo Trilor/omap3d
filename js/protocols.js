@@ -820,16 +820,26 @@ function _dem2slopeColor(slope, min, max, stops) {
   return _dem2reliefColor(t, stops);
 }
 
-// 傾斜角（0〜90度）を RGB 24bit に可逆エンコード（A は nodata マスク用に別管理）
+// 汎用 RGB 24bit エンコーダー（数値を dataMin〜dataMax の範囲で 0〜16777215 に正規化して R/G/B に分散）
+// A チャンネルは nodata マスク用に呼び出し元で別途管理する。
+function _encodeToRgb24(value, dataMin, dataMax) {
+  let norm = (value - dataMin) / (dataMax - dataMin);
+  norm = Math.max(0, Math.min(1, norm));
+  const t = Math.floor(norm * 16777215);
+  return { r: (t >> 16) & 255, g: (t >> 8) & 255, b: t & 255 };
+}
+
+// 各データタイルのエンコード範囲（GPU シェーダーと共有）
+export const SLOPE_DATA_MIN  =    0; // 傾斜角 (度)
+export const SLOPE_DATA_MAX  =   90;
+export const RELIEF_DATA_MIN = -500; // 標高 (m)
+export const RELIEF_DATA_MAX = 4500;
+export const CURVE_DATA_MIN  = -2.0; // 正規化曲率 (cTscaled)
+export const CURVE_DATA_MAX  =  2.0;
+
+// 傾斜角（0〜90度）を RGB 24bit に可逆エンコード（_encodeToRgb24 のラッパー）
 function _encodeSlopeToRgb24(slopeDegree) {
-  let n = slopeDegree / 90.0;
-  n = Math.max(0, Math.min(1, n));
-  const t = Math.floor(n * 16777215); // 24bit
-  return {
-    r: (t >> 16) & 255,
-    g: (t >> 8) & 255,
-    b: t & 255,
-  };
+  return _encodeToRgb24(slopeDegree, SLOPE_DATA_MIN, SLOPE_DATA_MAX);
 }
 
 /*
@@ -1008,6 +1018,81 @@ export async function generateSlopeDataTile(paramsUrl, abortSignal) {
 maplibregl.addProtocol('slope-data', async (params, abortController) => {
   try {
     return await generateSlopeDataTile(params.url, abortController.signal);
+  } catch {
+    return { data: _transparentPngBuffer() };
+  }
+});
+
+/*
+  ========================================================
+  色別標高図データタイルプロトコル (relief-data://)
+  標高値（RELIEF_DATA_MIN〜RELIEF_DATA_MAX m）を RGB 24bit にエンコードして返す。
+  A=255: 有効値 / A=0: nodata
+  描画時の着色は deck.gl 側シェーダーで行う。
+  ========================================================
+*/
+export async function generateReliefDataTile(paramsUrl, abortSignal) {
+  try {
+    const request = _parseProtocolTileRequest(paramsUrl, 'relief-data');
+    if (!request) return { data: _transparentPngBuffer() };
+    const { urlObj, baseUrl, tileOrder, zoomLevel, tileX, tileY, ext } = request;
+    const z = zoomLevel, x = tileX, y = tileY;
+
+    const qonly = urlObj.searchParams.get('qonly') === '1';
+    const regionalDemBase  = (baseUrl === QCHIZU_DEM_BASE) ? null : baseUrl;
+    const regionalDemExt   = regionalDemBase ? ext : null;
+    const regionalDemOrder = regionalDemBase ? tileOrder : 'xy';
+
+    const demMode = qonly ? 'q'
+                  : z <= 13 ? 'dem10b'
+                  : z === 14 ? 'dem10b+dem5a'
+                  : z === 15 ? 'dem10b+dem5a+q'
+                  : null;
+    const effectiveRegionalBase  = demMode === null ? regionalDemBase : null;
+    const effectiveRegionalExt   = effectiveRegionalBase ? regionalDemExt : null;
+    const effectiveRegionalOrder = effectiveRegionalBase ? regionalDemOrder : 'xy';
+
+    const t0 = performance.now();
+    const bitmap = await fetchCompositeDemBitmap(
+      z, x, y, abortSignal,
+      effectiveRegionalBase, effectiveRegionalExt ?? 'png',
+      demMode, effectiveRegionalOrder, null
+    );
+    if (!bitmap) return { data: _transparentPngBuffer() };
+
+    const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+    const ctx    = canvas.getContext('2d');
+    ctx.drawImage(bitmap, 0, 0);
+    bitmap.close();
+
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const data = imageData.data;
+    for (let i = 0; i < data.length; i += 4) {
+      const r = data[i], g = data[i + 1], b = data[i + 2], a = data[i + 3];
+      if ((r === 128 && g === 0 && b === 0) || a !== 255) {
+        data[i] = 0; data[i + 1] = 0; data[i + 2] = 0; data[i + 3] = 0;
+        continue;
+      }
+      const height = _getNumpngHeight(r, g, b, a);
+      const { r: er, g: eg, b: eb } = _encodeToRgb24(height, RELIEF_DATA_MIN, RELIEF_DATA_MAX);
+      data[i] = er; data[i + 1] = eg; data[i + 2] = eb; data[i + 3] = 255;
+    }
+    ctx.putImageData(imageData, 0, 0);
+
+    const t1 = performance.now();
+    const blob = await _rescaleComposite(canvas, true).convertToBlob({ type: 'image/png' });
+    const buf  = await blob.arrayBuffer();
+    const t2   = performance.now();
+    console.log(`[relief-data] z${z} ${x},${y} dem:${_demSrcLabel(demMode)} | fetch+calc:${(t1-t0).toFixed(0)}ms  blob:${(t2-t1).toFixed(0)}ms  total:${(t2-t0).toFixed(0)}ms`);
+    return { data: buf };
+  } catch {
+    return { data: _transparentPngBuffer() };
+  }
+}
+
+maplibregl.addProtocol('relief-data', async (params, abortController) => {
+  try {
+    return await generateReliefDataTile(params.url, abortController.signal);
   } catch {
     return { data: _transparentPngBuffer() };
   }
@@ -1324,6 +1409,165 @@ maplibregl.addProtocol('dem2curve', async (params, abortController) => {
     }
   } catch(e) {
     if (e?.name === 'AbortError') throw e;
+    return { data: _transparentPngBuffer() };
+  }
+});
+
+/*
+  ========================================================
+  色別曲率データタイルプロトコル (curve-data://)
+  曲率値（CURVE_DATA_MIN〜CURVE_DATA_MAX の cTscaled）を RGB 24bit にエンコードして返す。
+  A=255: 有効値 / A=0: nodata
+  描画時の着色は deck.gl 側シェーダーで行う。
+  dem2curve と同じ TF.js 演算だが、着色せず Float32 → RGB24 エンコードに変更。
+  ========================================================
+*/
+export async function generateCurveDataTile(paramsUrl, abortSignal) {
+  try {
+    if (_tfContextLost) return { data: _transparentPngBuffer() };
+    const request = _parseProtocolTileRequest(paramsUrl, 'curve-data');
+    if (!request) return { data: _transparentPngBuffer() };
+    const { urlObj, baseUrl, tileOrder, zoomLevel, tileX, tileY, ext } = request;
+
+    const terrainScale = Math.max(parseFloat(urlObj.searchParams.get('terrainScale') ?? '1') || 1, 0.1);
+    const qonly = urlObj.searchParams.get('qonly') === '1';
+    const regionalDemBase  = (baseUrl === QCHIZU_DEM_BASE) ? null : baseUrl;
+    const regionalDemExt   = regionalDemBase ? ext : null;
+    const regionalDemOrder = regionalDemBase ? tileOrder : 'xy';
+
+    const demMode = qonly ? 'q'
+                  : zoomLevel <= 13 ? 'dem10b'
+                  : zoomLevel === 14 ? 'dem10b+dem5a'
+                  : zoomLevel === 15 ? 'dem10b+dem5a+q'
+                  : null;
+    const effectiveRegionalBase  = demMode === null ? regionalDemBase : null;
+    const effectiveRegionalExt   = effectiveRegionalBase ? regionalDemExt : null;
+    const effectiveRegionalOrder = effectiveRegionalBase ? regionalDemOrder : 'xy';
+
+    // ── ① 9タイル取得（dem2curve と同じ） ──
+    const t0 = performance.now();
+    const neighborOffsets = [
+      [-1, -1], [0, -1], [1, -1],
+      [-1,  0], [0,  0], [1,  0],
+      [-1,  1], [0,  1], [1,  1],
+    ];
+    const bitmaps = await Promise.all(neighborOffsets.map(([dx, dy]) =>
+      fetchCompositeDemBitmap(
+        zoomLevel, tileX + dx, tileY + dy, abortSignal,
+        effectiveRegionalBase, effectiveRegionalExt,
+        demMode, effectiveRegionalOrder, null
+      )
+    ));
+    if (!bitmaps[4]) return { data: _transparentPngBuffer() };
+
+    const tileSize    = bitmaps[4].width;
+    const pixelLength = _calculatePixelResolution(tileSize, zoomLevel, tileY);
+    const sigma        = Math.min(Math.max(3 / pixelLength, 1.6), 7) * terrainScale;
+    const kernelRadius = Math.ceil(sigma * 3);
+    const buffer       = kernelRadius + 1;
+    const mergedSize   = tileSize + buffer * 2;
+
+    // ── ② 9タイル結合 ──
+    const mergedCanvas = new OffscreenCanvas(mergedSize, mergedSize);
+    const mc = mergedCanvas.getContext('2d');
+    bitmaps.forEach((bmp, idx) => {
+      if (!bmp) return;
+      if (idx === 4) {
+        mc.drawImage(bmp, 0, 0, tileSize, tileSize, buffer, buffer, tileSize, tileSize);
+      } else {
+        const { sx, sy, sWidth: sw, sHeight: sh, dx, dy } = _calculateTilePosition(idx, tileSize, buffer);
+        mc.drawImage(bmp, sx, sy, sw, sh, dx, dy, sw, sh);
+      }
+      bmp.close();
+    });
+
+    // ── ③ 標高配列生成 ──
+    const mergedPx = mc.getImageData(0, 0, mergedSize, mergedSize).data;
+    const mergedHeights = new Float32Array(mergedSize * mergedSize);
+    for (let i = 0; i < mergedHeights.length; i++) {
+      const p = i * 4;
+      mergedHeights[i] = _getNumpngHeight(mergedPx[p], mergedPx[p + 1], mergedPx[p + 2], mergedPx[p + 3]);
+    }
+
+    // ── ④ GPU 計算（セマフォ取得） ──
+    if (abortSignal?.aborted) throw new DOMException('Tile request aborted', 'AbortError');
+    await _acquireGpuTransfer();
+    if (abortSignal?.aborted) { _releaseGpuTransfer(); throw new DOMException('Tile request aborted', 'AbortError'); }
+    let _gpuReleased = false;
+    try {
+      // ── ⑤ ガウシアン平滑化（dem2curve と同一ロジック） ──
+      const { kX, kY } = _getCsKernel(kernelRadius, sigma);
+      const hT     = tf.tensor2d(mergedHeights, [mergedSize, mergedSize]);
+      const valid  = hT.notEqual(-99999);
+      const masked = tf.where(valid, hT, 0);
+      const validF = valid.cast('float32');
+      const maskedH = tf.conv2d(masked.expandDims(2).expandDims(0), kX, 1, 'valid').squeeze([0, 3]);
+      const validH  = tf.conv2d(validF.expandDims(2).expandDims(0), kX, 1, 'valid').squeeze([0, 3]);
+      masked.dispose(); validF.dispose();
+      const maskedHV = tf.conv2d(maskedH.expandDims(2).expandDims(0), kY, 1, 'valid').squeeze([0, 3]);
+      const kSum     = tf.conv2d(validH.expandDims(2).expandDims(0), kY, 1, 'valid').squeeze([0, 3]);
+      maskedH.dispose(); validH.dispose();
+      const sHRaw    = maskedHV.div(kSum);
+      maskedHV.dispose(); kSum.dispose();
+      const validCrop = valid.slice([buffer, buffer], [tileSize + 2, tileSize + 2]);
+      const smoothedT = tf.where(validCrop, sHRaw, tf.zerosLike(sHRaw));
+      [sHRaw, validCrop].forEach(t => t.dispose());
+
+      const cc = pixelLength < 68
+        ? Math.max(pixelLength / 2, 1.1) * Math.sqrt(terrainScale)
+        : 0.188 * Math.pow(pixelLength, 1.232) * Math.sqrt(terrainScale);
+
+      // ── ⑥ Laplacian → cTscaled (Float32) を GPU から取得 ──
+      const cellArea  = pixelLength * pixelLength;
+      const lapKernel = tf.tensor4d([0, 1, 0, 1, -4, 1, 0, 1, 0], [3, 3, 1, 1]);
+      const cT = tf.conv2d(
+        smoothedT.expandDims(0).expandDims(-1), lapKernel, 1, 'valid'
+      ).squeeze([0, 3]).neg().div(cellArea);
+      lapKernel.dispose(); smoothedT.dispose();
+      const cTscaled = cT.div(cc);
+      cT.dispose();
+      const hCrop = hT.slice([buffer, buffer], [tileSize, tileSize]);
+
+      // GPU→CPU 転送（Float32）— 着色はすべて CPU で行う
+      const [cTscaledData, hCropData] = await Promise.all([cTscaled.data(), hCrop.data()]);
+      cTscaled.dispose(); hCrop.dispose();
+      [hT, valid].forEach(t => t.dispose());
+
+      _releaseGpuTransfer();
+      _gpuReleased = true;
+
+      // ── ⑦ CPU エンコード（RGB 24bit） ──
+      const outCanvas = new OffscreenCanvas(tileSize, tileSize);
+      const outCtx    = outCanvas.getContext('2d');
+      const outId     = outCtx.createImageData(tileSize, tileSize);
+      const out       = outId.data;
+      for (let i = 0; i < tileSize * tileSize; i++) {
+        const oi = i * 4;
+        if (hCropData[i] === -99999) { out[oi + 3] = 0; continue; }
+        const { r, g, b } = _encodeToRgb24(cTscaledData[i], CURVE_DATA_MIN, CURVE_DATA_MAX);
+        out[oi] = r; out[oi + 1] = g; out[oi + 2] = b; out[oi + 3] = 255;
+      }
+      outCtx.putImageData(outId, 0, 0);
+
+      const t1 = performance.now();
+      const blob = await _rescaleComposite(outCanvas, true).convertToBlob({ type: 'image/png' });
+      const buf  = await blob.arrayBuffer();
+      const t2   = performance.now();
+      console.log(`[curve-data] z${zoomLevel} ${tileX},${tileY} dem:${_demSrcLabel(demMode)} | fetch+calc:${(t1-t0).toFixed(0)}ms  blob:${(t2-t1).toFixed(0)}ms  total:${(t2-t0).toFixed(0)}ms`);
+      return { data: buf };
+    } finally {
+      if (!_gpuReleased) _releaseGpuTransfer();
+    }
+  } catch(e) {
+    if (e?.name === 'AbortError') throw e;
+    return { data: _transparentPngBuffer() };
+  }
+}
+
+maplibregl.addProtocol('curve-data', async (params, abortController) => {
+  try {
+    return await generateCurveDataTile(params.url, abortController.signal);
+  } catch {
     return { data: _transparentPngBuffer() };
   }
 });

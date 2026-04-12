@@ -35,7 +35,10 @@
    ================================================================ */
 
 import { getDeclination, setDeclinationModel } from './magneticDeclination.js';
-import { generateSlopeDataTile } from './protocols.js';
+import {
+  generateSlopeDataTile, generateReliefDataTile, generateCurveDataTile,
+  SLOPE_DATA_MIN, SLOPE_DATA_MAX, RELIEF_DATA_MIN, RELIEF_DATA_MAX, CURVE_DATA_MIN, CURVE_DATA_MAX,
+} from './protocols.js';
 import {
   QCHIZU_DEM_BASE, QCHIZU_PROXY_BASE, DEM5A_BASE, DEM1A_BASE,
   // LAKEDEPTH_BASE, LAKEDEPTH_STANDARD_BASE, // 湖水深タイルは廃止（2026-03-23）
@@ -4396,23 +4399,18 @@ function updateCsVisibility() {
   const overlayOn  = currentOverlay !== 'none';
   const overlay    = currentOverlay;
 
-  // 色別標高図の表示制御（visibility ではなく opacity で切替 — WebGL 初期化を常時維持するため）
   const sliderVal = parseFloat(document.getElementById('slider-cs').value);
   const z = map.getZoom();
   const showColorRelief = overlay === 'color-relief';
+  // 色別標高図は Deck.gl GPU シェーダーで描画するため MapLibre ラスタレイヤーは常に非表示
   if (map.getLayer('color-relief-layer')) {
-    const crOpacity = showColorRelief ? sliderVal : 0;
-    map.setPaintProperty('color-relief-layer', 'raster-opacity', crOpacity);
-    if (map.getLayer('color-qchizu-layer')) map.setPaintProperty('color-qchizu-layer', 'raster-opacity', crOpacity);
+    map.setPaintProperty('color-relief-layer', 'raster-opacity', 0);
+    if (map.getLayer('color-qchizu-layer')) map.setPaintProperty('color-qchizu-layer', 'raster-opacity', 0);
   }
-  // 色別標高図: z≥16 で地域DEMレイヤーを重ねる（CS・RRIMと同設計）
-  const showRelief05m = showColorRelief && z >= 16;
   REGIONAL_RELIEF_LAYERS.forEach(layer => {
-    if (map.getLayer(layer.layerId)) {
-      map.setLayoutProperty(layer.layerId, 'visibility', showRelief05m ? 'visible' : 'none');
-      if (showRelief05m) map.setPaintProperty(layer.layerId, 'raster-opacity', sliderVal);
-    }
+    if (map.getLayer(layer.layerId)) map.setLayoutProperty(layer.layerId, 'visibility', 'none');
   });
+  if (showColorRelief) scheduleDataOverlayDeckSync('color-relief');
   // 傾斜図は Deck.gl GPU シェーダーで描画するため MapLibre ラスタレイヤーは常に非表示
   const showSlopeRelief = overlay === 'slope';
   if (map.getLayer('slope-relief-layer')) {
@@ -4424,19 +4422,15 @@ function updateCsVisibility() {
   });
   if (showSlopeRelief) scheduleSlopeDeckSync();
   const showCurvatureRelief = overlay === 'curvature';
+  // 色別曲率図は Deck.gl GPU シェーダーで描画するため MapLibre ラスタレイヤーは常に非表示
   if (map.getLayer('curvature-relief-layer')) {
-    const curvOpacity = showCurvatureRelief ? sliderVal : 0;
-    map.setPaintProperty('curvature-relief-layer', 'raster-opacity', curvOpacity);
-    if (map.getLayer('curvature-qchizu-layer')) map.setPaintProperty('curvature-qchizu-layer', 'raster-opacity', curvOpacity);
+    map.setPaintProperty('curvature-relief-layer', 'raster-opacity', 0);
+    if (map.getLayer('curvature-qchizu-layer')) map.setPaintProperty('curvature-qchizu-layer', 'raster-opacity', 0);
   }
-  // 色別曲率図: z≥16 で地域DEMレイヤーを重ねる
-  const showCurve05m = showCurvatureRelief && z >= 16;
   REGIONAL_CURVE_LAYERS.forEach(layer => {
-    if (map.getLayer(layer.layerId)) {
-      map.setLayoutProperty(layer.layerId, 'visibility', showCurve05m ? 'visible' : 'none');
-      if (showCurve05m) map.setPaintProperty(layer.layerId, 'raster-opacity', sliderVal);
-    }
+    if (map.getLayer(layer.layerId)) map.setLayoutProperty(layer.layerId, 'visibility', 'none');
   });
+  if (showCurvatureRelief) scheduleDataOverlayDeckSync('curvature');
   const showRrimRelief = overlay === 'rrim';
   if (map.getLayer('rrim-relief-layer')) {
     map.setLayoutProperty('rrim-relief-layer', 'visibility', showRrimRelief ? 'visible' : 'none');
@@ -4748,9 +4742,12 @@ function applyColorReliefTiles() {
     if (--remaining > 0) _crRepaintTimer = setTimeout(repaint, 100);
   };
   repaint();
+  // Deck.gl GPU シェーダーパスにも通知（color-relief 以外のときは no-op）
+  scheduleDataOverlayDeckSync('color-relief');
 }
 
-// ドラッグ中は UI のみ即座に更新し、タイル再フェッチはデバウンス（300ms）
+// ドラッグ中は UI を即座に更新し、タイル再フェッチはデバウンス（300ms）
+// Deck.gl シェーダーは uniform 更新のみのため毎 input で即時同期する
 function updateColorReliefUI() {
   syncColorReliefUI();
   updateGradientTrack();
@@ -4760,6 +4757,7 @@ function updateColorReliefUI() {
     _crThrottleTime = now;
     updateColorContourColors();
   }
+  scheduleDataOverlayDeckSync('color-relief');
 }
 
 // 確定時（ドラッグ終了・数値入力・自動フィット）はタイルを即座に更新
@@ -5375,12 +5373,16 @@ function applyCurvatureReliefTiles() {
     if (--remaining > 0) _cvRepaintTimer = setTimeout(repaint, 100);
   };
   repaint();
+  // Deck.gl GPU シェーダーパスにも通知（curvature 以外のときは no-op）
+  scheduleDataOverlayDeckSync('curvature');
 }
 
+// ドラッグ中は UI を即座に更新
+// Deck.gl シェーダーは uniform 更新のみのため毎 input で即時同期する
 function updateCurvatureReliefUI() {
   syncCurvatureReliefUI();
   updateCurvatureGradientTrack();
-  // タイル更新は change イベントで確定するためデバウンス不要
+  scheduleDataOverlayDeckSync('curvature');
 }
 
 function updateCurvatureReliefSource() {
@@ -5576,28 +5578,14 @@ sliderCs.addEventListener('input', () => {
       map.setPaintProperty(layer.layerId, 'raster-opacity', v);
     }
   });
-  // 色別標高図: 選択中のときのみ opacity を更新（非表示時は 0 を維持）
-  if (currentOverlay === 'color-relief' && map.getLayer('color-relief-layer')) {
-    map.setPaintProperty('color-relief-layer', 'raster-opacity', v);
-    if (map.getLayer('color-qchizu-layer')) map.setPaintProperty('color-qchizu-layer', 'raster-opacity', v);
-    REGIONAL_RELIEF_LAYERS.forEach(layer => {
-      if (map.getLayer(layer.layerId)) map.setPaintProperty(layer.layerId, 'raster-opacity', v);
-    });
-  }
-  if (currentOverlay === 'slope') {
-    scheduleSlopeDeckSync();
-  }
+  // 色別標高図・傾斜図・色別曲率図は Deck.gl GPU シェーダー経由（opacity は uniform で制御）
+  if (currentOverlay === 'color-relief') scheduleDataOverlayDeckSync('color-relief');
+  if (currentOverlay === 'slope') scheduleSlopeDeckSync();
   if (currentOverlay === 'rrim' && map.getLayer('rrim-relief-layer')) {
     map.setPaintProperty('rrim-relief-layer', 'raster-opacity', v);
     if (map.getLayer('rrim-qchizu-layer')) map.setPaintProperty('rrim-qchizu-layer', 'raster-opacity', v);
   }
-  if (currentOverlay === 'curvature' && map.getLayer('curvature-relief-layer')) {
-    map.setPaintProperty('curvature-relief-layer', 'raster-opacity', v);
-    if (map.getLayer('curvature-qchizu-layer')) map.setPaintProperty('curvature-qchizu-layer', 'raster-opacity', v);
-    REGIONAL_CURVE_LAYERS.forEach(layer => {
-      if (map.getLayer(layer.layerId)) map.setPaintProperty(layer.layerId, 'raster-opacity', v);
-    });
-  }
+  if (currentOverlay === 'curvature') scheduleDataOverlayDeckSync('curvature');
   if (currentOverlay === 'rrim') {
     REGIONAL_RRIM_LAYERS.forEach(layer => {
       if (map.getLayer(layer.layerId)) map.setPaintProperty(layer.layerId, 'raster-opacity', v);
@@ -5853,17 +5841,15 @@ async function _initPlateauAutoMode(lod) {
 
 var _deckOverlay = null; // deck.MapboxOverlay インスタンス（初回のみ生成）
 var _deckPlateauLayers = []; // PLATEAU 用 deck.gl レイヤー群
-var _deckSlopeLayers = []; // 傾斜データ用 deck.gl レイヤー群
-var _SlopeDataShaderLayerClass = null;
-var _slopeDeckSyncRaf = 0;
+// データシェーダー用レイヤー群（オーバーレイキー別）
+var _deckDataLayers = { slope: [], 'color-relief': [], curvature: [] };
+var _DataShaderLayerClass = null;
+var _dataDeckSyncRafs = {}; // overlayKey → RAF ID
 
 function _commitDeckLayers() {
   if (!_deckOverlay) return;
-  _deckOverlay.setProps({ layers: [..._deckPlateauLayers, ..._deckSlopeLayers] });
-}
-
-function _normalizeSlopeDataTileUrl(tileUrl) {
-  return tileUrl.replace(/^dem2slope:\/\//, 'slope-data://');
+  const dataLayers = Object.values(_deckDataLayers).flat();
+  _deckOverlay.setProps({ layers: [..._deckPlateauLayers, ...dataLayers] });
 }
 
 function _expandDeckTileUrl(template, tile) {
@@ -5873,39 +5859,49 @@ function _expandDeckTileUrl(template, tile) {
     .replace('{y}', String(tile.index.y));
 }
 
-function _buildSlopePaletteUniforms(paletteId) {
+// パレット停止点を deck.gl シェーダーの uniform 配列に変換
+function _buildPaletteUniforms(paletteId) {
   const stops = getReliefPalette(paletteId) ?? [];
   const maxStops = 8;
-  const stopT = new Float32Array(maxStops);
+  const stopT   = new Float32Array(maxStops);
   const stopRgb = new Float32Array(maxStops * 3);
   const safeStops = stops.length ? stops : [{ t: 0, r: 0, g: 0, b: 0 }, { t: 1, r: 255, g: 255, b: 255 }];
   const n = Math.min(safeStops.length, maxStops);
   for (let i = 0; i < maxStops; i++) {
     const s = i < n ? safeStops[i] : safeStops[n - 1];
     stopT[i] = s.t;
-    stopRgb[i * 3] = s.r / 255;
+    stopRgb[i * 3]     = s.r / 255;
     stopRgb[i * 3 + 1] = s.g / 255;
     stopRgb[i * 3 + 2] = s.b / 255;
   }
   return { stopT, stopRgb, stopCount: n };
 }
 
-function _getSlopeShaderLayerClass() {
-  if (_SlopeDataShaderLayerClass || !window.deck) return _SlopeDataShaderLayerClass;
-  _SlopeDataShaderLayerClass = class SlopeDataShaderLayer extends deck.BitmapLayer {
-    static layerName = 'SlopeDataShaderLayer';
+// ================================================================
+// 汎用データシェーダーレイヤー
+//   RGB24 エンコードされたデータタイルをデコードし、
+//   u_dataMin/u_dataMax（エンコード範囲）と u_renderMin/u_renderMax（表示範囲）
+//   およびパレット uniform を使って GPU でリアルタイム着色する。
+//   スライダー変更時は uniform 更新のみで再フェッチ不要。
+// ================================================================
+function _getDataShaderLayerClass() {
+  if (_DataShaderLayerClass || !window.deck) return _DataShaderLayerClass;
+  _DataShaderLayerClass = class DataShaderLayer extends deck.BitmapLayer {
+    static layerName = 'DataShaderLayer';
 
     getShaders() {
       const shaders = super.getShaders();
       shaders.inject = {
         ...(shaders.inject ?? {}),
         'fs:#decl': `
-uniform float u_slopeMin;
-uniform float u_slopeMax;
+uniform float u_dataMin;
+uniform float u_dataMax;
+uniform float u_renderMin;
+uniform float u_renderMax;
 uniform float u_stopT[8];
 uniform vec3  u_stopRGB[8];
 uniform float u_stopCount;
-vec3 _slopePalette(float t) {
+vec3 _dataPalette(float t) {
   if (u_stopCount < 2.0) return vec3(t, t, t);
   if (t <= u_stopT[0]) return u_stopRGB[0];
   vec3 col = u_stopRGB[0];
@@ -5928,38 +5924,102 @@ if (color.a <= 0.0) {
   discard;
 }
 float decodedNorm = (color.r * 255.0 * 65536.0 + color.g * 255.0 * 256.0 + color.b * 255.0) / 16777215.0;
-float slopeDegree = decodedNorm * 90.0;
-float denom = max(u_slopeMax - u_slopeMin, 1e-6);
-float colorFactor = clamp((slopeDegree - u_slopeMin) / denom, 0.0, 1.0);
-vec3 finalColor = _slopePalette(colorFactor);
-color = vec4(finalColor, color.a);
+float dataValue   = u_dataMin + decodedNorm * (u_dataMax - u_dataMin);
+float denom       = max(u_renderMax - u_renderMin, 1e-6);
+float colorFactor = clamp((dataValue - u_renderMin) / denom, 0.0, 1.0);
+color = vec4(_dataPalette(colorFactor), color.a);
         `,
       };
       return shaders;
     }
 
     draw(opts) {
-      const { uSlopeMin = 0, uSlopeMax = 45, uStopT, uStopRgb, uStopCount = 2 } = this.props;
+      const {
+        uDataMin = 0, uDataMax = 1,
+        uRenderMin = 0, uRenderMax = 1,
+        uStopT, uStopRgb, uStopCount = 2,
+      } = this.props;
       super.draw({
         ...opts,
         uniforms: {
           ...opts.uniforms,
-          u_slopeMin: uSlopeMin,
-          u_slopeMax: uSlopeMax,
-          u_stopT: uStopT,
-          u_stopRGB: uStopRgb,
+          u_dataMin:   uDataMin,
+          u_dataMax:   uDataMax,
+          u_renderMin: uRenderMin,
+          u_renderMax: uRenderMax,
+          u_stopT:     uStopT,
+          u_stopRGB:   uStopRgb,
           u_stopCount: uStopCount,
         },
       });
     }
   };
-  return _SlopeDataShaderLayerClass;
+  return _DataShaderLayerClass;
 }
 
-async function _syncSlopeDeckLayers() {
-  if (currentOverlay !== 'slope') {
-    if (_deckSlopeLayers.length) {
-      _deckSlopeLayers = [];
+// ================================================================
+// オーバーレイ別設定マップ
+//   各データタイルプロトコルの共通パラメータをここで一元管理する。
+//   新しいオーバーレイを追加する場合はここにエントリを足すだけでよい。
+// ================================================================
+const OVERLAY_DATA_CONFIGS = {
+  slope: {
+    dataMin:        SLOPE_DATA_MIN,
+    dataMax:        SLOPE_DATA_MAX,
+    getRenderMin:   () => srMin,
+    getRenderMax:   () => srMax,
+    getPaletteId:   () => srPaletteId,
+    generateTile:   generateSlopeDataTile,
+    // dem2slope:// の URL を slope-data:// に変換（クエリパラメータは不要なため除去）
+    toDataUrl:      (tileUrl) => tileUrl.replace(/^dem2slope:\/\//, 'slope-data://').replace(/\?.*$/, ''),
+    regionalLayers: REGIONAL_SLOPE_LAYERS,
+    qBaseUrl:       () => `slope-data://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp`,
+    qOnlyUrl:       () => `slope-data://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp?qonly=1`,
+    layerIdPrefix:  'slope-data',
+    maxZoomBase:    15,
+  },
+  'color-relief': {
+    dataMin:        RELIEF_DATA_MIN,
+    dataMax:        RELIEF_DATA_MAX,
+    getRenderMin:   () => crMin,
+    getRenderMax:   () => crMax,
+    getPaletteId:   () => crPaletteId,
+    generateTile:   generateReliefDataTile,
+    toDataUrl:      (tileUrl) => tileUrl.replace(/^dem2relief:\/\//, 'relief-data://').replace(/\?.*$/, ''),
+    regionalLayers: REGIONAL_RELIEF_LAYERS,
+    qBaseUrl:       () => `relief-data://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp`,
+    qOnlyUrl:       () => `relief-data://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp?qonly=1`,
+    layerIdPrefix:  'relief-data',
+    maxZoomBase:    15,
+  },
+  curvature: {
+    dataMin:        CURVE_DATA_MIN,
+    dataMax:        CURVE_DATA_MAX,
+    getRenderMin:   () => cvMin,
+    getRenderMax:   () => cvMax,
+    getPaletteId:   () => cvPaletteId,
+    generateTile:   generateCurveDataTile,
+    toDataUrl:      (tileUrl) => tileUrl.replace(/^dem2curve:\/\//, 'curve-data://').replace(/\?.*$/, ''),
+    regionalLayers: REGIONAL_CURVE_LAYERS,
+    qBaseUrl:       () => `curve-data://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp`,
+    qOnlyUrl:       () => `curve-data://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp?qonly=1`,
+    layerIdPrefix:  'curve-data',
+    maxZoomBase:    15,
+  },
+};
+
+// ================================================================
+// 汎用データオーバーレイ Deck.gl 同期
+//   overlayKey が一致するときのみレイヤーを生成し、
+//   それ以外のときは空配列にして非表示にする。
+// ================================================================
+async function _syncDataOverlayDeckLayers(overlayKey) {
+  const cfg = OVERLAY_DATA_CONFIGS[overlayKey];
+  if (!cfg) return;
+
+  if (currentOverlay !== overlayKey) {
+    if (_deckDataLayers[overlayKey]?.length) {
+      _deckDataLayers[overlayKey] = [];
       _commitDeckLayers();
     }
     return;
@@ -5967,79 +6027,85 @@ async function _syncSlopeDeckLayers() {
 
   await _loadDeckGl();
   _initDeckOverlay();
-  const SlopeLayerClass = _getSlopeShaderLayerClass();
-  if (!SlopeLayerClass) return;
+  const LayerClass = _getDataShaderLayerClass();
+  if (!LayerClass) return;
 
-  const opacity = parseFloat(document.getElementById('slider-cs')?.value ?? '1');
-  const uniforms = _buildSlopePaletteUniforms(srPaletteId);
+  const opacity    = parseFloat(document.getElementById('slider-cs')?.value ?? '1');
+  const uniforms   = _buildPaletteUniforms(cfg.getPaletteId());
+  const renderMin  = cfg.getRenderMin();
+  const renderMax  = cfg.getRenderMax();
+
   const mkSubLayer = (props) => {
     const bb = props.tile?.boundingBox;
     if (!bb) return null;
-    return new SlopeLayerClass(props, {
-      data: null,
-      image: props.data,
-      bounds: [bb[0][0], bb[0][1], bb[1][0], bb[1][1]],
+    return new LayerClass(props, {
+      data:        null,
+      image:       props.data,
+      bounds:      [bb[0][0], bb[0][1], bb[1][0], bb[1][1]],
       opacity,
-      uSlopeMin: srMin,
-      uSlopeMax: srMax,
-      uStopT: uniforms.stopT,
-      uStopRgb: uniforms.stopRgb,
-      uStopCount: uniforms.stopCount,
+      uDataMin:    cfg.dataMin,
+      uDataMax:    cfg.dataMax,
+      uRenderMin:  renderMin,
+      uRenderMax:  renderMax,
+      uStopT:      uniforms.stopT,
+      uStopRgb:    uniforms.stopRgb,
+      uStopCount:  uniforms.stopCount,
     });
   };
 
-  const qBase = QCHIZU_DEM_BASE.replace(/^https?:\/\//, '');
-  const qBlendUrl = `slope-data://${qBase}/{z}/{x}/{y}.webp`;
-  const qOnlyUrl = `slope-data://${qBase}/{z}/{x}/{y}.webp?qonly=1`;
+  const qBlendUrl = cfg.qBaseUrl();
+  const qOnlyUrl  = cfg.qOnlyUrl();
+  // renderSubLayers の再呼び出しトリガー: uniform に影響する値が変わったときに通知
+  const subLayerTrigger = [renderMin, renderMax, cfg.getPaletteId(), opacity];
   const makeTileDataLoader = (template) => async (tile) => {
-    const expandedUrl = _expandDeckTileUrl(template, tile);
-    const { data } = await generateSlopeDataTile(expandedUrl, tile.signal);
-    const blob = new Blob([data], { type: 'image/png' });
-    return await createImageBitmap(blob);
+    const { data } = await cfg.generateTile(_expandDeckTileUrl(template, tile), tile.signal);
+    return await createImageBitmap(new Blob([data], { type: 'image/png' }));
   };
-  // renderSubLayers の再呼び出しトリガー: uniforms に影響する値が変わったときに Deck.gl へ通知
-  const subLayerTrigger = [srMin, srMax, srPaletteId, opacity];
-  const layers = [
+
+  _deckDataLayers[overlayKey] = [
     new deck.TileLayer({
-      id: 'slope-data-base',
-      data: qBlendUrl,
-      maxZoom: 15,
-      minZoom: 0,
+      id: `${cfg.layerIdPrefix}-base`,
+      data: qBlendUrl, maxZoom: cfg.maxZoomBase, minZoom: 0,
       getTileData: makeTileDataLoader(qBlendUrl),
       renderSubLayers: mkSubLayer,
       updateTriggers: { renderSubLayers: subLayerTrigger },
     }),
     new deck.TileLayer({
-      id: 'slope-data-qonly-z16',
-      data: qOnlyUrl,
-      minZoom: 16,
-      maxZoom: 16,
+      id: `${cfg.layerIdPrefix}-qonly-z16`,
+      data: qOnlyUrl, minZoom: 16, maxZoom: 16,
       getTileData: makeTileDataLoader(qOnlyUrl),
       renderSubLayers: mkSubLayer,
       updateTriggers: { renderSubLayers: subLayerTrigger },
     }),
-    ...REGIONAL_SLOPE_LAYERS.map((layer) => new deck.TileLayer({
-      id: `slope-data-${layer.sourceId}`,
-      data: _normalizeSlopeDataTileUrl(layer.tileUrl),
-      minZoom: Math.max(16, layer.minzoom ?? 0),
-      maxZoom: layer.maxzoom ?? 24,
-      extent: layer.bounds,
-      getTileData: makeTileDataLoader(_normalizeSlopeDataTileUrl(layer.tileUrl)),
-      renderSubLayers: mkSubLayer,
-      updateTriggers: { renderSubLayers: subLayerTrigger },
-    })),
+    ...cfg.regionalLayers.map((layer) => {
+      const url = cfg.toDataUrl(layer.tileUrl);
+      return new deck.TileLayer({
+        id: `${cfg.layerIdPrefix}-${layer.sourceId}`,
+        data: url,
+        minZoom: Math.max(16, layer.minzoom ?? 0),
+        maxZoom: layer.maxzoom ?? 24,
+        extent:  layer.bounds,
+        getTileData: makeTileDataLoader(url),
+        renderSubLayers: mkSubLayer,
+        updateTriggers: { renderSubLayers: subLayerTrigger },
+      });
+    }),
   ];
-  _deckSlopeLayers = layers;
   _commitDeckLayers();
 }
 
-function scheduleSlopeDeckSync() {
-  if (_slopeDeckSyncRaf) cancelAnimationFrame(_slopeDeckSyncRaf);
-  _slopeDeckSyncRaf = requestAnimationFrame(() => {
-    _slopeDeckSyncRaf = 0;
-    void _syncSlopeDeckLayers().catch((e) => console.error('slope-data deck sync failed:', e));
+function scheduleDataOverlayDeckSync(overlayKey) {
+  if (_dataDeckSyncRafs[overlayKey]) cancelAnimationFrame(_dataDeckSyncRafs[overlayKey]);
+  _dataDeckSyncRafs[overlayKey] = requestAnimationFrame(() => {
+    _dataDeckSyncRafs[overlayKey] = 0;
+    void _syncDataOverlayDeckLayers(overlayKey).catch(
+      (e) => console.error(`${overlayKey} deck sync failed:`, e)
+    );
   });
 }
+
+// 後方互換エイリアス
+function scheduleSlopeDeckSync() { scheduleDataOverlayDeckSync('slope'); }
 
 // deck.gl v8.9 + loaders.gl v3 を動的に読み込む
 function _loadScript(url) {
