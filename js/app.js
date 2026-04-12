@@ -789,13 +789,16 @@ map.on('load', async () => {
     };
     if (layer.scheme) srcCfg.scheme = layer.scheme;
     map.addSource(layer.sourceId, srcCfg);
+    // 等高線レイヤーの直下に挿入し、等高線が常に上に重なるようにする
+    const beforeContour = ['contour-regular-dem1a', 'contour-regular-dem5a', 'contour-regular']
+      .find(id => map.getLayer(id));
     map.addLayer({
       id: layer.layerId,
       type: 'raster',
       source: layer.sourceId,
       layout: { visibility: 'none' },
       paint: { 'raster-opacity': 1.0, 'raster-fade-duration': 0, 'raster-opacity-transition': { duration: 0, delay: 0 } },
-    });
+    }, beforeContour);
   }
 
   REGIONAL_CS_LAYERS.forEach(_addRegionalLayer);
