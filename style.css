@@ -36,14 +36,18 @@
    ================================================================ */
 
 /* --sidebar-w をアニメータブルなCSS変数として宣言（Chrome85+ / Firefox128+） */
+/* ★ パネル幅を変更する場合は --panel-w のみ編集する。
+   --sidebar-w の initial-value と config.js の SIDEBAR_DEFAULT_WIDTH は
+   「アイコンバー幅(52px) + --panel-w」に合わせて手動更新が必要（@property はvar()不可）。 */
 @property --sidebar-w {
   syntax: '<length>';
   inherits: true;
-  initial-value: 238px;
+  initial-value: 352px; /* 52px(アイコンバー) + 300px(--panel-w) */
 }
 /* サイドバー幅の変化を 0.15s で補間。これにより calc(var(--sidebar-w)+X) が使われる
    すべての要素（検索ボックス・縮尺・出典など）が同時にスムーズに追従する */
 :root {
+  --panel-w: 300px; /* ★ パネル幅の唯一の定義。変更はここだけでよい */
   transition: --sidebar-w 0.15s ease;
 
   /* ===== テーマカラー（ミュートティール） ===== */
@@ -344,9 +348,9 @@ body {
 
 /* パネルコンテンツ */
 #sidebar-panel {
-  flex: 0 0 186px; /* flex-grow:0 flex-shrink:0 flex-basis:186px でコンテンツ幅に関わらず固定 */
-  width: 186px;
-  max-width: 186px;
+  flex: 0 0 var(--panel-w); /* flex-grow:0 flex-shrink:0 でコンテンツ幅に関わらず固定 */
+  width: var(--panel-w);
+  max-width: var(--panel-w);
   height: 100%;
   background: var(--bg-surface);
   border-right: 1px solid var(--border-muted);

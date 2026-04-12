@@ -317,7 +317,7 @@ export const TERRAIN_EXAGGERATION = 1.0;
 export const EASE_DURATION          = 600;  // 標準カメラアニメーション時間（ms）
 export const FIT_BOUNDS_PAD         = 60;   // fitBounds の標準パディング（px）
 export const FIT_BOUNDS_PAD_SIDEBAR = 30;   // サイドバーがある場合の左側追加パディング（px）
-export const SIDEBAR_DEFAULT_WIDTH  = 238;  // サイドバーの offsetWidth フォールバック値（px）
+export const SIDEBAR_DEFAULT_WIDTH  = 352;  // サイドバーの offsetWidth フォールバック値（px）= 52(アイコンバー) + 300(--panel-w)
 
 // REGIONAL_DEM_SOURCES から派生したオーバーレイレイヤー定義
 // app.js はこれらを参照する（CS立体図・赤色立体図）
