@@ -303,7 +303,6 @@ map.on('load', async () => {
       tiles: [cfg.url],
       tileSize: _rasterTileSize,
       maxzoom: cfg.maxzoom,
-      attribution: cfg.attr,
     });
     map.addLayer({
       id: key + '-layer',
@@ -4286,11 +4285,13 @@ function initAttributionObserver() {
     _attrObserver.disconnect();
     updateBasemapAttribution();
     updatePlateauAttribution();
+    updateMagneticAttribution();
     _attrObserver.observe(attrInner, { childList: true, subtree: true });
   });
   _attrObserver.observe(attrInner, { childList: true, subtree: true });
   updateBasemapAttribution();
   updatePlateauAttribution();
+  updateMagneticAttribution();
   return true;
 }
 

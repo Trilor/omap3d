@@ -39,7 +39,7 @@
 @property --sidebar-w {
   syntax: '<length>';
   inherits: true;
-  initial-value: 296px;
+  initial-value: 238px;
 }
 /* サイドバー幅の変化を 0.15s で補間。これにより calc(var(--sidebar-w)+X) が使われる
    すべての要素（検索ボックス・縮尺・出典など）が同時にスムーズに追従する */
@@ -344,7 +344,9 @@ body {
 
 /* パネルコンテンツ */
 #sidebar-panel {
-  width: 248px;
+  flex: 0 0 186px; /* flex-grow:0 flex-shrink:0 flex-basis:186px でコンテンツ幅に関わらず固定 */
+  width: 186px;
+  max-width: 186px;
   height: 100%;
   background: var(--bg-surface);
   border-right: 1px solid var(--border-muted);
@@ -1225,13 +1227,13 @@ body {
 }
 .bm-cards {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 2px;
   width: 100%;
 }
-/* オーバーレイカードはベースマップと同じ4列 */
+/* オーバーレイカードはベースマップと同じ3列 */
 #overlay-cards.bm-cards {
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
 }
 /* 正方形カード*/
 .bm-card {

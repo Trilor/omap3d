@@ -317,7 +317,7 @@ export const TERRAIN_EXAGGERATION = 1.0;
 export const EASE_DURATION          = 600;  // 標準カメラアニメーション時間（ms）
 export const FIT_BOUNDS_PAD         = 60;   // fitBounds の標準パディング（px）
 export const FIT_BOUNDS_PAD_SIDEBAR = 30;   // サイドバーがある場合の左側追加パディング（px）
-export const SIDEBAR_DEFAULT_WIDTH  = 300;  // サイドバーの offsetWidth フォールバック値（px）
+export const SIDEBAR_DEFAULT_WIDTH  = 238;  // サイドバーの offsetWidth フォールバック値（px）
 
 // REGIONAL_DEM_SOURCES から派生したオーバーレイレイヤー定義
 // app.js はこれらを参照する（CS立体図・赤色立体図）
@@ -340,14 +340,14 @@ export const CS_INITIAL_OPACITY = 0.6;
 export const BASEMAPS = {
   'orilibre':  { attr: '<a href="https://github.com/tjmsy/orilibre" target="_blank">OriLibre</a>' },
   'gsi-std':   { url: 'https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png',           maxzoom: 18,
-                 attr: '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">地理院タイル</a>' },
+                 attr: '<a href="https://maps.gsi.go.jp/development/ichiran.html#std" target="_blank">地理院標準地図</a>' },
   'gsi-pale':  { url: 'https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png',          maxzoom: 18,
-                 attr: '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">地理院タイル</a>' },
+                 attr: '<a href="https://maps.gsi.go.jp/development/ichiran.html#pale" target="_blank">地理院淡色地図</a>' },
   'gsi-blank': { url: 'https://cyberjapandata.gsi.go.jp/xyz/blank/{z}/{x}/{y}.png',         maxzoom: 14,
-                 attr: '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">地理院タイル</a>' },
+                 attr: '<a href="https://maps.gsi.go.jp/development/ichiran.html#blank" target="_blank">地理院白地図</a>' },
   'gsi-photo': { url: 'https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg', maxzoom: 18,
                  bgColor: '#ffffff',
-                 attr: '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">地理院タイル</a>' },
+                 attr: '<a href="https://maps.gsi.go.jp/development/ichiran.html#seamlessphoto" target="_blank">地理院航空写真</a>' },
   'osm':       { url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',                     maxzoom: 19,
                  bgColor: '#add19e',
                  attr: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors' },
