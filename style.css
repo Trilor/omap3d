@@ -1278,9 +1278,9 @@ body {
 /* ラベル */
 .bm-card-label {
   position: absolute;
-  bottom: 1px;
-  left: 1px;
-  right: 1px;
+  bottom: 0.5px;
+  left: 0.5px;
+  right: 0.5px;
   min-height: 20px;
   font-size: var(--font-xs);
   font-weight: 500;
