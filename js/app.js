@@ -6088,11 +6088,16 @@ building3dCard.addEventListener('click', (e) => {
 // ---- 3D地形カード クリックでトグル + 誇張率セレクト ----
 const terrain3dCard = document.getElementById('terrain3d-card');
 const selTerrainExaggeration = document.getElementById('sel-terrain-exaggeration');
+// ズームレベルがこの値未満のとき3D地形を自動非表示にする
+const TERRAIN_AUTO_HIDE_ZOOM = 5;
 
 function setTerrain3dEnabled(enabled, { updateCard = true } = {}) {
   if (updateCard) terrain3dCard.classList.toggle('active', !!enabled);
   if (enabled) {
-    map.setTerrain({ source: 'terrain-dem', exaggeration: parseFloat(selTerrainExaggeration.value) });
+    // ズームレベルが閾値未満のときは map.setTerrain を呼ばない（zoom イベントで復元される）
+    if (map.getZoom() >= TERRAIN_AUTO_HIDE_ZOOM) {
+      map.setTerrain({ source: 'terrain-dem', exaggeration: parseFloat(selTerrainExaggeration.value) });
+    }
   } else {
     map.setTerrain(null);
   }
@@ -6116,7 +6121,6 @@ selTerrainExaggeration.addEventListener('change', () => {
 
 // ---- ズームレベル5未満で3D地形を自動非表示 ----
 // カードのON/OFF状態は変えず、map.setTerrain()のみ制御する。
-const TERRAIN_AUTO_HIDE_ZOOM = 5;
 map.on('zoom', () => {
   if (!terrain3dCard.classList.contains('active')) return; // もともとオフなら何もしない
   const zoom = map.getZoom();
