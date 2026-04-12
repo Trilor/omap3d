@@ -42,12 +42,12 @@
 @property --sidebar-w {
   syntax: '<length>';
   inherits: true;
-  initial-value: 352px; /* 52px(アイコンバー) + 300px(--panel-w) */
+  initial-value: 282px; /* 52px(アイコンバー) + 230px(--panel-w) */
 }
 /* サイドバー幅の変化を 0.15s で補間。これにより calc(var(--sidebar-w)+X) が使われる
    すべての要素（検索ボックス・縮尺・出典など）が同時にスムーズに追従する */
 :root {
-  --panel-w: 300px; /* ★ パネル幅の唯一の定義。変更はここだけでよい */
+  --panel-w: 230px; /* ★ パネル幅の唯一の定義。変更はここだけでよい */
   transition: --sidebar-w 0.15s ease;
 
   /* ===== テーマカラー（ミュートティール） ===== */
@@ -2169,7 +2169,7 @@ label.setting-label {
 .imgw-modal-overlay {
   position: fixed;
   inset: 0;
-  z-index: 300;
+  z-index: 282;
   background: rgba(0, 0, 0, 0.48);
   display: flex;
   align-items: center;
