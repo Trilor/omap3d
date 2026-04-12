@@ -280,14 +280,14 @@ function _cachedFetchImageData(url, signal) {
 const _COMPOSITE_TARGET_SIZE = 256;
 
 // 最終出力画像（RGB）を _COMPOSITE_TARGET_SIZE にリサイズして返す。
-// 入力DEMデータ（NumPNG高度値）ではなく完成済みRGB画像を対象とするため
-// bilinear補間しても高度値の破壊は起きない。
-function _rescaleComposite(canvas) {
+// nearest=true: RGB 24bit エンコードデータなど数値を保持する場合は最近傍補間を使う。
+// nearest=false（デフォルト）: 着色済みカラー画像はバイリニアで良い。
+function _rescaleComposite(canvas, nearest = false) {
   if (canvas.width === _COMPOSITE_TARGET_SIZE) return canvas;
   const dst = new OffscreenCanvas(_COMPOSITE_TARGET_SIZE, _COMPOSITE_TARGET_SIZE);
   const ctx = dst.getContext('2d');
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = 'high';
+  ctx.imageSmoothingEnabled = !nearest;
+  if (!nearest) ctx.imageSmoothingQuality = 'high';
   ctx.drawImage(canvas, 0, 0, _COMPOSITE_TARGET_SIZE, _COMPOSITE_TARGET_SIZE);
   return dst;
 }
@@ -820,125 +820,194 @@ function _dem2slopeColor(slope, min, max, stops) {
   return _dem2reliefColor(t, stops);
 }
 
+// 傾斜角（0〜90度）を RGB 24bit に可逆エンコード（A は nodata マスク用に別管理）
+function _encodeSlopeToRgb24(slopeDegree) {
+  let n = slopeDegree / 90.0;
+  n = Math.max(0, Math.min(1, n));
+  const t = Math.floor(n * 16777215); // 24bit
+  return {
+    r: (t >> 16) & 255,
+    g: (t >> 8) & 255,
+    b: t & 255,
+  };
+}
+
+/*
+  ========================================================
+  傾斜タイル共通ビルダー
+  DEM タイルを4枚取得し、傾斜角を計算して ImageData に書き込む。
+  writePixel(slopeDeg, out, pixelIndex) で出力形式を切り替える。
+  nearest=true: RGB 24bit エンコード等の数値タイルはリサイズで補間しない。
+  ========================================================
+*/
+async function _buildSlopeTileCanvas(
+  zoomLevel, tileX, tileY,
+  demMode, regionalBase, regionalExt, regionalOrder,
+  abortSignal, writePixel, nearest = false
+) {
+  const [center, right, down, downRight] = await Promise.all([
+    fetchCompositeDemBitmap(zoomLevel, tileX,     tileY,     abortSignal, regionalBase, regionalExt, demMode, regionalOrder, null),
+    fetchCompositeDemBitmap(zoomLevel, tileX + 1, tileY,     abortSignal, regionalBase, regionalExt, demMode, regionalOrder, null),
+    fetchCompositeDemBitmap(zoomLevel, tileX,     tileY + 1, abortSignal, regionalBase, regionalExt, demMode, regionalOrder, null),
+    fetchCompositeDemBitmap(zoomLevel, tileX + 1, tileY + 1, abortSignal, regionalBase, regionalExt, demMode, regionalOrder, null),
+  ]);
+  if (!center) return null;
+
+  const tileSize = center.width;
+  const buffer = 1;
+  const mergedSize = tileSize + buffer * 2;
+  const mergedCanvas = new OffscreenCanvas(mergedSize, mergedSize);
+  const mergedCtx = mergedCanvas.getContext('2d');
+
+  [
+    { bmp: center,      index: 4 },
+    { bmp: right,       index: 5 },
+    { bmp: down,        index: 7 },
+    { bmp: downRight,   index: 8 },
+  ].forEach(({ bmp, index }) => {
+    if (!bmp) return;
+    const { sx, sy, sWidth, sHeight, dx, dy } = _calculateTilePosition(index, tileSize, buffer);
+    mergedCtx.drawImage(bmp, sx, sy, sWidth, sHeight, dx, dy, sWidth, sHeight);
+    bmp.close();
+  });
+
+  const outCanvas = new OffscreenCanvas(tileSize, tileSize);
+  const outCtx = outCanvas.getContext('2d');
+  const outImageData = outCtx.createImageData(tileSize, tileSize);
+  const out = outImageData.data;
+
+  const mergedData = mergedCtx.getImageData(0, 0, mergedSize, mergedSize).data;
+  const pixelLength = _calculatePixelResolution(tileSize, zoomLevel, tileY);
+
+  for (let row = 0; row < tileSize; row++) {
+    for (let col = 0; col < tileSize; col++) {
+      const mi = ((row + buffer) * mergedSize + (col + buffer)) * 4;
+      const oi = (row * tileSize + col) * 4;
+
+      const h00 = _getNumpngHeight(mergedData[mi],     mergedData[mi + 1], mergedData[mi + 2],     mergedData[mi + 3]);
+      const h01 = _getNumpngHeight(mergedData[mi + 4], mergedData[mi + 5], mergedData[mi + 6],     mergedData[mi + 7]);
+      const h10 = _getNumpngHeight(mergedData[mi + mergedSize * 4], mergedData[mi + mergedSize * 4 + 1],
+                                   mergedData[mi + mergedSize * 4 + 2], mergedData[mi + mergedSize * 4 + 3]);
+      const slope = _calculateSlope(h00, h01, h10, pixelLength);
+
+      if (slope == null) {
+        out[oi + 3] = 0; // nodata: a=0
+        continue;
+      }
+      writePixel(slope, out, oi);
+    }
+  }
+
+  outCtx.putImageData(outImageData, 0, 0);
+  return _rescaleComposite(outCanvas, nearest);
+}
+
+// ズーム別 DEM ソースモードを決定するヘルパー
+function _slopeDemMode(zoomLevel, qonly) {
+  if (qonly) return 'q';
+  if (zoomLevel <= 13) return 'dem10b';
+  if (zoomLevel === 14) return 'dem10b+dem5a';
+  if (zoomLevel === 15) return 'dem10b+dem5a+q';
+  return null; // z>=16: 地域DEM使用
+}
+
+function _demSrcLabel(demMode) {
+  if (demMode === null)              return 'R+Q+5A+10B';
+  if (demMode === 'dem10b+dem5a+q') return 'Q+5A+10B';
+  if (demMode === 'dem10b+dem5a')   return '5A+10B';
+  if (demMode === 'q')              return 'Q';
+  return '10B';
+}
+
 maplibregl.addProtocol('dem2slope', async (params, abortController) => {
   try {
     const request = _parseProtocolTileRequest(params.url, 'dem2slope');
     if (!request) return { data: _transparentPngBuffer() };
     const { urlObj, baseUrl, tileOrder, zoomLevel, tileX, tileY, ext } = request;
+
     const min = parseFloat(urlObj.searchParams.get('min') ?? '0');
     const max = parseFloat(urlObj.searchParams.get('max') ?? '45');
     const reliefStops = _getReliefPaletteStops(urlObj.searchParams.get('palette') ?? 'rainbow');
-    const regionalDemBase = (baseUrl === QCHIZU_DEM_BASE) ? null : baseUrl;
-    const regionalDemExt = regionalDemBase ? ext : null;
-    const regionalDemOrder = regionalDemBase ? tileOrder : 'xy';
-
-    // ズーム別 DEMソース選択（CS/RRIMと同設計）:
-    //   qonly=1: Q地図のみ / z≤13: DEM10Bのみ / z14: +DEM5A / z15: +Q地図1m / z≥16(null): +地域DEM
     const qonly = urlObj.searchParams.get('qonly') === '1';
-    const demMode = qonly ? 'q'
-                  : zoomLevel <= 13 ? 'dem10b'
-                  : zoomLevel === 14 ? 'dem10b+dem5a'
-                  : zoomLevel === 15 ? 'dem10b+dem5a+q'
-                  : null;
-    const effectiveRegionalBase = demMode === null ? regionalDemBase : null;
-    const effectiveRegionalExt  = effectiveRegionalBase ? regionalDemExt : null;
-    const effectiveRegionalOrder = effectiveRegionalBase ? regionalDemOrder : 'xy';
 
-    // tileOutputSize=null: Q地図使用時は512px、DEM5A/10Bのみ時は256px（自動）
-    const _slopeT0 = performance.now();
-    const [center, right, down, downRight] = await Promise.all([
-      fetchCompositeDemBitmap(zoomLevel, tileX, tileY, abortController.signal, effectiveRegionalBase, effectiveRegionalExt, demMode, effectiveRegionalOrder, null),
-      fetchCompositeDemBitmap(zoomLevel, tileX + 1, tileY, abortController.signal, effectiveRegionalBase, effectiveRegionalExt, demMode, effectiveRegionalOrder, null),
-      fetchCompositeDemBitmap(zoomLevel, tileX, tileY + 1, abortController.signal, effectiveRegionalBase, effectiveRegionalExt, demMode, effectiveRegionalOrder, null),
-      fetchCompositeDemBitmap(zoomLevel, tileX + 1, tileY + 1, abortController.signal, effectiveRegionalBase, effectiveRegionalExt, demMode, effectiveRegionalOrder, null),
-    ]);
-    if (!center) return { data: _transparentPngBuffer() };
+    const regionalBase = (baseUrl === QCHIZU_DEM_BASE) ? null : baseUrl;
+    const demMode = _slopeDemMode(zoomLevel, qonly);
+    const effRegionalBase = demMode === null ? regionalBase : null;
+    const effRegionalExt  = effRegionalBase ? ext : null;
+    const effRegionalOrder = effRegionalBase ? tileOrder : 'xy';
 
-    const tileSize = center.width;
-    const buffer = 1;
-    const mergedSize = tileSize + buffer * 2;
-    const mergedCanvas = new OffscreenCanvas(mergedSize, mergedSize);
-    const mergedCtx = mergedCanvas.getContext('2d');
-
-    [
-      { bmp: center, index: 4 },
-      { bmp: right, index: 5 },
-      { bmp: down, index: 7 },
-      { bmp: downRight, index: 8 },
-    ].forEach(({ bmp, index }) => {
-      if (!bmp) return;
-      const { sx, sy, sWidth, sHeight, dx, dy } = _calculateTilePosition(index, tileSize, buffer);
-      mergedCtx.drawImage(bmp, sx, sy, sWidth, sHeight, dx, dy, sWidth, sHeight);
-      bmp.close();
-    });
-
-    const outCanvas = new OffscreenCanvas(tileSize, tileSize);
-    const outCtx = outCanvas.getContext('2d');
-    const outImageData = outCtx.createImageData(tileSize, tileSize);
-    const out = outImageData.data;
-
-    const mergedImageData = mergedCtx.getImageData(0, 0, mergedSize, mergedSize);
-    const data = mergedImageData.data;
-    const pixelLength = _calculatePixelResolution(tileSize, zoomLevel, tileY);
-
-    for (let row = 0; row < tileSize; row++) {
-      for (let col = 0; col < tileSize; col++) {
-        const mergedIndex = ((row + buffer) * mergedSize + (col + buffer)) * 4;
-        const outputIndex = (row * tileSize + col) * 4;
-
-        const h00 = _getNumpngHeight(
-          data[mergedIndex],
-          data[mergedIndex + 1],
-          data[mergedIndex + 2],
-          data[mergedIndex + 3]
-        );
-        const h01 = _getNumpngHeight(
-          data[mergedIndex + 4],
-          data[mergedIndex + 5],
-          data[mergedIndex + 6],
-          data[mergedIndex + 7]
-        );
-        const h10 = _getNumpngHeight(
-          data[mergedIndex + mergedSize * 4],
-          data[mergedIndex + mergedSize * 4 + 1],
-          data[mergedIndex + mergedSize * 4 + 2],
-          data[mergedIndex + mergedSize * 4 + 3]
-        );
-        const slope = _calculateSlope(h00, h01, h10, pixelLength);
-
-        if (slope == null) {
-          out[outputIndex] = 0;
-          out[outputIndex + 1] = 0;
-          out[outputIndex + 2] = 0;
-          out[outputIndex + 3] = 0;
-          continue;
-        }
-
+    const t0 = performance.now();
+    const outCanvas = await _buildSlopeTileCanvas(
+      zoomLevel, tileX, tileY, demMode,
+      effRegionalBase, effRegionalExt, effRegionalOrder,
+      abortController.signal,
+      (slope, out, oi) => {
         const { r, g, b } = _dem2slopeColor(slope, min, max, reliefStops);
-        out[outputIndex] = r;
-        out[outputIndex + 1] = g;
-        out[outputIndex + 2] = b;
-        out[outputIndex + 3] = 255;
+        out[oi] = r; out[oi + 1] = g; out[oi + 2] = b; out[oi + 3] = 255;
       }
-    }
-
-    outCtx.putImageData(outImageData, 0, 0);
-    const _slopeT1 = performance.now(); // fetch+演算完了
-    const slopeBlob = await _rescaleComposite(outCanvas).convertToBlob({ type: 'image/png' });
-    const slopeArrayBuffer = await slopeBlob.arrayBuffer();
-    const _slopeT2 = performance.now();
-    const _slopeDemSrcs = demMode === null            ? 'R+Q+5A+10B'
-      : demMode === 'dem10b+dem5a+q' ? 'Q+5A+10B'
-      : demMode === 'dem10b+dem5a'   ? '5A+10B'
-      : demMode === 'q'             ? 'Q'
-      : '10B';
-    console.log(
-      `[dem2slope] z${zoomLevel} ${tileX},${tileY} dem:${_slopeDemSrcs} range:${min}~${max}° | ` +
-      `fetch+calc:${(_slopeT1-_slopeT0).toFixed(0)}ms  ` +
-      `blob:${(_slopeT2-_slopeT1).toFixed(0)}ms  ` +
-      `total:${(_slopeT2-_slopeT0).toFixed(0)}ms`
     );
-    return { data: slopeArrayBuffer };
+    if (!outCanvas) return { data: _transparentPngBuffer() };
+    const t1 = performance.now();
+
+    const blob = await outCanvas.convertToBlob({ type: 'image/png' });
+    const buf  = await blob.arrayBuffer();
+    const t2 = performance.now();
+    console.log(`[dem2slope] z${zoomLevel} ${tileX},${tileY} dem:${_demSrcLabel(demMode)} range:${min}~${max}° | fetch+calc:${(t1-t0).toFixed(0)}ms  blob:${(t2-t1).toFixed(0)}ms  total:${(t2-t0).toFixed(0)}ms`);
+    return { data: buf };
+  } catch {
+    return { data: _transparentPngBuffer() };
+  }
+});
+
+/*
+  ========================================================
+  傾斜データタイルプロトコル (slope-data://)
+  傾斜角（0〜90度）を RGB 24bit にエンコードして返す。
+  A=255: 有効値 / A=0: nodata
+  描画時の着色は deck.gl 側シェーダーで行う。
+  リサイズは nearest=true（数値データ保護）。
+  ========================================================
+*/
+export async function generateSlopeDataTile(paramsUrl, abortSignal) {
+  try {
+    const request = _parseProtocolTileRequest(paramsUrl, 'slope-data');
+    if (!request) return { data: _transparentPngBuffer() };
+    const { urlObj, baseUrl, tileOrder, zoomLevel, tileX, tileY, ext } = request;
+
+    const qonly = urlObj.searchParams.get('qonly') === '1';
+    const regionalBase = (baseUrl === QCHIZU_DEM_BASE) ? null : baseUrl;
+    const demMode = _slopeDemMode(zoomLevel, qonly);
+    const effRegionalBase = demMode === null ? regionalBase : null;
+    const effRegionalExt  = effRegionalBase ? ext : null;
+    const effRegionalOrder = effRegionalBase ? tileOrder : 'xy';
+
+    const t0 = performance.now();
+    const outCanvas = await _buildSlopeTileCanvas(
+      zoomLevel, tileX, tileY, demMode,
+      effRegionalBase, effRegionalExt, effRegionalOrder,
+      abortSignal,
+      (slope, out, oi) => {
+        const { r, g, b } = _encodeSlopeToRgb24(slope);
+        out[oi] = r; out[oi + 1] = g; out[oi + 2] = b; out[oi + 3] = 255;
+      },
+      true // nearest: RGB24エンコードデータはバイリニア補間禁止
+    );
+    if (!outCanvas) return { data: _transparentPngBuffer() };
+    const t1 = performance.now();
+
+    const blob = await outCanvas.convertToBlob({ type: 'image/png' });
+    const buf  = await blob.arrayBuffer();
+    const t2 = performance.now();
+    console.log(`[slope-data] z${zoomLevel} ${tileX},${tileY} dem:${_demSrcLabel(demMode)} | fetch+calc:${(t1-t0).toFixed(0)}ms  blob:${(t2-t1).toFixed(0)}ms  total:${(t2-t0).toFixed(0)}ms`);
+    return { data: buf };
+  } catch {
+    return { data: _transparentPngBuffer() };
+  }
+}
+
+maplibregl.addProtocol('slope-data', async (params, abortController) => {
+  try {
+    return await generateSlopeDataTile(params.url, abortController.signal);
   } catch {
     return { data: _transparentPngBuffer() };
   }
