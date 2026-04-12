@@ -6111,6 +6111,22 @@ selTerrainExaggeration.addEventListener('change', () => {
   saveUiState();
 });
 
+// ---- ズームレベル5未満で3D地形を自動非表示 ----
+// カードのON/OFF状態は変えず、map.setTerrain()のみ制御する。
+const TERRAIN_AUTO_HIDE_ZOOM = 5;
+map.on('zoom', () => {
+  if (!terrain3dCard.classList.contains('active')) return; // もともとオフなら何もしない
+  const zoom = map.getZoom();
+  const terrainOn = !!map.getTerrain();
+  if (zoom < TERRAIN_AUTO_HIDE_ZOOM && terrainOn) {
+    map.setTerrain(null);
+    syncTerrainRasterOpacity();
+  } else if (zoom >= TERRAIN_AUTO_HIDE_ZOOM && !terrainOn) {
+    map.setTerrain({ source: 'terrain-dem', exaggeration: parseFloat(selTerrainExaggeration.value) });
+    syncTerrainRasterOpacity();
+  }
+});
+
 // ---- 等高線 タイルカード ----
 const contourCard = document.getElementById('contour-card');
 const selContourDem      = document.getElementById('sel-contour-dem');
