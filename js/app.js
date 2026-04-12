@@ -6095,6 +6095,7 @@ async function _syncDataOverlayDeckLayers(overlayKey) {
 }
 
 function scheduleDataOverlayDeckSync(overlayKey) {
+  if (!_dataDeckSyncRafs) _dataDeckSyncRafs = {}; // IIFE 順序ずれ対策
   if (_dataDeckSyncRafs[overlayKey]) cancelAnimationFrame(_dataDeckSyncRafs[overlayKey]);
   _dataDeckSyncRafs[overlayKey] = requestAnimationFrame(() => {
     _dataDeckSyncRafs[overlayKey] = 0;
@@ -6188,7 +6189,7 @@ async function _applyDeckTile3D(tilesetEntries) {
    'plateau-lod2-api' PLATEAU LOD2 API動的取得（deck.gl Tile3DLayer）
    'plateau-lod3-api' PLATEAU LOD3 API動的取得（deck.gl Tile3DLayer）
    3D地形の ON/OFF とは独立して制御可能。 */
-const BUILDING_CFG = {
+var BUILDING_CFG = {
   ofm: {
     source:      'ofm',
     sourceLayer: 'building',
@@ -8803,7 +8804,7 @@ function getReadmapBaseStyle(bgKey) {
    applyContourInterval などから呼ばれる。
    ---------------------------------------------------------------- */
 // 直近の磁北線 GeoJSON（読図マップへの同期用キャッシュ）
-let _lastMagneticNorthData = { type: 'FeatureCollection', features: [] };
+var _lastMagneticNorthData = { type: 'FeatureCollection', features: [] };
 
 function syncReadmapOriLibre() {
   if (!pcSimState.readMap || !pcSimState.readMap.isStyleLoaded()) return;
