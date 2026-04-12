@@ -5997,6 +5997,8 @@ async function _syncSlopeDeckLayers() {
     const blob = new Blob([data], { type: 'image/png' });
     return await createImageBitmap(blob);
   };
+  // renderSubLayers の再呼び出しトリガー: uniforms に影響する値が変わったときに Deck.gl へ通知
+  const subLayerTrigger = [srMin, srMax, srPaletteId, opacity];
   const layers = [
     new deck.TileLayer({
       id: 'slope-data-base',
@@ -6005,6 +6007,7 @@ async function _syncSlopeDeckLayers() {
       minZoom: 0,
       getTileData: makeTileDataLoader(qBlendUrl),
       renderSubLayers: mkSubLayer,
+      updateTriggers: { renderSubLayers: subLayerTrigger },
     }),
     new deck.TileLayer({
       id: 'slope-data-qonly-z16',
@@ -6013,6 +6016,7 @@ async function _syncSlopeDeckLayers() {
       maxZoom: 16,
       getTileData: makeTileDataLoader(qOnlyUrl),
       renderSubLayers: mkSubLayer,
+      updateTriggers: { renderSubLayers: subLayerTrigger },
     }),
     ...REGIONAL_SLOPE_LAYERS.map((layer) => new deck.TileLayer({
       id: `slope-data-${layer.sourceId}`,
@@ -6022,6 +6026,7 @@ async function _syncSlopeDeckLayers() {
       extent: layer.bounds,
       getTileData: makeTileDataLoader(_normalizeSlopeDataTileUrl(layer.tileUrl)),
       renderSubLayers: mkSubLayer,
+      updateTriggers: { renderSubLayers: subLayerTrigger },
     })),
   ];
   _deckSlopeLayers = layers;
