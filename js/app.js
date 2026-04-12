@@ -4783,9 +4783,9 @@ function updateColorReliefSource() {
   // ── スライダー: ドラッグ中は UI 即時更新 + 0.3秒スロットルでタイル更新、離したときに確定 ──
   const _crScheduleTile = () => {
     clearTimeout(_crTileTimer);
-    _crTileTimer = setTimeout(() => { _crDragTileTime = 0; applyColorReliefTiles(); }, 300);
+    _crTileTimer = setTimeout(() => { _crDragTileTime = 0; applyColorReliefTiles(); }, 500);
     const now = Date.now();
-    if (now - _crDragTileTime >= 300) { _crDragTileTime = now; applyColorReliefTiles(); }
+    if (now - _crDragTileTime >= 500) { _crDragTileTime = now; applyColorReliefTiles(); }
   };
   minSlider.addEventListener('input', () => {
     crMin = Math.min(parseInt(minSlider.value, 10), crMax);
@@ -5199,9 +5199,9 @@ function updateSlopeReliefSource() {
 
   const _srScheduleTile = () => {
     clearTimeout(_srTileTimer);
-    _srTileTimer = setTimeout(() => { _srDragTileTime = 0; applySlopeReliefTiles(); }, 300);
+    _srTileTimer = setTimeout(() => { _srDragTileTime = 0; applySlopeReliefTiles(); }, 500);
     const now = Date.now();
-    if (now - _srDragTileTime >= 300) { _srDragTileTime = now; applySlopeReliefTiles(); }
+    if (now - _srDragTileTime >= 500) { _srDragTileTime = now; applySlopeReliefTiles(); }
   };
   minSlider.addEventListener('input', () => {
     srMin = Math.min(parseInt(minSlider.value, 10), srMax);
@@ -5495,9 +5495,9 @@ function updateCurvatureReliefSource() {
 
   const _cvScheduleTile = () => {
     clearTimeout(_cvTileTimer);
-    _cvTileTimer = setTimeout(() => { _cvDragTileTime = 0; applyCurvatureReliefTiles(); }, 300);
+    _cvTileTimer = setTimeout(() => { _cvDragTileTime = 0; applyCurvatureReliefTiles(); }, 500);
     const now = Date.now();
-    if (now - _cvDragTileTime >= 300) { _cvDragTileTime = now; applyCurvatureReliefTiles(); }
+    if (now - _cvDragTileTime >= 500) { _cvDragTileTime = now; applyCurvatureReliefTiles(); }
   };
   minSlider.addEventListener('input', () => {
     cvMin = Math.min(parseFloat(minSlider.value), cvMax);
