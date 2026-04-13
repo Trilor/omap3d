@@ -203,6 +203,99 @@ function _refreshSource() {
 }
 
 // ================================================================
+// カーソルプレビュー（描画モード中、クリック前のシンボル仮表示）
+// ================================================================
+
+/**
+ * カーソル位置にプレビュー FeatureCollection を構築する。
+ * · スタート未配置 → 三角（previewType:'start'）
+ * · スタート済み → 円（previewType:'control'）
+ * · 2点目以降 → 最後のコントロールからカーソルへのレグ線も追加
+ */
+function _buildPreviewData(lngLat) {
+  const features = [];
+  const ctrls = _plan.controls;
+  const previewType = ctrls.length === 0 ? 'start' : 'control';
+
+  features.push({
+    type: 'Feature',
+    geometry: { type: 'Point', coordinates: [lngLat.lng, lngLat.lat] },
+    properties: { previewType },
+  });
+
+  // 最後のコントロールからカーソルへのプレビューレグ線
+  if (ctrls.length > 0) {
+    const last = ctrls[ctrls.length - 1];
+    features.push({
+      type: 'Feature',
+      geometry: {
+        type: 'LineString',
+        coordinates: [[last.lng, last.lat], [lngLat.lng, lngLat.lat]],
+      },
+      properties: { previewType: 'leg' },
+    });
+  }
+
+  return { type: 'FeatureCollection', features };
+}
+
+function _updateCursorPreview(e) {
+  const src = _map?.getSource('course-preview-source');
+  if (src) src.setData(_buildPreviewData(e.lngLat));
+}
+
+function _clearPreview() {
+  const src = _map?.getSource('course-preview-source');
+  if (src) src.setData({ type: 'FeatureCollection', features: [] });
+}
+
+function _initPreviewLayers() {
+  _map.addSource('course-preview-source', {
+    type: 'geojson',
+    data: { type: 'FeatureCollection', features: [] },
+  });
+
+  // プレビュー用レグ線（最後のコントロール → カーソル）
+  _map.addLayer({
+    id: 'course-preview-leg', type: 'line', source: 'course-preview-source',
+    filter: ['==', ['get', 'previewType'], 'leg'],
+    layout: { 'line-cap': 'round', 'line-join': 'round' },
+    paint: {
+      'line-color':     COURSE_COLOR,
+      'line-width':     1.5,
+      'line-dasharray': [5, 2.5],
+      'line-opacity':   0.45,
+    },
+  }, 'course-hit'); // course-hit より手前（下）に挿入
+
+  // プレビュー用コントロール円
+  _map.addLayer({
+    id: 'course-preview-circle', type: 'circle', source: 'course-preview-source',
+    filter: ['==', ['get', 'previewType'], 'control'],
+    paint: {
+      'circle-radius':         12,
+      'circle-color':          'rgba(0,0,0,0)',
+      'circle-stroke-color':   COURSE_COLOR,
+      'circle-stroke-width':   2.2,
+      'circle-stroke-opacity': 0.45,
+    },
+  }, 'course-hit');
+
+  // プレビュー用スタート三角
+  _map.addLayer({
+    id: 'course-preview-start', type: 'symbol', source: 'course-preview-source',
+    filter: ['==', ['get', 'previewType'], 'start'],
+    layout: {
+      'icon-image':            'course-start-tri',
+      'icon-size':             1,
+      'icon-allow-overlap':    true,
+      'icon-ignore-placement': true,
+    },
+    paint: { 'icon-opacity': 0.45 },
+  }, 'course-hit');
+}
+
+// ================================================================
 // スタートシンボル（△）画像のロード
 // ================================================================
 
@@ -434,9 +527,14 @@ function _setDrawMode(active) {
   if (active) {
     _map.getCanvas().style.cursor = 'crosshair';
     _map.on('click', _onMapClick);
+    _map.on('mousemove', _updateCursorPreview);
+    _map.getCanvas().addEventListener('mouseleave', _clearPreview);
   } else {
     _map.getCanvas().style.cursor = '';
     _map.off('click', _onMapClick);
+    _map.off('mousemove', _updateCursorPreview);
+    _map.getCanvas().removeEventListener('mouseleave', _clearPreview);
+    _clearPreview();
   }
   _updateDrawModeUI();
   _updateDrawHint();
@@ -743,6 +841,9 @@ export function initCoursePlanner(map) {
 
   // レイヤー追加（ソース・シンボル画像を含む）
   _initLayers();
+
+  // カーソルプレビューレイヤー追加（course-hit より下に挿入）
+  _initPreviewLayers();
 
   // ドラッグ: course-hit レイヤー上の mousedown でカスタムドラッグ開始
   map.on('mousedown', 'course-hit', _startDrag);
