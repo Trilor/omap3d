@@ -40,9 +40,13 @@ async function _open() {
 /**
  * レイヤーを DB に保存し、割り当てられた id（number）を返す
  * @param {{ type: string, name: string, imageBlob: Blob,
- *           coordinates: number[][], opacity: number, visible: boolean }} data
+ *           coordinates: number[][], opacity: number, visible: boolean,
+ *           terrainId?: string|null, terrainName?: string|null }} data
  */
-export async function saveMapLayer({ type, name, imageBlob, coordinates, opacity, visible }) {
+export async function saveMapLayer({
+  type, name, imageBlob, coordinates, opacity, visible,
+  terrainId = null, terrainName = null,
+}) {
   const db = await _open();
   return new Promise((resolve, reject) => {
     const tx  = db.transaction(STORE, 'readwrite');
@@ -51,9 +55,11 @@ export async function saveMapLayer({ type, name, imageBlob, coordinates, opacity
       name,
       imageBlob,
       coordinates,
-      opacity:  opacity  ?? 0.8,
-      visible:  visible  !== false,
-      savedAt:  Date.now(),
+      opacity:     opacity  ?? 0.8,
+      visible:     visible  !== false,
+      terrainId:   terrainId  ?? null,
+      terrainName: terrainName ?? null,
+      savedAt:     Date.now(),
     });
     req.onsuccess = (e) => resolve(e.target.result); // auto-increment id
     req.onerror   = (e) => reject(e.target.error);

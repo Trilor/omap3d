@@ -978,8 +978,10 @@ let localMapCounter = 0;
    fitBounds は呼び出し元が責任を持つ（引数で制御）。
    ===================================================================== */
 function _addLocalMapLayerFromBlob(imageBlob, coordinates, name, {
-  opacity  = OMAP_INITIAL_OPACITY,
-  visible  = true,
+  opacity     = OMAP_INITIAL_OPACITY,
+  visible     = true,
+  terrainId   = null,
+  terrainName = null,
 } = {}) {
   const objectUrl = URL.createObjectURL(imageBlob);
   const id        = localMapCounter++;
@@ -1025,7 +1027,9 @@ function _addLocalMapLayerFromBlob(imageBlob, coordinates, name, {
       west:  Math.min(...lngs), east:  Math.max(...lngs),
       south: Math.min(...lats), north: Math.max(...lats),
     },
-    dbId: null, // IndexedDB に保存後にセットされる
+    terrainId,   // テレイン紐づけ（null = 未分類）
+    terrainName, // 表示名キャッシュ
+    dbId: null,  // IndexedDB に保存後にセットされる
   };
   localMapLayers.push(entry);
   return entry;
@@ -1048,7 +1052,12 @@ async function restoreMapLayersFromDb() {
     try {
       const entry = _addLocalMapLayerFromBlob(
         rec.imageBlob, rec.coordinates, rec.name,
-        { opacity: rec.opacity, visible: rec.visible }
+        {
+          opacity:     rec.opacity,
+          visible:     rec.visible,
+          terrainId:   rec.terrainId   ?? null,
+          terrainName: rec.terrainName ?? null,
+        }
       );
       entry.dbId = rec.id;
     } catch (err) {
@@ -1098,6 +1107,7 @@ const gpxState = {
   lastBearing:     0,        // 前フレームの進行方向（端点などbearing=0の補完用）
   smoothedBearing: 0,        // bearing ローパスフィルタ値（カクカク防止）
   smoothedZoom:    15,       // zoom ローパスフィルタ値
+  fileName:        null,     // 読み込んだ GPX ファイル名（レイヤーパネル表示用）
 };
 const GPX_CAM_DIST_MIN = 1;
 const GPX_CAM_DIST_MAX = 500;
@@ -1285,7 +1295,10 @@ async function loadKmz(file) {
       --- ステップ⑧ MapLibre にソースとレイヤーを追加する（_addLocalMapLayerFromBlob ヘルパー）---
       レイヤー生成・配置・localMapLayers 登録を共通ヘルパーに委譲する。
     */
-    const entry = _addLocalMapLayerFromBlob(imgBlob, coordinates, file.name);
+    const entry = _addLocalMapLayerFromBlob(imgBlob, coordinates, file.name, {
+      terrainId:   millerTerrain ?? null,
+      terrainName: millerTerrain ? (terrainMap.get(millerTerrain)?.name ?? null) : null,
+    });
 
     // --- ステップ⑨ 地図全体が収まる範囲にフィット ---
     const panelWidth = document.getElementById('sidebar')?.offsetWidth ?? SIDEBAR_DEFAULT_WIDTH;
@@ -1304,8 +1317,10 @@ async function loadKmz(file) {
 
     // IndexedDB に非同期保存（失敗しても動作継続）
     saveMapLayer({ type: 'kmz', name: file.name, imageBlob: imgBlob,
-                   coordinates, opacity: entry.opacity, visible: true })
-      .then(dbId => { entry.dbId = dbId; renderOtherMapsTree(); })
+                   coordinates, opacity: entry.opacity, visible: true,
+                   terrainId:   entry.terrainId,
+                   terrainName: entry.terrainName })
+      .then(dbId => { entry.dbId = dbId; renderOtherMapsTree(); renderLayersPanel(); })
       .catch(e => console.warn('KMZ の DB 保存に失敗:', e));
 
     // UIの一覧を更新する
@@ -1424,7 +1439,10 @@ async function loadImageWithJgw(imageFile, jgwText, crsValue) {
 
   // ⑤ _addLocalMapLayerFromBlob で MapLibre への追加・localMapLayers 登録を行う
   //    imageFile は File オブジェクトなので Blob として直接渡せる
-  const entry = _addLocalMapLayerFromBlob(imageFile, coordinates, imageFile.name);
+  const entry = _addLocalMapLayerFromBlob(imageFile, coordinates, imageFile.name, {
+    terrainId:   millerTerrain ?? null,
+    terrainName: millerTerrain ? (terrainMap.get(millerTerrain)?.name ?? null) : null,
+  });
 
   // ⑥ UI を更新する
   renderLocalMapList();
@@ -1440,8 +1458,10 @@ async function loadImageWithJgw(imageFile, jgwText, crsValue) {
 
   // IndexedDB に非同期保存
   saveMapLayer({ type: 'image-jgw', name: imageFile.name, imageBlob: imageFile,
-                 coordinates, opacity: entry.opacity, visible: true })
-    .then(dbId => { entry.dbId = dbId; renderOtherMapsTree(); })
+                 coordinates, opacity: entry.opacity, visible: true,
+                 terrainId:   entry.terrainId,
+                 terrainName: entry.terrainName })
+    .then(dbId => { entry.dbId = dbId; renderOtherMapsTree(); renderLayersPanel(); })
     .catch(e => console.warn('画像+JGW の DB 保存に失敗:', e));
 
   console.log(`画像+JGW 読み込み完了: ${imageFile.name}`, { crsValue, coordinates });
@@ -1901,6 +1921,10 @@ function selectMillerTerrain(terrainId) {
   const _tn = terrainMap.get(terrainId)?.name;
   if (_tn) _historySave('sh_catalog', _tn);
   renderMillerColumns();
+  // レイヤーパネルのアクティブテレイン表示と一覧を更新する
+  const nameEl = document.getElementById('layer-active-terrain-name');
+  if (nameEl) nameEl.textContent = _tn ?? terrainId ?? '（未選択）';
+  renderLayersPanel();
   // テレイン中心へ移動（ズームレベルは変えない）
   const t = terrainMap.get(terrainId);
   if (t?.geometry) {
@@ -2853,8 +2877,286 @@ function renderLocalMapList() {
   renderSimReadmapList();
   // 「その他の地図」ツリーも更新
   renderOtherMapsTree();
+  // レイヤーパネルも更新
+  renderLayersPanel();
 }
 
+
+/* =====================================================================
+   renderLayersPanel — レイヤータブの描画
+   ・アクティブテレインの地図レイヤーを「そのテレインのフォルダ」に表示
+   ・terrainId が null または一致しないレイヤーは「未分類」フォルダへ
+   ・GPX はファイル名付きで別セクションに表示
+   ===================================================================== */
+function renderLayersPanel() {
+  const body = document.getElementById('layers-panel-body');
+  if (!body) return;
+  body.innerHTML = '';
+
+  // アクティブテレインのレイヤーのみ表示（null ならすべて未分類扱い）
+  const activeTid = millerTerrain ?? null;
+
+  // ---- ローカルマップ: アクティブテレイン分類 ----
+  const activeEntries = localMapLayers.filter(e =>
+    activeTid ? e.terrainId === activeTid : e.terrainId === null
+  );
+  const uncatEntries  = activeTid
+    ? localMapLayers.filter(e => e.terrainId === null)
+    : [];
+
+  // ---- GPX ----
+  const hasGpx = gpxState.trackPoints.length > 0;
+
+  if (activeEntries.length === 0 && uncatEntries.length === 0 && !hasGpx) {
+    const hint = document.createElement('div');
+    hint.className = 'layers-empty-hint';
+    hint.textContent = '地図やGPXがまだ読み込まれていません';
+    body.appendChild(hint);
+    return;
+  }
+
+  // ---- アクティブテレインフォルダ ----
+  if (activeEntries.length > 0) {
+    const terrainLabel = activeTid
+      ? (terrainMap.get(activeTid)?.name ?? activeTid)
+      : '未分類';
+    body.appendChild(_makeLayerFolder(terrainLabel, activeEntries, activeTid));
+  }
+
+  // ---- 未分類フォルダ（テレイン選択中のみ表示） ----
+  if (uncatEntries.length > 0) {
+    body.appendChild(_makeLayerFolder('未分類', uncatEntries, null));
+  }
+
+  // ---- GPX セクション ----
+  if (hasGpx) {
+    body.appendChild(_makeGpxLayerSection());
+  }
+}
+
+/** テレインフォルダ要素を生成する */
+function _makeLayerFolder(label, entries, terrainId) {
+  const folder = document.createElement('div');
+  folder.className = 'layer-folder';
+
+  // フォルダヘッダー（折り畳みトグル + フォルダ名 + 全体表示/非表示）
+  const header = document.createElement('div');
+  header.className = 'layer-folder-header';
+
+  const toggle = document.createElement('span');
+  toggle.className = 'layer-folder-collapse open';
+  toggle.textContent = '▾';
+
+  const nameSpan = document.createElement('span');
+  nameSpan.className = 'layer-folder-name';
+  nameSpan.textContent = label;
+
+  const countSpan = document.createElement('span');
+  countSpan.className = 'layer-folder-count';
+  countSpan.textContent = entries.length;
+
+  // フォルダ全体の表示/非表示チェック
+  const allVisible = entries.every(e => e.visible);
+  const folderChk = document.createElement('input');
+  folderChk.type = 'checkbox';
+  folderChk.className = 'layer-folder-chk';
+  folderChk.checked = allVisible;
+  folderChk.title = 'フォルダ内の全レイヤーを表示/非表示';
+
+  header.appendChild(toggle);
+  header.appendChild(nameSpan);
+  header.appendChild(countSpan);
+  header.appendChild(folderChk);
+  folder.appendChild(header);
+
+  // アイテムコンテナ
+  const itemsEl = document.createElement('div');
+  itemsEl.className = 'layer-folder-items';
+  entries.forEach(e => itemsEl.appendChild(_makeLayerItem(e)));
+  folder.appendChild(itemsEl);
+
+  // フォルダ折り畳みトグル
+  header.addEventListener('click', (ev) => {
+    if (ev.target === folderChk) return; // チェックボックスは別処理
+    const open = toggle.classList.toggle('open');
+    toggle.textContent = open ? '▾' : '▸';
+    itemsEl.style.display = open ? '' : 'none';
+  });
+
+  // フォルダ全体チェック
+  folderChk.addEventListener('change', () => {
+    const vis = folderChk.checked;
+    entries.forEach(e => {
+      e.visible = vis;
+      if (map.getLayer(e.layerId)) {
+        map.setLayoutProperty(e.layerId, 'visibility', vis ? 'visible' : 'none');
+      }
+      if (e.dbId != null) {
+        updateMapLayerState(e.dbId, { visible: vis }).catch(() => {});
+      }
+    });
+    // アイテムのチェックボックスも同期
+    itemsEl.querySelectorAll('.layer-item-chk').forEach(cb => { cb.checked = vis; });
+    itemsEl.querySelectorAll('.layer-item-name').forEach(nm => {
+      nm.classList.toggle('disabled', !vis);
+    });
+  });
+
+  return folder;
+}
+
+/** レイヤー1件分のアイテム要素を生成する */
+function _makeLayerItem(entry) {
+  const item = document.createElement('div');
+  item.className = 'layer-item';
+
+  const row1 = document.createElement('div');
+  row1.className = 'layer-item-row1';
+
+  const chk = document.createElement('input');
+  chk.type = 'checkbox';
+  chk.className = 'layer-item-chk';
+  chk.checked = entry.visible;
+
+  const name = document.createElement('span');
+  name.className = 'layer-item-name' + (entry.visible ? '' : ' disabled');
+  name.textContent = entry.name.replace(/\.(kmz|jpg|jpeg|png|tif|tiff)$/i, '');
+  name.title = entry.name;
+
+  const delBtn = document.createElement('button');
+  delBtn.className = 'layer-item-del';
+  delBtn.title = '削除';
+  delBtn.innerHTML = '✕';
+
+  row1.appendChild(chk);
+  row1.appendChild(name);
+  row1.appendChild(delBtn);
+  item.appendChild(row1);
+
+  // 透明度スライダー行
+  const row2 = document.createElement('div');
+  row2.className = 'layer-item-row2';
+  const pct = Math.round(entry.opacity * 100);
+  const slider = document.createElement('input');
+  slider.type = 'range';
+  slider.className = 'ui-slider layer-item-slider';
+  slider.min = 0; slider.max = 100; slider.step = 5; slider.value = pct;
+  slider.disabled = !entry.visible;
+  const valSpan = document.createElement('span');
+  valSpan.className = 'layer-item-opacity-val';
+  valSpan.textContent = pct + '%';
+  row2.appendChild(slider);
+  row2.appendChild(valSpan);
+  item.appendChild(row2);
+
+  // チェックボックス：表示/非表示
+  chk.addEventListener('change', () => {
+    entry.visible = chk.checked;
+    name.classList.toggle('disabled', !entry.visible);
+    slider.disabled = !entry.visible;
+    if (map.getLayer(entry.layerId)) {
+      map.setLayoutProperty(entry.layerId, 'visibility', entry.visible ? 'visible' : 'none');
+    }
+    if (entry.dbId != null) {
+      updateMapLayerState(entry.dbId, { visible: entry.visible }).catch(() => {});
+    }
+    // kmz-list 側も同期
+    const masterChk = document.getElementById(`chk-kmz-${entry.id}`);
+    if (masterChk) masterChk.checked = entry.visible;
+  });
+
+  // スライダー：透明度
+  updateSliderGradient(slider);
+  slider.addEventListener('input', () => {
+    entry.opacity = parseInt(slider.value) / 100;
+    valSpan.textContent = slider.value + '%';
+    updateSliderGradient(slider);
+    if (entry.visible && map.getLayer(entry.layerId)) {
+      map.setPaintProperty(entry.layerId, 'raster-opacity', toRasterOpacity(entry.opacity));
+    }
+    if (entry.dbId != null) {
+      updateMapLayerState(entry.dbId, { opacity: entry.opacity }).catch(() => {});
+    }
+    // kmz-list 側も同期
+    const masterSlider = document.getElementById(`slider-kmz-${entry.id}`);
+    if (masterSlider) { masterSlider.value = slider.value; updateSliderGradient(masterSlider); }
+    const masterVal = document.getElementById(`val-kmz-${entry.id}`);
+    if (masterVal) masterVal.textContent = slider.value + '%';
+  });
+
+  // 削除ボタン
+  delBtn.addEventListener('click', () => {
+    removeLocalMapLayer(entry.id);
+  });
+
+  return item;
+}
+
+/** GPX セクションを生成する */
+function _makeGpxLayerSection() {
+  const folder = document.createElement('div');
+  folder.className = 'layer-folder';
+
+  const header = document.createElement('div');
+  header.className = 'layer-folder-header';
+
+  const toggle = document.createElement('span');
+  toggle.className = 'layer-folder-collapse open';
+  toggle.textContent = '▾';
+
+  const nameSpan = document.createElement('span');
+  nameSpan.className = 'layer-folder-name';
+  nameSpan.textContent = 'GPXトラック';
+
+  header.appendChild(toggle);
+  header.appendChild(nameSpan);
+  folder.appendChild(header);
+
+  const itemsEl = document.createElement('div');
+  itemsEl.className = 'layer-folder-items';
+
+  const item = document.createElement('div');
+  item.className = 'layer-item';
+
+  const row = document.createElement('div');
+  row.className = 'layer-item-row1';
+
+  const gpxVis = map.getLayer('gpx-track') ?
+    map.getLayoutProperty('gpx-track', 'visibility') !== 'none' : true;
+
+  const chk = document.createElement('input');
+  chk.type = 'checkbox';
+  chk.className = 'layer-item-chk';
+  chk.checked = gpxVis;
+
+  const name = document.createElement('span');
+  name.className = 'layer-item-name' + (gpxVis ? '' : ' disabled');
+  name.textContent = gpxState.fileName ?? 'トラック';
+
+  row.appendChild(chk);
+  row.appendChild(name);
+  item.appendChild(row);
+  itemsEl.appendChild(item);
+  folder.appendChild(itemsEl);
+
+  // GPX 表示/非表示
+  chk.addEventListener('change', () => {
+    const vis = chk.checked ? 'visible' : 'none';
+    name.classList.toggle('disabled', !chk.checked);
+    ['gpx-track', 'gpx-track-outline', 'gpx-marker'].forEach(lid => {
+      if (map.getLayer(lid)) map.setLayoutProperty(lid, 'visibility', vis);
+    });
+  });
+
+  header.addEventListener('click', (ev) => {
+    if (ev.target === chk) return;
+    const open = toggle.classList.toggle('open');
+    toggle.textContent = open ? '▾' : '▸';
+    itemsEl.style.display = open ? '' : 'none';
+  });
+
+  return folder;
+}
 
 // シミュレータータブの読図地図リストを更新
 let activeReadmapId = null;
@@ -3163,10 +3465,12 @@ async function loadGpx(file) {
     document.getElementById('timeline-panel').style.display = 'flex';
 
     // GPX読み込み状態をUIパネルに表示する
+    gpxState.fileName = file.name;
     const gpxStatusEl = document.getElementById('gpx-status');
     gpxStatusEl.style.display = 'block';
     gpxStatusEl.textContent =
       `✓ ${file.name}（${points.length}pts・${formatMMSS(gpxState.totalDuration)}）`;
+    renderLayersPanel();
 
     // 地図をGPXトラック全体が見えるようにズームする
     const lngs = points.map(p => p.lng);

@@ -6443,3 +6443,173 @@ select,
   border-color: #e55;
   background: rgba(220, 50, 50, 0.08);
 }
+
+/* ==========================================================
+   レイヤーパネル（#panel-layers）
+   ========================================================== */
+
+/* アクティブテレインバー */
+.layer-active-terrain-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: rgba(255,255,255,0.04);
+  border-bottom: 1px solid var(--border-color, rgba(255,255,255,0.10));
+  font-size: var(--font-xs);
+}
+.layer-active-terrain-label {
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.layer-active-terrain-value {
+  color: var(--text-primary, #e8e8e8);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 空状態ヒント */
+.layers-empty-hint {
+  padding: 20px 14px;
+  font-size: var(--font-xs);
+  color: var(--text-muted);
+  text-align: center;
+  line-height: 1.6;
+}
+
+/* フォルダ */
+.layer-folder {
+  border-bottom: 1px solid var(--border-color, rgba(255,255,255,0.08));
+}
+.layer-folder-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  cursor: pointer;
+  user-select: none;
+  background: rgba(255,255,255,0.03);
+  transition: background 0.15s;
+}
+.layer-folder-header:hover {
+  background: rgba(255,255,255,0.07);
+}
+.layer-folder-collapse {
+  font-size: 11px;
+  color: var(--text-muted);
+  width: 12px;
+  flex-shrink: 0;
+}
+.layer-folder-name {
+  flex: 1;
+  font-size: var(--font-xs);
+  font-weight: 600;
+  color: var(--text-primary, #e8e8e8);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.layer-folder-count {
+  font-size: 10px;
+  color: var(--text-muted);
+  background: rgba(255,255,255,0.08);
+  border-radius: 10px;
+  padding: 1px 6px;
+  flex-shrink: 0;
+}
+.layer-folder-chk {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  cursor: pointer;
+  accent-color: var(--primary, #5b9bd5);
+}
+
+/* フォルダアイテムコンテナ */
+.layer-folder-items {
+  padding: 2px 0;
+}
+
+/* 個別レイヤーアイテム */
+.layer-item {
+  padding: 4px 10px 4px 24px;
+  border-top: 1px solid rgba(255,255,255,0.04);
+}
+.layer-item-row1 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.layer-item-chk {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+  cursor: pointer;
+  accent-color: var(--primary, #5b9bd5);
+}
+.layer-item-name {
+  flex: 1;
+  font-size: var(--font-xs);
+  color: var(--text-primary, #e8e8e8);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.layer-item-name.disabled {
+  opacity: 0.4;
+}
+.layer-item-del {
+  opacity: 0;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 11px;
+  padding: 1px 4px;
+  cursor: pointer;
+  border-radius: 3px;
+  flex-shrink: 0;
+  transition: opacity 0.15s, color 0.15s;
+}
+.layer-item:hover .layer-item-del {
+  opacity: 1;
+}
+.layer-item-del:hover {
+  color: #e55;
+}
+.layer-item-row2 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-top: 2px;
+}
+.layer-item-slider {
+  flex: 1;
+}
+.layer-item-opacity-val {
+  font-size: 10px;
+  color: var(--text-muted);
+  width: 30px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+/* コースパネルプレースホルダー */
+.course-placeholder {
+  padding: 30px 16px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: var(--font-xs);
+  line-height: 1.8;
+}
+.course-placeholder-icon {
+  font-size: 32px;
+  display: block;
+  margin-bottom: 10px;
+}
+.course-placeholder-sub {
+  font-size: 11px;
+  opacity: 0.6;
+  margin-top: 6px;
+}
