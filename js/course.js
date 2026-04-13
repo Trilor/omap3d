@@ -1422,18 +1422,20 @@ function _renderCourseTab() {
   const distEl   = document.getElementById('course-stat-dist');
   const climbEl  = document.getElementById('course-stat-climb');
   const countEl  = document.getElementById('course-stat-count');
-  const exportBtn= document.getElementById('course-export-btn');
-  const xmlBtn   = document.getElementById('course-xml-btn');
+  const exportBtn    = document.getElementById('course-export-btn');
+  const xmlBtn       = document.getElementById('course-xml-btn');
+  const exportTrigEl = document.getElementById('course-export-trigger');
   if (!listEl) return;
 
   const seqInfo = _buildSequenceInfo();
   const course  = _activeCourse();
   const n       = seqInfo.length;
 
-  if (emptyEl)   emptyEl.style.display  = n ? 'none' : '';
-  if (statsSec)  statsSec.style.display = n >= 2 ? '' : 'none';
-  if (exportBtn) exportBtn.disabled     = n === 0;
-  if (xmlBtn)    xmlBtn.disabled        = n === 0;
+  if (emptyEl)       emptyEl.style.display    = n ? 'none' : '';
+  if (statsSec)      statsSec.style.display   = n >= 2 ? '' : 'none';
+  if (exportBtn)     exportBtn.disabled       = n === 0;
+  if (xmlBtn)        xmlBtn.disabled          = n === 0;
+  if (exportTrigEl)  exportTrigEl.disabled    = n === 0;
 
   // 選択ルートを考慮したレグ統計（距離・登高）を収集
   // _legStats[i] は直結線、_routeStatsCache はルートチョイス
@@ -2249,8 +2251,29 @@ function _setupUI() {
     _setDrawMode(!_drawMode);
   });
 
-  document.getElementById('course-export-btn')?.addEventListener('click', _exportJSON);
-  document.getElementById('course-xml-btn')?.addEventListener('click', _exportIOFXML);
+  // 書き出しトリガー（改善4: ポップアップメニュー）
+  const exportTrigger = document.getElementById('course-export-trigger');
+  const exportMenu    = document.getElementById('course-export-menu');
+  if (exportTrigger && exportMenu) {
+    exportTrigger.addEventListener('click', e => {
+      e.stopPropagation();
+      const open = exportMenu.style.display !== 'none';
+      exportMenu.style.display = open ? 'none' : 'block';
+    });
+    // 外側クリックで閉じる
+    document.addEventListener('click', () => {
+      if (exportMenu) exportMenu.style.display = 'none';
+    });
+    exportMenu.addEventListener('click', e => e.stopPropagation());
+  }
+  document.getElementById('course-export-btn')?.addEventListener('click', () => {
+    if (exportMenu) exportMenu.style.display = 'none';
+    _exportJSON();
+  });
+  document.getElementById('course-xml-btn')?.addEventListener('click', () => {
+    if (exportMenu) exportMenu.style.display = 'none';
+    _exportIOFXML();
+  });
 
   const importFileEl = document.getElementById('course-import-file');
   document.getElementById('course-import-btn')?.addEventListener('click', () => importFileEl?.click());

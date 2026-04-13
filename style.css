@@ -6920,18 +6920,25 @@ select,
 .course-ctrl-code-input {
   width: 54px;
   padding: 2px 5px;
-  border: 1px solid var(--border-input);
-  border-radius: 4px;
-  background: var(--bg-surface);
+  /* 改善3: 通常時は枠なし、フォーカス時のみ下線＋ハイライト */
+  border: none;
+  border-bottom: 1.5px solid transparent;
+  border-radius: 0;
+  background: transparent;
   color: #9320b0;
   font-size: var(--font-xs);
   font-weight: 600;
   font-family: 'M PLUS Rounded 1c', sans-serif;
+  transition: border-color 0.15s;
+}
+.course-ctrl-code-input:hover {
+  border-bottom-color: rgba(147, 32, 176, 0.35);
 }
 .course-ctrl-code-input:focus {
   outline: none;
-  border-color: #c020c0;
-  box-shadow: 0 0 0 2px rgba(192,32,192,0.15);
+  border-bottom-color: #c020c0;
+  background: rgba(192, 32, 192, 0.05);
+  border-radius: 3px 3px 0 0;
 }
 
 .course-ctrl-leg-stats {
@@ -7102,6 +7109,39 @@ select,
   cursor: not-allowed;
   pointer-events: none;
 }
+/* 改善4: エクスポートポップアップメニュー */
+.course-export-wrap {
+  position: relative;
+}
+.course-export-menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 4px);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-input);
+  border-radius: 5px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  padding: 3px 0;
+  z-index: 10200;
+  min-width: 110px;
+}
+.course-export-item {
+  display: block;
+  width: 100%;
+  padding: 5px 12px;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 11px;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.course-export-item:hover {
+  background: var(--bg-subtle);
+  color: var(--primary);
+}
 .course-mgr-btn {
   flex-shrink: 0;
   width: 26px;
@@ -7266,7 +7306,7 @@ select,
   gap: 4px;
 }
 
-/* カスタムドロップダウン トリガーボタン */
+/* カスタムドロップダウン トリガーボタン（改善1: 枠なし・ホバー時のみ薄い背景） */
 .course-leg-dd-btn {
   flex: 1;
   min-width: 0;
@@ -7274,9 +7314,9 @@ select,
   align-items: center;
   gap: 5px;
   padding: 2px var(--chevron-pad-r) 2px 6px;
-  border: 1px solid var(--border-input);
+  border: none;
   border-radius: 4px;
-  background-color: var(--bg-surface);
+  background-color: transparent;
   background-image: var(--chevron-down);
   background-repeat: no-repeat;
   background-position: right var(--chevron-inset) center;
@@ -7287,10 +7327,10 @@ select,
   cursor: pointer;
   text-align: left;
   line-height: 1.5;
-  transition: border-color 0.1s;
+  transition: background-color 0.1s;
 }
 .course-leg-dd-btn:hover {
-  border-color: var(--primary);
+  background-color: var(--bg-subtle);
 }
 .cdd-text {
   flex: 1;
@@ -7379,7 +7419,7 @@ select,
   color: #e05050;
 }
 
-/* ＋ / キャンセルボタン（アイコンのみ） */
+/* ＋ / キャンセルボタン（改善2: 通常は透明、ホバー時のみ表示） */
 .course-leg-add-btn {
   flex-shrink: 0;
   width: 22px;
@@ -7388,19 +7428,29 @@ select,
   align-items: center;
   justify-content: center;
   padding: 0;
-  border: 1px solid var(--border-input);
+  border: 1px solid transparent;
   border-radius: 4px;
-  background-color: var(--bg-surface);
+  background-color: transparent;
   color: var(--text-muted);
   cursor: pointer;
-  transition: border-color 0.1s, color 0.1s, background-color 0.1s;
+  opacity: 0;
+  pointer-events: none;
+  transition: border-color 0.1s, color 0.1s, background-color 0.1s, opacity 0.1s;
+}
+/* 親レッグ行にホバーしたとき表示 */
+.course-leg-item:hover .course-leg-add-btn {
+  opacity: 1;
+  pointer-events: auto;
 }
 .course-leg-add-btn:hover {
   border-color: #c020c0;
   color: #c020c0;
   background-color: rgba(192, 32, 192, 0.05);
 }
+/* is-active（ルート描画中）は常に表示 */
 .course-leg-add-btn.is-active {
+  opacity: 1;
+  pointer-events: auto;
   border-color: var(--color-danger, #c0392b);
   color: var(--color-danger, #c0392b);
   background-color: rgba(192, 57, 43, 0.05);
