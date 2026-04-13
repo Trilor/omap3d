@@ -12,7 +12,7 @@
    · IOF XML 3.0 形式（Purple Pen 互換）
    ================================================================ */
 
-import { QCHIZU_DEM_BASE, DEM5A_BASE } from './config.js';
+import { QCHIZU_DEM_BASE, DEM5A_BASE, ROUTE_COLORS, routeColor } from './config.js';
 
 // ================================================================
 // 定数
@@ -20,6 +20,7 @@ import { QCHIZU_DEM_BASE, DEM5A_BASE } from './config.js';
 const COURSE_COLOR   = '#c020c0';  // IOF コースオーバープリント（パープルマゼンタ）
 const CLIMB_ZOOM     = 14;         // 登高計算用 DEM ズームレベル
 const CLIMB_SAMPLE_M = 10;         // 登高サンプリング間隔（m）
+const SELECT_COLOR   = '#ff8800';  // 選択中コントロールのハイライト色
 
 // ================================================================
 // マップ参照
@@ -42,19 +43,41 @@ const _controlDefs = new Map();
 
 /**
  * コース一覧
- * { id:string, name:string, sequence:string[] }
- * sequence = defId の配列。同一 defId が複数回登場可能（同一ポイント再訪）
+ * { id:string, name:string, sequence:string[], legRoutes:{[legKey]:Route[]} }
+ * sequence   = defId の配列。同一 defId が複数回登場可能（同一ポイント再訪）
+ * legRoutes  = レッグごとのルートチョイス配列
+ *              key: legKey(fromId, toId)
+ *              value: [{ id, colorIdx, coords:[[lng,lat],...] }]
  */
-const _courses = [{ id: 'course0', name: 'コース1', sequence: [] }];
+const _courses = [{ id: 'course0', name: 'コース1', sequence: [], legRoutes: {} }];
 
 let _activeCourseIdx = 0;   // アクティブコースの index
 let _nextDefId       = 0;   // defId 生成カウンタ
+let _nextRouteId     = 0;   // ルート ID 生成カウンタ
 let _drawMode        = false;
 let _calcTimer       = null;
 let _legStats        = [];  // [{distKm, climb, descent}] レグ統計キャッシュ
 let _calcAbort       = null;
-let _dragDef         = null;  // ドラッグ中のマスター定義（_controlDefs の value への参照）
+let _dragCtrl        = null;  // ドラッグ中のコントロール定義（_controlDefs の value）
+let _activeCtrlId    = null;  // 選択中コントロールの defId（選択モード）
 let _activeTab       = 'course'; // 'course' | 'controls'
+
+/**
+ * ルートチョイス描画状態
+ * null = 非アクティブ
+ * { legKey, fromId, toId, pts:[[lng,lat],...] }  = 描画中（pts はクリック済み中間点）
+ */
+let _routeDraw = null;
+
+/**
+ * ルートチョイス頂点編集状態
+ * null = 非アクティブ
+ * { legKey, routeId, dragPtIdx:number|null }
+ */
+let _editRoute = null;
+
+/** レッグキー生成（from→to のルート辞書のキー） */
+const legKey = (fromId, toId) => `${fromId}>${toId}`;
 
 // ================================================================
 // シーケンス解決ヘルパー
@@ -214,20 +237,39 @@ function _scheduleCalc() {
 /**
  * アクティブコースの全フィーチャーを 1 つの FeatureCollection にまとめる。
  * マスター定義の座標を直接参照するため、座標変更が全コースに即時反映される。
+ * 含まれるフィーチャー種別:
+ *   'leg'      — コース結線（LineString）
+ *   'start'    — スタート三角（Point, bearing プロパティ付き）
+ *   'control'  — コントロール円（Point）
+ *   'route'    — ルートチョイス線（LineString, colorIdx プロパティ付き）
  */
 function _buildSourceData() {
   const features = [];
   const seqInfo  = _buildSequenceInfo();
+  const course   = _activeCourse();
 
+  // コントロール点（スタートに bearing を付与）
   seqInfo.forEach(({ def, seq, isFinish }) => {
-    const label = (def.type === 'control' && !isFinish) ? String(seq) : '';
+    const label   = (def.type === 'control' && !isFinish) ? String(seq) : '';
+    const selected = def.defId === _activeCtrlId;
+
+    // スタートは 1→2 ポイントへの方位角で三角を向ける
+    let bearing = 0;
+    if (def.type === 'start' && seqInfo.length >= 2) {
+      bearing = turf.bearing(
+        turf.point([def.lng, def.lat]),
+        turf.point([seqInfo[1].def.lng, seqInfo[1].def.lat])
+      );
+    }
+
     features.push({
       type: 'Feature',
       geometry: { type: 'Point', coordinates: [def.lng, def.lat] },
-      properties: { id: def.defId, type: def.type, seq, label, isFinish },
+      properties: { id: def.defId, type: def.type, seq, label, isFinish, selected, bearing },
     });
   });
 
+  // レッグ線
   if (seqInfo.length >= 2) {
     features.push({
       type: 'Feature',
@@ -239,7 +281,79 @@ function _buildSourceData() {
     });
   }
 
+  // ルートチョイス線
+  if (course.legRoutes) {
+    Object.entries(course.legRoutes).forEach(([key, routes]) => {
+      routes.forEach(route => {
+        if (route.coords.length < 2) return;
+        const isEditing = _editRoute?.legKey === key && _editRoute?.routeId === route.id;
+        features.push({
+          type: 'Feature',
+          geometry: { type: 'LineString', coordinates: route.coords },
+          properties: {
+            type:     'route',
+            routeId:  route.id,
+            legKey:   key,
+            colorIdx: route.colorIdx,
+            color:    routeColor(route.colorIdx),
+            isEditing,
+          },
+        });
+      });
+    });
+  }
+
+  // 頂点編集中: 頂点（Vertex）と中間点（Midpoint）を追加
+  if (_editRoute) {
+    const routes = course.legRoutes?.[_editRoute.legKey] ?? [];
+    const route  = routes.find(r => r.id === _editRoute.routeId);
+    if (route) {
+      route.coords.forEach((coord, idx) => {
+        features.push({
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: coord },
+          properties: {
+            type:     'vertex',
+            routeId:  route.id,
+            ptIdx:    idx,
+            color:    routeColor(route.colorIdx),
+          },
+        });
+      });
+      // 隣接頂点の中点に「中間点」を置く（ドラッグで新頂点を挿入）
+      for (let idx = 0; idx < route.coords.length - 1; idx++) {
+        const [ax, ay] = route.coords[idx];
+        const [bx, by] = route.coords[idx + 1];
+        features.push({
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: [(ax + bx) / 2, (ay + by) / 2] },
+          properties: {
+            type:      'midpoint',
+            routeId:   route.id,
+            afterIdx:  idx,   // この中間点をドラッグすると idx と idx+1 の間に挿入
+            color:     routeColor(route.colorIdx),
+          },
+        });
+      }
+    }
+  }
+
   return { type: 'FeatureCollection', features };
+}
+
+/** ルートチョイス描画中のプレビューソース用データ */
+function _buildRoutePreviewData(cursorLngLat) {
+  if (!_routeDraw) return { type: 'FeatureCollection', features: [] };
+  const pts = [..._routeDraw.pts, [cursorLngLat.lng, cursorLngLat.lat]];
+  if (pts.length < 2) return { type: 'FeatureCollection', features: [] };
+  return {
+    type: 'FeatureCollection',
+    features: [{
+      type: 'Feature',
+      geometry: { type: 'LineString', coordinates: pts },
+      properties: { type: 'routePreview' },
+    }],
+  };
 }
 
 function _refreshSource() {
@@ -346,6 +460,17 @@ function _initPreviewLayers() {
     },
     paint: { 'icon-opacity': 0.45 },
   }, 'course-hit');
+
+  // ルートチョイス描画中プレビュー線
+  _map.addLayer({
+    id: 'course-preview-route', type: 'line', source: 'course-preview-source',
+    filter: ['==', ['get', 'type'], 'routePreview'],
+    layout: { 'line-cap': 'round', 'line-join': 'round' },
+    paint: {
+      'line-color': '#ff8800', 'line-width': 2,
+      'line-dasharray': [4, 3], 'line-opacity': 0.7,
+    },
+  }, 'course-hit');
 }
 
 // ================================================================
@@ -386,7 +511,7 @@ function _initLayers() {
     data: { type: 'FeatureCollection', features: [] },
   });
 
-  // ① レグ線
+  // ① レグ線（破線）
   _map.addLayer({
     id: 'course-legs', type: 'line', source: 'course-source',
     filter: ['==', ['get', 'type'], 'leg'],
@@ -397,37 +522,60 @@ function _initLayers() {
     },
   });
 
-  // ② コントロール外円（type='control' 全て：フィニッシュも含む）
+  // ② ルートチョイス線（各色で実線）
+  _map.addLayer({
+    id: 'course-routes', type: 'line', source: 'course-source',
+    filter: ['==', ['get', 'type'], 'route'],
+    layout: { 'line-cap': 'round', 'line-join': 'round' },
+    paint: {
+      'line-color': ['get', 'color'],
+      'line-width': ['case', ['get', 'isEditing'], 2.5, 2.0],
+      'line-opacity': 0.9,
+    },
+  });
+
+  // ③ コントロール外円（通常色 / 選択時は SELECT_COLOR）
   _map.addLayer({
     id: 'course-ctrl-outer', type: 'circle', source: 'course-source',
     filter: ['==', ['get', 'type'], 'control'],
     paint: {
-      'circle-radius': 12, 'circle-color': 'rgba(0,0,0,0)',
-      'circle-stroke-color': COURSE_COLOR, 'circle-stroke-width': 2.2,
+      'circle-radius': 12,
+      'circle-color': 'rgba(0,0,0,0)',
+      'circle-stroke-color': [
+        'case', ['get', 'selected'], SELECT_COLOR, COURSE_COLOR,
+      ],
+      'circle-stroke-width': ['case', ['get', 'selected'], 3, 2.2],
     },
   });
 
-  // ③ フィニッシュ内円（isFinish=true の最後のコントロールのみ）
+  // ④ フィニッシュ内円
   _map.addLayer({
     id: 'course-finish-inner', type: 'circle', source: 'course-source',
     filter: ['==', ['get', 'isFinish'], true],
     paint: {
       'circle-radius': 8, 'circle-color': 'rgba(0,0,0,0)',
-      'circle-stroke-color': COURSE_COLOR, 'circle-stroke-width': 2,
+      'circle-stroke-color': [
+        'case', ['get', 'selected'], SELECT_COLOR, COURSE_COLOR,
+      ],
+      'circle-stroke-width': 2,
     },
   });
 
-  // ④ スタート三角
+  // ⑤ スタート三角（bearing で回転）
   _map.addLayer({
     id: 'course-start-icon', type: 'symbol', source: 'course-source',
     filter: ['==', ['get', 'type'], 'start'],
     layout: {
-      'icon-image': 'course-start-tri', 'icon-size': 1,
-      'icon-allow-overlap': true, 'icon-ignore-placement': true,
+      'icon-image':              'course-start-tri',
+      'icon-size':               1,
+      'icon-rotate':             ['get', 'bearing'],
+      'icon-rotation-alignment': 'map',
+      'icon-allow-overlap':      true,
+      'icon-ignore-placement':   true,
     },
   });
 
-  // ⑤ コントロール番号ラベル（円の上に表示）
+  // ⑥ コントロール番号ラベル
   _map.addLayer({
     id: 'course-labels', type: 'symbol', source: 'course-source',
     filter: ['==', ['get', 'type'], 'control'],
@@ -443,11 +591,44 @@ function _initLayers() {
     paint: { 'text-color': COURSE_COLOR },
   });
 
-  // ⑥ インタラクション用透明ヒット領域（最前面）
+  // ⑦ 頂点（ルート編集モード）
+  _map.addLayer({
+    id: 'course-vertex', type: 'circle', source: 'course-source',
+    filter: ['==', ['get', 'type'], 'vertex'],
+    paint: {
+      'circle-radius': 6,
+      'circle-color': ['get', 'color'],
+      'circle-stroke-color': '#fff',
+      'circle-stroke-width': 1.5,
+    },
+  });
+
+  // ⑧ 中間点（ルート編集モード — 薄く表示）
+  _map.addLayer({
+    id: 'course-midpoint', type: 'circle', source: 'course-source',
+    filter: ['==', ['get', 'type'], 'midpoint'],
+    paint: {
+      'circle-radius': 4,
+      'circle-color': ['get', 'color'],
+      'circle-opacity': 0.5,
+      'circle-stroke-color': '#fff',
+      'circle-stroke-width': 1,
+      'circle-stroke-opacity': 0.5,
+    },
+  });
+
+  // ⑨ コントロール用インタラクションヒット領域（最前面）
   _map.addLayer({
     id: 'course-hit', type: 'circle', source: 'course-source',
-    filter: ['!=', ['get', 'type'], 'leg'],
+    filter: ['in', ['get', 'type'], ['literal', ['start', 'control']]],
     paint: { 'circle-radius': 18, 'circle-color': 'rgba(0,0,0,0)', 'circle-opacity': 0 },
+  });
+
+  // ⑩ ルートチョイス線用ヒット領域
+  _map.addLayer({
+    id: 'course-route-hit', type: 'line', source: 'course-source',
+    filter: ['==', ['get', 'type'], 'route'],
+    paint: { 'line-color': 'rgba(0,0,0,0)', 'line-width': 12 },
   });
 }
 
@@ -456,38 +637,267 @@ function _initLayers() {
 // マスター定義を直接更新 → 全コースが同一 WebGL フレームで反映
 // ================================================================
 
-function _startDrag(e) {
-  if (_drawMode) return; // 描画モード中はドラッグ無効（クリックでスナップ追加）
+/**
+ * course-hit レイヤーの mousedown:
+ *   描画モード中  → 何もしない（クリックイベント側でスナップ追加）
+ *   未選択        → そのコントロールを選択（_activeCtrlId をセット）
+ *   選択済み同一  → ドラッグ開始
+ *   選択済み他    → 選択変更
+ */
+function _onCtrlMousedown(e) {
+  if (_drawMode || _routeDraw || _editRoute) return;
   if (!e.features?.length) return;
   const defId = e.features[0].properties.id;
-  _dragDef = _controlDefs.get(defId);
-  if (!_dragDef) return;
+
+  if (_activeCtrlId === defId) {
+    // 既に選択中 → ドラッグ開始
+    _dragCtrl = _controlDefs.get(defId);
+    if (!_dragCtrl) return;
+    e.preventDefault();
+    _map.dragPan.disable();
+    _map.getCanvas().style.cursor = 'grabbing';
+    _map.on('mousemove', _onCtrlDrag);
+    _map.once('mouseup', _onCtrlDragEnd);
+  } else {
+    // 新規選択
+    _activeCtrlId = defId;
+    _refreshSource();
+    _renderPanel();
+  }
+}
+
+function _onCtrlDrag(e) {
+  if (!_dragCtrl) return;
+  _dragCtrl.lng = e.lngLat.lng;
+  _dragCtrl.lat = e.lngLat.lat;
+  _refreshSource();
+}
+
+function _onCtrlDragEnd() {
+  _map.dragPan.enable();
+  _map.getCanvas().style.cursor = _drawMode ? 'crosshair' : '';
+  _map.off('mousemove', _onCtrlDrag);
+  if (_dragCtrl) {
+    _dragCtrl = null;
+    _scheduleCalc();
+    _renderPanel();
+  }
+}
+
+/** 地図上の何もない場所クリック → 選択解除 / ルート描画への処理分岐 */
+function _onMapClick(e) {
+  // ルートチョイス描画中
+  if (_routeDraw) {
+    _onRouteDrawClick(e);
+    return;
+  }
+
+  const ctrlHits  = _map.queryRenderedFeatures(e.point, { layers: ['course-hit'] });
+  const routeHits = _map.queryRenderedFeatures(e.point, { layers: ['course-route-hit'] });
+
+  if (_drawMode) {
+    // コントロール配置モード
+    if (ctrlHits.length > 0) {
+      const [lng, lat] = ctrlHits[0].geometry.coordinates;
+      _addControl(lng, lat);
+    } else {
+      _addControl(e.lngLat.lng, e.lngLat.lat);
+    }
+    _updateDrawHint();
+    return;
+  }
+
+  if (routeHits.length > 0) {
+    // ルート線クリック → 頂点編集モード切り替え
+    const props = routeHits[0].properties;
+    _startEditRoute(props.legKey, props.routeId);
+    return;
+  }
+
+  if (ctrlHits.length === 0) {
+    // 何もない場所 → 選択解除 & 頂点編集解除
+    if (_activeCtrlId !== null) { _activeCtrlId = null; _refreshSource(); _renderPanel(); }
+    if (_editRoute    !== null) { _editRoute    = null; _refreshSource(); _renderPanel(); }
+  }
+}
+
+// ================================================================
+// ルートチョイス — 描画モード
+// ================================================================
+
+/**
+ * 指定レッグにルート追加描画を開始する。
+ * fromId / toId は course.sequence 上の隣接 defId ペア。
+ */
+function _startRouteDraw(fromId, toId) {
+  if (_drawMode) return;
+  _activeCtrlId = null;
+  _editRoute    = null;
+
+  const fromDef = _controlDefs.get(fromId);
+  if (!fromDef) return;
+
+  _routeDraw = {
+    legKey: legKey(fromId, toId),
+    fromId,
+    toId,
+    pts: [[fromDef.lng, fromDef.lat]], // スタート地点を初期点として追加
+  };
+  _map.getCanvas().style.cursor = 'crosshair';
+  _map.on('mousemove', _onRouteDrawMove);
+  _renderPanel();
+}
+
+function _onRouteDrawMove(e) {
+  if (!_routeDraw) return;
+  const previewSrc = _map.getSource('course-preview-source');
+  if (previewSrc) previewSrc.setData(_buildRoutePreviewData(e.lngLat));
+}
+
+/** ルート描画中のクリック処理 */
+function _onRouteDrawClick(e) {
+  if (!_routeDraw) return;
+
+  // 終点コントロールへのスナップ判定
+  const toDef  = _controlDefs.get(_routeDraw.toId);
+  const hits   = _map.queryRenderedFeatures(e.point, { layers: ['course-hit'] });
+  const snapTo = hits.find(h => h.properties.id === _routeDraw.toId);
+
+  if (snapTo && toDef) {
+    // 終点コントロールに到達 → ルート確定
+    _routeDraw.pts.push([toDef.lng, toDef.lat]);
+    _commitRouteDraw();
+    return;
+  }
+
+  // 通常の中間点追加
+  _routeDraw.pts.push([e.lngLat.lng, e.lngLat.lat]);
+  _refreshSource();
+}
+
+/** 現在の描画を確定してルートとして保存 */
+function _commitRouteDraw() {
+  if (!_routeDraw || _routeDraw.pts.length < 2) { _cancelRouteDraw(); return; }
+
+  const course   = _activeCourse();
+  if (!course.legRoutes) course.legRoutes = {};
+  const key      = _routeDraw.legKey;
+  const existing = course.legRoutes[key] ?? [];
+  const colorIdx = existing.length % ROUTE_COLORS.length;
+
+  existing.push({
+    id:       'r' + (_nextRouteId++),
+    colorIdx,
+    coords:   [..._routeDraw.pts],
+  });
+  course.legRoutes[key] = existing;
+
+  _cancelRouteDraw();
+}
+
+function _cancelRouteDraw() {
+  _map.off('mousemove', _onRouteDrawMove);
+  _map.getCanvas().style.cursor = '';
+  _routeDraw = null;
+  _clearPreview();
+  _refreshSource();
+  _renderPanel();
+}
+
+/** ルートを削除 */
+function _deleteRoute(key, routeId) {
+  const course = _activeCourse();
+  if (!course.legRoutes?.[key]) return;
+  course.legRoutes[key] = course.legRoutes[key].filter(r => r.id !== routeId);
+  if (course.legRoutes[key].length === 0) delete course.legRoutes[key];
+  if (_editRoute?.routeId === routeId) _editRoute = null;
+  _refreshSource();
+  _renderPanel();
+}
+
+// ================================================================
+// ルートチョイス — 頂点編集モード
+// ================================================================
+
+function _startEditRoute(key, routeId) {
+  _activeCtrlId = null;
+  _editRoute    = { legKey: key, routeId, dragPtIdx: null };
+  _refreshSource();
+  _renderPanel();
+}
+
+/** 頂点レイヤーの mousedown → ドラッグで頂点移動 */
+function _onVertexMousedown(e) {
+  if (!_editRoute || !e.features?.length) return;
+  const props = e.features[0].properties;
+  if (props.routeId !== _editRoute.routeId) return;
+  _editRoute.dragPtIdx = props.ptIdx;
+  e.preventDefault();
+  _map.dragPan.disable();
+  _map.getCanvas().style.cursor = 'grabbing';
+  _map.on('mousemove', _onVertexDrag);
+  _map.once('mouseup', _onVertexDragEnd);
+}
+
+function _onVertexDrag(e) {
+  if (!_editRoute || _editRoute.dragPtIdx == null) return;
+  const course = _activeCourse();
+  const routes = course.legRoutes?.[_editRoute.legKey] ?? [];
+  const route  = routes.find(r => r.id === _editRoute.routeId);
+  if (!route) return;
+  route.coords[_editRoute.dragPtIdx] = [e.lngLat.lng, e.lngLat.lat];
+  _refreshSource();
+}
+
+function _onVertexDragEnd() {
+  _map.dragPan.enable();
+  _map.getCanvas().style.cursor = '';
+  _map.off('mousemove', _onVertexDrag);
+  if (_editRoute) _editRoute.dragPtIdx = null;
+  _renderPanel();
+}
+
+/** 中間点レイヤーの mousedown → ドラッグで新頂点を挿入 */
+function _onMidpointMousedown(e) {
+  if (!_editRoute || !e.features?.length) return;
+  const props = e.features[0].properties;
+  if (props.routeId !== _editRoute.routeId) return;
+
+  // afterIdx の次に新しい頂点を挿入してドラッグ開始
+  const course = _activeCourse();
+  const routes = course.legRoutes?.[_editRoute.legKey] ?? [];
+  const route  = routes.find(r => r.id === _editRoute.routeId);
+  if (!route) return;
+
+  const insertIdx = props.afterIdx + 1;
+  route.coords.splice(insertIdx, 0, [e.lngLat.lng, e.lngLat.lat]);
+  _editRoute.dragPtIdx = insertIdx;
 
   e.preventDefault();
   _map.dragPan.disable();
   _map.getCanvas().style.cursor = 'grabbing';
-
-  _map.on('mousemove', _onDrag);
-  _map.once('mouseup', _endDrag);
-}
-
-function _onDrag(e) {
-  if (!_dragDef) return;
-  // マスター定義の座標を更新 → 全コースに自動反映（同一 WebGL フレーム）
-  _dragDef.lng = e.lngLat.lng;
-  _dragDef.lat = e.lngLat.lat;
   _refreshSource();
+  _map.on('mousemove', _onVertexDrag);
+  _map.once('mouseup', _onVertexDragEnd);
 }
 
-function _endDrag() {
-  _map.dragPan.enable();
-  _map.getCanvas().style.cursor = _drawMode ? 'crosshair' : '';
-  _map.off('mousemove', _onDrag);
-  if (_dragDef) {
-    _dragDef = null;
-    _scheduleCalc();
-    _renderPanel();
-  }
+/** 頂点を右クリック（contextmenu）で削除（端点は削除不可） */
+function _onVertexContextmenu(e) {
+  if (!_editRoute || !e.features?.length) return;
+  const props = e.features[0].properties;
+  if (props.routeId !== _editRoute.routeId) return;
+
+  const course = _activeCourse();
+  const routes = course.legRoutes?.[_editRoute.legKey] ?? [];
+  const route  = routes.find(r => r.id === _editRoute.routeId);
+  if (!route) return;
+
+  // 端点（index 0 と末尾）は削除不可
+  if (props.ptIdx === 0 || props.ptIdx === route.coords.length - 1) return;
+
+  route.coords.splice(props.ptIdx, 1);
+  _refreshSource();
+  _renderPanel();
 }
 
 // ================================================================
@@ -564,15 +974,18 @@ function _onMapClick(e) {
 }
 
 function _setDrawMode(active) {
+  // ルート描画中であればキャンセル
+  if (active && _routeDraw) _cancelRouteDraw();
+  if (active && _editRoute) { _editRoute = null; _refreshSource(); }
+
   _drawMode = active;
   if (active) {
+    _activeCtrlId = null;
     _map.getCanvas().style.cursor = 'crosshair';
-    _map.on('click', _onMapClick);
     _map.on('mousemove', _updateCursorPreview);
     _map.getCanvas().addEventListener('mouseleave', _clearPreview);
   } else {
     _map.getCanvas().style.cursor = '';
-    _map.off('click', _onMapClick);
     _map.off('mousemove', _updateCursorPreview);
     _map.getCanvas().removeEventListener('mouseleave', _clearPreview);
     _clearPreview();
@@ -660,7 +1073,15 @@ function _updateTabUI() {
   });
 }
 
-/** コースタブ：アクティブコースのシーケンス一覧 + 統計 */
+/**
+ * コースタブ：コントロール行 + レッグ行（縦棒分離）+ ルートチョイスUI
+ *
+ * DOM 構造:
+ *   [コントロール行]  .course-ctrl-item
+ *   [レッグ行]        .course-leg-item  ← コントロール間に挿入
+ *   [コントロール行]  .course-ctrl-item
+ *   ...
+ */
 function _renderCourseTab() {
   const listEl   = document.getElementById('course-controls-list');
   const emptyEl  = document.getElementById('course-empty-msg');
@@ -674,7 +1095,8 @@ function _renderCourseTab() {
   if (!listEl) return;
 
   const seqInfo = _buildSequenceInfo();
-  const n = seqInfo.length;
+  const course  = _activeCourse();
+  const n       = seqInfo.length;
 
   if (emptyEl)   emptyEl.style.display  = n ? 'none' : '';
   if (statsSec)  statsSec.style.display = n >= 2 ? '' : 'none';
@@ -710,20 +1132,22 @@ function _renderCourseTab() {
   const numCtrls = seqInfo.filter(item => item.def.type === 'control').length;
   if (countEl) countEl.textContent = numCtrls + ' 個';
 
-  // コントロールリスト
+  // ── リスト構築 ──────────────────────────────────────────────
   listEl.innerHTML = '';
-  seqInfo.forEach(({ def, seqIdx, seq, isFinish }, i) => {
-    const legDist = i > 0
-      ? turf.distance(
-          turf.point([seqInfo[i - 1].def.lng, seqInfo[i - 1].def.lat]),
-          turf.point([def.lng, def.lat]),
-          { units: 'kilometers' }
-        )
-      : null;
-    const legStat = _legStats[i - 1] ?? null;
 
-    const row = document.createElement('div');
-    row.className = 'course-ctrl-item'; row.dataset.seqIdx = seqIdx;
+  seqInfo.forEach(({ def, seqIdx, seq, isFinish }, i) => {
+    // ① コントロール行
+    const ctrlRow = document.createElement('div');
+    ctrlRow.className = 'course-ctrl-item';
+    ctrlRow.dataset.defId = def.defId;
+    if (def.defId === _activeCtrlId) ctrlRow.classList.add('is-selected');
+
+    // クリックで選択
+    ctrlRow.addEventListener('click', () => {
+      _activeCtrlId = (_activeCtrlId === def.defId) ? null : def.defId;
+      _refreshSource();
+      _renderPanel();
+    });
 
     const symDiv = document.createElement('div');
     symDiv.className = 'course-ctrl-sym';
@@ -757,18 +1181,55 @@ function _renderCourseTab() {
       const inp = document.createElement('input');
       inp.type = 'text'; inp.className = 'course-ctrl-code-input';
       inp.value = def.code; inp.maxLength = 6;
-      inp.title = 'コントロールコード（マスターに反映）';
+      inp.title = 'コントロールコード';
+      inp.addEventListener('click', e => e.stopPropagation()); // 行クリックと競合させない
       inp.addEventListener('change', () => {
-        def.code = inp.value.trim() || def.code; // マスター定義を直接更新
+        def.code = inp.value.trim() || def.code;
         inp.value = def.code;
       });
       labelRow.appendChild(inp);
       infoDiv.appendChild(labelRow);
     }
 
-    if (legDist != null) {
+    const delBtn = document.createElement('button');
+    delBtn.className = 'course-ctrl-del'; delBtn.title = 'このシーケンスから削除';
+    delBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="2" y1="2" x2="10" y2="10"/><line x1="10" y1="2" x2="2" y2="10"/></svg>`;
+    delBtn.addEventListener('click', e => { e.stopPropagation(); _deleteFromSequence(seqIdx); });
+
+    ctrlRow.appendChild(symDiv);
+    ctrlRow.appendChild(infoDiv);
+    ctrlRow.appendChild(delBtn);
+    listEl.appendChild(ctrlRow);
+
+    // ② レッグ行（コントロール間のみ: i < n-1）
+    if (i < n - 1) {
+      const nextDef  = seqInfo[i + 1].def;
+      const key      = legKey(def.defId, nextDef.defId);
+      const legDist  = turf.distance(
+        turf.point([def.lng, def.lat]),
+        turf.point([nextDef.lng, nextDef.lat]),
+        { units: 'kilometers' }
+      );
+      const legStat  = _legStats[i] ?? null;
+      const routes   = course.legRoutes?.[key] ?? [];
+      const isActive = _routeDraw?.legKey === key;
+      const hasEdit  = _editRoute?.legKey  === key;
+
+      const legRow = document.createElement('div');
+      legRow.className = 'course-leg-item';
+      if (isActive) legRow.classList.add('is-drawing');
+
+      // 縦棒
+      const lineDiv = document.createElement('div');
+      lineDiv.className = 'course-leg-line';
+
+      // 右側コンテンツ
+      const legContent = document.createElement('div');
+      legContent.className = 'course-leg-content';
+
+      // 距離・登高行
       const statsDiv = document.createElement('div');
-      statsDiv.className = 'course-ctrl-leg-stats';
+      statsDiv.className = 'course-leg-stats';
       if (legStat) {
         const upPart   = legStat.climb   > 0 ? `<span class="course-elev-up">↑${legStat.climb} m</span>`   : '';
         const downPart = legStat.descent > 0 ? `<span class="course-elev-dn">↓${legStat.descent} m</span>` : '';
@@ -776,18 +1237,83 @@ function _renderCourseTab() {
           `<span class="course-leg-dist">↔ ${Math.round(legDist * 1000)} m</span>` +
           (upPart || downPart ? `<span class="course-leg-elev">${upPart}${downPart}</span>` : '');
       } else {
-        statsDiv.textContent = `↔ ${Math.round(legDist * 1000)} m`;
+        statsDiv.innerHTML = `<span class="course-leg-dist">↔ ${Math.round(legDist * 1000)} m</span>`;
       }
-      infoDiv.appendChild(statsDiv);
+      legContent.appendChild(statsDiv);
+
+      // 既存ルートチョイス一覧
+      if (routes.length > 0) {
+        const routeList = document.createElement('div');
+        routeList.className = 'course-route-list';
+        routes.forEach(route => {
+          const rItem = document.createElement('div');
+          rItem.className = 'course-route-item';
+          if (hasEdit && _editRoute.routeId === route.id) rItem.classList.add('is-editing');
+
+          // 色スウォッチ
+          const swatch = document.createElement('span');
+          swatch.className = 'course-route-swatch';
+          swatch.style.background = routeColor(route.colorIdx);
+
+          // 距離表示（端点間の折れ線長）
+          const rDist = route.coords.length >= 2
+            ? Math.round(turf.length(turf.lineString(route.coords), { units: 'kilometers' }) * 1000)
+            : '—';
+          const rLabel = document.createElement('span');
+          rLabel.className = 'course-route-dist';
+          rLabel.textContent = `${rDist} m`;
+
+          // 編集トグルボタン
+          const editBtn = document.createElement('button');
+          editBtn.className = 'course-route-edit-btn';
+          editBtn.title = '頂点を編集';
+          editBtn.textContent = hasEdit && _editRoute.routeId === route.id ? '完了' : '編集';
+          editBtn.addEventListener('click', e => {
+            e.stopPropagation();
+            if (_editRoute?.routeId === route.id) {
+              _editRoute = null; _refreshSource(); _renderPanel();
+            } else {
+              _startEditRoute(key, route.id);
+            }
+          });
+
+          // 削除ボタン
+          const delRBtn = document.createElement('button');
+          delRBtn.className = 'course-route-del-btn';
+          delRBtn.title = 'ルートを削除';
+          delRBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="2" y1="2" x2="10" y2="10"/><line x1="10" y1="2" x2="2" y2="10"/></svg>`;
+          delRBtn.addEventListener('click', e => { e.stopPropagation(); _deleteRoute(key, route.id); });
+
+          rItem.appendChild(swatch);
+          rItem.appendChild(rLabel);
+          rItem.appendChild(editBtn);
+          rItem.appendChild(delRBtn);
+          routeList.appendChild(rItem);
+        });
+        legContent.appendChild(routeList);
+      }
+
+      // ＋ルート追加ボタン
+      const addBtn = document.createElement('button');
+      addBtn.className = 'course-add-route-btn';
+      addBtn.title     = 'このレッグにルートを追加';
+      if (isActive) {
+        addBtn.textContent = 'キャンセル';
+        addBtn.classList.add('is-active');
+        addBtn.addEventListener('click', e => { e.stopPropagation(); _cancelRouteDraw(); });
+      } else {
+        addBtn.textContent = '＋ ルート追加';
+        addBtn.addEventListener('click', e => {
+          e.stopPropagation();
+          _startRouteDraw(def.defId, nextDef.defId);
+        });
+      }
+      legContent.appendChild(addBtn);
+
+      legRow.appendChild(lineDiv);
+      legRow.appendChild(legContent);
+      listEl.appendChild(legRow);
     }
-
-    const delBtn = document.createElement('button');
-    delBtn.className = 'course-ctrl-del'; delBtn.title = 'このシーケンスから削除';
-    delBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="2" y1="2" x2="10" y2="10"/><line x1="10" y1="2" x2="2" y2="10"/></svg>`;
-    delBtn.addEventListener('click', () => _deleteFromSequence(seqIdx));
-
-    row.appendChild(symDiv); row.appendChild(infoDiv); row.appendChild(delBtn);
-    listEl.appendChild(row);
   });
 }
 
@@ -1007,7 +1533,22 @@ function _exportJSON() {
   const data = {
     version: 2,
     controlDefs,
-    courses: _courses.map(c => ({ id: c.id, name: c.name, sequence: [...c.sequence] })),
+    courses: _courses.map(c => ({
+      id:         c.id,
+      name:       c.name,
+      sequence:   [...c.sequence],
+      // ルートチョイスを座標7桁精度で保存
+      legRoutes:  Object.fromEntries(
+        Object.entries(c.legRoutes ?? {}).map(([key, routes]) => [
+          key,
+          routes.map(r => ({
+            id:       r.id,
+            colorIdx: r.colorIdx,
+            coords:   r.coords.map(([lng, lat]) => [+lng.toFixed(7), +lat.toFixed(7)]),
+          })),
+        ])
+      ),
+    })),
   };
 
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -1021,7 +1562,7 @@ function _exportJSON() {
 function _importJSON(text) {
   try {
     const data = JSON.parse(text);
-    _clearCourse(true);
+    _clearCourse();
 
     if (data.version === 2) {
       // v2: リレーショナル形式
@@ -1033,9 +1574,24 @@ function _importJSON(text) {
       if (Array.isArray(data.courses) && data.courses.length > 0) {
         data.courses.forEach((c, i) => {
           if (i < _courses.length) {
-            _courses[i].id       = c.id ?? _courses[i].id;
-            _courses[i].name     = c.name ?? _courses[i].name;
-            _courses[i].sequence = [...(c.sequence ?? [])];
+            _courses[i].id         = c.id       ?? _courses[i].id;
+            _courses[i].name       = c.name     ?? _courses[i].name;
+            _courses[i].sequence   = [...(c.sequence ?? [])];
+            _courses[i].legRoutes  = {};
+            // legRoutes の復元（v2.1 以降で保存されている場合）
+            Object.entries(c.legRoutes ?? {}).forEach(([key, routes]) => {
+              if (!Array.isArray(routes)) return;
+              _courses[i].legRoutes[key] = routes.map(r => ({
+                id:       r.id ?? ('r' + (_nextRouteId++)),
+                colorIdx: r.colorIdx ?? 0,
+                coords:   r.coords ?? [],
+              }));
+              // _nextRouteId の更新
+              routes.forEach(r => {
+                const num = parseInt(String(r.id ?? '').replace(/^\D+/, ''), 10);
+                if (!isNaN(num) && num >= _nextRouteId) _nextRouteId = num + 1;
+              });
+            });
           }
         });
         const nameEl = document.getElementById('course-name-input');
@@ -1081,9 +1637,13 @@ function _importJSON(text) {
 // コースクリア
 // ================================================================
 
-function _clearCourse(skipConfirm = false) {
-  if (_drawMode) _setDrawMode(false);
-  if (_calcAbort) _calcAbort.aborted = true;
+function _clearCourse() {
+  if (_drawMode)   _setDrawMode(false);
+  if (_routeDraw)  _cancelRouteDraw();
+  if (_calcAbort)  _calcAbort.aborted = true;
+
+  _activeCtrlId = null;
+  _editRoute    = null;
 
   const course = _activeCourse();
   // 他のコースで使われていない def をマスターから削除
@@ -1091,8 +1651,9 @@ function _clearCourse(skipConfirm = false) {
     _courses.flatMap((c, ci) => ci === _activeCourseIdx ? [] : c.sequence)
   );
   course.sequence.forEach(id => { if (!keepSet.has(id)) _controlDefs.delete(id); });
-  course.sequence = [];
-  _legStats = [];
+  course.sequence   = [];
+  course.legRoutes  = {};
+  _legStats         = [];
 
   _refreshSource();
   _renderPanel();
@@ -1153,16 +1714,39 @@ export function initCoursePlanner(map) {
   _initLayers();
   _initPreviewLayers();
 
-  // ドラッグ: course-hit レイヤー上の mousedown でカスタムドラッグ開始
-  map.on('mousedown', 'course-hit', _startDrag);
+  // ── コントロール操作 ──────────────────────────────────────
+  // mousedown: 選択 or ドラッグ開始
+  map.on('mousedown', 'course-hit', _onCtrlMousedown);
 
-  // ホバーカーソル（描画モード中は crosshair のまま）
+  // ホバーカーソル
   map.on('mouseenter', 'course-hit', () => {
-    if (!_dragDef && !_drawMode) map.getCanvas().style.cursor = 'grab';
+    if (_drawMode || _routeDraw) return;
+    map.getCanvas().style.cursor = _activeCtrlId ? 'grab' : 'pointer';
   });
   map.on('mouseleave', 'course-hit', () => {
-    if (!_dragDef) map.getCanvas().style.cursor = _drawMode ? 'crosshair' : '';
+    if (!_dragCtrl) map.getCanvas().style.cursor = _drawMode || _routeDraw ? 'crosshair' : '';
   });
+
+  // ── ルート線操作 ─────────────────────────────────────────
+  map.on('mouseenter', 'course-route-hit', () => {
+    if (!_routeDraw && !_drawMode) map.getCanvas().style.cursor = 'pointer';
+  });
+  map.on('mouseleave', 'course-route-hit', () => {
+    if (!_dragCtrl && !_routeDraw && !_drawMode) map.getCanvas().style.cursor = '';
+  });
+
+  // ── 頂点・中間点操作 ──────────────────────────────────────
+  map.on('mousedown',    'course-vertex',   _onVertexMousedown);
+  map.on('mousedown',    'course-midpoint', _onMidpointMousedown);
+  map.on('contextmenu',  'course-vertex',   _onVertexContextmenu);
+
+  map.on('mouseenter', 'course-vertex',   () => { if (_editRoute) map.getCanvas().style.cursor = 'grab'; });
+  map.on('mouseleave', 'course-vertex',   () => { if (!_editRoute?.dragPtIdx) map.getCanvas().style.cursor = ''; });
+  map.on('mouseenter', 'course-midpoint', () => { if (_editRoute) map.getCanvas().style.cursor = 'crosshair'; });
+  map.on('mouseleave', 'course-midpoint', () => { if (!_editRoute?.dragPtIdx) map.getCanvas().style.cursor = ''; });
+
+  // ── 地図クリック（全モード共通入口） ──────────────────────
+  map.on('click', _onMapClick);
 
   _setupUI();
 }

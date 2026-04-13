@@ -393,3 +393,23 @@ export const BASEMAPS = {
                  bgColor: '#add19e',
                  attr: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors' },
 };
+
+// ---- ルートカラーパレット（純色10色・アプリ全体共通） ----
+// オリエンテーリングのルートチョイス表示など、インデックスで色を割り当てる際に使用する。
+export const ROUTE_COLORS = [
+  '#FF0000', // 0: R  (赤)
+  '#233791', // 1: B  (青)
+  '#008D36', // 2: G  (緑)
+  '#F99A1C', // 3: YR (オレンジ)
+  '#E7007E', // 4: RP (赤紫)
+  '#009FE0', // 5: BG (青緑/シアン)
+  '#A6D625', // 6: GY (黄緑)
+  '#A8258F', // 7: P  (紫)
+  '#FFF200', // 8: Y  (黄)
+  '#5C0E7F', // 9: PB (紫青)
+];
+
+/** インデックスからルートカラーを取得（範囲外は循環） */
+export function routeColor(index) {
+  return ROUTE_COLORS[((index % ROUTE_COLORS.length) + ROUTE_COLORS.length) % ROUTE_COLORS.length];
+}

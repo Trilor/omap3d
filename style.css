@@ -7115,3 +7115,162 @@ select,
 }
 
 /* コースシンボルは GeoJSON レイヤーで描画するため HTML マーカー CSS は不要 */
+
+/* ---- コントロール行 — 選択状態 ---- */
+.course-ctrl-item {
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.course-ctrl-item:hover {
+  background: var(--bg-subtle);
+}
+.course-ctrl-item.is-selected {
+  background: rgba(192, 32, 192, 0.07);
+  border-radius: 5px;
+}
+.course-ctrl-item.is-selected .course-ctrl-sym svg {
+  /* 選択中は circle/polygon ストロークをオレンジに */
+  stroke: #ff8800;
+}
+
+/* ---- レッグ行（縦棒 + コンテンツ） ---- */
+.course-leg-item {
+  display: flex;
+  gap: 0;
+  padding: 0 4px;
+  min-height: 44px;
+}
+.course-leg-item.is-drawing {
+  background: rgba(240, 160, 0, 0.06);
+  border-radius: 5px;
+}
+
+/* 縦棒 */
+.course-leg-line {
+  flex-shrink: 0;
+  width: 30px;       /* .course-ctrl-sym と幅を揃える */
+  display: flex;
+  justify-content: center;
+}
+.course-leg-line::before {
+  content: '';
+  width: 2px;
+  background: repeating-linear-gradient(
+    to bottom,
+    #c020c0 0px, #c020c0 5px,
+    transparent 5px, transparent 9px
+  );
+  border-radius: 1px;
+  opacity: 0.55;
+}
+
+/* 右側コンテンツ */
+.course-leg-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 5px 0;
+}
+
+/* 距離・登高行 */
+.course-leg-stats {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 10px;
+}
+
+/* ---- ルートチョイスリスト ---- */
+.course-route-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.course-route-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: var(--bg-subtle);
+  font-size: 10.5px;
+}
+.course-route-item.is-editing {
+  background: rgba(192, 32, 192, 0.08);
+  outline: 1px solid rgba(192, 32, 192, 0.25);
+}
+
+/* 色スウォッチ */
+.course-route-swatch {
+  flex-shrink: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  border: 1px solid rgba(0,0,0,0.15);
+}
+
+.course-route-dist {
+  flex: 1;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 編集・削除ボタン */
+.course-route-edit-btn,
+.course-route-del-btn {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border: 1px solid var(--border-input);
+  border-radius: 3px;
+  background: var(--bg-surface);
+  color: var(--text-muted);
+  font-size: 10px;
+  font-family: inherit;
+  cursor: pointer;
+  line-height: 1.5;
+  transition: background 0.1s, color 0.1s;
+}
+.course-route-edit-btn:hover {
+  background: var(--bg-hover);
+  color: var(--primary);
+  border-color: var(--primary);
+}
+.course-route-del-btn {
+  padding: 1px 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.course-route-del-btn:hover {
+  background: rgba(192, 57, 43, 0.1);
+  color: var(--color-danger);
+  border-color: var(--color-danger);
+}
+
+/* ＋ルート追加ボタン */
+.course-add-route-btn {
+  align-self: flex-start;
+  padding: 2px 8px;
+  border: 1px dashed var(--border-input);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.1s, color 0.1s, background 0.1s;
+  line-height: 1.5;
+}
+.course-add-route-btn:hover,
+.course-add-route-btn.is-active {
+  border-color: #c020c0;
+  color: #c020c0;
+  background: rgba(192, 32, 192, 0.05);
+}
+.course-add-route-btn.is-active {
+  border-style: solid;
+}
