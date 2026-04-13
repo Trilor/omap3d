@@ -7056,11 +7056,51 @@ select,
   display: flex;
   gap: 4px;
   align-items: center;
-  margin-bottom: 6px;
+  margin-bottom: 5px;
 }
 .course-select {
   flex: 1;
   min-width: 0;
+}
+/* 2行目ツールバー: Undo/Redo（左）+ IO（右） */
+.course-toolbar-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+}
+.course-toolbar-left {
+  display: flex;
+  gap: 4px;
+}
+.course-toolbar-right {
+  display: flex;
+  gap: 4px;
+}
+/* 読み込み・書き出しボタン（アイコン＋短テキスト） */
+.course-io-btn {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 7px;
+  border: 1px solid var(--border-input);
+  border-radius: 4px;
+  background: var(--bg-surface);
+  color: var(--text-muted);
+  font-size: 10px;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.12s, color 0.12s;
+}
+.course-io-btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+.course-io-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  pointer-events: none;
 }
 .course-mgr-btn {
   flex-shrink: 0;

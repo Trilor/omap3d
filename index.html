@@ -689,7 +689,7 @@ MapLibre interleaved モードで等高線レイヤーの下に差し込むこ�
 
         <!-- コース選択・管理 -->
         <div class="settings-group">
-          <div class="settings-group-title">コース</div>
+          <!-- 1行目: プルダウン + コース管理アイコン -->
           <div class="course-select-row">
             <select id="course-select" class="course-select"></select>
             <input type="text" id="course-name-input" class="course-name-input course-name-inline" placeholder="コース名" maxlength="40" style="display:none" />
@@ -702,23 +702,31 @@ MapLibre interleaved モードで等高線レイヤーの下に差し込むこ�
             <button id="course-del-btn" class="course-mgr-btn course-mgr-del" title="このコースを削除">
               <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="2" y1="2" x2="10" y2="10"/><line x1="10" y1="2" x2="2" y2="10"/></svg>
             </button>
-            <span class="course-mgr-sep"></span>
-            <button id="course-undo-btn" class="course-mgr-btn" title="元に戻す (Ctrl+Z)" disabled>
-              <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M3 13C5 7 11 3 18 5a9 9 0 0 1 3 14"/></svg>
-            </button>
-            <button id="course-redo-btn" class="course-mgr-btn" title="やり直す (Ctrl+Y / Ctrl+Shift+Z)" disabled>
-              <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7v6h-6"/><path d="M21 13C19 7 13 3 6 5a9 9 0 0 0-3 14"/></svg>
-            </button>
-            <span class="course-mgr-sep"></span>
-            <button id="course-import-btn" class="course-mgr-btn" title="コースを読み込み">
-              <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            </button>
-            <button id="course-export-btn" class="course-mgr-btn" title="JSONで書き出し" disabled>
-              <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 5 17 10"/><line x1="12" y1="5" x2="12" y2="17"/></svg>
-            </button>
-            <button id="course-xml-btn" class="course-mgr-btn" title="IOF XML で書き出し" disabled>
-              <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
-            </button>
+          </div>
+          <!-- 2行目: Undo/Redo（左）+ 読み書き（右） -->
+          <div class="course-toolbar-row">
+            <div class="course-toolbar-left">
+              <button id="course-undo-btn" class="course-mgr-btn" title="元に戻す (Ctrl+Z)" disabled>
+                <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M3 13C5 7 11 3 18 5a9 9 0 0 1 3 14"/></svg>
+              </button>
+              <button id="course-redo-btn" class="course-mgr-btn" title="やり直す (Ctrl+Y / Ctrl+Shift+Z)" disabled>
+                <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7v6h-6"/><path d="M21 13C19 7 13 3 6 5a9 9 0 0 0-3 14"/></svg>
+              </button>
+            </div>
+            <div class="course-toolbar-right">
+              <button id="course-import-btn" class="course-io-btn" title="コースを読み込み">
+                <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                読込
+              </button>
+              <button id="course-export-btn" class="course-io-btn" title="JSONで書き出し" disabled>
+                <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 5 17 10"/><line x1="12" y1="5" x2="12" y2="17"/></svg>
+                JSON
+              </button>
+              <button id="course-xml-btn" class="course-io-btn" title="IOF XML で書き出し" disabled>
+                <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+                IOF XML
+              </button>
+            </div>
           </div>
         </div>
 
