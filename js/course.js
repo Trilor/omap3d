@@ -2184,29 +2184,37 @@ function _setupUI() {
     }
   }, true);
 
-  // コース名インライン編集（select ダブルクリック → input に差し替え）
+  // コース名インライン編集（鉛筆ボタン → input に差し替え）
   const courseSelect = document.getElementById('course-select');
   const nameInput    = document.getElementById('course-name-input');
-  if (courseSelect && nameInput) {
+  const renameBtn    = document.getElementById('course-rename-btn');
+  if (courseSelect && nameInput && renameBtn) {
+    const _enterNameEdit = () => {
+      nameInput.value = _activeCourse().name;
+      courseSelect.style.display = 'none';
+      renameBtn.style.display    = 'none';
+      nameInput.style.display    = '';
+      nameInput.focus();
+      nameInput.select();
+    };
     const _commitNameEdit = () => {
       const name = nameInput.value.trim() || _activeCourse().name;
-      _activeCourse().name = name;
+      _activeCourse().name    = name;
       nameInput.style.display = 'none';
       courseSelect.style.display = '';
+      renameBtn.style.display    = '';
       _updateCourseSelect();
       _scheduleSave();
     };
-    courseSelect.addEventListener('dblclick', () => {
-      nameInput.value = _activeCourse().name;
-      nameInput.style.display = '';
-      courseSelect.style.display = 'none';
-      nameInput.focus();
-      nameInput.select();
-    });
+    renameBtn.addEventListener('click', _enterNameEdit);
     nameInput.addEventListener('blur',    _commitNameEdit);
     nameInput.addEventListener('keydown', e => {
       if (e.key === 'Enter')  { e.preventDefault(); _commitNameEdit(); }
-      if (e.key === 'Escape') { nameInput.style.display = 'none'; courseSelect.style.display = ''; }
+      if (e.key === 'Escape') {
+        nameInput.style.display    = 'none';
+        courseSelect.style.display = '';
+        renameBtn.style.display    = '';
+      }
     });
   }
 
