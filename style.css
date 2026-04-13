@@ -7033,14 +7033,4 @@ select,
   margin-bottom: 1px;
 }
 
-/* ---- 地図上のコースマーカー ---- */
-.course-marker {
-  cursor: grab;
-  filter: drop-shadow(0 1px 3px rgba(0,0,0,0.45));
-  transition: filter 0.1s;
-  line-height: 0; /* SVG の余白を除去 */
-}
-.course-marker:active {
-  cursor: grabbing;
-  filter: drop-shadow(0 2px 6px rgba(0,0,0,0.6));
-}
+/* コースシンボルは GeoJSON レイヤーで描画するため HTML マーカー CSS は不要 */
