@@ -6113,10 +6113,6 @@ async function _syncDataOverlayDeckLayers(overlayKey) {
   const currentZoom = map?.getZoom() ?? 0;
   const showHighRes = currentZoom >= 15.5; // deck.gl は Math.round なので 15.5 → z16
 
-  // interleaved モードで等高線レイヤーの直前（下）に描画するための beforeId
-  const _beforeContour = ['contour-regular-dem1a', 'contour-regular-dem5a', 'contour-regular']
-    .find(id => map.getLayer(id));
-
   const layers = [
     new deck.TileLayer({
       id: `${cfg.layerIdPrefix}-base`,
@@ -6124,7 +6120,6 @@ async function _syncDataOverlayDeckLayers(overlayKey) {
       getTileData: makeTileDataLoader(qBlendUrl),
       renderSubLayers: mkSubLayer,
       updateTriggers: { renderSubLayers: subLayerTrigger },
-      beforeId: _beforeContour,
     }),
   ];
 
@@ -6135,7 +6130,6 @@ async function _syncDataOverlayDeckLayers(overlayKey) {
       getTileData: makeTileDataLoader(qOnlyUrl),
       renderSubLayers: mkSubLayer,
       updateTriggers: { renderSubLayers: subLayerTrigger },
-      beforeId: _beforeContour,
     }));
     cfg.regionalLayers.forEach((layer) => {
       const url = cfg.toDataUrl(layer.tileUrl);
@@ -6148,7 +6142,6 @@ async function _syncDataOverlayDeckLayers(overlayKey) {
         getTileData: makeTileDataLoader(url),
         renderSubLayers: mkSubLayer,
         updateTriggers: { renderSubLayers: subLayerTrigger },
-        beforeId: _beforeContour,
       }));
     });
   }
@@ -6184,7 +6177,7 @@ async function _loadDeckGl() {
 function _initDeckOverlay() {
   if (_deckOverlay || !window.deck) return;
   // interleaved: true で deck.gl を MapLibre の WebGL パイプライン内に挿入する。
-  _deckOverlay = new deck.MapboxOverlay({ interleaved: true, layers: [] });
+  _deckOverlay = new deck.MapboxOverlay({ interleaved: false, layers: [] });
   map.addControl(_deckOverlay);
   _commitDeckLayers();
 }
@@ -6357,15 +6350,6 @@ function setTerrain3dEnabled(enabled, { updateCard = true } = {}) {
     map.setTerrain(null);
   }
   syncTerrainRasterOpacity();
-  // setTerrain で MapLibre の WebGL パイプラインが再構築されるため、
-  // Deck.gl interleaved オーバーレイを再初期化して再描画する
-  if (_deckOverlay) {
-    map.removeControl(_deckOverlay);
-    _deckOverlay = null;
-  }
-  if (currentOverlay in OVERLAY_DATA_CONFIGS) {
-    scheduleDataOverlayDeckSync(currentOverlay);
-  }
 }
 
 terrain3dCard.addEventListener('click', (e) => {
