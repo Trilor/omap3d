@@ -1371,9 +1371,9 @@ function _renderPanel() {
   _updateTabUI();
   _updateCourseSelect();
   _refreshSource(false); // タブ切り替えで地図表示を同期（保存は不要）
-  // コース名入力をアクティブコースに同期
+  // コース名入力が編集中でなければ非表示のまま維持
   const nameInput = document.getElementById('course-name-input');
-  if (nameInput) nameInput.value = _activeCourse().name;
+  if (nameInput && nameInput.style.display !== 'none') nameInput.value = _activeCourse().name;
   if (_activeTab === 'course')   _renderCourseTab();
   else                           _renderDefsTab();
 }
@@ -2184,13 +2184,29 @@ function _setupUI() {
     }
   }, true);
 
-  const nameInput = document.getElementById('course-name-input');
-  if (nameInput) {
-    nameInput.value = _activeCourse().name;
-    nameInput.addEventListener('input', () => {
-      _activeCourse().name = nameInput.value || 'コース';
-      _updateTabUI(); // タブラベルを即時更新
+  // コース名インライン編集（select ダブルクリック → input に差し替え）
+  const courseSelect = document.getElementById('course-select');
+  const nameInput    = document.getElementById('course-name-input');
+  if (courseSelect && nameInput) {
+    const _commitNameEdit = () => {
+      const name = nameInput.value.trim() || _activeCourse().name;
+      _activeCourse().name = name;
+      nameInput.style.display = 'none';
+      courseSelect.style.display = '';
+      _updateCourseSelect();
       _scheduleSave();
+    };
+    courseSelect.addEventListener('dblclick', () => {
+      nameInput.value = _activeCourse().name;
+      nameInput.style.display = '';
+      courseSelect.style.display = 'none';
+      nameInput.focus();
+      nameInput.select();
+    });
+    nameInput.addEventListener('blur',    _commitNameEdit);
+    nameInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter')  { e.preventDefault(); _commitNameEdit(); }
+      if (e.key === 'Escape') { nameInput.style.display = 'none'; courseSelect.style.display = ''; }
     });
   }
 

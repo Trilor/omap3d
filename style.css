@@ -6784,6 +6784,12 @@ select,
   font-size: var(--font-sm);
   font-family: inherit;
 }
+/* インライン編集時はセレクトと同幅（flex:1 で伸ばす） */
+.course-name-inline {
+  flex: 1;
+  min-width: 0;
+  width: auto;
+}
 .course-name-input:focus {
   outline: none;
   border-color: var(--primary);
