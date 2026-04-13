@@ -849,8 +849,8 @@ function _onMapClick(e) {
   if (_drawMode) {
     // コントロール配置モード
     if (ctrlHits.length > 0) {
-      const [lng, lat] = ctrlHits[0].geometry.coordinates;
-      _addControl(lng, lat);
+      // 既存コントロールをクリック → 同一 defId を再利用（コードは共有）
+      _addExistingControl(ctrlHits[0].properties.id);
     } else {
       _addControl(e.lngLat.lng, e.lngLat.lat);
     }
@@ -1067,14 +1067,34 @@ function _addControl(lng, lat) {
   const isFirst = course.sequence.length === 0;
   const type    = isFirst ? 'start' : 'control';
 
-  // code の自動採番（'control' のみ 101, 102...）
-  const ctrlCount = [..._controlDefs.values()].filter(d => d.type === 'control').length;
-  const code = type === 'control' ? String(101 + ctrlCount) : '';
+  // code の自動採番（'control' のみ）
+  // 既存コードの最大値 + 1 とし、削除後の重複を防ぐ
+  let code = '';
+  if (type === 'control') {
+    const usedCodes = [..._controlDefs.values()]
+      .filter(d => d.type === 'control' && /^\d+$/.test(d.code))
+      .map(d => parseInt(d.code, 10));
+    const maxCode = usedCodes.length > 0 ? Math.max(...usedCodes) : 100;
+    code = String(maxCode + 1);
+  }
 
   const def = { defId: 'd' + (_nextDefId++), type, code, lng, lat };
   _controlDefs.set(def.defId, def);
   course.sequence.push(def.defId);
 
+  _refreshSource();
+  _scheduleCalc();
+  _renderPanel();
+}
+
+/**
+ * 既存コントロール定義をシーケンスに追加する（再訪・共有ポイント用）。
+ * コード・座標はマスターのものをそのまま使用し、新規採番しない。
+ */
+function _addExistingControl(defId) {
+  const def = _controlDefs.get(defId);
+  if (!def) return;
+  _activeCourse().sequence.push(defId);
   _refreshSource();
   _scheduleCalc();
   _renderPanel();
