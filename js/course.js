@@ -285,12 +285,23 @@ function _buildSourceData() {
   // ルートチョイス線
   if (course.legRoutes) {
     Object.entries(course.legRoutes).forEach(([key, routes]) => {
+      // legKey = "fromId>toId" からコントロール定義を取得
+      const [fromId, toId] = key.split('>');
+      const fromDef = _controlDefs.get(fromId);
+      const toDef   = _controlDefs.get(toId);
+
       routes.forEach(route => {
         if (route.coords.length < 2) return;
         const isEditing = _editRoute?.legKey === key && _editRoute?.routeId === route.id;
+
+        // 最初と最後の座標をコントロール定義から動的に取得（ドラッグ追従のため）
+        const coords = [...route.coords];
+        if (fromDef) coords[0]               = [fromDef.lng, fromDef.lat];
+        if (toDef)   coords[coords.length - 1] = [toDef.lng, toDef.lat];
+
         features.push({
           type: 'Feature',
-          geometry: { type: 'LineString', coordinates: route.coords },
+          geometry: { type: 'LineString', coordinates: coords },
           properties: {
             type:     'route',
             routeId:  route.id,
@@ -309,7 +320,15 @@ function _buildSourceData() {
     const routes = course.legRoutes?.[_editRoute.legKey] ?? [];
     const route  = routes.find(r => r.id === _editRoute.routeId);
     if (route) {
-      route.coords.forEach((coord, idx) => {
+      // 最初・最後の座標をコントロール定義から動的に取得
+      const [erFromId, erToId] = _editRoute.legKey.split('>');
+      const erFromDef = _controlDefs.get(erFromId);
+      const erToDef   = _controlDefs.get(erToId);
+      const editCoords = [...route.coords];
+      if (erFromDef) editCoords[0]                   = [erFromDef.lng, erFromDef.lat];
+      if (erToDef)   editCoords[editCoords.length - 1] = [erToDef.lng, erToDef.lat];
+
+      editCoords.forEach((coord, idx) => {
         features.push({
           type: 'Feature',
           geometry: { type: 'Point', coordinates: coord },
@@ -322,9 +341,9 @@ function _buildSourceData() {
         });
       });
       // 隣接頂点の中点に「中間点」を置く（ドラッグで新頂点を挿入）
-      for (let idx = 0; idx < route.coords.length - 1; idx++) {
-        const [ax, ay] = route.coords[idx];
-        const [bx, by] = route.coords[idx + 1];
+      for (let idx = 0; idx < editCoords.length - 1; idx++) {
+        const [ax, ay] = editCoords[idx];
+        const [bx, by] = editCoords[idx + 1];
         features.push({
           type: 'Feature',
           geometry: { type: 'Point', coordinates: [(ax + bx) / 2, (ay + by) / 2] },
@@ -683,6 +702,18 @@ function _onCtrlDragEnd() {
   _map.getCanvas().style.cursor = _drawMode ? 'crosshair' : '';
   _map.off('mousemove', _onCtrlDrag);
   if (_dragCtrl) {
+    // ドラッグ終了時に、このコントロールを端点とするルートの座標を同期
+    const movedId = _dragCtrl.defId;
+    _courses.forEach(course => {
+      if (!course.legRoutes) return;
+      Object.entries(course.legRoutes).forEach(([key, routes]) => {
+        const [fromId, toId] = key.split('>');
+        routes.forEach(route => {
+          if (fromId === movedId) route.coords[0] = [_dragCtrl.lng, _dragCtrl.lat];
+          if (toId   === movedId) route.coords[route.coords.length - 1] = [_dragCtrl.lng, _dragCtrl.lat];
+        });
+      });
+    });
     _dragCtrl = null;
     _scheduleCalc();
     _renderPanel();
