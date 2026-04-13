@@ -6365,4 +6365,81 @@ select,
   min-height: 40px !important;
   padding: 8px 16px !important;
   font-size: var(--font-lg) !important;
+}}
+
+/* ==========================================================
+   IndexedDB 地図レイヤー関連スタイル
+   ========================================================== */
+
+/* DB 保存済みバッジ（💾）*/
+.tree-saved-badge {
+  font-size: 10px;
+  line-height: 1;
+  opacity: 0.7;
+  flex-shrink: 0;
+  cursor: default;
+}
+
+/* 各地図レイヤーの削除ボタン */
+.tree-child-del-btn {
+  display: none;          /* 通常は非表示 */
+  background: none;
+  border: none;
+  padding: 0 2px;
+  font-size: 11px;
+  color: var(--text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  line-height: 1;
+  border-radius: 3px;
+  transition: color 0.15s, background 0.15s;
+}
+.tree-child-item:hover .tree-child-del-btn {
+  display: inline-flex;   /* ホバー時に表示 */
+}
+.tree-child-del-btn:hover {
+  color: #e55;
+  background: rgba(220, 50, 50, 0.1);
+}
+
+/* ストレージ情報バー */
+.storage-info-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  padding: 5px 8px;
+  background: var(--bg-depth2, rgba(0,0,0,0.05));
+  border-radius: 6px;
+  font-size: var(--font-xs);
+  color: var(--text-muted);
+}
+
+.storage-info-icon {
+  flex-shrink: 0;
+  opacity: 0.6;
+}
+
+.storage-usage-text {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.storage-clear-btn {
+  background: none;
+  border: 1px solid var(--border-color, rgba(255,255,255,0.15));
+  border-radius: 4px;
+  padding: 2px 7px;
+  font-size: var(--font-xs);
+  color: var(--text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.storage-clear-btn:hover {
+  color: #e55;
+  border-color: #e55;
+  background: rgba(220, 50, 50, 0.08);
 }

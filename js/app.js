@@ -16,7 +16,7 @@
            ③ isomizer（OriLibre ベクタースタイル）
            ④ CS 立体図・色別標高図・磁北線ソース/レイヤー
            ⑤ テレインマスタ自動読み込み（autoLoadTerrains）
-     §4  KMZ 読み込み・レイヤー管理（loadKmz / renderKmzList）
+     §4  KMZ 読み込み・レイヤー管理（loadKmz / renderLocalMapList）
      §5  JGW + 画像（worldfile 位置合わせ）
      §6  フレーム / テレイン境界（GeoJSON・mapFrames・terrainMap）
      §7  Miller Columns UI（地図インポートタブ）
@@ -35,6 +35,10 @@
    ================================================================ */
 
 import { getDeclination, setDeclinationModel } from './magneticDeclination.js';
+import {
+  saveMapLayer, getAllMapLayers, deleteMapLayer,
+  updateMapLayerState, clearAllMapLayers, estimateStorageUsage,
+} from './mapImageDb.js';
 import {
   generateSlopeDataTile, generateReliefDataTile, generateCurveDataTile,
   SLOPE_DATA_MIN, SLOPE_DATA_MAX, RELIEF_DATA_MIN, RELIEF_DATA_MAX, CURVE_DATA_MIN, CURVE_DATA_MAX,
@@ -941,6 +945,9 @@ map.on('load', async () => {
   // UI状態全体をlocalStorageから復元（リロード時維持）
   restoreUiState();
 
+  // IndexedDB に保存された地図を復元する（非同期・失敗しても継続）
+  restoreMapLayersFromDb();
+
   // 地図が安定表示されたらURLをフル状態に更新（Google Maps方式）
   // hash:true がハッシュを確定した後に updateShareableUrl を呼ぶことで
   // https://teledrop.pages.dev/ → https://teledrop.pages.dev/?overlay=cs#15/35.02/135.78 に自動遷移する
@@ -951,16 +958,106 @@ map.on('load', async () => {
 
 
 /* ========================================================
-    KMZ 読み込み済みレイヤーの管理リスト
+    ローカル地図レイヤーの管理リスト
+    KMZ・画像+JGW・IndexedDB 復元のすべてを一元管理する。
     各エントリは以下の情報を保持します：
       id        : 連番（ユニークなソース/レイヤーIDの生成に使用）
       name      : ファイル名（UIに表示）
-      sourceId  : MapLibre に登録したソースのID
-      layerId   : MapLibre に登録したレイヤーのID
+      sourceId  : MapLibre に登録したソースのID（"kmz-source-N"）
+      layerId   : MapLibre に登録したレイヤーのID（"kmz-layer-N"）
       objectUrl : 画像のObjectURL（不要になったら revoke が必要）
+      dbId      : IndexedDB のレコード id（null = 未保存）
     ======================================================== */
-const kmzLayers = [];
-let kmzCounter = 0;
+const localMapLayers = [];
+let localMapCounter = 0;
+
+/* =====================================================================
+   _addLocalMapLayerFromBlob — Blob + 座標から KMZ 系レイヤーを地図に追加する内部ヘルパー
+
+   loadKmz / loadImageWithJgw / restoreMapLayersFromDb の共通処理をまとめる。
+   fitBounds は呼び出し元が責任を持つ（引数で制御）。
+   ===================================================================== */
+function _addLocalMapLayerFromBlob(imageBlob, coordinates, name, {
+  opacity  = OMAP_INITIAL_OPACITY,
+  visible  = true,
+} = {}) {
+  const objectUrl = URL.createObjectURL(imageBlob);
+  const id        = localMapCounter++;
+  const sourceId  = `kmz-source-${id}`;
+  const layerId   = `kmz-layer-${id}`;
+
+  map.addSource(sourceId, { type: 'image', url: objectUrl, coordinates });
+  map.addLayer({
+    id: layerId, type: 'raster', source: sourceId,
+    minzoom: 0, maxzoom: 24,
+    paint: {
+      'raster-opacity':       visible ? toRasterOpacity(opacity) : 0,
+      'raster-fade-duration': 0,
+      'raster-resampling':    'linear',
+    },
+  });
+
+  // オーバーレイ（等高線・CS 立体図）の直下に配置する
+  const _anchor = ['color-contour-regular', 'contour-regular', 'color-relief-layer',
+    'slope-relief-layer', 'rrim-relief-layer', 'cs-relief-layer'].find(lid => map.getLayer(lid));
+  if (_anchor) {
+    map.moveLayer(layerId, _anchor);
+  } else if (map.getLayer('gpx-track-outline')) {
+    map.moveLayer(layerId, 'gpx-track-outline');
+  } else {
+    map.moveLayer(layerId);
+  }
+
+  // frames-fill が画像レイヤーより上にある場合は下に移動
+  if (map.getLayer('frames-fill')) {
+    const _ids = map.getStyle().layers.map(l => l.id);
+    if (_ids.indexOf('frames-fill') > _ids.indexOf(layerId)) {
+      map.moveLayer('frames-fill', layerId);
+    }
+  }
+
+  const lngs  = coordinates.map(c => c[0]);
+  const lats  = coordinates.map(c => c[1]);
+  const entry = {
+    id, name, sourceId, layerId, objectUrl,
+    visible, opacity,
+    bbox: {
+      west:  Math.min(...lngs), east:  Math.max(...lngs),
+      south: Math.min(...lats), north: Math.max(...lats),
+    },
+    dbId: null, // IndexedDB に保存後にセットされる
+  };
+  localMapLayers.push(entry);
+  return entry;
+}
+
+/* =====================================================================
+   restoreMapLayersFromDb — IndexedDB に保存された地図を起動時に復元する
+   ===================================================================== */
+async function restoreMapLayersFromDb() {
+  let saved;
+  try {
+    saved = await getAllMapLayers();
+  } catch (err) {
+    console.warn('IndexedDB 読み込みエラー（地図の復元をスキップ）:', err);
+    return;
+  }
+  if (!saved || saved.length === 0) return;
+
+  for (const rec of saved) {
+    try {
+      const entry = _addLocalMapLayerFromBlob(
+        rec.imageBlob, rec.coordinates, rec.name,
+        { opacity: rec.opacity, visible: rec.visible }
+      );
+      entry.dbId = rec.id;
+    } catch (err) {
+      console.warn(`DB レコード id=${rec.id} の復元に失敗:`, err);
+    }
+  }
+  renderLocalMapList();
+  console.log(`IndexedDB から ${saved.length} 件の地図を復元しました`);
+}
 
 // MapLibre の 3D 地形（terrain draping）モードでは、ラスターレイヤーを
 // WebGL フレームバッファに合成する際にアルファがリニア空間で処理されるため、
@@ -1185,93 +1282,34 @@ async function loadKmz(file) {
     const imgBlob = await imgEntry.async('blob');
 
     /*
-      URL.createObjectURL() は Blob をブラウザ内で使えるメモリURL（"blob:..." 形式）に変換します。
-      この URL は通常の https:// のように MapLibre から参照できます。
-      レイヤーを削除する際には URL.revokeObjectURL() でメモリを解放することが重要です。
+      --- ステップ⑧ MapLibre にソースとレイヤーを追加する（_addLocalMapLayerFromBlob ヘルパー）---
+      レイヤー生成・配置・localMapLayers 登録を共通ヘルパーに委譲する。
     */
-    const objectUrl = URL.createObjectURL(imgBlob);
-
-    /*
-      --- ステップ⑧ MapLibre にソースとレイヤーを追加する ---
-      各 KMZ に一意の ID を付けて管理します。
-    */
-    const id = kmzCounter++;
-    const sourceId = `kmz-source-${id}`;
-    const layerId = `kmz-layer-${id}`;
-
-    /*
-      type: 'image' は「指定した4点の座標に画像を貼り付ける」特殊なソースタイプです。
-      url         : 表示する画像のURL（ObjectURL を使用）
-      coordinates : [ TL, TR, BR, BL ] の順番で [lng, lat] 配列を4つ指定
-    */
-    map.addSource(sourceId, {
-      type: 'image',
-      url: objectUrl,
-      coordinates: coordinates,
-    });
-
-    map.addLayer({
-      id: layerId,
-      type: 'raster',
-      source: sourceId,
-      minzoom: 0,
-      maxzoom: 24,
-      paint: {
-        'raster-opacity': toRasterOpacity(OMAP_INITIAL_OPACITY),
-        'raster-fade-duration': 0,
-        'raster-resampling': 'linear',
-      },
-    });
-    // レイヤーをオーバーレイ（等高線・CS立体図）の直下に挿入する
-    // オーバーレイが存在しない場合はGPXの直下、GPXもなければ最前面に移動する
-    const _kmzOverlayAnchor1 = ['color-contour-regular', 'contour-regular', 'color-relief-layer', 'slope-relief-layer', 'rrim-relief-layer', 'cs-relief-layer']
-        .find(id => map.getLayer(id));
-    if (_kmzOverlayAnchor1) {
-      map.moveLayer(layerId, _kmzOverlayAnchor1);
-    } else if (map.getLayer('gpx-track-outline')) {
-      map.moveLayer(layerId, 'gpx-track-outline');
-    } else {
-      map.moveLayer(layerId);
-    }
+    const entry = _addLocalMapLayerFromBlob(imgBlob, coordinates, file.name);
 
     // --- ステップ⑨ 地図全体が収まる範囲にフィット ---
-    // 回転後コーナー座標（coordinates）から正確な BBox を計算する。
-    const allLngs = coordinates.map(c => c[0]);
-    const allLats = coordinates.map(c => c[1]);
-    const bboxWest = Math.min(...allLngs);
-    const bboxEast = Math.max(...allLngs);
-    const bboxSouth = Math.min(...allLats);
-    const bboxNorth = Math.max(...allLats);
-    // サイドバー（左約 300px）を考慮した非対称 padding を指定する。
-    // padding.left を大きくすることでパネル右の可視エリアにKMZが収まる。
     const panelWidth = document.getElementById('sidebar')?.offsetWidth ?? SIDEBAR_DEFAULT_WIDTH;
-
-    map.fitBounds([[bboxWest, bboxSouth], [bboxEast, bboxNorth]],
+    map.fitBounds(
+      [[entry.bbox.west, entry.bbox.south], [entry.bbox.east, entry.bbox.north]],
       {
-        padding: {
-          top: FIT_BOUNDS_PAD, bottom: FIT_BOUNDS_PAD, left: panelWidth + FIT_BOUNDS_PAD_SIDEBAR, right: FIT_BOUNDS_PAD
-        }
-
-        ,
+        padding: { top: FIT_BOUNDS_PAD, bottom: FIT_BOUNDS_PAD,
+                   left: panelWidth + FIT_BOUNDS_PAD_SIDEBAR, right: FIT_BOUNDS_PAD },
         pitch: INITIAL_PITCH,
         duration: EASE_DURATION,
-        maxZoom: 19, // 過度なズームインを防ぎKMZ全体を表示
-      });
-    // fitBounds後も画像が最上層になるよう moveLayer
-    map.moveLayer(layerId);
+        maxZoom: 19,
+      }
+    );
+    // fitBounds 後も画像が最前面になるよう moveLayer
+    map.moveLayer(entry.layerId);
 
-    // 管理リストに追加（visible・opacityも保持して個別制御できるようにする）
-    const entry = {
-      id,
-      name: file.name,
-      sourceId, layerId, objectUrl,
-      visible: true, opacity: OMAP_INITIAL_OPACITY,
-      bbox: { west: bboxWest, east: bboxEast, south: bboxSouth, north: bboxNorth },
-    };
-    kmzLayers.push(entry);
+    // IndexedDB に非同期保存（失敗しても動作継続）
+    saveMapLayer({ type: 'kmz', name: file.name, imageBlob: imgBlob,
+                   coordinates, opacity: entry.opacity, visible: true })
+      .then(dbId => { entry.dbId = dbId; renderOtherMapsTree(); })
+      .catch(e => console.warn('KMZ の DB 保存に失敗:', e));
 
     // UIの一覧を更新する
-    renderKmzList();
+    renderLocalMapList();
 
     console.log(`KMZ 読み込み完了: ${file.name}`, { coordinates, rotation });
 
@@ -1337,14 +1375,16 @@ function parseJgw(text) {
 
 // ---- 画像 + JGW を MapLibre に追加 ----
 async function loadImageWithJgw(imageFile, jgwText, crsValue) {
-  // ① 画像の Object URL を生成し、ピクセルサイズ（W×H）を取得する
-  const objectUrl = URL.createObjectURL(imageFile);
+  // ① 画像サイズ（W×H）を取得するために一時 ObjectURL を使う
+  //    後で _addLocalMapLayerFromBlob が改めて ObjectURL を生成するため、ここでは revoke する
+  const _tmpUrl = URL.createObjectURL(imageFile);
   const img = await new Promise((resolve, reject) => {
     const i = new Image();
     i.onload  = () => resolve(i);
-    i.onerror = () => { URL.revokeObjectURL(objectUrl); reject(new Error('画像の読み込みに失敗しました')); };
-    i.src = objectUrl;
+    i.onerror = () => { URL.revokeObjectURL(_tmpUrl); reject(new Error('画像の読み込みに失敗しました')); };
+    i.src = _tmpUrl;
   });
+  URL.revokeObjectURL(_tmpUrl);
   const W = img.naturalWidth;
   const H = img.naturalHeight;
 
@@ -1382,59 +1422,28 @@ async function loadImageWithJgw(imageFile, jgwText, crsValue) {
     coordinates = cornersXY.map(([x, y]) => proj4(fromCRS, toCRS, [x, y]));
   }
 
-  // ⑤ MapLibre にソース（type:'image'）とレイヤー（type:'raster'）を追加する
-  const id       = kmzCounter++;
-  const sourceId = `kmz-source-${id}`;
-  const layerId  = `kmz-layer-${id}`;
-  map.addSource(sourceId, { type: 'image', url: objectUrl, coordinates });
-  map.addLayer({
-    id: layerId, type: 'raster', source: sourceId,
-    minzoom: 0, maxzoom: 24,
-    paint: {
-      'raster-opacity':       toRasterOpacity(OMAP_INITIAL_OPACITY),
-      'raster-fade-duration': 0,
-      'raster-resampling':    'linear',
-    },
-  });
+  // ⑤ _addLocalMapLayerFromBlob で MapLibre への追加・localMapLayers 登録を行う
+  //    imageFile は File オブジェクトなので Blob として直接渡せる
+  const entry = _addLocalMapLayerFromBlob(imageFile, coordinates, imageFile.name);
 
-  // オーバーレイ（等高線・CS立体図）の直下に挿入する（KMZ と同じ扱い）
-  const _kmzOverlayAnchor2 = ['color-contour-regular', 'contour-regular', 'color-relief-layer', 'slope-relief-layer', 'rrim-relief-layer', 'cs-relief-layer']
-      .find(id => map.getLayer(id));
-  if (_kmzOverlayAnchor2) {
-    map.moveLayer(layerId, _kmzOverlayAnchor2);
-  } else if (map.getLayer('gpx-track-outline')) {
-    map.moveLayer(layerId, 'gpx-track-outline');
-  } else {
-    map.moveLayer(layerId);
-  }
-  // frames-fill が KMZ レイヤーより上にある場合は下に移動
-  if (map.getLayer('frames-fill')) {
-    const styleLayers = map.getStyle().layers.map(l => l.id);
-    const fillIdx = styleLayers.indexOf('frames-fill');
-    const imgIdx  = styleLayers.indexOf(layerId);
-    if (fillIdx > imgIdx && fillIdx >= 0 && imgIdx >= 0) {
-      map.moveLayer('frames-fill', layerId);
-    }
-  }
-
-  // ⑥ 管理リストに追加して UI を更新する
-  const lngs = coordinates.map(c => c[0]);
-  const lats = coordinates.map(c => c[1]);
-  kmzLayers.push({
-    id, name: imageFile.name,
-    sourceId, layerId, objectUrl,
-    visible: true, opacity: OMAP_INITIAL_OPACITY,
-    bbox: { west: Math.min(...lngs), east: Math.max(...lngs), south: Math.min(...lats), north: Math.max(...lats) },
-  });
-  renderKmzList();
+  // ⑥ UI を更新する
+  renderLocalMapList();
 
   // ⑦ 追加した画像の範囲にカメラをフィットさせる
   const panelWidth = document.getElementById('sidebar')?.offsetWidth ?? SIDEBAR_DEFAULT_WIDTH;
   map.fitBounds(
-    [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
-    { padding: { top: FIT_BOUNDS_PAD, bottom: FIT_BOUNDS_PAD, left: panelWidth + FIT_BOUNDS_PAD_SIDEBAR, right: FIT_BOUNDS_PAD },
+    [[entry.bbox.west, entry.bbox.south], [entry.bbox.east, entry.bbox.north]],
+    { padding: { top: FIT_BOUNDS_PAD, bottom: FIT_BOUNDS_PAD,
+                 left: panelWidth + FIT_BOUNDS_PAD_SIDEBAR, right: FIT_BOUNDS_PAD },
       pitch: INITIAL_PITCH, duration: EASE_DURATION, maxZoom: 19 }
   );
+
+  // IndexedDB に非同期保存
+  saveMapLayer({ type: 'image-jgw', name: imageFile.name, imageBlob: imageFile,
+                 coordinates, opacity: entry.opacity, visible: true })
+    .then(dbId => { entry.dbId = dbId; renderOtherMapsTree(); })
+    .catch(e => console.warn('画像+JGW の DB 保存に失敗:', e));
+
   console.log(`画像+JGW 読み込み完了: ${imageFile.name}`, { crsValue, coordinates });
 }
 
@@ -1702,7 +1711,7 @@ function updateFrameGeoJsonSource() {
   {
     const existingStyleLayers = map.getStyle().layers.map(l => l.id);
     const imageLayerIds = new Set([
-      ...kmzLayers.map(e => e.layerId),
+      ...localMapLayers.map(e => e.layerId),
       ...mapFrames.map(e => e.layerId).filter(Boolean),
     ]);
     const firstImgLayerId = existingStyleLayers.find(id => imageLayerIds.has(id));
@@ -2419,40 +2428,70 @@ function _makeLayerCtrlRow(initialVisible, initialPct, onToggle, onOpacity) {
   return row;
 }
 
-// 「その他の地図」ノードの子要素（kmzLayers）を再描画する
+// 「その他の地図」ノードの子要素（localMapLayers）を再描画する
 function renderOtherMapsTree() {
   const otherEl = document.getElementById('frame-tree-other-children');
   if (!otherEl) return;
   otherEl.innerHTML = '';
 
-  if (kmzLayers.length === 0) return;
+  if (localMapLayers.length === 0) {
+    _updateStorageInfoBar();
+    return;
+  }
 
-  kmzLayers.forEach(entry => {
+  localMapLayers.forEach(entry => {
     const shortName = entry.name.replace(/\.(jpg|jpeg|png|kmz)$/i, '');
 
-    // 名前行
+    // ---- 名前行 ----
     const childEl = document.createElement('div');
     childEl.className = 'tree-child-item';
+
+    // 地図アイコン
     const iconSpan = document.createElement('span');
     iconSpan.textContent = '🗺️';
+    childEl.appendChild(iconSpan);
+
+    // DB 保存済みバッジ（💾）
+    if (entry.dbId != null) {
+      const badge = document.createElement('span');
+      badge.className = 'tree-saved-badge';
+      badge.title = 'ストレージに保存済み（次回起動時も表示されます）';
+      badge.textContent = '💾';
+      childEl.appendChild(badge);
+    }
+
+    // ファイル名ラベル（クリックで地図へジャンプ）
     const nameSpan = document.createElement('span');
     nameSpan.className = 'tree-child-name';
     nameSpan.title = entry.name;
     nameSpan.textContent = shortName;
-    childEl.appendChild(iconSpan);
-    childEl.appendChild(nameSpan);
-    childEl.addEventListener('click', () => {
+    nameSpan.addEventListener('click', () => {
       if (entry.bbox) {
         const pw = document.getElementById('sidebar')?.offsetWidth ?? SIDEBAR_DEFAULT_WIDTH;
         map.fitBounds(
           [[entry.bbox.west, entry.bbox.south], [entry.bbox.east, entry.bbox.north]],
-          { padding: { top: FIT_BOUNDS_PAD, bottom: FIT_BOUNDS_PAD, left: pw + FIT_BOUNDS_PAD_SIDEBAR, right: FIT_BOUNDS_PAD }, duration: EASE_DURATION }
+          { padding: { top: FIT_BOUNDS_PAD, bottom: FIT_BOUNDS_PAD,
+                       left: pw + FIT_BOUNDS_PAD_SIDEBAR, right: FIT_BOUNDS_PAD },
+            duration: EASE_DURATION }
         );
       }
     });
+    childEl.appendChild(nameSpan);
+
+    // 削除ボタン
+    const delBtn = document.createElement('button');
+    delBtn.className = 'tree-child-del-btn';
+    delBtn.title = 'この地図を削除';
+    delBtn.textContent = '✕';
+    delBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      removeLocalMapLayer(entry.id);
+    });
+    childEl.appendChild(delBtn);
+
     otherEl.appendChild(childEl);
 
-    // コントロール行（トグル + 不透明度スライダー）
+    // ---- コントロール行（トグル + 不透明度スライダー）----
     otherEl.appendChild(_makeLayerCtrlRow(
       entry.visible !== false,
       Math.round((entry.opacity ?? 0.8) * 100),
@@ -2462,15 +2501,41 @@ function renderOtherMapsTree() {
           map.setPaintProperty(entry.layerId, 'raster-opacity',
             visible ? toRasterOpacity(entry.opacity) : 0);
         }
+        // DB に可視状態を同期する
+        if (entry.dbId != null) {
+          updateMapLayerState(entry.dbId, { visible }).catch(() => {});
+        }
       },
       (pct) => {
         entry.opacity = pct / 100;
         if (map.getLayer(entry.layerId) && entry.visible !== false) {
           map.setPaintProperty(entry.layerId, 'raster-opacity', toRasterOpacity(entry.opacity));
         }
+        // DB に不透明度を同期する
+        if (entry.dbId != null) {
+          updateMapLayerState(entry.dbId, { opacity: entry.opacity }).catch(() => {});
+        }
       }
     ));
   });
+
+  // ストレージ情報バーを更新する
+  _updateStorageInfoBar();
+}
+
+/** ストレージ情報バーの表示/非表示と使用量テキストを更新する */
+function _updateStorageInfoBar() {
+  const bar = document.getElementById('storage-info-bar');
+  if (!bar) return;
+  const hasDbLayers = localMapLayers.some(e => e.dbId != null);
+  bar.style.display = hasDbLayers ? '' : 'none';
+  if (!hasDbLayers) return;
+  estimateStorageUsage().then(({ usage }) => {
+    const el = bar.querySelector('.storage-usage-text');
+    if (el) el.textContent = usage
+      ? `ストレージ使用量: 約 ${(usage / 1024 / 1024).toFixed(1)} MB`
+      : 'ストレージ使用量: ---';
+  }).catch(() => {});
 }
 
 // ---- フレームエントリの DOM 要素を構築する（詳細コントロール付き・互換性のため保持）----
@@ -2569,7 +2634,7 @@ async function addImagesToFrame(frameId, files) {
 
     // 最初の画像のとき MapLibre ソース＋レイヤーを新規作成する
     if (frame.sourceId === null) {
-      const n       = kmzCounter++;
+      const n       = localMapCounter++;
       frame.sourceId = `kmz-source-${n}`;
       frame.layerId  = `kmz-layer-${n}`;
       frame.activeImageId = imgId;
@@ -2722,16 +2787,16 @@ async function autoLoadFrames() {
   KMZレイヤー一覧をUIに描画する。
   各エントリに表示/非表示チェックボックス・透明度スライダー・削除ボタンを追加。
 */
-function renderKmzList() {
+function renderLocalMapList() {
   const listEl = document.getElementById('kmz-list');
   listEl.innerHTML = '';
 
-  // 読図地図セレクトのKMZオプションを同期
+  // 読図地図セレクトのオプションを同期
   updateReadmapBgKmzOptions();
 
-  if (kmzLayers.length === 0) return;
+  if (localMapLayers.length === 0) return;
 
-  kmzLayers.forEach(entry => {
+  localMapLayers.forEach(entry => {
     // 名前（拡張子なし）
     const shortName = entry.name.replace(/\.kmz$/i, '');
     const pct = Math.round(entry.opacity * 100);
@@ -2747,7 +2812,7 @@ function renderKmzList() {
           <span class="toggle-slider"></span>
         </label>
         <label class="layer-name${entry.visible ? '' : ' disabled'}" for="chk-kmz-${entry.id}" title="${entry.name}">${shortName}</label>
-        <button class="kmz-del-btn" title="削除" onclick="removeKmzLayer(${entry.id})">✕</button>
+        <button class="kmz-del-btn" title="削除" onclick="removeLocalMapLayer(${entry.id})">✕</button>
       </div>
       <div class="opacity-row">
         <input type="range" class="ui-slider" id="slider-kmz-${entry.id}" min="0" max="100" step="5" value="${pct}" ${entry.visible ? '' : 'disabled'} />
@@ -2799,7 +2864,7 @@ function renderSimReadmapList() {
   if (!listEl) return;
   listEl.innerHTML = '';
 
-  if (kmzLayers.length === 0) {
+  if (localMapLayers.length === 0) {
     listEl.innerHTML = '<div class="sim-readmap-empty">地図が読み込まれていません</div>';
     // activeReadmapId をリセット
     activeReadmapId = null;
@@ -2807,8 +2872,8 @@ function renderSimReadmapList() {
   }
 
   // activeReadmapId が未設定 or 既存エントリにない場合は先頭に設定
-  if (!activeReadmapId || !kmzLayers.find(e => e.id === activeReadmapId)) {
-    activeReadmapId = kmzLayers[0].id;
+  if (!activeReadmapId || !localMapLayers.find(e => e.id === activeReadmapId)) {
+    activeReadmapId = localMapLayers[0].id;
     // sel-readmap-bg も同期
     const selReadmap = document.getElementById('sel-readmap-bg');
     if (selReadmap) {
@@ -2817,7 +2882,7 @@ function renderSimReadmapList() {
     }
   }
 
-  kmzLayers.forEach(entry => {
+  localMapLayers.forEach(entry => {
     const shortName = entry.name.replace(/\.kmz$/i, '').replace(/\.(jpg|jpeg|png)$/i, '');
     const isActive = (entry.id === activeReadmapId);
 
@@ -2862,18 +2927,22 @@ function renderSimReadmapList() {
 
 
 /*
-  KMZレイヤーを地図とリストから削除する
+  ローカル地図レイヤーを地図・リスト・IndexedDB から削除する
 */
-function removeKmzLayer(id) {
-  const idx = kmzLayers.findIndex(e => e.id === id);
+function removeLocalMapLayer(id) {
+  const idx = localMapLayers.findIndex(e => e.id === id);
   if (idx === -1) return;
 
-  const entry = kmzLayers[idx];
-  if (map.getLayer(entry.layerId)) map.removeLayer(entry.layerId);
+  const entry = localMapLayers[idx];
+  if (map.getLayer(entry.layerId))  map.removeLayer(entry.layerId);
   if (map.getSource(entry.sourceId)) map.removeSource(entry.sourceId);
   URL.revokeObjectURL(entry.objectUrl);
-  kmzLayers.splice(idx, 1);
-  renderKmzList();
+  // IndexedDB に保存済みなら削除する
+  if (entry.dbId != null) {
+    deleteMapLayer(entry.dbId).catch(e => console.warn('DB 削除失敗:', e));
+  }
+  localMapLayers.splice(idx, 1);
+  renderLocalMapList();
 }
 
 
@@ -3759,6 +3828,21 @@ document.getElementById('unified-search-clear').addEventListener('click', clearS
 /* ========================================================
     ファイル選択ボタンの制御
     ======================================================== */
+
+// ---- ストレージ全消去ボタン ----
+document.getElementById('storage-clear-btn')?.addEventListener('click', async () => {
+  if (!confirm('ストレージに保存されたすべての地図を削除しますか？\n地図の表示データは失われます。')) return;
+  try {
+    await clearAllMapLayers();
+    // localMapLayers から DB バック済みエントリを地図ごと削除する
+    const toRemove = localMapLayers.filter(e => e.dbId != null).map(e => e.id);
+    for (const id of toRemove) removeLocalMapLayer(id);
+    _updateStorageInfoBar();
+  } catch (e) {
+    console.error('ストレージ消去エラー:', e);
+    alert('ストレージの消去に失敗しました。');
+  }
+});
 
 // ---- 統合インポートボタン（KMZ / 画像 → すべて位置合わせモーダルへ） ----
 const mapImportInputTop = document.getElementById('map-import-input-top');
@@ -6024,7 +6108,7 @@ document.getElementById('sel-building').addEventListener('change', () => {
 const building3dCard = document.getElementById('building3d-card');
 function syncTerrainRasterOpacity() {
   // 地形 ON/OFF で raster-opacity の補正有無が変わるため、全KMZレイヤーを再適用する
-  kmzLayers.forEach(entry => {
+  localMapLayers.forEach(entry => {
     if (map.getLayer(entry.layerId)) {
       map.setPaintProperty(entry.layerId, 'raster-opacity', toRasterOpacity(entry.opacity));
     }
@@ -7531,12 +7615,12 @@ function initSimMinimap() {
 }
 
 /* ----------------------------------------------------------------
-   syncKmzToMinimap: 現在の kmzLayers を全てミニマップに追加
+   syncKmzToMinimap: 現在の localMapLayers を全てミニマップに追加
    ミニマップのスタイルロード後か、新規KMZ追加時に呼ぶ
    ---------------------------------------------------------------- */
 function syncKmzToMinimap() {
   if (!mobileSimState.miniMap || !mobileSimState.miniMap.isStyleLoaded()) return;
-  kmzLayers.forEach(entry => {
+  localMapLayers.forEach(entry => {
     // 既に追加済みならスキップ
     if (mobileSimState.miniMap.getSource(entry.sourceId)) return;
     // メインマップのソーススペックを取得（url + coordinates を含む）
@@ -8012,7 +8096,7 @@ function onPcSimLocked() {
   setCameraFromPlayer();
 
   // ③-b KMZ・フレーム画像を3D地面から一時非表示（Spaceキーの読図マップのみで使用）
-  kmzLayers.forEach(entry => {
+  localMapLayers.forEach(entry => {
     if (map.getLayer(entry.layerId)) {
       map.setLayoutProperty(entry.layerId, 'visibility', 'none');
     }
@@ -8122,7 +8206,7 @@ function stopPcSim() {
   document.getElementById('pc-sim-crosshair').style.display = 'none';
 
   // KMZ・フレーム画像の表示を復元
-  kmzLayers.forEach(entry => {
+  localMapLayers.forEach(entry => {
     if (map.getLayer(entry.layerId)) {
       map.setLayoutProperty(entry.layerId, 'visibility', entry.visible ? 'visible' : 'none');
     }
@@ -8645,7 +8729,7 @@ function initPcReadMap() {
 }
 
 /* ----------------------------------------------------------------
-   syncKmzToPcReadMap: kmzLayers を読図マップに複製
+   syncKmzToPcReadMap: localMapLayers を読図マップに複製
    bgKey が 'kmz-{id}' の場合は対象 KMZ のみ表示、それ以外は全 KMZ を重ねる。
    ---------------------------------------------------------------- */
 function syncKmzToPcReadMap(bgKey) {
@@ -8657,7 +8741,7 @@ function syncKmzToPcReadMap(bgKey) {
   const isKmzMode   = bgKey.startsWith('kmz-');
   const selectedKmzId = isKmzMode ? parseInt(bgKey.slice(4)) : -1;
 
-  kmzLayers.forEach(entry => {
+  localMapLayers.forEach(entry => {
     if (pcSimState.readMap.getSource(entry.sourceId)) return;
     const spec = map.getStyle()?.sources?.[entry.sourceId];
     if (!spec) return;
@@ -8677,7 +8761,7 @@ function syncKmzToPcReadMap(bgKey) {
 
 /* ----------------------------------------------------------------
    updateReadmapBgKmzOptions: 読図地図セレクトの KMZ オプションを同期
-   KMZ 追加・削除時（renderKmzList）から呼ばれる。
+   KMZ 追加・削除時（renderLocalMapList）から呼ばれる。
    ---------------------------------------------------------------- */
 function updateReadmapBgKmzOptions() {
   const sel = document.getElementById('sel-readmap-bg');
@@ -8688,7 +8772,7 @@ function updateReadmapBgKmzOptions() {
   // data-kmz 属性付き option（KMZ 区切り線＋KMZ 項目）を全て削除してから再構築
   [...sel.options].filter(o => o.dataset.kmz).forEach(o => o.remove());
 
-  if (kmzLayers.length > 0) {
+  if (localMapLayers.length > 0) {
     // KMZ ファイルを先頭（index=0）から順に挿入（読み込んだ地図が最上部に来るよう）
     // 区切り線（KMZ の後に配置）
     const sep = new Option('──────');
@@ -8697,7 +8781,7 @@ function updateReadmapBgKmzOptions() {
     sel.insertBefore(sep, sel.options[0]);
 
     // KMZ ファイルを逆順で index=0 に挿入することで先頭に降順追加
-    [...kmzLayers].reverse().forEach(entry => {
+    [...localMapLayers].reverse().forEach(entry => {
       const shortName = entry.name.replace(/\.kmz$/i, '');
       const opt = new Option(`🗺 ${shortName}`, `kmz-${entry.id}`);
       opt.dataset.kmz = '1';
@@ -8708,7 +8792,7 @@ function updateReadmapBgKmzOptions() {
   // 選択値を維持。削除されたKMZが選択されていた場合は 'orilibre' に戻す。
   const validVals = new Set([
     'orilibre', 'gsi-std', 'gsi-pale', 'gsi-photo', 'osm',
-    ...kmzLayers.map(e => `kmz-${e.id}`),
+    ...localMapLayers.map(e => `kmz-${e.id}`),
   ]);
   sel.value = validVals.has(currentVal) ? currentVal : 'orilibre';
 
@@ -10196,15 +10280,15 @@ document.getElementById('import-decide-btn').addEventListener('click', () => {
   // kmzList UI に登録
   const lngs = importState.coords.map(c => c[0]);
   const lats  = importState.coords.map(c => c[1]);
-  kmzLayers.push({
-    id: kmzCounter++, name,
+  localMapLayers.push({
+    id: localMapCounter++, name,
     sourceId: uid + '-src', layerId: uid + '-layer',
     objectUrl: keepUrl,
     visible: true, opacity: OMAP_INITIAL_OPACITY,
     bbox: { west: Math.min(...lngs), east: Math.max(...lngs),
             south: Math.min(...lats), north: Math.max(...lats) },
   });
-  renderKmzList();
+  renderLocalMapList();
 
   // 枠を mapFrames に追加して地図上に描画
   mapFrames.push({
