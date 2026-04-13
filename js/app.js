@@ -4578,6 +4578,10 @@ document.getElementById('overlay-cards').addEventListener('click', (e) => {
   if (currentOverlay === 'color-relief') { applyColorReliefTiles(); autoFitColorRelief(); }
   if (currentOverlay === 'slope') { applySlopeReliefTiles(); autoFitSlopeRelief(); }
   if (currentOverlay === 'curvature') { applyCurvatureReliefTiles(); autoFitCurvatureRelief(); }
+  // 色別等高線は mlcontour タイルを非同期生成するため、
+  // setTiles でソースをリフレッシュして triggerRepaint でレンダーループを強制起動する
+  // （setLayoutProperty だけではアイドル状態でループが止まりタイル到着後に再描画されない）
+  if (currentOverlay === 'color-contour') applyContourInterval(userContourInterval);
 });
 
 // （chk-overlay 削除のため、トグルイベントリスナーは不要）
@@ -6459,7 +6463,10 @@ selContourDem.addEventListener('change', () => {
     setAllContourVisibility(map, 'visible');
   }
   // 色別等高線オーバーレイ選択中の場合はソース切り替えに追従
-  if (currentOverlay === 'color-contour') updateCsVisibility();
+  if (currentOverlay === 'color-contour') {
+    updateCsVisibility();
+    applyContourInterval(userContourInterval); // タイル再取得 + triggerRepaint でレンダーループ起動
+  }
   updateShareableUrl();
   saveUiState();
 });
