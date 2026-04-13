@@ -4409,7 +4409,10 @@ function updateCsVisibility() {
   if (overlay in OVERLAY_DATA_CONFIGS) {
     scheduleDataOverlayDeckSync(overlay);
   }
-  const showRrimRelief = overlay === 'rrim';
+  const showColorRelief     = overlay === 'color-relief';
+  const showSlopeRelief     = overlay === 'slope';
+  const showCurvatureRelief = overlay === 'curvature';
+  const showRrimRelief      = overlay === 'rrim';
   if (map.getLayer('rrim-relief-layer')) {
     map.setLayoutProperty('rrim-relief-layer', 'visibility', showRrimRelief ? 'visible' : 'none');
     if (map.getLayer('rrim-qchizu-layer')) map.setLayoutProperty('rrim-qchizu-layer', 'visibility', showRrimRelief ? 'visible' : 'none');
