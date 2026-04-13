@@ -6769,22 +6769,278 @@ select,
 }
 
 /* ==========================================================
-   コースパネルプレースホルダー
+   §30  コースプランナー
    ========================================================== */
-.course-placeholder {
-  padding: 30px 16px;
+
+/* ---- コース名入力 ---- */
+.course-name-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 5px 8px;
+  border: 1px solid var(--border-input);
+  border-radius: 5px;
+  background: var(--bg-surface);
+  color: var(--text-main);
+  font-size: var(--font-sm);
+  font-family: inherit;
+}
+.course-name-input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--primary-alpha);
+}
+
+/* ---- 描画ツールバー ---- */
+.course-draw-toolbar {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+/* 描画開始/終了ボタン */
+.course-draw-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 7px 10px;
+  border: 1px solid var(--border-main);
+  border-radius: 6px;
+  background: var(--bg-surface);
+  color: var(--text-main);
+  font-size: var(--font-xs);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.course-draw-btn:hover {
+  background: var(--bg-hover);
+}
+.course-draw-btn.course-draw-active {
+  background: #9320b0;
+  border-color: #9320b0;
+  color: #fff;
+}
+.course-draw-btn.course-draw-active:hover {
+  background: #7a1a94;
+  border-color: #7a1a94;
+}
+
+/* フィニッシュ追加ボタン */
+.course-finish-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 10px;
+  border: 1px solid #c020c0;
+  border-radius: 6px;
+  background: var(--bg-surface);
+  color: #c020c0;
+  font-size: var(--font-xs);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.12s;
+  white-space: nowrap;
+}
+.course-finish-btn:hover:not(:disabled) {
+  background: rgba(192,32,192,0.10);
+}
+.course-finish-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ---- 描画ヒント ---- */
+.course-draw-hint {
+  margin-top: 7px;
+  padding: 6px 10px;
+  border-radius: 5px;
+  background: rgba(192,32,192,0.08);
+  border-left: 3px solid #c020c0;
+  font-size: 11px;
+  color: #8a1090;
+  line-height: 1.5;
+}
+
+/* ---- 空メッセージ ---- */
+.course-empty-msg {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 18px 12px;
   text-align: center;
   color: var(--text-muted);
-  font-size: var(--font-xs);
-  line-height: 1.8;
-}
-.course-placeholder-icon {
-  font-size: 32px;
-  display: block;
-  margin-bottom: 10px;
-}
-.course-placeholder-sub {
   font-size: 11px;
-  opacity: 0.6;
-  margin-top: 6px;
+  line-height: 1.7;
+}
+
+/* ---- コントロールリスト ---- */
+.course-ctrl-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 4px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.course-ctrl-item:last-child {
+  border-bottom: none;
+}
+
+.course-ctrl-sym {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.course-ctrl-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.course-ctrl-type-label {
+  font-size: var(--font-xs);
+  font-weight: 600;
+  color: #9320b0;
+}
+
+.course-ctrl-code-input {
+  width: 54px;
+  padding: 2px 5px;
+  border: 1px solid var(--border-input);
+  border-radius: 4px;
+  background: var(--bg-surface);
+  color: #9320b0;
+  font-size: var(--font-xs);
+  font-weight: 600;
+  font-family: 'M PLUS Rounded 1c', sans-serif;
+}
+.course-ctrl-code-input:focus {
+  outline: none;
+  border-color: #c020c0;
+  box-shadow: 0 0 0 2px rgba(192,32,192,0.15);
+}
+
+.course-ctrl-leg-stats {
+  font-size: 10px;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+}
+
+.course-ctrl-del {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.1s, color 0.1s;
+  padding: 0;
+}
+.course-ctrl-del:hover {
+  background: rgba(192, 57, 43, 0.1);
+  color: var(--color-danger);
+}
+
+/* ---- コース統計 ---- */
+.course-stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 6px;
+}
+.course-stats-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 4px;
+  background: var(--bg-subtle);
+  border-radius: 6px;
+  border: 1px solid var(--border-subtle);
+}
+.course-stats-label {
+  font-size: 9px;
+  color: var(--text-muted);
+  text-align: center;
+  line-height: 1.3;
+}
+.course-stats-value {
+  font-size: 13px;
+  font-weight: 700;
+  color: #9320b0;
+  letter-spacing: -0.02em;
+}
+
+/* ---- アクション ---- */
+.course-action-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.course-actions {
+  display: flex;
+  gap: 6px;
+}
+.course-actions .panel-btn-outline {
+  flex: 1;
+}
+.course-clear-btn {
+  width: 100%;
+  color: var(--color-danger) !important;
+  border-color: var(--color-danger) !important;
+}
+.course-clear-btn:hover:not(:disabled) {
+  background: rgba(192, 57, 43, 0.07) !important;
+}
+.course-clear-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* ---- 操作説明 ---- */
+.course-help-note {
+  margin: 4px 0 8px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: var(--bg-subtle);
+  font-size: 10.5px;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+.course-help-note strong {
+  display: block;
+  margin-bottom: 5px;
+  font-size: 11px;
+  color: var(--text-sub);
+}
+.course-help-note ul {
+  margin: 0;
+  padding-left: 14px;
+}
+.course-help-note li {
+  margin-bottom: 1px;
+}
+
+/* ---- 地図上のコースマーカー ---- */
+.course-marker {
+  cursor: grab;
+  filter: drop-shadow(0 1px 3px rgba(0,0,0,0.45));
+  transition: filter 0.1s;
+  line-height: 0; /* SVG の余白を除去 */
+}
+.course-marker:active {
+  cursor: grabbing;
+  filter: drop-shadow(0 2px 6px rgba(0,0,0,0.6));
 }

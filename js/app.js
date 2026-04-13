@@ -35,6 +35,7 @@
    ================================================================ */
 
 import { getDeclination, setDeclinationModel } from './magneticDeclination.js';
+import { initCoursePlanner } from './course.js';
 import {
   saveMapLayer, getAllMapLayers, deleteMapLayer,
   updateMapLayerState, clearAllMapLayers, estimateStorageUsage,
@@ -947,6 +948,9 @@ map.on('load', async () => {
 
   // IndexedDB に保存された地図を復元する（非同期・失敗しても継続）
   restoreMapLayersFromDb();
+
+  // コースプランナー初期化
+  initCoursePlanner(map);
 
   // 地図が安定表示されたらURLをフル状態に更新（Google Maps方式）
   // hash:true がハッシュを確定した後に updateShareableUrl を呼ぶことで
