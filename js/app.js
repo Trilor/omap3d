@@ -6057,11 +6057,22 @@ async function _syncDataOverlayDeckLayers(overlayKey) {
 
   await _loadDeckGl();
   console.log(`[DeckSync] after _loadDeckGl: overlayKey=${overlayKey} currentOverlay=${currentOverlay}`);
+  if (currentOverlay !== overlayKey) {
+    console.log(`[DeckSync] ABORT after _loadDeckGl: currentOverlay changed to ${currentOverlay}`);
+    return;
+  }
   const isFirstInit = !_deckOverlay;
   _initDeckOverlay();
   // 初回 addControl 時、Deck.gl 内部が非同期で setProps({layers:[]}) を呼ぶ。
   // それより後に commit しないとレイヤーが上書きされて消えるため 1 フレーム待つ。
-  if (isFirstInit) await new Promise(r => requestAnimationFrame(r));
+  if (isFirstInit) {
+    await new Promise(r => requestAnimationFrame(r));
+    console.log(`[DeckSync] after RAF wait: overlayKey=${overlayKey} currentOverlay=${currentOverlay}`);
+    if (currentOverlay !== overlayKey) {
+      console.log(`[DeckSync] ABORT after RAF: currentOverlay changed to ${currentOverlay}`);
+      return;
+    }
+  }
   const LayerClass = _getDataShaderLayerClass();
   if (!LayerClass) return;
 
@@ -6191,11 +6202,17 @@ function _loadScript(url) {
   });
 }
 
+let _loadDeckGlPromise = null;
 async function _loadDeckGl() {
   if (window.deck) return;
-  // loaders.gl 3D Tiles を先に読み込み、次に deck.gl 本体
-  await _loadScript('https://unpkg.com/@loaders.gl/3d-tiles@3.4.14/dist/dist.min.js');
-  await _loadScript('https://unpkg.com/deck.gl@8.9.35/dist.min.js');
+  // 複数の呼び出しが同時に走っても同じ Promise を共有して二重ロードを防ぐ
+  if (_loadDeckGlPromise) return _loadDeckGlPromise;
+  _loadDeckGlPromise = (async () => {
+    // loaders.gl 3D Tiles を先に読み込み、次に deck.gl 本体
+    await _loadScript('https://unpkg.com/@loaders.gl/3d-tiles@3.4.14/dist/dist.min.js');
+    await _loadScript('https://unpkg.com/deck.gl@8.9.35/dist.min.js');
+  })();
+  return _loadDeckGlPromise;
 }
 
 function _initDeckOverlay() {
