@@ -2404,6 +2404,41 @@ label.setting-label {
   flex-shrink: 0;
 }
 
+/* ★ テレイン列のお気に入りボタン */
+.miller-item-star {
+  background: none;
+  border: none;
+  padding: 2px 3px;
+  margin-left: 2px;
+  cursor: pointer;
+  color: transparent; /* 通常は非表示（ホバー時に現れる） */
+  flex-shrink: 0;
+  line-height: 1;
+  border-radius: 3px;
+  transition: color 0.12s, transform 0.12s;
+}
+.miller-item:hover .miller-item-star,
+.miller-item-star.active {
+  color: var(--text-muted);
+}
+.miller-item-star:hover {
+  color: #f5c518 !important;
+  transform: scale(1.2);
+}
+.miller-item-star.active {
+  color: #f5c518;
+}
+/* 選択中アイテムでは白で表示 */
+.miller-item.selected .miller-item-star {
+  color: rgba(255,255,255,0.5);
+}
+.miller-item.selected .miller-item-star.active {
+  color: #f5c518;
+}
+.miller-item.selected .miller-item-star:hover {
+  color: #f5c518 !important;
+}
+
 /* テレイン選択後のフレーム一覧ヘッダー */
 .miller-frame-hd {
   padding: 5px 10px;

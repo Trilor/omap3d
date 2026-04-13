@@ -2062,18 +2062,37 @@ function renderMillerColumns() {
   if (terrainCol) {
     for (const { id, name } of terrains) {
       const frameCount = frames.filter(f => f.properties.terrain_id === id).length;
+      const isFav = _favTerrains.has(id);
+
       const item = document.createElement('div');
       item.className = 'miller-item' + (id === millerTerrain ? ' selected' : '');
       item.title = name;
       item.addEventListener('click', () => selectMillerTerrain(id));
+
       const nameSpan = document.createElement('span');
       nameSpan.className = 'miller-item-name';
       nameSpan.textContent = name;
+
       const countSpan = document.createElement('span');
       countSpan.className = 'miller-item-count';
       countSpan.textContent = frameCount;
+
+      // ★ お気に入りボタン
+      const starBtn = document.createElement('button');
+      starBtn.className = 'miller-item-star' + (isFav ? ' active' : '');
+      starBtn.title = isFav ? 'お気に入りから削除' : 'お気に入りに追加';
+      starBtn.setAttribute('aria-label', starBtn.title);
+      starBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="${isFav ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`;
+      starBtn.addEventListener('click', (ev) => {
+        ev.stopPropagation(); // テレイン選択をトリガーしない
+        _toggleFavTerrain(id);
+        renderMillerColumns();  // ★ の状態を即時反映
+        renderLayersPanel();    // レイヤータブ一覧も更新
+      });
+
       item.appendChild(nameSpan);
       item.appendChild(countSpan);
+      item.appendChild(starBtn);
       terrainCol.appendChild(item);
     }
   }
