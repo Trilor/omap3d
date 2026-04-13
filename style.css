@@ -6803,7 +6803,39 @@ select,
   align-items: center;
 }
 
-/* 描画開始/終了ボタン */
+/* ツールバー内の配置トグルボタン（アイコンのみ・active時に紫塗り） */
+.course-draw-toggle-btn.course-draw-active {
+  background-color: #9320b0;
+  border-color: #9320b0;
+  color: #fff;
+}
+.course-draw-toggle-btn.course-draw-active:hover {
+  background-color: #7a1a94;
+  border-color: #7a1a94;
+}
+
+/* 地図上フローティングヒント（トースト） */
+.course-map-toast {
+  position: fixed;
+  /* パネル幅(52px+230px=282px)を考慮してマップ中央に配置 */
+  left: calc(50% + calc(var(--sidebar-w, 282px) / 2));
+  transform: translateX(-50%);
+  top: 14px;
+  background: rgba(25, 8, 36, 0.80);
+  color: #f0e6f8;
+  padding: 7px 20px;
+  border-radius: 20px;
+  font-size: 11.5px;
+  font-family: inherit;
+  pointer-events: none;
+  z-index: 9500;
+  white-space: nowrap;
+  box-shadow: 0 3px 12px rgba(0,0,0,0.28);
+  border: 1px solid rgba(192,32,192,0.35);
+  transition: opacity 0.2s;
+}
+
+/* 描画開始/終了ボタン（旧・互換性のため残す） */
 .course-draw-btn {
   flex: 1;
   display: flex;

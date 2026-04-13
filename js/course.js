@@ -1309,15 +1309,16 @@ function _updateDrawModeUI() {
   if (!btn) return;
   if (_drawMode) {
     btn.classList.add('course-draw-active');
-    btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/></svg> 描画終了`;
+    btn.title = '配置モード終了';
   } else {
     btn.classList.remove('course-draw-active');
-    btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> 描画開始`;
+    btn.title = 'コントロール配置モード';
   }
 }
 
 function _updateDrawHint() {
-  const el = document.getElementById('course-draw-hint');
+  // 地図上フローティングトーストにヒントを表示
+  const el = document.getElementById('course-map-toast');
   if (!el) return;
   if (!_drawMode) { el.style.display = 'none'; el.textContent = ''; return; }
   el.style.display = '';
@@ -1325,7 +1326,7 @@ function _updateDrawHint() {
   if (course.sequence.length === 0)
     el.textContent = '地図をクリックしてスタート（△）を配置';
   else
-    el.textContent = '地図をクリックしてコントロール（○）を追加。最後が自動でフィニッシュ（◎）になります';
+    el.textContent = 'クリックでコントロール（○）を追加 · 右クリックで描画終了';
 }
 
 // ================================================================
