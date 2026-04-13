@@ -27,13 +27,13 @@ let _map = null;
 
 const _plan = {
   name:     'コース1',
-  controls: [],  // { id, type:'start'|'control'|'finish', lng, lat, code }[]
+  controls: [],  // { id, type:'start'|'control', lng, lat, seq }[]
+  // 最後の 'control' が自動的にフィニッシュとして描画される
 };
 
-let _nextId     = 0;        // uid 生成カウンタ
-let _drawMode   = false;    // 描画モード中か
-let _drawFinish = false;    // 次のクリックでフィニッシュを置くか
-let _calcTimer  = null;     // 登高計算デバウンス用タイマー
+let _nextId    = 0;        // uid 生成カウンタ
+let _drawMode  = false;    // 描画モード中か
+let _calcTimer = null;     // 登高計算デバウンス用タイマー
 let _legStats   = [];       // [{ distKm, climb }] ← 各レグの統計キャッシュ
 let _calcAbort  = null;     // 計算キャンセル用フラグオブジェクト
 
@@ -166,15 +166,19 @@ function _scheduleCalc() {
  */
 function _buildSourceData() {
   const features = [];
+  const ctrls = _plan.controls;
+  const lastCtrlIdx = ctrls.length - 1; // 最後のコントロール = フィニッシュ扱い
 
-  // コントロールポイント（スタート・コントロール・フィニッシュ）
-  _plan.controls.forEach(ctrl => {
-    // label: コントロールは下2桁のみ表示（IOF スタイル）。JS 側で計算して渡す
-    const label = ctrl.type === 'control' ? String(ctrl.code).slice(-2) : '';
+  // コントロールポイント（スタート・コントロール）
+  ctrls.forEach((ctrl, idx) => {
+    // 最後のコントロールのみ isFinish=true → 二重円で描画
+    const isFinish = ctrl.type === 'control' && idx === lastCtrlIdx && ctrls.length >= 2;
+    // ラベル: 番号（1,2,3...）を地図上に表示
+    const label = ctrl.type === 'control' ? String(ctrl.seq) : '';
     features.push({
       type: 'Feature',
       geometry: { type: 'Point', coordinates: [ctrl.lng, ctrl.lat] },
-      properties: { id: ctrl.id, type: ctrl.type, code: ctrl.code, label },
+      properties: { id: ctrl.id, type: ctrl.type, seq: ctrl.seq, label, isFinish },
     });
   });
 
@@ -261,10 +265,10 @@ function _initLayers() {
     },
   });
 
-  // ② コントロール円・フィニッシュ外円
+  // ② コントロール外円（type='control' 全て：フィニッシュも含む）
   _map.addLayer({
     id: 'course-ctrl-outer', type: 'circle', source: 'course-source',
-    filter: ['in', ['get', 'type'], ['literal', ['control', 'finish']]],
+    filter: ['==', ['get', 'type'], 'control'],
     paint: {
       'circle-radius':       12,
       'circle-color':        'rgba(0,0,0,0)',
@@ -273,10 +277,10 @@ function _initLayers() {
     },
   });
 
-  // ③ フィニッシュ内円
+  // ③ フィニッシュ内円（isFinish=true の最後のコントロールのみ）
   _map.addLayer({
     id: 'course-finish-inner', type: 'circle', source: 'course-source',
-    filter: ['==', ['get', 'type'], 'finish'],
+    filter: ['==', ['get', 'isFinish'], true],
     paint: {
       'circle-radius':       8,
       'circle-color':        'rgba(0,0,0,0)',
@@ -290,21 +294,23 @@ function _initLayers() {
     id: 'course-start-icon', type: 'symbol', source: 'course-source',
     filter: ['==', ['get', 'type'], 'start'],
     layout: {
-      'icon-image':          'course-start-tri',
-      'icon-size':           1,
-      'icon-allow-overlap':  true,
+      'icon-image':            'course-start-tri',
+      'icon-size':             1,
+      'icon-allow-overlap':    true,
       'icon-ignore-placement': true,
     },
   });
 
-  // ⑤ コントロール番号ラベル（JS 側で計算した label プロパティを使用）
+  // ⑤ コントロール番号ラベル（円の上に表示）
   _map.addLayer({
     id: 'course-labels', type: 'symbol', source: 'course-source',
     filter: ['==', ['get', 'type'], 'control'],
     layout: {
-      'text-field':            ['get', 'label'],  // JS 側で下2桁に加工済み
-      'text-size':             10,
+      'text-field':            ['get', 'label'],   // '1', '2', '3'...
+      'text-size':             11,
       'text-font':             ['Open Sans Bold', 'Arial Unicode MS Bold'],
+      'text-anchor':           'bottom',
+      'text-offset':           [0, -1.1],          // 円の上に配置
       'text-allow-overlap':    true,
       'text-ignore-placement': true,
     },
@@ -368,37 +374,18 @@ function _endDrag() {
 
 function _addControl(lng, lat) {
   const ctrls = _plan.controls;
-  let type, code;
+  let type;
 
   if (ctrls.length === 0) {
-    type = 'start'; code = 'S';
-  } else if (_drawFinish) {
-    type = 'finish'; code = 'F';
-    _drawFinish = false;
+    type = 'start';
   } else {
     type = 'control';
-    const numCtrl = ctrls.filter(c => c.type === 'control').length;
-    code = String(101 + numCtrl);
   }
 
-  const ctrl = { id: 'c' + (_nextId++), type, lng, lat, code };
-
-  // フィニッシュが既にある場合はその直前に挿入
-  if (type === 'control') {
-    const finIdx = ctrls.findIndex(c => c.type === 'finish');
-    if (finIdx !== -1) {
-      ctrls.splice(finIdx, 0, ctrl);
-      _renumberControls();
-      _refreshSource();
-      _scheduleCalc();
-      _renderPanel();
-      return;
-    }
-  }
-
+  // seq・code は _renumberControls() で後から設定
+  const ctrl = { id: 'c' + (_nextId++), type, lng, lat, seq: 0, code: '' };
   ctrls.push(ctrl);
-  if (type === 'finish') _setDrawMode(false);
-
+  _renumberControls();
   _refreshSource();
   _scheduleCalc();
   _renderPanel();
@@ -414,10 +401,19 @@ function _deleteControl(id) {
   _renderPanel();
 }
 
+/**
+ * コントロールの連番（seq: 1,2,3...）を振り直す。
+ * · seq  : 常に位置順に再計算（地図上ラベル表示用）
+ * · code : 新規追加時（code===''）のみ自動設定。ユーザーが編集済みの値は保持。
+ */
 function _renumberControls() {
   let n = 0;
   _plan.controls.forEach(c => {
-    if (c.type === 'control') c.code = String(101 + n++);
+    if (c.type === 'control') {
+      n++;
+      c.seq = n;
+      if (!c.code) c.code = String(100 + n); // 新規追加時のみ自動採番
+    }
   });
 }
 
@@ -441,31 +437,20 @@ function _setDrawMode(active) {
   } else {
     _map.getCanvas().style.cursor = '';
     _map.off('click', _onMapClick);
-    _drawFinish = false;
   }
   _updateDrawModeUI();
   _updateDrawHint();
 }
 
 function _updateDrawModeUI() {
-  const btn    = document.getElementById('course-draw-toggle');
-  const finBtn = document.getElementById('course-add-finish-btn');
+  const btn = document.getElementById('course-draw-toggle');
   if (!btn) return;
-
-  const hasStart  = _plan.controls.some(c => c.type === 'start');
-  const hasFinish = _plan.controls.some(c => c.type === 'finish');
-
   if (_drawMode) {
     btn.classList.add('course-draw-active');
     btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/></svg> 描画終了`;
-    if (finBtn) {
-      finBtn.style.display = '';
-      finBtn.disabled = !hasStart || hasFinish || _drawFinish;
-    }
   } else {
     btn.classList.remove('course-draw-active');
     btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> 描画開始`;
-    if (finBtn) finBtn.style.display = 'none';
   }
 }
 
@@ -474,12 +459,9 @@ function _updateDrawHint() {
   if (!el) return;
   if (!_drawMode) { el.style.display = 'none'; el.textContent = ''; return; }
   el.style.display = '';
-  const hasStart  = _plan.controls.some(c => c.type === 'start');
-  const hasFinish = _plan.controls.some(c => c.type === 'finish');
-  if (!hasStart)       el.textContent = '地図をクリックしてスタート（△）を配置';
-  else if (_drawFinish) el.textContent = '地図をクリックしてフィニッシュ（◎）を配置';
-  else if (hasFinish)  el.textContent = '地図をクリックでコントロールを追加（フィニッシュの前に挿入）';
-  else                 el.textContent = '地図をクリックしてコントロール（○）を追加';
+  const hasStart = _plan.controls.some(c => c.type === 'start');
+  if (!hasStart) el.textContent = '地図をクリックしてスタート（△）を配置';
+  else           el.textContent = '地図をクリックしてコントロール（○）を追加。最後が自動でフィニッシュ（◎）になります';
 }
 
 // ================================================================
@@ -494,16 +476,15 @@ function _svgStart(size = 24) {
   </svg>`;
 }
 
-function _svgControl(code, size = 24) {
-  const m = size / 2, r = m - 1.5, fs = Math.round(size * 0.36);
-  const label = code ? String(code).slice(-2) : '';
+/** コントロール円（サイドバー一覧用 SVG） */
+function _svgControl(size = 24) {
+  const m = size / 2, r = m - 1.5;
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
     <circle cx="${m}" cy="${m}" r="${r}" fill="none" stroke="${COURSE_COLOR}" stroke-width="2"/>
-    <text x="${m}" y="${m + fs * 0.38}" text-anchor="middle" fill="${COURSE_COLOR}"
-          font-size="${fs}" font-weight="bold" font-family="sans-serif">${label}</text>
   </svg>`;
 }
 
+/** フィニッシュ二重円（サイドバー一覧用 SVG） */
 function _svgFinish(size = 24) {
   const m = size / 2;
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
@@ -512,10 +493,14 @@ function _svgFinish(size = 24) {
   </svg>`;
 }
 
-function _ctrlSvg(ctrl) {
+/**
+ * サイドバーリスト用 SVG を返す。
+ * isFinish: 最後のコントロール（自動フィニッシュ）かどうか
+ */
+function _ctrlSvg(ctrl, isFinish) {
   if (ctrl.type === 'start')  return _svgStart();
-  if (ctrl.type === 'finish') return _svgFinish();
-  return _svgControl(ctrl.code);
+  if (isFinish)               return _svgFinish();
+  return _svgControl();
 }
 
 // ================================================================
@@ -561,12 +546,16 @@ function _renderPanel() {
     }
   }
 
+  // コントロール数（スタートを除く。最後はフィニッシュ扱いだがカウントに含める）
   const numCtrls = ctrls.filter(c => c.type === 'control').length;
   if (countEl) countEl.textContent = numCtrls + ' 個';
+
+  const lastCtrlIdx = ctrls.length - 1;
 
   // コントロールリスト
   listEl.innerHTML = '';
   ctrls.forEach((ctrl, idx) => {
+    const isFinish = ctrl.type === 'control' && idx === lastCtrlIdx && ctrls.length >= 2;
     const legDist = idx > 0
       ? turf.distance(
           turf.point([ctrls[idx - 1].lng, ctrls[idx - 1].lat]),
@@ -581,27 +570,44 @@ function _renderPanel() {
 
     const symDiv = document.createElement('div');
     symDiv.className = 'course-ctrl-sym';
-    symDiv.innerHTML = _ctrlSvg(ctrl);
+    symDiv.innerHTML = _ctrlSvg(ctrl, isFinish);
 
     const infoDiv = document.createElement('div');
     infoDiv.className = 'course-ctrl-info';
 
-    if (ctrl.type === 'start' || ctrl.type === 'finish') {
+    if (ctrl.type === 'start') {
       const lbl = document.createElement('span');
-      lbl.className   = 'course-ctrl-type-label';
-      lbl.textContent = ctrl.type === 'start' ? 'スタート' : 'フィニッシュ';
+      lbl.className = 'course-ctrl-type-label';
+      lbl.textContent = 'スタート';
       infoDiv.appendChild(lbl);
     } else {
+      // コントロール・フィニッシュ: コードは編集可能なまま残す
+      const labelRow = document.createElement('div');
+      labelRow.className = 'course-ctrl-label-row';
+
+      if (isFinish) {
+        const badge = document.createElement('span');
+        badge.className = 'course-ctrl-finish-badge';
+        badge.textContent = 'F';
+        badge.title = 'フィニッシュ（最後のコントロール）';
+        labelRow.appendChild(badge);
+      } else {
+        const seqBadge = document.createElement('span');
+        seqBadge.className = 'course-ctrl-seq-badge';
+        seqBadge.textContent = ctrl.seq;
+        labelRow.appendChild(seqBadge);
+      }
+
       const inp = document.createElement('input');
       inp.type = 'text'; inp.className = 'course-ctrl-code-input';
-      inp.value = ctrl.code; inp.maxLength = 5;
-      inp.title = 'コントロールコードを編集';
+      inp.value = ctrl.code; inp.maxLength = 6;
+      inp.title = 'コントロールコード（編集可）';
       inp.addEventListener('change', () => {
         ctrl.code = inp.value.trim() || ctrl.code;
         inp.value = ctrl.code;
-        _refreshSource(); // ラベルレイヤーも同時更新
       });
-      infoDiv.appendChild(inp);
+      labelRow.appendChild(inp);
+      infoDiv.appendChild(labelRow);
     }
 
     if (legDist != null) {
@@ -632,7 +638,7 @@ function _exportJSON() {
   const data = {
     version: 1, name: _plan.name,
     controls: _plan.controls.map(c => ({
-      type: c.type, code: c.code,
+      type: c.type, seq: c.seq ?? 0, code: c.code ?? '',
       lng: +c.lng.toFixed(7), lat: +c.lat.toFixed(7),
     })),
   };
@@ -655,8 +661,13 @@ function _importJSON(text) {
       if (el) el.value = _plan.name;
     }
     data.controls.forEach(c => {
-      _plan.controls.push({ id: 'c' + (_nextId++), type: c.type, lng: c.lng, lat: c.lat, code: c.code });
+      _plan.controls.push({
+        id: 'c' + (_nextId++), type: c.type,
+        lng: c.lng, lat: c.lat,
+        seq: c.seq ?? 0, code: c.code ?? '',
+      });
     });
+    _renumberControls(); // seq を正しく振り直す
     _refreshSource();
     _scheduleCalc();
     _renderPanel();
@@ -700,12 +711,6 @@ function _setupUI() {
 
   document.getElementById('course-draw-toggle')?.addEventListener('click', () => {
     _setDrawMode(!_drawMode);
-  });
-
-  document.getElementById('course-add-finish-btn')?.addEventListener('click', () => {
-    _drawFinish = true;
-    if (!_drawMode) _setDrawMode(true);
-    _updateDrawHint(); _updateDrawModeUI();
   });
 
   document.getElementById('course-export-btn')?.addEventListener('click', _exportJSON);
