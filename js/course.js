@@ -302,7 +302,7 @@ function _openDropdown(anchorEl, options, onSelect) {
   const menu = document.createElement('div');
   menu.className = 'course-dd-menu';
 
-  options.forEach(({ value, html, color }) => {
+  options.forEach(({ value, html, color, node }) => {
     const opt = document.createElement('div');
     opt.className = 'course-dd-opt';
     // 左端カラーバー
@@ -315,7 +315,11 @@ function _openDropdown(anchorEl, options, onSelect) {
     inner.className = 'cdd-opt-inner';
     inner.innerHTML = html;
     opt.appendChild(inner);
+    // オプション固有のアクションボタン（編集・削除など）
+    if (node) opt.appendChild(node);
     opt.addEventListener('mousedown', e => {
+      // ボタン自身の mousedown が stopPropagation 済みのため、
+      // ここに到達するのは項目本体クリック時のみ
       e.stopPropagation();
       _closeDdMenu();
       onSelect(value);
@@ -1384,7 +1388,7 @@ function _renderCourseTab() {
 
       // stats を色付き HTML に変換するヘルパー
       const fmtStatHtml = (distM, stat) => {
-        let html = `<span class="cdd-dist">↔ ${distM} m</span>`;
+        let html = `<span class="cdd-dist">${distM} m</span>`;
         if (stat === null) {
           html += ` <span class="cdd-computing">…</span>`;
         } else {
@@ -1450,13 +1454,52 @@ function _renderCourseTab() {
       ddBtn.addEventListener('click', e => {
         e.stopPropagation();
         if (_openDdMenu) { _closeDdMenu(); return; }
-        _openDropdown(ddBtn, ddOptions.map(o => ({
-          value: o.value,
-          color: o.color,
-          html: o.color
-            ? `<span class="cdd-swatch" style="background:${o.color}"></span><span class="cdd-text">${o.html}</span>`
-            : `<span class="cdd-text cdd-text--direct">${o.html}</span>`,
-        })), val => {
+        _openDropdown(ddBtn, ddOptions.map(o => {
+          // ルートチョイス項目には編集・削除ボタンを付与
+          let node = null;
+          if (o.value !== 'direct') {
+            const route = routes.find(r => r.id === o.value);
+            if (route) {
+              const actions = document.createElement('span');
+              actions.className = 'cdd-opt-actions';
+
+              const editBtn = document.createElement('button');
+              editBtn.className = 'cdd-opt-edit-btn';
+              editBtn.textContent = (hasEdit && _editRoute?.routeId === route.id) ? '完了' : '編集';
+              editBtn.addEventListener('mousedown', e2 => {
+                e2.stopPropagation();
+                _closeDdMenu();
+                if (_editRoute?.routeId === route.id) {
+                  _editRoute = null; _refreshSource(); _renderPanel();
+                } else {
+                  _startEditRoute(key, route.id);
+                }
+              });
+
+              const delBtn = document.createElement('button');
+              delBtn.className = 'cdd-opt-del-btn';
+              delBtn.title = 'ルートを削除';
+              delBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="2" y1="2" x2="10" y2="10"/><line x1="10" y1="2" x2="2" y2="10"/></svg>`;
+              delBtn.addEventListener('mousedown', e2 => {
+                e2.stopPropagation();
+                _closeDdMenu();
+                _deleteRoute(key, route.id);
+              });
+
+              actions.appendChild(editBtn);
+              actions.appendChild(delBtn);
+              node = actions;
+            }
+          }
+          return {
+            value: o.value,
+            color: o.color,
+            node,
+            html: o.color
+              ? `<span class="cdd-swatch" style="background:${o.color}"></span><span class="cdd-text">${o.html}</span>`
+              : `<span class="cdd-text cdd-text--direct">${o.html}</span>`,
+          };
+        }), val => {
           if (val === 'direct') {
             _selectedRoutes.delete(key);
           } else {
@@ -1488,54 +1531,6 @@ function _renderCourseTab() {
       selRow.appendChild(addBtn);
       legContent.appendChild(selRow);
 
-      // ─── ルートチョイス管理行（スウォッチ + 編集 + 削除）───────
-      if (routes.length > 0) {
-        const routeList = document.createElement('div');
-        routeList.className = 'course-route-list';
-        routes.forEach((route, ri) => {
-          const rItem = document.createElement('div');
-          rItem.className = 'course-route-item';
-          if (hasEdit && _editRoute.routeId === route.id) rItem.classList.add('is-editing');
-
-          // 色スウォッチ
-          const swatch = document.createElement('span');
-          swatch.className = 'course-route-swatch';
-          swatch.style.background = routeColor(route.colorIdx);
-
-          // ルート番号
-          const rLabel = document.createElement('span');
-          rLabel.className = 'course-route-label';
-          rLabel.textContent = `ルート${ri + 1}`;
-
-          // 編集トグルボタン
-          const editBtn = document.createElement('button');
-          editBtn.className = 'course-route-edit-btn';
-          editBtn.title = '頂点を編集';
-          editBtn.textContent = hasEdit && _editRoute.routeId === route.id ? '完了' : '編集';
-          editBtn.addEventListener('click', e => {
-            e.stopPropagation();
-            if (_editRoute?.routeId === route.id) {
-              _editRoute = null; _refreshSource(); _renderPanel();
-            } else {
-              _startEditRoute(key, route.id);
-            }
-          });
-
-          // 削除ボタン
-          const delRBtn = document.createElement('button');
-          delRBtn.className = 'course-route-del-btn';
-          delRBtn.title = 'ルートを削除';
-          delRBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="2" y1="2" x2="10" y2="10"/><line x1="10" y1="2" x2="2" y2="10"/></svg>`;
-          delRBtn.addEventListener('click', e => { e.stopPropagation(); _deleteRoute(key, route.id); });
-
-          rItem.appendChild(swatch);
-          rItem.appendChild(rLabel);
-          rItem.appendChild(editBtn);
-          rItem.appendChild(delRBtn);
-          routeList.appendChild(rItem);
-        });
-        legContent.appendChild(routeList);
-      }
 
       legRow.appendChild(lineDiv);
       legRow.appendChild(legContent);

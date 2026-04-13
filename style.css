@@ -7281,6 +7281,43 @@ select,
   font-style: italic;
 }
 
+/* ドロップダウン項目内のアクションボタン（編集・削除） */
+.cdd-opt-actions {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+  padding-right: 6px;
+}
+.cdd-opt-edit-btn,
+.cdd-opt-del-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1px 5px;
+  border: 1px solid var(--border-input);
+  border-radius: 3px;
+  background: var(--bg-surface);
+  color: var(--text-muted);
+  font-size: 9px;
+  font-family: inherit;
+  cursor: pointer;
+  line-height: 1.4;
+}
+.cdd-opt-edit-btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+.cdd-opt-del-btn {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+}
+.cdd-opt-del-btn:hover {
+  border-color: #e05050;
+  color: #e05050;
+}
+
 /* ＋ / キャンセルボタン（アイコンのみ） */
 .course-leg-add-btn {
   flex-shrink: 0;
