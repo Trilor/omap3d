@@ -5866,6 +5866,13 @@ var _deckDataLayers = { slope: [], 'color-relief': [], curvature: [] };
 var _DataShaderLayerClass = null;
 var _dataDeckSyncRafs = {}; // overlayKey → RAF ID
 
+function _expandDeckTileUrl(template, tile) {
+  return template
+    .replace('{z}', String(tile.index.z))
+    .replace('{x}', String(tile.index.x))
+    .replace('{y}', String(tile.index.y));
+}
+
 function _commitDeckLayers() {
   if (!_deckOverlay) return;
   const dataLayers = Object.values(_deckDataLayers).flat();
@@ -6045,14 +6052,7 @@ async function _syncDataOverlayDeckLayers(overlayKey) {
   await _loadDeckGl();
   if (currentOverlay !== overlayKey) return;
 
-  const isFirstInit = !_deckOverlay;
   _initDeckOverlay();
-  // 初回 addControl 時、Deck.gl 内部が非同期で setProps({layers:[]}) を呼ぶ。
-  // それより後に commit しないとレイヤーが上書きされて消えるため 1 フレーム待つ。
-  if (isFirstInit) {
-    await new Promise(r => requestAnimationFrame(r));
-    if (currentOverlay !== overlayKey) return;
-  }
   const LayerClass = _getDataShaderLayerClass();
   if (!LayerClass) return;
 
@@ -6083,22 +6083,12 @@ async function _syncDataOverlayDeckLayers(overlayKey) {
   const qOnlyUrl  = cfg.qOnlyUrl();
   // renderSubLayers の再呼び出しトリガー: uniform に影響する値が変わったときに通知
   const subLayerTrigger = [renderMin, renderMax, cfg.getPaletteId(), opacity];
-  // getTileData: relief-data:// / slope-data:// は fetch() では解決できないため、
-  // tile.index から URL を組み立てて generateTile（MapLibre プロトコルハンドラー）を呼ぶ。
-  // Deck.gl TileLayer は getTileData が定義されていれば data を自動フェッチしないが、
-  // data=null だとタイル要求自体が始まらないため識別用文字列を渡す。
   const makeTileDataLoader = (template) => async (tile) => {
-    const url = template
-      .replace('{z}', String(tile.index.z))
-      .replace('{x}', String(tile.index.x))
-      .replace('{y}', String(tile.index.y));
-    const result = await cfg.generateTile(url, tile.signal, true);
+    // returnBitmap=true で PNG エンコード/デコードの往復を省略
+    const result = await cfg.generateTile(_expandDeckTileUrl(template, tile), tile.signal, true);
     if (!result) return null;
     return result.bitmap ?? await createImageBitmap(new Blob([result.data], { type: 'image/png' }));
   };
-  // data に null を渡すと Deck.gl がタイル要求を開始しないため、
-  // カスタムスキームURLをそのまま渡して getTileData で上書きする
-  // （Deck.gl 8.9 は getTileData がある場合 data を fetch しない）
 
   // ================================================================
   // ズームレベル別レイヤー構成
@@ -6183,13 +6173,9 @@ async function _loadDeckGl() {
 function _initDeckOverlay() {
   if (_deckOverlay || !window.deck) return;
   // interleaved: true で deck.gl を MapLibre の WebGL パイプライン内に挿入する。
-  // 各 TileLayer の beforeId で等高線レイヤーの直前（下）に入れ、
-  // MapLibre 内の描画順を制御する。
-  // 注意: addControl 完了後に Deck.gl 内部が setProps({layers:[]}) を呼ぶため、
-  // ここでは _commitDeckLayers を呼ばない。呼び出し元の _syncDataOverlayDeckLayers で
-  // レイヤーを設定してから commit する。
   _deckOverlay = new deck.MapboxOverlay({ interleaved: true, layers: [] });
   map.addControl(_deckOverlay);
+  _commitDeckLayers();
 }
 
 
