@@ -6107,8 +6107,10 @@ async function _syncDataOverlayDeckLayers(overlayKey) {
   const currentZoom = map?.getZoom() ?? 0;
   const showHighRes = currentZoom >= 15.5; // deck.gl は Math.round なので 15.5 → z16
 
-  // Deck.gl interleaved モードで beforeId を使わない場合、MapLibre の全レイヤーより前面に描画される。
-  // 等高線より下への挿入は断念し、色別標高図/傾斜図/曲率図を最前面で表示する。
+  // interleaved モードで等高線レイヤーの直前（下）に描画するための beforeId
+  const _beforeContour = ['contour-regular-dem1a', 'contour-regular-dem5a', 'contour-regular']
+    .find(id => map.getLayer(id));
+
   const layers = [
     new deck.TileLayer({
       id: `${cfg.layerIdPrefix}-base`,
@@ -6116,6 +6118,7 @@ async function _syncDataOverlayDeckLayers(overlayKey) {
       getTileData: makeTileDataLoader(qBlendUrl),
       renderSubLayers: mkSubLayer,
       updateTriggers: { renderSubLayers: subLayerTrigger },
+      beforeId: _beforeContour,
     }),
   ];
 
@@ -6126,6 +6129,7 @@ async function _syncDataOverlayDeckLayers(overlayKey) {
       getTileData: makeTileDataLoader(qOnlyUrl),
       renderSubLayers: mkSubLayer,
       updateTriggers: { renderSubLayers: subLayerTrigger },
+      beforeId: _beforeContour,
     }));
     cfg.regionalLayers.forEach((layer) => {
       const url = cfg.toDataUrl(layer.tileUrl);
@@ -6138,6 +6142,7 @@ async function _syncDataOverlayDeckLayers(overlayKey) {
         getTileData: makeTileDataLoader(url),
         renderSubLayers: mkSubLayer,
         updateTriggers: { renderSubLayers: subLayerTrigger },
+        beforeId: _beforeContour,
       }));
     });
   }
