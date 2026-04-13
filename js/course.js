@@ -63,7 +63,7 @@ const _routeStatsCache  = new Map(); // routeId → { distKm, climb, descent } |
 let _openDdMenu      = null;  // 現在開いているドロップダウンメニュー（body 配下）
 let _dragCtrl        = null;  // ドラッグ中のコントロール定義（_controlDefs の value）
 let _activeCtrlId    = null;  // 選択中コントロールの defId（選択モード）
-let _activeTab       = 'course'; // 'course' | 'controls'
+let _activeTab       = 'course'; // 'course' | 'controls'（コースタブは activeCourseIdx と連動）
 let _previewSnapping = false;    // 前フレームのスナップ状態（setPaintProperty 呼び出し抑制用）
 
 // ================================================================
@@ -427,15 +427,28 @@ function _openDropdown(anchorEl, options, onSelect) {
 
 /**
  * アクティブコースの全フィーチャーを 1 つの FeatureCollection にまとめる。
- * マスター定義の座標を直接参照するため、座標変更が全コースに即時反映される。
- * 含まれるフィーチャー種別:
- *   'leg'      — コース結線（LineString）
- *   'start'    — スタート三角（Point, bearing プロパティ付き）
- *   'control'  — コントロール円（Point）
- *   'route'    — ルートチョイス線（LineString, colorIdx プロパティ付き）
+ * 全コントロールタブ表示時は全 def をコード番号で表示し、レッグ線・ルートを非表示。
  */
 function _buildSourceData() {
   const features = [];
+
+  // ── 全コントロールタブ表示時 ──────────────────────────────
+  if (_activeTab === 'controls') {
+    _controlDefs.forEach(def => {
+      features.push({
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [def.lng, def.lat] },
+        properties: {
+          id: def.defId, type: 'control', seq: 0,
+          label: def.code || '', isFinish: false,
+          selected: def.defId === _activeCtrlId, bearing: 0,
+        },
+      });
+    });
+    return { type: 'FeatureCollection', features };
+  }
+
+  // ── コースタブ表示時（従来処理）──────────────────────────
   const seqInfo  = _buildSequenceInfo();
   const course   = _activeCourse();
 
@@ -566,10 +579,10 @@ function _buildRoutePreviewData(cursorLngLat) {
   };
 }
 
-function _refreshSource() {
+function _refreshSource(save = true) {
   const src = _map?.getSource('course-source');
   if (src) src.setData(_buildSourceData());
-  _scheduleSave();
+  if (save) _scheduleSave();
 }
 
 // ================================================================
@@ -1221,6 +1234,52 @@ function _deleteDefFromAll(defId) {
 }
 
 // ================================================================
+// コース追加・削除
+// ================================================================
+
+function _addCourse() {
+  _pushHistory();
+  const idx = _courses.length;
+  _courses.push({
+    id:         'course' + idx,
+    name:       `コース${idx + 1}`,
+    sequence:   [],
+    legRoutes:  {},
+  });
+  _activeCourseIdx = _courses.length - 1;
+  _activeTab = 'course';
+  _activeCtrlId = null;
+  _editRoute    = null;
+  _legStats     = [];
+  _refreshSource();
+  _renderPanel();
+}
+
+function _deleteCourse(idx) {
+  if (_courses.length <= 1) return;
+  if (!confirm(`「${_courses[idx].name}」を削除しますか？`)) return;
+  _pushHistory();
+
+  // このコースのみで使われている def をマスターから削除
+  const otherUsed = new Set(
+    _courses.flatMap((c, ci) => ci === idx ? [] : c.sequence)
+  );
+  _courses[idx].sequence.forEach(id => { if (!otherUsed.has(id)) _controlDefs.delete(id); });
+
+  _courses.splice(idx, 1);
+  if (_activeCourseIdx >= _courses.length) _activeCourseIdx = _courses.length - 1;
+  _activeTab    = 'course';
+  _activeCtrlId = null;
+  _editRoute    = null;
+  _legStats     = [];
+  _selectedRoutes.clear();
+  _routeStatsCache.clear();
+  _refreshSource();
+  _scheduleCalc();
+  _renderPanel();
+}
+
+// ================================================================
 // 描画モード制御
 // ================================================================
 
@@ -1310,6 +1369,11 @@ function _renderPanel() {
   _updateDrawModeUI();
   _updateDrawHint();
   _updateTabUI();
+  _updateCourseSelect();
+  _refreshSource(false); // タブ切り替えで地図表示を同期（保存は不要）
+  // コース名入力をアクティブコースに同期
+  const nameInput = document.getElementById('course-name-input');
+  if (nameInput) nameInput.value = _activeCourse().name;
   if (_activeTab === 'course')   _renderCourseTab();
   else                           _renderDefsTab();
 }
@@ -1322,6 +1386,22 @@ function _updateTabUI() {
   document.querySelectorAll('.course-tab-pane').forEach(pane => {
     pane.style.display = pane.dataset.tab === _activeTab ? '' : 'none';
   });
+}
+
+/** コース選択プルダウンを更新 */
+function _updateCourseSelect() {
+  const sel = document.getElementById('course-select');
+  const delBtn = document.getElementById('course-del-btn');
+  if (!sel) return;
+  sel.innerHTML = '';
+  _courses.forEach((c, i) => {
+    const opt = document.createElement('option');
+    opt.value = i;
+    opt.textContent = c.name;
+    if (i === _activeCourseIdx) opt.selected = true;
+    sel.appendChild(opt);
+  });
+  if (delBtn) delBtn.disabled = _courses.length <= 1;
 }
 
 /**
@@ -2107,12 +2187,12 @@ function _setupUI() {
   const nameInput = document.getElementById('course-name-input');
   if (nameInput) {
     nameInput.value = _activeCourse().name;
-    nameInput.addEventListener('input', () => { _activeCourse().name = nameInput.value || 'コース'; });
+    nameInput.addEventListener('input', () => {
+      _activeCourse().name = nameInput.value || 'コース';
+      _updateTabUI(); // タブラベルを即時更新
+      _scheduleSave();
+    });
   }
-
-  document.getElementById('course-draw-toggle')?.addEventListener('click', () => {
-    _setDrawMode(!_drawMode);
-  });
 
   // タブ切り替え
   document.querySelectorAll('.course-tab-btn').forEach(btn => {
@@ -2120,6 +2200,29 @@ function _setupUI() {
       _activeTab = btn.dataset.tab;
       _renderPanel();
     });
+  });
+
+  // コース選択プルダウン
+  document.getElementById('course-select')?.addEventListener('change', e => {
+    _activeCourseIdx = Number(e.target.value);
+    _activeCtrlId = null;
+    _editRoute    = null;
+    _legStats     = [];
+    _refreshSource();
+    _scheduleCalc();
+    _renderPanel();
+  });
+
+  // コース追加ボタン
+  document.getElementById('course-add-btn')?.addEventListener('click', _addCourse);
+
+  // コース削除ボタン
+  document.getElementById('course-del-btn')?.addEventListener('click', () => {
+    _deleteCourse(_activeCourseIdx);
+  });
+
+  document.getElementById('course-draw-toggle')?.addEventListener('click', () => {
+    _setDrawMode(!_drawMode);
   });
 
   document.getElementById('course-export-btn')?.addEventListener('click', _exportJSON);

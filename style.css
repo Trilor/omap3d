@@ -7075,6 +7075,44 @@ select,
   border-bottom-color: var(--primary);
   font-weight: 600;
 }
+/* コース選択プルダウン行 */
+.course-select-row {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.course-select {
+  flex: 1;
+  min-width: 0;
+}
+.course-mgr-btn {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--border-input);
+  border-radius: 4px;
+  background: var(--bg-surface);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: border-color 0.12s, color 0.12s;
+}
+.course-mgr-btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+.course-mgr-del:hover {
+  border-color: #e05050;
+  color: #e05050;
+}
+.course-mgr-del:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
 
 .course-tab-pane {
   padding-top: 8px;
