@@ -1984,7 +1984,7 @@ maplibregl.addProtocol('data-render', async (params, abortController) => {
     const url = params.url;
     // パスから overlayKey/z/x/y を抽出
     const m = url.match(/^data-render:\/\/([^/?]+)\/(\d+)\/(\d+)\/(\d+)/);
-    if (!m) { console.warn('[data-render] URL パース失敗:', url); return { data: _transparentPngBuffer() }; }
+    if (!m) return { data: _transparentPngBuffer() };
     const [, overlayKey, zs, xs, ys] = m;
 
     // クエリパラメータ抽出（? 以降を直接パース）
@@ -1999,7 +1999,6 @@ maplibregl.addProtocol('data-render', async (params, abortController) => {
       { t: 0, r: 0, g: 0, b: 0 }, { t: 1, r: 255, g: 255, b: 255 },
     ];
 
-    console.log(`[data-render] ${overlayKey} z${zs}/${xs}/${ys} min=${renderMin} max=${renderMax}`);
 
     // 1. キャッシュ確認
     const cacheKey = `${overlayKey}/${zs}/${xs}/${ys}`;
@@ -2008,16 +2007,15 @@ maplibregl.addProtocol('data-render', async (params, abortController) => {
     if (!entry) {
       // 2. 数値タイル生成
       const generateFn = _DATA_GENERATE_FNS[overlayKey];
-      if (!generateFn) { console.warn('[data-render] generateFn なし:', overlayKey); return { data: _transparentPngBuffer() }; }
+      if (!generateFn) return { data: _transparentPngBuffer() };
 
       const host = QCHIZU_DEM_BASE.replace(/^https?:\/\//, '');
       const makeUrl = _DATA_BASE_URLS[overlayKey];
       if (!makeUrl) return { data: _transparentPngBuffer() };
       const dataUrl = makeUrl(host).replace('{z}', zs).replace('{x}', xs).replace('{y}', ys);
 
-      console.log(`[data-render] generateTile: ${dataUrl}`);
       const result = await generateFn(dataUrl, abortController.signal, true);
-      if (!result?.bitmap) { console.warn('[data-render] bitmap なし'); return { data: _transparentPngBuffer() }; }
+      if (!result?.bitmap) return { data: _transparentPngBuffer() };
 
       // ImageBitmap → ImageData に変換してキャッシュ
       const canvas = new OffscreenCanvas(result.bitmap.width, result.bitmap.height);
@@ -2027,9 +2025,6 @@ maplibregl.addProtocol('data-render', async (params, abortController) => {
       const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
       entry = { imageData, width: canvas.width, height: canvas.height };
       _dataTileCacheSet(cacheKey, entry);
-      console.log(`[data-render] キャッシュ保存: ${cacheKey}`);
-    } else {
-      console.log(`[data-render] キャッシュヒット: ${cacheKey}`);
     }
 
     // 3. CPU 色塗り
@@ -2040,7 +2035,6 @@ maplibregl.addProtocol('data-render', async (params, abortController) => {
     return { data: await blob.arrayBuffer() };
   } catch (e) {
     if (e?.name === 'AbortError') throw e;
-    console.error('[data-render] エラー:', e);
     return { data: _transparentPngBuffer() };
   }
 });
