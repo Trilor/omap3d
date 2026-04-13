@@ -653,61 +653,57 @@ map.on('load', async () => {
       ========================================================
     */
 
-  // 色別標高図（dem2relief://プロトコル・相対カラースケール）
-  // min/max パラメータはスライダー操作時に setTiles() で動的更新する
+  // 色別標高図（data-render:// プロトコル経由で CPU 着色）
+  // 初期タイルは空ダミー。選択時に scheduleDataOverlayDeckSync が setTiles() で差し替える。
   map.addSource('color-relief', {
     type: 'raster',
-    tiles: [`dem2relief://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp?min=0&max=500&_init=1`],
+    tiles: ['data-render-init://{z}/{x}/{y}'],
     tileSize: 256,
     minzoom: 5,
-    maxzoom: 15, // z16+ は MapLibre がオーバーズーム（DEM5A 上限に合わせる）
+    maxzoom: 15,
     attribution: '',
   });
-  // 色別標高図レイヤーは等高線レイヤーの下（beforeId）に挿入する。
-  // 等高線が色別標高図の上に重なって常に見えるようにするため。
+  // 等高線レイヤーの下（beforeId）に挿入 — terrain 互換・描画順を保証
   map.addLayer({
     id: 'color-relief-layer',
     type: 'raster',
     source: 'color-relief',
-    // visibility:none で追加すると WebGL シェーダーが未初期化のまま残り
-    // 初回レンダリング時に draw_raster.ts で TypeError が発生するため、
-    // 常に visible を維持し opacity=0 で非表示制御する
-    layout: { visibility: 'visible' },
-    paint: { 'raster-opacity': 0, 'raster-fade-duration': 0, 'raster-opacity-transition': { duration: 0, delay: 0 } },
+    layout: { visibility: 'none' },
+    paint: { 'raster-opacity': 1, 'raster-fade-duration': 0, 'raster-opacity-transition': { duration: 0, delay: 0 } },
   }, map.getLayer('contour-regular-dem1a') ? 'contour-regular-dem1a' : undefined);
 
-  // 傾斜量図（dem2slope://プロトコル）
+  // 傾斜量図（data-render:// プロトコル経由で CPU 着色）
   map.addSource('slope-relief', {
     type: 'raster',
-    tiles: [`dem2slope://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp?min=0&max=45&_init=1`],
+    tiles: ['data-render-init://{z}/{x}/{y}'],
     tileSize: 256,
     minzoom: 5,
-    maxzoom: 15, // z16+ は MapLibre がオーバーズーム（DEM5A 上限に合わせる）
+    maxzoom: 15,
     attribution: '',
   });
   map.addLayer({
     id: 'slope-relief-layer',
     type: 'raster',
     source: 'slope-relief',
-    layout: { visibility: 'visible' },
-    paint: { 'raster-opacity': 0, 'raster-fade-duration': 0, 'raster-opacity-transition': { duration: 0, delay: 0 } },
+    layout: { visibility: 'none' },
+    paint: { 'raster-opacity': 1, 'raster-fade-duration': 0, 'raster-opacity-transition': { duration: 0, delay: 0 } },
   }, map.getLayer('contour-regular-dem1a') ? 'contour-regular-dem1a' : undefined);
 
-  // 色別曲率図（dem2curve://プロトコル）
+  // 色別曲率図（data-render:// プロトコル経由で CPU 着色）
   map.addSource('curvature-relief', {
     type: 'raster',
-    tiles: [`dem2curve://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp?min=-0.25&max=0.25&_init=1`],
+    tiles: ['data-render-init://{z}/{x}/{y}'],
     tileSize: 256,
     minzoom: 5,
-    maxzoom: 15, // z16+ は MapLibre がオーバーズーム（DEM5A 上限に合わせる）
+    maxzoom: 15,
     attribution: '',
   });
   map.addLayer({
     id: 'curvature-relief-layer',
     type: 'raster',
     source: 'curvature-relief',
-    layout: { visibility: 'visible' },
-    paint: { 'raster-opacity': 0, 'raster-fade-duration': 0, 'raster-opacity-transition': { duration: 0, delay: 0 } },
+    layout: { visibility: 'none' },
+    paint: { 'raster-opacity': 1, 'raster-fade-duration': 0, 'raster-opacity-transition': { duration: 0, delay: 0 } },
   }, map.getLayer('contour-regular-dem1a') ? 'contour-regular-dem1a' : undefined);
 
 
@@ -753,12 +749,9 @@ map.on('load', async () => {
   // Q地図カバレッジ外では null タイルを返すためメインソースのオーバーズームが透けて見える。
   const _qBase = QCHIZU_DEM_BASE.replace(/^https?:\/\//, '');
   [
-    // Deck.gl が描画を担うため MapLibre ラスタレイヤーは初期から非表示（タイルフェッチ禁止）
-    { id: 'color-qchizu',    proto: 'dem2relief', params: 'min=0&max=500',           opacity: 'none',  init: 0 },
-    { id: 'slope-qchizu',    proto: 'dem2slope',  params: 'min=0&max=45',            opacity: 'none',  init: 0 },
-    { id: 'curvature-qchizu',proto: 'dem2curve',  params: 'min=-0.25&max=0.25',      opacity: 'none',  init: 0 },
-    { id: 'rrim-qchizu',     proto: 'dem2rrim',   params: '',                        opacity: 'none',     init: 0 },
-    { id: 'cs-qchizu',       proto: 'dem2cs',     params: '',                        opacity: 'none',     init: CS_INITIAL_OPACITY },
+    // rrim/cs は MapLibre ネイティブ描画のため z16 高解像度ソースを保持
+    { id: 'rrim-qchizu', proto: 'dem2rrim', params: '',  opacity: 'none', init: 0 },
+    { id: 'cs-qchizu',   proto: 'dem2cs',   params: '',  opacity: 'none', init: CS_INITIAL_OPACITY },
   ].forEach(({ id, proto, params, opacity, init }) => {
     const qs = params ? `${params}&qonly=1` : 'qonly=1';
     map.addSource(id, {
@@ -4402,44 +4395,17 @@ function updateCsVisibility() {
 
   const sliderVal = parseFloat(document.getElementById('slider-cs').value);
   const z = map.getZoom();
-  const showColorRelief = overlay === 'color-relief';
-  // 色別標高図は Deck.gl GPU シェーダーで描画するため MapLibre ラスタレイヤーは常に非表示
-  if (map.getLayer('color-relief-layer')) {
-    map.setLayoutProperty('color-relief-layer', 'visibility', 'none');
-    if (map.getLayer('color-qchizu-layer')) map.setLayoutProperty('color-qchizu-layer', 'visibility', 'none');
-  }
-  REGIONAL_RELIEF_LAYERS.forEach(layer => {
-    if (map.getLayer(layer.layerId)) map.setLayoutProperty(layer.layerId, 'visibility', 'none');
-  });
-  // 傾斜量図も Deck.gl GPU シェーダーで描画
-  const showSlopeRelief = overlay === 'slope';
-  if (map.getLayer('slope-relief-layer')) {
-    map.setLayoutProperty('slope-relief-layer', 'visibility', 'none');
-    if (map.getLayer('slope-qchizu-layer')) map.setLayoutProperty('slope-qchizu-layer', 'visibility', 'none');
-  }
-  REGIONAL_SLOPE_LAYERS.forEach(layer => {
-    if (map.getLayer(layer.layerId)) map.setLayoutProperty(layer.layerId, 'visibility', 'none');
-  });
-  // 色別曲率図も Deck.gl GPU シェーダーで描画
-  const showCurvatureRelief = overlay === 'curvature';
-  if (map.getLayer('curvature-relief-layer')) {
-    map.setLayoutProperty('curvature-relief-layer', 'visibility', 'none');
-    if (map.getLayer('curvature-qchizu-layer')) map.setLayoutProperty('curvature-qchizu-layer', 'visibility', 'none');
-  }
-  REGIONAL_CURVE_LAYERS.forEach(layer => {
-    if (map.getLayer(layer.layerId)) map.setLayoutProperty(layer.layerId, 'visibility', 'none');
-  });
-  // 非選択オーバーレイのレイヤーを即時クリア（残存防止）
-  // async sync を呼ぶと競合するため、ここで直接クリアして commit する
-  let needCommit = false;
+
+  // 非選択の data-render レイヤーを非表示にする
   Object.keys(OVERLAY_DATA_CONFIGS).forEach(key => {
-    if (key !== overlay && _deckDataLayers[key]?.length) {
-      _deckDataLayers[key] = [];
-      needCommit = true;
+    if (key === overlay) return;
+    const cfg = OVERLAY_DATA_CONFIGS[key];
+    if (map.getLayer(cfg.maplibreLayerId)) {
+      map.setLayoutProperty(cfg.maplibreLayerId, 'visibility', 'none');
     }
   });
-  if (needCommit) _commitDeckLayers();
-  // 選択中のオーバーレイのみ async sync（タイル生成・シェーダー描画）
+
+  // 選択中のオーバーレイは data-render:// プロトコル経由で raster タイルを更新
   if (overlay in OVERLAY_DATA_CONFIGS) {
     scheduleDataOverlayDeckSync(overlay);
   }
@@ -4595,13 +4561,8 @@ document.getElementById('overlay-cards').addEventListener('click', (e) => {
 // ズーム17の境界を跨いだとき 0.5m ↔ 1m を自動切替
 map.on('zoomend', updateCsVisibility);
 
-// z16 境界を跨いだとき Deck.gl データオーバーレイのレイヤー構成を更新
-// （高解像度レイヤー: z16未満では配列から除外、z16以上で追加）
-var _lastDeckZoomAbove16 = false;
+// ズーム変化時にオーバーレイを再同期（data-render:// の stops パラメータ更新）
 map.on('zoomend', () => {
-  const above16 = map.getZoom() >= 15.5;
-  if (above16 === _lastDeckZoomAbove16) return; // 閾値を跨いでいなければスキップ
-  _lastDeckZoomAbove16 = above16;
   if (currentOverlay in OVERLAY_DATA_CONFIGS) scheduleDataOverlayDeckSync(currentOverlay);
 });
 
@@ -4744,28 +4705,9 @@ function updateColorContourColors() {
   });
 }
 
-// タイル URL を更新して地図に反映
-let _crRepaintTimer = null;
+// タイル URL を更新して地図に反映（data-render:// 経由）
 function applyColorReliefTiles() {
-  if (!map.getSource('color-relief')) return;
-  map.getSource('color-relief').setTiles([
-    `dem2relief://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp?min=${crMin}&max=${crMax}&palette=${crPaletteId}`
-  ]);
-  if (map.getSource('color-qchizu')) map.getSource('color-qchizu').setTiles([
-    `dem2relief://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp?min=${crMin}&max=${crMax}&palette=${crPaletteId}&qonly=1`
-  ]);
-  REGIONAL_RELIEF_LAYERS.forEach(layer => {
-    if (map.getSource(layer.sourceId)) map.getSource(layer.sourceId).setTiles([
-      `${layer.tileUrl.replace(/min=[^&]*&max=[^&?]*/, `min=${crMin}&max=${crMax}`)}&palette=${crPaletteId}`
-    ]);
-  });
-  clearTimeout(_crRepaintTimer);
-  let remaining = 20; // 20 × 100ms = 2 秒
-  const repaint = () => {
-    map.triggerRepaint();
-    if (--remaining > 0) _crRepaintTimer = setTimeout(repaint, 100);
-  };
-  repaint();
+  if (currentOverlay === 'color-relief') scheduleDataOverlayDeckSync('color-relief');
 }
 
 // ドラッグ中は UI を即座に更新し、タイル再フェッチはデバウンス（200ms）
@@ -5379,42 +5321,19 @@ let _cvRepaintTimer = null;
 let _cvDragTileTime = 0; // ドラッグ中タイル更新スロットル（1秒に1回）
 
 function applyCurvatureReliefTiles() {
-  if (!map.getSource('curvature-relief')) return;
-  map.getSource('curvature-relief').setTiles([
-    `dem2curve://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp?min=${cvMin.toFixed(3)}&max=${cvMax.toFixed(3)}&palette=${cvPaletteId}`
-  ]);
-  if (map.getSource('curvature-qchizu')) map.getSource('curvature-qchizu').setTiles([
-    `dem2curve://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp?min=${cvMin.toFixed(3)}&max=${cvMax.toFixed(3)}&palette=${cvPaletteId}&qonly=1`
-  ]);
-  REGIONAL_CURVE_LAYERS.forEach(layer => {
-    if (map.getSource(layer.sourceId)) map.getSource(layer.sourceId).setTiles([
-      `${layer.tileUrl.replace(/min=[^&]*&max=[^&?]*/, `min=${cvMin.toFixed(3)}&max=${cvMax.toFixed(3)}`)}&palette=${cvPaletteId}`
-    ]);
-  });
-  clearTimeout(_cvRepaintTimer);
-  let remaining = 20;
-  const repaint = () => {
-    map.triggerRepaint();
-    if (--remaining > 0) _cvRepaintTimer = setTimeout(repaint, 100);
-  };
-  repaint();
-  // Deck.gl GPU シェーダーパスにも通知（curvature 以外のときは no-op）
-  scheduleDataOverlayDeckSync('curvature');
+  if (currentOverlay === 'curvature') scheduleDataOverlayDeckSync('curvature');
 }
 
-// ドラッグ中は UI を即座に更新
-// Deck.gl シェーダーは uniform 更新のみのため毎 input で即時同期する
 function updateCurvatureReliefUI() {
   syncCurvatureReliefUI();
   updateCurvatureGradientTrack();
-  scheduleDataOverlayDeckSync('curvature');
+  if (currentOverlay === 'curvature') scheduleDataOverlayDeckSync('curvature');
 }
 
 function updateCurvatureReliefSource() {
   syncCurvatureReliefUI();
   updateCurvatureGradientTrack();
   clearTimeout(_cvTileTimer);
-  applyCurvatureReliefTiles();
   if (currentOverlay === 'curvature') scheduleDataOverlayDeckSync('curvature');
 }
 
@@ -5604,7 +5523,7 @@ sliderCs.addEventListener('input', () => {
       map.setPaintProperty(layer.layerId, 'raster-opacity', v);
     }
   });
-  // 色別標高図・傾斜図・色別曲率図は Deck.gl GPU シェーダー経由（opacity は uniform で制御）
+  // 色別標高図・傾斜図・色別曲率図は data-render:// 経由（opacity は raster-opacity で制御）
   if (currentOverlay === 'color-relief') scheduleDataOverlayDeckSync('color-relief');
   if (currentOverlay === 'slope') scheduleSlopeDeckSync();
   if (currentOverlay === 'rrim' && map.getLayer('rrim-relief-layer')) {
@@ -5865,126 +5784,12 @@ async function _initPlateauAutoMode(lod) {
   await _autoShowPlateauByPosition(lod);
 }
 
-var _deckOverlay = null; // deck.MapboxOverlay インスタンス（初回のみ生成）
+var _deckOverlay = null; // deck.MapboxOverlay インスタンス（PLATEAU 専用）
 var _deckPlateauLayers = []; // PLATEAU 用 deck.gl レイヤー群
-// データシェーダー用レイヤー群（オーバーレイキー別）
-var _deckDataLayers = { slope: [], 'color-relief': [], curvature: [] };
-var _DataShaderLayerClass = null;
-var _dataDeckSyncRafs = {}; // overlayKey → RAF ID
-
-function _expandDeckTileUrl(template, tile) {
-  return template
-    .replace('{z}', String(tile.index.z))
-    .replace('{x}', String(tile.index.x))
-    .replace('{y}', String(tile.index.y));
-}
 
 function _commitDeckLayers() {
   if (!_deckOverlay) return;
-  const dataLayers = Object.values(_deckDataLayers).flat();
-  _deckOverlay.setProps({ layers: [..._deckPlateauLayers, ...dataLayers] });
-}
-
-
-
-// パレット停止点を deck.gl シェーダーの uniform 配列に変換
-function _buildPaletteUniforms(paletteId) {
-  const stops = getReliefPalette(paletteId) ?? [];
-  const maxStops = 8;
-  const stopT   = new Float32Array(maxStops);
-  const stopRgb = new Float32Array(maxStops * 3);
-  const safeStops = stops.length ? stops : [{ t: 0, r: 0, g: 0, b: 0 }, { t: 1, r: 255, g: 255, b: 255 }];
-  const n = Math.min(safeStops.length, maxStops);
-  for (let i = 0; i < maxStops; i++) {
-    const s = i < n ? safeStops[i] : safeStops[n - 1];
-    stopT[i] = s.t;
-    stopRgb[i * 3]     = s.r / 255;
-    stopRgb[i * 3 + 1] = s.g / 255;
-    stopRgb[i * 3 + 2] = s.b / 255;
-  }
-  return { stopT, stopRgb, stopCount: n };
-}
-
-// ================================================================
-// 汎用データシェーダーレイヤー
-//   RGB24 エンコードされたデータタイルをデコードし、
-//   u_dataMin/u_dataMax（エンコード範囲）と u_renderMin/u_renderMax（表示範囲）
-//   およびパレット uniform を使って GPU でリアルタイム着色する。
-//   スライダー変更時は uniform 更新のみで再フェッチ不要。
-// ================================================================
-function _getDataShaderLayerClass() {
-  if (_DataShaderLayerClass || !window.deck) return _DataShaderLayerClass;
-  _DataShaderLayerClass = class DataShaderLayer extends deck.BitmapLayer {
-    static layerName = 'DataShaderLayer';
-
-    getShaders() {
-      const shaders = super.getShaders();
-      shaders.inject = {
-        ...(shaders.inject ?? {}),
-        'fs:#decl': `
-uniform float u_dataMin;
-uniform float u_dataMax;
-uniform float u_renderMin;
-uniform float u_renderMax;
-uniform float u_stopT[8];
-uniform vec3  u_stopRGB[8];
-uniform float u_stopCount;
-vec3 _dataPalette(float t) {
-  // 全ストップを定数インデックスで先読みする
-  // (ループ変数による uniform 配列インデックスは WebGL1 実装で拒否されることがある)
-  float s0=u_stopT[0],s1=u_stopT[1],s2=u_stopT[2],s3=u_stopT[3];
-  float s4=u_stopT[4],s5=u_stopT[5],s6=u_stopT[6],s7=u_stopT[7];
-  vec3  c0=u_stopRGB[0],c1=u_stopRGB[1],c2=u_stopRGB[2],c3=u_stopRGB[3];
-  vec3  c4=u_stopRGB[4],c5=u_stopRGB[5],c6=u_stopRGB[6],c7=u_stopRGB[7];
-  float n = u_stopCount;
-  if (n < 2.0) return vec3(t, t, t);
-  if (t <= s0) return c0;
-  // 各セグメント: t が区間内か、またはそのセグメントが最後の区間なら補間して返す
-  if (t < s1 || n < 2.5) return mix(c0,c1,clamp((t-s0)/max(s1-s0,1e-6),0.,1.));
-  if (t < s2 || n < 3.5) return mix(c1,c2,clamp((t-s1)/max(s2-s1,1e-6),0.,1.));
-  if (t < s3 || n < 4.5) return mix(c2,c3,clamp((t-s2)/max(s3-s2,1e-6),0.,1.));
-  if (t < s4 || n < 5.5) return mix(c3,c4,clamp((t-s3)/max(s4-s3,1e-6),0.,1.));
-  if (t < s5 || n < 6.5) return mix(c4,c5,clamp((t-s4)/max(s5-s4,1e-6),0.,1.));
-  if (t < s6 || n < 7.5) return mix(c5,c6,clamp((t-s5)/max(s6-s5,1e-6),0.,1.));
-  return mix(c6,c7,clamp((t-s6)/max(s7-s6,1e-6),0.,1.));
-}
-        `,
-        'fs:DECKGL_FILTER_COLOR': `
-if (color.a <= 0.0) {
-  discard;
-}
-float decodedNorm = (color.r * 255.0 * 65536.0 + color.g * 255.0 * 256.0 + color.b * 255.0) / 16777215.0;
-float dataValue   = u_dataMin + decodedNorm * (u_dataMax - u_dataMin);
-float denom       = max(u_renderMax - u_renderMin, 1e-6);
-float colorFactor = clamp((dataValue - u_renderMin) / denom, 0.0, 1.0);
-color = vec4(_dataPalette(colorFactor), color.a);
-        `,
-      };
-      return shaders;
-    }
-
-    draw(opts) {
-      const {
-        uDataMin = 0, uDataMax = 1,
-        uRenderMin = 0, uRenderMax = 1,
-        uStopT, uStopRgb, uStopCount = 2,
-      } = this.props;
-      super.draw({
-        ...opts,
-        uniforms: {
-          ...opts.uniforms,
-          u_dataMin:   uDataMin,
-          u_dataMax:   uDataMax,
-          u_renderMin: uRenderMin,
-          u_renderMax: uRenderMax,
-          u_stopT:     uStopT,
-          u_stopRGB:   uStopRgb,
-          u_stopCount: uStopCount,
-        },
-      });
-    }
-  };
-  return _DataShaderLayerClass;
+  _deckOverlay.setProps({ layers: [..._deckPlateauLayers] });
 }
 
 // ================================================================
@@ -5998,14 +5803,15 @@ const OVERLAY_DATA_CONFIGS = {
     dataMax:        SLOPE_DATA_MAX,
     getRenderMin:   () => srMin,
     getRenderMax:   () => srMax,
-    getPaletteId:   () => srPaletteId,
+    getPaletteStops: () => getReliefPalette(srPaletteId),
     generateTile:   generateSlopeDataTile,
-    // dem2slope:// の URL を slope-data:// に変換（クエリパラメータは不要なため除去）
-    toDataUrl:      (tileUrl) => tileUrl.replace(/^dem2slope:\/\//, 'slope-data://').replace(/\?.*$/, ''),
     regionalLayers: REGIONAL_SLOPE_LAYERS,
+    // MapLibre raster ソース ID（map.on('load') で既に addSource 済み）
+    maplibreSourceId: 'slope-relief',
+    maplibreLayerId:  'slope-relief-layer',
+    // 数値タイル URL テンプレート（fetchDataTileCached に渡す paramsUrl 生成用）
     qBaseUrl:       () => `slope-data://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp`,
-    qOnlyUrl:       () => `slope-data://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp?qonly=1`,
-    layerIdPrefix:  'slope-data',
+    toDataUrl:      (tileUrl) => tileUrl.replace(/^dem2slope:\/\//, 'slope-data://').replace(/\?.*$/, ''),
     maxZoomBase:    15,
   },
   'color-relief': {
@@ -6013,13 +5819,13 @@ const OVERLAY_DATA_CONFIGS = {
     dataMax:        RELIEF_DATA_MAX,
     getRenderMin:   () => crMin,
     getRenderMax:   () => crMax,
-    getPaletteId:   () => crPaletteId,
+    getPaletteStops: () => getReliefPalette(crPaletteId),
     generateTile:   generateReliefDataTile,
-    toDataUrl:      (tileUrl) => tileUrl.replace(/^dem2relief:\/\//, 'relief-data://').replace(/\?.*$/, ''),
     regionalLayers: REGIONAL_RELIEF_LAYERS,
+    maplibreSourceId: 'color-relief',
+    maplibreLayerId:  'color-relief-layer',
     qBaseUrl:       () => `relief-data://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp`,
-    qOnlyUrl:       () => `relief-data://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp?qonly=1`,
-    layerIdPrefix:  'relief-data',
+    toDataUrl:      (tileUrl) => tileUrl.replace(/^dem2relief:\/\//, 'relief-data://').replace(/\?.*$/, ''),
     maxZoomBase:    15,
   },
   curvature: {
@@ -6027,143 +5833,58 @@ const OVERLAY_DATA_CONFIGS = {
     dataMax:        CURVE_DATA_MAX,
     getRenderMin:   () => cvMin,
     getRenderMax:   () => cvMax,
-    getPaletteId:   () => cvPaletteId,
+    getPaletteStops: () => getReliefPalette(cvPaletteId),
     generateTile:   generateCurveDataTile,
-    toDataUrl:      (tileUrl) => tileUrl.replace(/^dem2curve:\/\//, 'curve-data://').replace(/\?.*$/, ''),
     regionalLayers: REGIONAL_CURVE_LAYERS,
+    maplibreSourceId: 'curvature-relief',
+    maplibreLayerId:  'curvature-relief-layer',
     qBaseUrl:       () => `curve-data://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp`,
-    qOnlyUrl:       () => `curve-data://${QCHIZU_DEM_BASE.replace(/^https?:\/\//, '')}/{z}/{x}/{y}.webp?qonly=1`,
-    layerIdPrefix:  'curve-data',
+    toDataUrl:      (tileUrl) => tileUrl.replace(/^dem2curve:\/\//, 'curve-data://').replace(/\?.*$/, ''),
     maxZoomBase:    15,
   },
 };
 
 // ================================================================
-// 汎用データオーバーレイ Deck.gl 同期
-//   overlayKey が一致するときのみレイヤーを生成し、
-//   それ以外のときは空配列にして非表示にする。
+// 汎用データオーバーレイ MapLibre raster 同期
+//   MapLibre の既存 raster ソース（slope-relief 等）の tiles を
+//   slope-render://{z}/{x}/{y}?overlayKey=slope&min=...&max=...&palette=...
+//   に差し替えることで、プロトコルハンドラ側でキャッシュ+色塗りを行う。
 // ================================================================
-async function _syncDataOverlayDeckLayers(overlayKey) {
-  const cfg = OVERLAY_DATA_CONFIGS[overlayKey];
-  if (!cfg) return;
-
-  if (currentOverlay !== overlayKey) {
-    if (_deckDataLayers[overlayKey]?.length) {
-      _deckDataLayers[overlayKey] = [];
-      _commitDeckLayers();
-    }
-    return;
-  }
-
-  await _loadDeckGl();
-  if (currentOverlay !== overlayKey) return;
-
-  _initDeckOverlay();
-  const LayerClass = _getDataShaderLayerClass();
-  if (!LayerClass) return;
-
-  const opacity    = parseFloat(document.getElementById('slider-cs')?.value ?? '1');
-  const uniforms   = _buildPaletteUniforms(cfg.getPaletteId());
-  const renderMin  = cfg.getRenderMin();
-  const renderMax  = cfg.getRenderMax();
-
-  const mkSubLayer = (props) => {
-    const bb = props.tile?.boundingBox;
-    if (!bb) return null;
-    return new LayerClass(props, {
-      data:        null,
-      image:       props.data,
-      bounds:      [bb[0][0], bb[0][1], bb[1][0], bb[1][1]],
-      opacity,
-      uDataMin:    cfg.dataMin,
-      uDataMax:    cfg.dataMax,
-      uRenderMin:  renderMin,
-      uRenderMax:  renderMax,
-      uStopT:      uniforms.stopT,
-      uStopRgb:    uniforms.stopRgb,
-      uStopCount:  uniforms.stopCount,
-    });
-  };
-
-  const qBlendUrl = cfg.qBaseUrl();
-  const qOnlyUrl  = cfg.qOnlyUrl();
-  // renderSubLayers の再呼び出しトリガー: uniform に影響する値が変わったときに通知
-  const subLayerTrigger = [renderMin, renderMax, cfg.getPaletteId(), opacity];
-  const makeTileDataLoader = (template) => async (tile) => {
-    // returnBitmap=true で PNG エンコード/デコードの往復を省略
-    const result = await cfg.generateTile(_expandDeckTileUrl(template, tile), tile.signal, true);
-    if (!result) return null;
-    return result.bitmap ?? await createImageBitmap(new Blob([result.data], { type: 'image/png' }));
-  };
-
-  // ================================================================
-  // ズームレベル別レイヤー構成
-  //
-  // Deck.gl TileLayer の minZoom はタイルズームの下限値であり、
-  // 「マップズームが minZoom 未満のとき非表示」ではない。
-  // 例: minZoom=16 でマップ z10 → z16 タイルを overzoomed で表示しようとするため
-  // z10 のビューポートをカバーする数千枚の z16 タイルを要求してしまう。
-  //
-  // 対策: z16 高解像度レイヤーはレイヤー配列への追加・削除でズームを制御する。
-  //   z < 16 : base レイヤーのみ（DEM10B / DEM5A / Q 地図をズームに応じて自動選択）
-  //   z ≥ 16 : base + qonly（z16 固定）+ 地域DEM（エリア内のみ）
-  //
-  // ズーム変化時は zoomend ハンドラーが scheduleDataOverlayDeckSync を再呼び出し。
-  // ================================================================
-  const currentZoom = map?.getZoom() ?? 0;
-  const showHighRes = currentZoom >= 15.5; // deck.gl は Math.round なので 15.5 → z16
-
-  const layers = [
-    new deck.TileLayer({
-      id: `${cfg.layerIdPrefix}-base`,
-      data: qBlendUrl, maxZoom: cfg.maxZoomBase, minZoom: 0,
-      getTileData: makeTileDataLoader(qBlendUrl),
-      renderSubLayers: mkSubLayer,
-      updateTriggers: { renderSubLayers: subLayerTrigger },
-    }),
-  ];
-
-  if (showHighRes) {
-    layers.push(new deck.TileLayer({
-      id: `${cfg.layerIdPrefix}-qonly-z16`,
-      data: qOnlyUrl, minZoom: 16, maxZoom: 16,
-      getTileData: makeTileDataLoader(qOnlyUrl),
-      renderSubLayers: mkSubLayer,
-      updateTriggers: { renderSubLayers: subLayerTrigger },
-    }));
-    cfg.regionalLayers.forEach((layer) => {
-      const url = cfg.toDataUrl(layer.tileUrl);
-      layers.push(new deck.TileLayer({
-        id: `${cfg.layerIdPrefix}-${layer.sourceId}`,
-        data: url,
-        minZoom: Math.max(16, layer.minzoom ?? 0),
-        maxZoom: layer.maxzoom ?? 24,
-        extent:  layer.bounds,
-        getTileData: makeTileDataLoader(url),
-        renderSubLayers: mkSubLayer,
-        updateTriggers: { renderSubLayers: subLayerTrigger },
-      }));
-    });
-  }
-
-  _deckDataLayers[overlayKey] = layers;
-  _commitDeckLayers();
-}
-
-
 function scheduleDataOverlayDeckSync(overlayKey) {
-  if (!_dataDeckSyncRafs) _dataDeckSyncRafs = {}; // IIFE 順序ずれ対策
-  if (_dataDeckSyncRafs[overlayKey]) cancelAnimationFrame(_dataDeckSyncRafs[overlayKey]);
-  _dataDeckSyncRafs[overlayKey] = requestAnimationFrame(() => {
-    _dataDeckSyncRafs[overlayKey] = 0;
-    void _syncDataOverlayDeckLayers(overlayKey).catch(
-      (e) => console.error(`${overlayKey} deck sync failed:`, e)
-    );
+  // RAF でデバウンス（連続呼び出しを1フレームにまとめる）
+  if (!scheduleDataOverlayDeckSync._rafs) scheduleDataOverlayDeckSync._rafs = {};
+  const rafs = scheduleDataOverlayDeckSync._rafs;
+  if (rafs[overlayKey]) cancelAnimationFrame(rafs[overlayKey]);
+  rafs[overlayKey] = requestAnimationFrame(() => {
+    rafs[overlayKey] = 0;
+    _applyDataOverlayRasterTiles(overlayKey);
   });
 }
 
 // 後方互換エイリアス
 function scheduleSlopeDeckSync() { scheduleDataOverlayDeckSync('slope'); }
+
+function _applyDataOverlayRasterTiles(overlayKey) {
+  const cfg = OVERLAY_DATA_CONFIGS[overlayKey];
+  if (!cfg) return;
+
+  const opacity   = parseFloat(document.getElementById('slider-cs')?.value ?? '1');
+  const renderMin = cfg.getRenderMin();
+  const renderMax = cfg.getRenderMax();
+  const stops     = cfg.getPaletteStops();
+  // stops を JSON で URL に乗せる（プロトコルハンドラで復元）
+  const stopsParam = encodeURIComponent(JSON.stringify(stops));
+
+  const makeTileUrl = (suffix = '') =>
+    `data-render://${overlayKey}/{z}/{x}/{y}?min=${renderMin}&max=${renderMax}&dataMin=${cfg.dataMin}&dataMax=${cfg.dataMax}&stops=${stopsParam}${suffix}`;
+
+  const src = map.getSource(cfg.maplibreSourceId);
+  if (src) {
+    src.setTiles([makeTileUrl()]);
+    map.setPaintProperty(cfg.maplibreLayerId, 'raster-opacity', opacity);
+    map.setLayoutProperty(cfg.maplibreLayerId, 'visibility', 'visible');
+  }
+}
 
 // deck.gl v8.9 + loaders.gl v3 は index.html で事前読み込み済み
 // window.deck の存在を確認するだけで済む（動的ロード不要）

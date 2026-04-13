@@ -1873,3 +1873,242 @@ tf.ready().then(() => {
 });
 
 export { fetchCompositeDemBitmap };
+
+// ================================================================
+// RGB24 数値タイルキャッシュ
+//   generateXxxDataTile の出力（ピクセルごとの数値をエンコードした ImageData）を
+//   LRU キャッシュに保持する。パレット・min/max 変更時はフェッチ・演算をスキップし
+//   色塗りのみやり直すことで、オーバーレイ切り替えを高速化する。
+//
+//   キーフォーマット: "{overlayKey}/{z}/{x}/{y}"
+//   値: { imageData: ImageData, width: number, height: number }
+// ================================================================
+const _DATA_TILE_CACHE_MAX = 200;
+const _dataTileCache = new Map();
+
+function _dataTileCacheSet(key, value) {
+  if (_dataTileCache.has(key)) _dataTileCache.delete(key);
+  _dataTileCache.set(key, value);
+  if (_dataTileCache.size > _DATA_TILE_CACHE_MAX) {
+    _dataTileCache.delete(_dataTileCache.keys().next().value);
+  }
+}
+
+function _dataTileCacheGet(key) {
+  if (!_dataTileCache.has(key)) return null;
+  const v = _dataTileCache.get(key);
+  _dataTileCache.delete(key);
+  _dataTileCache.set(key, v);
+  return v;
+}
+
+export function clearDataTileCache() {
+  _dataTileCache.clear();
+}
+
+// overlayKey → generateXxx 関数のマップ（プロトコルハンドラ内で参照）
+// app.js の OVERLAY_DATA_CONFIGS と対応させる
+const _DATA_GENERATE_FNS = {
+  slope:          generateSlopeDataTile,
+  'color-relief': generateReliefDataTile,
+  curvature:      generateCurveDataTile,
+};
+const _DATA_BASE_URLS = {
+  slope:          (host) => `slope-data://${host}/{z}/{x}/{y}.webp`,
+  'color-relief': (host) => `relief-data://${host}/{z}/{x}/{y}.webp`,
+  curvature:      (host) => `curve-data://${host}/{z}/{x}/{y}.webp`,
+};
+
+// 初期ダミープロトコル（addSource 時に tiles が必要なため透明 PNG を返す）
+maplibregl.addProtocol('data-render-init', async () => ({ data: _transparentPngBuffer() }));
+
+// ================================================================
+// data-render:// プロトコル
+//   URL フォーマット: data-render://{overlayKey}/{z}/{x}/{y}
+//   クエリパラメータ:
+//     overlayKey: slope | color-relief | curvature（パス先頭にも含む）
+//     min, max: renderMin/renderMax（表示範囲スライダー値）
+//     dataMin, dataMax: エンコード範囲
+//     stops: JSON 配列（[{ t, r, g, b }, ...]）
+//
+//   処理:
+//     1. LRU キャッシュから RGB24 ImageData を取得
+//     2. キャッシュなければ generateXxxDataTile で生成してキャッシュ
+//     3. applyPaletteToImageData で CPU 着色
+//     4. PNG ArrayBuffer として返す → MapLibre が raster テクスチャに使う
+// ================================================================
+maplibregl.addProtocol('data-render', async (params, abortController) => {
+  try {
+    const url = params.url; // data-render://slope/12/3456/1234?min=...
+    // パスから overlayKey/z/x/y を抽出
+    const m = url.match(/^data-render:\/\/([^/]+)\/(\d+)\/(\d+)\/(\d+)/);
+    if (!m) return { data: _transparentPngBuffer() };
+    const [, overlayKey, zs, xs, ys] = m;
+    const z = parseInt(zs), x = parseInt(xs), y = parseInt(ys);
+
+    const urlObj = new URL(url.replace(/^data-render:\/\//, 'https://dummy/'));
+    const renderMin = parseFloat(urlObj.searchParams.get('min') ?? '0');
+    const renderMax = parseFloat(urlObj.searchParams.get('max') ?? '1');
+    const dataMin   = parseFloat(urlObj.searchParams.get('dataMin') ?? '0');
+    const dataMax   = parseFloat(urlObj.searchParams.get('dataMax') ?? '1');
+    const stopsRaw  = urlObj.searchParams.get('stops');
+    const stops     = stopsRaw ? JSON.parse(decodeURIComponent(stopsRaw)) : [
+      { t: 0, r: 0, g: 0, b: 0 }, { t: 1, r: 255, g: 255, b: 255 },
+    ];
+
+    // 1. キャッシュ確認
+    const cacheKey = `${overlayKey}/${z}/${x}/${y}`;
+    let entry = _dataTileCacheGet(cacheKey);
+
+    if (!entry) {
+      // 2. 数値タイル生成
+      const generateFn = _DATA_GENERATE_FNS[overlayKey];
+      if (!generateFn) return { data: _transparentPngBuffer() };
+
+      // QCHIZU_DEM_BASE からホスト部分を取得してデータ URL を組み立てる
+      const host = QCHIZU_DEM_BASE.replace(/^https?:\/\//, '');
+      const makeUrl = _DATA_BASE_URLS[overlayKey];
+      if (!makeUrl) return { data: _transparentPngBuffer() };
+      const dataUrl = makeUrl(host).replace('{z}', zs).replace('{x}', xs).replace('{y}', ys);
+
+      const result = await generateFn(dataUrl, abortController.signal, true);
+      if (!result?.bitmap) return { data: _transparentPngBuffer() };
+
+      // ImageBitmap → ImageData に変換してキャッシュ
+      const canvas = new OffscreenCanvas(result.bitmap.width, result.bitmap.height);
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(result.bitmap, 0, 0);
+      result.bitmap.close();
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      entry = { imageData, width: canvas.width, height: canvas.height };
+      _dataTileCacheSet(cacheKey, entry);
+    }
+
+    // 3. CPU 色塗り
+    const colored = applyPaletteToImageData(entry, dataMin, dataMax, renderMin, renderMax, stops, 1);
+
+    // 4. PNG エンコード → ArrayBuffer
+    const blob = await colored.convertToBlob({ type: 'image/png' });
+    return { data: await blob.arrayBuffer() };
+  } catch (e) {
+    if (e?.name === 'AbortError') throw e;
+    return { data: _transparentPngBuffer() };
+  }
+});
+
+// ================================================================
+// RGB24 数値タイルキャッシュ
+//   generateXxxDataTile の出力（ピクセルごとの数値をエンコードした ImageData）を
+//   LRU キャッシュに保持する。パレット・min/max 変更時はフェッチ・演算をスキップし
+//   色塗りのみやり直すことで、オーバーレイ切り替えを高速化する。
+//
+//   キーフォーマット: "{overlayKey}/{z}/{x}/{y}"
+//   値: { imageData: ImageData, width: number, height: number }
+// ================================================================
+const _DATA_TILE_CACHE_MAX = 200; // タイル数上限（メモリ節約のため LRU 管理）
+const _dataTileCache = new Map(); // Map はインサート順を保持するので LRU として使える
+
+function _dataTileCacheSet(key, value) {
+  if (_dataTileCache.has(key)) _dataTileCache.delete(key); // 既存を削除して末尾に再挿入
+  _dataTileCache.set(key, value);
+  // 上限超過時は最も古いエントリを削除
+  if (_dataTileCache.size > _DATA_TILE_CACHE_MAX) {
+    _dataTileCache.delete(_dataTileCache.keys().next().value);
+  }
+}
+
+function _dataTileCacheGet(key) {
+  if (!_dataTileCache.has(key)) return null;
+  // LRU: アクセスのたびに末尾へ移動
+  const v = _dataTileCache.get(key);
+  _dataTileCache.delete(key);
+  _dataTileCache.set(key, v);
+  return v;
+}
+
+/** キャッシュ全体を破棄（DEM ソース切り替え時などに呼ぶ） */
+export function clearDataTileCache() {
+  _dataTileCache.clear();
+}
+
+// ================================================================
+// 数値タイル取得（キャッシュ付き）
+//   overlayKey: 'slope' | 'color-relief' | 'curvature'
+//   paramsUrl: generateXxxDataTile に渡す URL（z/x/y を含む）
+//   generateFn: generateSlopeDataTile 等
+//   abortSignal: キャンセル用
+//   戻り値: { imageData: ImageData, width, height } | null
+// ================================================================
+export async function fetchDataTileCached(overlayKey, z, x, y, generateFn, paramsUrl, abortSignal) {
+  const key = `${overlayKey}/${z}/${x}/${y}`;
+  const cached = _dataTileCacheGet(key);
+  if (cached) return cached;
+
+  // returnBitmap=true で ImageBitmap を取得し、ImageData に変換してキャッシュする
+  const result = await generateFn(paramsUrl, abortSignal, true);
+  if (!result) return null;
+
+  const bitmap = result.bitmap;
+  if (!bitmap) return null;
+
+  const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(bitmap, 0, 0);
+  bitmap.close();
+
+  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const entry = { imageData, width: canvas.width, height: canvas.height };
+  _dataTileCacheSet(key, entry);
+  return entry;
+}
+
+// ================================================================
+// CPU パレット適用
+//   RGB24 エンコード済み ImageData に対して、パレット stops・renderMin/Max を
+//   CPU で適用し、着色済み OffscreenCanvas を返す。
+//
+//   dataMin/dataMax: エンコード範囲（SLOPE_DATA_MIN/MAX 等）
+//   renderMin/renderMax: 表示範囲（スライダー値）
+//   stops: RELIEF_PALETTES の stops 配列 [{ t, r, g, b }, ...]
+//   opacity: 0〜1
+// ================================================================
+export function applyPaletteToImageData(entry, dataMin, dataMax, renderMin, renderMax, stops, opacity = 1) {
+  const { imageData, width, height } = entry;
+  const src = imageData.data;
+
+  const out = new OffscreenCanvas(width, height);
+  const ctx = out.getContext('2d');
+  const outId = ctx.createImageData(width, height);
+  const dst = outId.data;
+
+  const denom = (dataMax - dataMin) || 1;
+  const renderDenom = (renderMax - renderMin) || 1;
+  const alpha = Math.round(Math.max(0, Math.min(1, opacity)) * 255);
+
+  for (let i = 0; i < src.length; i += 4) {
+    if (src[i + 3] === 0) {
+      // nodata: 完全透明
+      dst[i] = 0; dst[i + 1] = 0; dst[i + 2] = 0; dst[i + 3] = 0;
+      continue;
+    }
+    // RGB24 デコード（_encodeToRgb24 の逆）
+    const norm = (src[i] * 65536 + src[i + 1] * 256 + src[i + 2]) / 16777215;
+    const dataValue = dataMin + norm * denom;
+    // renderMin/renderMax でクランプ → パレット適用
+    const t = Math.max(0, Math.min(1, (dataValue - renderMin) / renderDenom));
+    // stops から補間
+    let si = 0;
+    while (si < stops.length - 2 && stops[si + 1].t <= t) si++;
+    const lo = stops[si];
+    const hi = stops[si + 1] ?? lo;
+    const seg = (hi.t - lo.t) || 1;
+    const f = Math.max(0, Math.min(1, (t - lo.t) / seg));
+    dst[i]     = Math.round(lo.r + f * (hi.r - lo.r));
+    dst[i + 1] = Math.round(lo.g + f * (hi.g - lo.g));
+    dst[i + 2] = Math.round(lo.b + f * (hi.b - lo.b));
+    dst[i + 3] = alpha;
+  }
+
+  ctx.putImageData(outId, 0, 0);
+  return out;
+}
