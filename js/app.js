@@ -1921,9 +1921,7 @@ function selectMillerTerrain(terrainId) {
   const _tn = terrainMap.get(terrainId)?.name;
   if (_tn) _historySave('sh_catalog', _tn);
   renderMillerColumns();
-  // レイヤーパネルのアクティブテレイン表示と一覧を更新する
-  const nameEl = document.getElementById('layer-active-terrain-name');
-  if (nameEl) nameEl.textContent = _tn ?? terrainId ?? '（未選択）';
+  // レイヤーパネルが開いていれば内容を更新する
   renderLayersPanel();
   // テレイン中心へ移動（ズームレベルは変えない）
   const t = terrainMap.get(terrainId);
@@ -2883,126 +2881,357 @@ function renderLocalMapList() {
 
 
 /* =====================================================================
-   renderLayersPanel — レイヤータブの描画
-   ・アクティブテレインの地図レイヤーを「そのテレインのフォルダ」に表示
-   ・terrainId が null または一致しないレイヤーは「未分類」フォルダへ
-   ・GPX はファイル名付きで別セクションに表示
+   レイヤーパネル — 2画面ナビゲーション管理
+   ・List view  : お気に入りテレイン + レイヤーがあるテレインの一覧
+   ・Detail view: 選択テレインのクイックアクション + レイヤーリスト
+   地図クリック（テレインポリゴン・画像レイヤー）で Detail view に遷移する。
    ===================================================================== */
+
+// ---- お気に入りテレインの永続化 ----
+const _favTerrains = new Set(
+  JSON.parse(localStorage.getItem('fav-terrains') ?? '[]')
+);
+function _saveFavTerrains() {
+  localStorage.setItem('fav-terrains', JSON.stringify([..._favTerrains]));
+}
+function _toggleFavTerrain(tid) {
+  if (_favTerrains.has(tid)) { _favTerrains.delete(tid); }
+  else                       { _favTerrains.add(tid); }
+  _saveFavTerrains();
+}
+
+// ---- レイヤーパネルのビュー状態 ----
+let _layersView     = 'list'; // 'list' | 'detail'
+let _layersDetailId = null;   // detail view で表示中の terrain ID（null = 未分類）
+
+/** サイドバーの指定パネルを強制的に開く（同一パネルのトグル閉じを防ぐ） */
+function _openSidebarPanel(panelId) {
+  const sbPanel = document.getElementById('sidebar-panel');
+  document.querySelectorAll('.sidebar-nav-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.sidebar-section').forEach(s => s.classList.remove('active'));
+  const navBtn = document.querySelector(`.sidebar-nav-btn[data-panel="${panelId}"]`);
+  if (navBtn) navBtn.classList.add('active');
+  const sec = document.getElementById('panel-' + panelId);
+  if (sec) sec.classList.add('active');
+  if (sbPanel) sbPanel.classList.remove('sb-hidden');
+  _sidebarCurrentPanel = panelId;
+  _sidebarOpen = true;
+  requestAnimationFrame(updateSidebarWidth);
+}
+
+/**
+ * レイヤータブを開いて指定テレインの詳細へ遷移する。
+ * terrainId を省略すると一覧に戻る。
+ * @param {string|null|undefined} terrainId
+ */
+function openLayersPanel(terrainId) {
+  _openSidebarPanel('layers');
+  if (terrainId !== undefined) {
+    showLayersDetail(terrainId);
+  } else {
+    showLayersList();
+  }
+}
+
+/** レイヤーパネルを一覧ビューに切り替えて再描画する */
+function showLayersList() {
+  _layersView = 'list';
+  const listEl   = document.getElementById('layers-view-list');
+  const detailEl = document.getElementById('layers-view-detail');
+  if (listEl)   listEl.style.display   = '';
+  if (detailEl) detailEl.style.display = 'none';
+  _renderLayersList();
+}
+
+/** レイヤーパネルを詳細ビューに切り替えて再描画する */
+function showLayersDetail(terrainId) {
+  _layersView     = 'detail';
+  _layersDetailId = terrainId ?? null;
+  const listEl   = document.getElementById('layers-view-list');
+  const detailEl = document.getElementById('layers-view-detail');
+  if (listEl)   listEl.style.display   = 'none';
+  if (detailEl) detailEl.style.display = '';
+  _renderLayersDetail(_layersDetailId);
+}
+
+/** renderLayersPanel — 現在のビュー状態に合わせて再描画する */
 function renderLayersPanel() {
-  const body = document.getElementById('layers-panel-body');
-  if (!body) return;
-  body.innerHTML = '';
+  if (_layersView === 'detail') {
+    _renderLayersDetail(_layersDetailId);
+  } else {
+    _renderLayersList();
+  }
+}
 
-  // アクティブテレインのレイヤーのみ表示（null ならすべて未分類扱い）
-  const activeTid = millerTerrain ?? null;
+/* ---- List view: テレインフォルダ一覧 ---- */
+function _renderLayersList() {
+  const listEl = document.getElementById('layers-view-list');
+  if (!listEl) return;
+  listEl.innerHTML = '';
 
-  // ---- ローカルマップ: アクティブテレイン分類 ----
-  const activeEntries = localMapLayers.filter(e =>
-    activeTid ? e.terrainId === activeTid : e.terrainId === null
-  );
-  const uncatEntries  = activeTid
-    ? localMapLayers.filter(e => e.terrainId === null)
-    : [];
-
-  // ---- GPX ----
+  // 表示対象: お気に入り ∪ レイヤーがあるテレイン ∪ 未分類(null)
+  const terrainIdsWithLayers = new Set(localMapLayers.map(e => e.terrainId));
+  const hasUncategorized = terrainIdsWithLayers.has(null);
   const hasGpx = gpxState.trackPoints.length > 0;
 
-  if (activeEntries.length === 0 && uncatEntries.length === 0 && !hasGpx) {
+  // お気に入り + レイヤー持ちテレイン (null 除く) を unified Set で列挙
+  const allIds = new Set([..._favTerrains]);
+  terrainIdsWithLayers.forEach(id => { if (id !== null) allIds.add(id); });
+
+  // テレイン名でソートして表示
+  const sortedIds = [...allIds].sort((a, b) => {
+    const na = terrainMap.get(a)?.name ?? a;
+    const nb = terrainMap.get(b)?.name ?? b;
+    return na.localeCompare(nb, 'ja');
+  });
+
+  if (sortedIds.length === 0 && !hasUncategorized && !hasGpx) {
     const hint = document.createElement('div');
     hint.className = 'layers-empty-hint';
-    hint.textContent = '地図やGPXがまだ読み込まれていません';
+    hint.innerHTML =
+      'テレインタブでテレインを選択し、<br>☆ をタップしてお気に入りに追加すると<br>ここにフォルダが表示されます。';
+    listEl.appendChild(hint);
+    return;
+  }
+
+  // ---- テレインフォルダアイテム ----
+  sortedIds.forEach(tid => {
+    const layerCount = localMapLayers.filter(e => e.terrainId === tid).length;
+    const isFav = _favTerrains.has(tid);
+    const terrainName = terrainMap.get(tid)?.name ?? tid;
+
+    const item = document.createElement('div');
+    item.className = 'layers-list-item';
+    item.setAttribute('role', 'button');
+    item.setAttribute('tabindex', '0');
+
+    // ★ お気に入りボタン
+    const starBtn = document.createElement('button');
+    starBtn.className = 'layers-list-star' + (isFav ? ' active' : '');
+    starBtn.title = isFav ? 'お気に入りから削除' : 'お気に入りに追加';
+    starBtn.setAttribute('aria-label', isFav ? 'お気に入りから削除' : 'お気に入りに追加');
+    starBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="${isFav ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`;
+
+    // テレイン名
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'layers-list-name';
+    nameSpan.textContent = terrainName;
+
+    // レイヤー数バッジ（0件でも表示）
+    const badge = document.createElement('span');
+    badge.className = 'layers-list-badge';
+    badge.textContent = layerCount;
+
+    // 右矢印
+    const arrow = document.createElement('span');
+    arrow.className = 'layers-list-arrow';
+    arrow.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>';
+
+    item.appendChild(starBtn);
+    item.appendChild(nameSpan);
+    item.appendChild(badge);
+    item.appendChild(arrow);
+    listEl.appendChild(item);
+
+    // クリック → 詳細ビューへ（starBtn 除く）
+    item.addEventListener('click', (ev) => {
+      if (ev.target.closest('.layers-list-star')) return;
+      showLayersDetail(tid);
+    });
+    item.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') showLayersDetail(tid);
+    });
+
+    // ★ ボタン
+    starBtn.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      _toggleFavTerrain(tid);
+      _renderLayersList(); // 一覧を再描画（お気に入りが0になればアイテムが消える場合も）
+    });
+  });
+
+  // ---- 未分類フォルダ ----
+  if (hasUncategorized) {
+    const uncatCount = localMapLayers.filter(e => e.terrainId === null).length;
+    const item = document.createElement('div');
+    item.className = 'layers-list-item layers-list-item--uncat';
+    item.setAttribute('role', 'button');
+    item.setAttribute('tabindex', '0');
+
+    const icon = document.createElement('span');
+    icon.className = 'layers-list-folder-icon';
+    icon.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>';
+
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'layers-list-name';
+    nameSpan.textContent = '未分類';
+
+    const badge = document.createElement('span');
+    badge.className = 'layers-list-badge';
+    badge.textContent = uncatCount;
+
+    const arrow = document.createElement('span');
+    arrow.className = 'layers-list-arrow';
+    arrow.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>';
+
+    item.appendChild(icon);
+    item.appendChild(nameSpan);
+    item.appendChild(badge);
+    item.appendChild(arrow);
+    listEl.appendChild(item);
+
+    item.addEventListener('click', () => showLayersDetail(null));
+    item.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') showLayersDetail(null);
+    });
+  }
+
+  // ---- GPX アイテム（常時表示） ----
+  if (hasGpx) {
+    const gpxItem = _makeGpxListItem();
+    listEl.appendChild(gpxItem);
+  }
+}
+
+/* ---- Detail view: テレイン詳細 ---- */
+function _renderLayersDetail(tid) {
+  const body = document.getElementById('layers-detail-body');
+  const titleEl = document.getElementById('layers-detail-title');
+  const favBtn  = document.getElementById('layers-fav-btn');
+  const favIcon = document.getElementById('layers-fav-icon');
+  if (!body) return;
+
+  // ---- ナビバーの更新 ----
+  const terrainName = (tid === null)
+    ? '未分類'
+    : (terrainMap.get(tid)?.name ?? tid ?? '未選択');
+
+  if (titleEl) titleEl.textContent = terrainName;
+
+  // お気に入りボタン（未分類には不要）
+  if (favBtn) {
+    favBtn.style.display = (tid === null) ? 'none' : '';
+    if (tid !== null && favIcon) {
+      const isFav = _favTerrains.has(tid);
+      favIcon.setAttribute('fill', isFav ? 'currentColor' : 'none');
+      favBtn.title = isFav ? 'お気に入りから削除' : 'お気に入りに追加';
+      favBtn.classList.toggle('active', isFav);
+    }
+  }
+
+  // ---- レイヤー一覧 ----
+  body.innerHTML = '';
+
+  const entries = localMapLayers.filter(e => e.terrainId === tid);
+  const hasGpx  = gpxState.trackPoints.length > 0;
+
+  if (entries.length === 0 && !hasGpx) {
+    const hint = document.createElement('div');
+    hint.className = 'layers-empty-hint';
+    hint.textContent = tid === null
+      ? '未分類のレイヤーはありません'
+      : '画像を追加かGPXを追加でデータを読み込んでください';
     body.appendChild(hint);
     return;
   }
 
-  // ---- アクティブテレインフォルダ ----
-  if (activeEntries.length > 0) {
-    const terrainLabel = activeTid
-      ? (terrainMap.get(activeTid)?.name ?? activeTid)
-      : '未分類';
-    body.appendChild(_makeLayerFolder(terrainLabel, activeEntries, activeTid));
+  // 画像レイヤーセクション
+  if (entries.length > 0) {
+    const sec = document.createElement('div');
+    sec.className = 'layers-detail-section';
+    const secLabel = document.createElement('div');
+    secLabel.className = 'layers-detail-section-label';
+    secLabel.textContent = '画像レイヤー';
+    sec.appendChild(secLabel);
+    entries.forEach(e => sec.appendChild(_makeLayerItem(e)));
+    body.appendChild(sec);
   }
 
-  // ---- 未分類フォルダ（テレイン選択中のみ表示） ----
-  if (uncatEntries.length > 0) {
-    body.appendChild(_makeLayerFolder('未分類', uncatEntries, null));
-  }
-
-  // ---- GPX セクション ----
+  // GPX セクション
   if (hasGpx) {
-    body.appendChild(_makeGpxLayerSection());
+    body.appendChild(_makeGpxDetailItem());
   }
 }
 
-/** テレインフォルダ要素を生成する */
-function _makeLayerFolder(label, entries, terrainId) {
-  const folder = document.createElement('div');
-  folder.className = 'layer-folder';
+/* ---- リスト用 GPX アイテム ---- */
+function _makeGpxListItem() {
+  const item = document.createElement('div');
+  item.className = 'layers-list-item layers-list-item--gpx';
 
-  // フォルダヘッダー（折り畳みトグル + フォルダ名 + 全体表示/非表示）
-  const header = document.createElement('div');
-  header.className = 'layer-folder-header';
+  const icon = document.createElement('span');
+  icon.className = 'layers-list-folder-icon';
+  icon.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>';
 
-  const toggle = document.createElement('span');
-  toggle.className = 'layer-folder-collapse open';
-  toggle.textContent = '▾';
+  const gpxVis = map.getLayer('gpx-track')
+    ? map.getLayoutProperty('gpx-track', 'visibility') !== 'none' : true;
 
-  const nameSpan = document.createElement('span');
-  nameSpan.className = 'layer-folder-name';
-  nameSpan.textContent = label;
+  const chk = document.createElement('input');
+  chk.type = 'checkbox';
+  chk.className = 'layers-gpx-chk';
+  chk.checked = gpxVis;
+  chk.title = 'GPXトラックの表示/非表示';
 
-  const countSpan = document.createElement('span');
-  countSpan.className = 'layer-folder-count';
-  countSpan.textContent = entries.length;
+  const name = document.createElement('span');
+  name.className = 'layers-list-name' + (gpxVis ? '' : ' disabled');
+  name.textContent = gpxState.fileName ?? 'GPXトラック';
 
-  // フォルダ全体の表示/非表示チェック
-  const allVisible = entries.every(e => e.visible);
-  const folderChk = document.createElement('input');
-  folderChk.type = 'checkbox';
-  folderChk.className = 'layer-folder-chk';
-  folderChk.checked = allVisible;
-  folderChk.title = 'フォルダ内の全レイヤーを表示/非表示';
+  item.appendChild(icon);
+  item.appendChild(chk);
+  item.appendChild(name);
 
-  header.appendChild(toggle);
-  header.appendChild(nameSpan);
-  header.appendChild(countSpan);
-  header.appendChild(folderChk);
-  folder.appendChild(header);
-
-  // アイテムコンテナ
-  const itemsEl = document.createElement('div');
-  itemsEl.className = 'layer-folder-items';
-  entries.forEach(e => itemsEl.appendChild(_makeLayerItem(e)));
-  folder.appendChild(itemsEl);
-
-  // フォルダ折り畳みトグル
-  header.addEventListener('click', (ev) => {
-    if (ev.target === folderChk) return; // チェックボックスは別処理
-    const open = toggle.classList.toggle('open');
-    toggle.textContent = open ? '▾' : '▸';
-    itemsEl.style.display = open ? '' : 'none';
-  });
-
-  // フォルダ全体チェック
-  folderChk.addEventListener('change', () => {
-    const vis = folderChk.checked;
-    entries.forEach(e => {
-      e.visible = vis;
-      if (map.getLayer(e.layerId)) {
-        map.setLayoutProperty(e.layerId, 'visibility', vis ? 'visible' : 'none');
-      }
-      if (e.dbId != null) {
-        updateMapLayerState(e.dbId, { visible: vis }).catch(() => {});
-      }
-    });
-    // アイテムのチェックボックスも同期
-    itemsEl.querySelectorAll('.layer-item-chk').forEach(cb => { cb.checked = vis; });
-    itemsEl.querySelectorAll('.layer-item-name').forEach(nm => {
-      nm.classList.toggle('disabled', !vis);
+  chk.addEventListener('change', () => {
+    const vis = chk.checked ? 'visible' : 'none';
+    name.classList.toggle('disabled', !chk.checked);
+    ['gpx-track', 'gpx-track-outline', 'gpx-marker'].forEach(lid => {
+      if (map.getLayer(lid)) map.setLayoutProperty(lid, 'visibility', vis);
     });
   });
 
-  return folder;
+  return item;
+}
+
+/* ---- 詳細ビュー内 GPX アイテム ---- */
+function _makeGpxDetailItem() {
+  const sec = document.createElement('div');
+  sec.className = 'layers-detail-section';
+
+  const secLabel = document.createElement('div');
+  secLabel.className = 'layers-detail-section-label';
+  secLabel.textContent = 'GPXトラック';
+  sec.appendChild(secLabel);
+
+  const item = document.createElement('div');
+  item.className = 'layer-item';
+
+  const row = document.createElement('div');
+  row.className = 'layer-item-row1';
+
+  const gpxVis = map.getLayer('gpx-track')
+    ? map.getLayoutProperty('gpx-track', 'visibility') !== 'none' : true;
+
+  const chk = document.createElement('input');
+  chk.type = 'checkbox';
+  chk.className = 'layer-item-chk';
+  chk.checked = gpxVis;
+
+  const name = document.createElement('span');
+  name.className = 'layer-item-name' + (gpxVis ? '' : ' disabled');
+  name.textContent = gpxState.fileName ?? 'トラック';
+
+  row.appendChild(chk);
+  row.appendChild(name);
+  item.appendChild(row);
+  sec.appendChild(item);
+
+  chk.addEventListener('change', () => {
+    const vis = chk.checked ? 'visible' : 'none';
+    name.classList.toggle('disabled', !chk.checked);
+    ['gpx-track', 'gpx-track-outline', 'gpx-marker'].forEach(lid => {
+      if (map.getLayer(lid)) map.setLayoutProperty(lid, 'visibility', vis);
+    });
+  });
+
+  return sec;
 }
 
 /** レイヤー1件分のアイテム要素を生成する */
@@ -3092,71 +3321,6 @@ function _makeLayerItem(entry) {
   return item;
 }
 
-/** GPX セクションを生成する */
-function _makeGpxLayerSection() {
-  const folder = document.createElement('div');
-  folder.className = 'layer-folder';
-
-  const header = document.createElement('div');
-  header.className = 'layer-folder-header';
-
-  const toggle = document.createElement('span');
-  toggle.className = 'layer-folder-collapse open';
-  toggle.textContent = '▾';
-
-  const nameSpan = document.createElement('span');
-  nameSpan.className = 'layer-folder-name';
-  nameSpan.textContent = 'GPXトラック';
-
-  header.appendChild(toggle);
-  header.appendChild(nameSpan);
-  folder.appendChild(header);
-
-  const itemsEl = document.createElement('div');
-  itemsEl.className = 'layer-folder-items';
-
-  const item = document.createElement('div');
-  item.className = 'layer-item';
-
-  const row = document.createElement('div');
-  row.className = 'layer-item-row1';
-
-  const gpxVis = map.getLayer('gpx-track') ?
-    map.getLayoutProperty('gpx-track', 'visibility') !== 'none' : true;
-
-  const chk = document.createElement('input');
-  chk.type = 'checkbox';
-  chk.className = 'layer-item-chk';
-  chk.checked = gpxVis;
-
-  const name = document.createElement('span');
-  name.className = 'layer-item-name' + (gpxVis ? '' : ' disabled');
-  name.textContent = gpxState.fileName ?? 'トラック';
-
-  row.appendChild(chk);
-  row.appendChild(name);
-  item.appendChild(row);
-  itemsEl.appendChild(item);
-  folder.appendChild(itemsEl);
-
-  // GPX 表示/非表示
-  chk.addEventListener('change', () => {
-    const vis = chk.checked ? 'visible' : 'none';
-    name.classList.toggle('disabled', !chk.checked);
-    ['gpx-track', 'gpx-track-outline', 'gpx-marker'].forEach(lid => {
-      if (map.getLayer(lid)) map.setLayoutProperty(lid, 'visibility', vis);
-    });
-  });
-
-  header.addEventListener('click', (ev) => {
-    if (ev.target === chk) return;
-    const open = toggle.classList.toggle('open');
-    toggle.textContent = open ? '▾' : '▸';
-    itemsEl.style.display = open ? '' : 'none';
-  });
-
-  return folder;
-}
 
 // シミュレータータブの読図地図リストを更新
 let activeReadmapId = null;
@@ -4130,6 +4294,44 @@ document.getElementById('unified-search-input').addEventListener('blur', () => {
 document.getElementById('unified-search-clear').addEventListener('click', clearSearch);
 
 /* ========================================================
+    レイヤーパネル — 詳細ビューのイベントハンドラ
+    ======================================================== */
+
+// 戻るボタン
+document.getElementById('layers-back-btn')?.addEventListener('click', () => {
+  showLayersList();
+});
+
+// お気に入りボタン（ヘッダー右端）
+document.getElementById('layers-fav-btn')?.addEventListener('click', () => {
+  if (_layersDetailId === null) return; // 未分類はお気に入り対象外
+  _toggleFavTerrain(_layersDetailId);
+  _renderLayersDetail(_layersDetailId); // アイコン更新
+  // 一覧ビューに戻ったときに反映されるよう list も再描画（非表示なので軽量）
+  _renderLayersList();
+});
+
+// ---- クイックアクションボタン ----
+
+// 画像を追加 → 既存の画像+JGW モーダルを開く（インポートモーダル経由）
+document.getElementById('layers-qa-image')?.addEventListener('click', () => {
+  // 統合インポートボタンと同じフロー。millerTerrain は既に設定済みの想定。
+  const input = document.getElementById('map-import-input-top');
+  if (input) input.click();
+});
+
+// GPXを追加 → 既存の GPX ファイル選択をトリガー
+document.getElementById('layers-qa-gpx')?.addEventListener('click', () => {
+  const input = document.getElementById('gpx-file-input');
+  if (input) input.click();
+});
+
+// コース作成 → コースタブに切り替え
+document.getElementById('layers-qa-course')?.addEventListener('click', () => {
+  _openSidebarPanel('course');
+});
+
+/* ========================================================
     ファイル選択ボタンの制御
     ======================================================== */
 
@@ -4310,18 +4512,43 @@ document.querySelectorAll('.map-type-chips .type-chip').forEach(chip => {
   });
 });
 
-// ---- 地図カタログ: 地図クリックでフレームポップアップ + テレインハイライト ----
+// ---- 地図カタログ: 地図クリックでフレームポップアップ + テレインハイライト + レイヤータブ遷移 ----
 map.on('click', (e) => {
-  if (!map.getLayer('frames-fill')) return;
-  const features = map.queryRenderedFeatures(e.point, { layers: ['frames-fill'] });
-  if (features.length === 0) {
-    selectTerrain(null); // フレーム外クリックでハイライト解除
+  // ---- ① 画像レイヤーのクリック判定（bbox の矩形範囲で判定）----
+  // raster レイヤーは queryRenderedFeatures 対象外のため bbox で代替する
+  const { lng, lat } = e.lngLat;
+  const hitImage = localMapLayers.find(entry =>
+    entry.visible &&
+    lng >= entry.bbox.west && lng <= entry.bbox.east &&
+    lat >= entry.bbox.south && lat <= entry.bbox.north
+  );
+
+  // ---- ② テレインポリゴンのクリック判定 ----
+  if (!map.getLayer('frames-fill')) {
+    // frames-fill がない（未ロード）→ 画像のみ判定
+    if (hitImage) openLayersPanel(hitImage.terrainId);
     return;
   }
-  showFrameClickPopup(e.lngLat, features.map(f => String(f.id)));
-  // クリックしたフレームの親テレインをハイライト
-  const clickedFrame = mapFrames.find(f => f.id === String(features[0].id));
-  if (clickedFrame) selectTerrain(clickedFrame.properties.terrain_id ?? null);
+  const features = map.queryRenderedFeatures(e.point, { layers: ['frames-fill'] });
+
+  if (features.length === 0 && !hitImage) {
+    selectTerrain(null); // フレーム外・画像外クリックでハイライト解除
+    return;
+  }
+
+  if (features.length > 0) {
+    // テレインポリゴンがヒット → ポップアップ + ハイライト + レイヤータブ遷移
+    showFrameClickPopup(e.lngLat, features.map(f => String(f.id)));
+    const clickedFrame = mapFrames.find(f => f.id === String(features[0].id));
+    if (clickedFrame) {
+      const tid = clickedFrame.properties.terrain_id ?? null;
+      selectTerrain(tid);
+      openLayersPanel(tid);
+    }
+  } else if (hitImage) {
+    // 画像レイヤーがヒット（テレインポリゴンなし）→ レイヤータブ遷移
+    openLayersPanel(hitImage.terrainId);
+  }
 });
 
 // ---- 地図カタログ: ホバーで枠をハイライト ----

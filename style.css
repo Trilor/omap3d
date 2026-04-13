@@ -6445,64 +6445,161 @@ select,
 }
 
 /* ==========================================================
-   レイヤーパネル（#panel-layers）
+   レイヤーパネル（#panel-layers）— 2画面ナビゲーション
    ========================================================== */
 
-/* アクティブテレインバー */
-.layer-active-terrain-bar {
+/* 共通：ビューコンテナ */
+.layers-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+#layers-view-list {
+  overflow-y: auto;
+}
+#layers-view-detail {
+  flex-direction: column;
+  height: 100%;
+  /* display は JS で制御 (none / flex) */
+}
+#layers-view-detail:not([style*="display: none"]) {
+  display: flex;
+}
+
+/* =============================================
+   List view: テレインフォルダ一覧
+   ============================================= */
+
+/* 一覧アイテム */
+.layers-list-item {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  background: rgba(255,255,255,0.04);
-  border-bottom: 1px solid var(--border-color, rgba(255,255,255,0.10));
-  font-size: var(--font-xs);
+  gap: 8px;
+  padding: 10px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  user-select: none;
+  transition: background 0.12s;
 }
-.layer-active-terrain-label {
+.layers-list-item:hover {
+  background: rgba(255,255,255,0.06);
+}
+.layers-list-item:active {
+  background: rgba(255,255,255,0.10);
+}
+
+/* お気に入り星ボタン */
+.layers-list-star {
+  background: none;
+  border: none;
+  padding: 2px;
+  cursor: pointer;
   color: var(--text-muted);
-  white-space: nowrap;
+  flex-shrink: 0;
+  line-height: 1;
+  transition: color 0.15s, transform 0.15s;
+  border-radius: 4px;
 }
-.layer-active-terrain-value {
+.layers-list-star:hover {
+  color: #f5c518;
+  transform: scale(1.15);
+}
+.layers-list-star.active {
+  color: #f5c518;
+}
+
+/* フォルダアイコン（未分類・GPX） */
+.layers-list-folder-icon {
+  color: var(--text-muted);
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+/* テレイン名 */
+.layers-list-name {
+  flex: 1;
+  font-size: var(--font-xs);
   color: var(--text-primary, #e8e8e8);
-  font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-weight: 500;
 }
+.layers-list-name.disabled { opacity: 0.4; }
+
+/* レイヤー数バッジ */
+.layers-list-badge {
+  font-size: 10px;
+  color: var(--text-muted);
+  background: rgba(255,255,255,0.10);
+  border-radius: 10px;
+  padding: 1px 6px;
+  flex-shrink: 0;
+  min-width: 18px;
+  text-align: center;
+}
+
+/* 右矢印 */
+.layers-list-arrow {
+  color: var(--text-muted);
+  flex-shrink: 0;
+  line-height: 1;
+  opacity: 0.6;
+}
+
+/* GPX inline チェックボックス */
+.layers-gpx-chk {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+  cursor: pointer;
+  accent-color: var(--primary, #5b9bd5);
+}
+.layers-list-item--gpx { cursor: default; }
+.layers-list-item--gpx:hover { background: none; }
 
 /* 空状態ヒント */
 .layers-empty-hint {
-  padding: 20px 14px;
+  padding: 24px 16px;
   font-size: var(--font-xs);
   color: var(--text-muted);
   text-align: center;
-  line-height: 1.6;
+  line-height: 1.8;
 }
 
-/* フォルダ */
-.layer-folder {
-  border-bottom: 1px solid var(--border-color, rgba(255,255,255,0.08));
-}
-.layer-folder-header {
+/* =============================================
+   Detail view: テレイン詳細
+   ============================================= */
+
+/* ナビバー（戻るボタン + タイトル + 星） */
+.layers-detail-nav {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 7px 10px;
-  cursor: pointer;
-  user-select: none;
+  padding: 6px 8px 6px 4px;
   background: rgba(255,255,255,0.03);
-  transition: background 0.15s;
-}
-.layer-folder-header:hover {
-  background: rgba(255,255,255,0.07);
-}
-.layer-folder-collapse {
-  font-size: 11px;
-  color: var(--text-muted);
-  width: 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.10);
   flex-shrink: 0;
 }
-.layer-folder-name {
+.layers-back-btn {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: none;
+  border: none;
+  color: var(--primary, #5b9bd5);
+  font-size: var(--font-xs);
+  padding: 4px 8px;
+  cursor: pointer;
+  border-radius: 5px;
+  flex-shrink: 0;
+  transition: background 0.12s;
+}
+.layers-back-btn:hover {
+  background: rgba(91,155,213,0.15);
+}
+.layers-detail-title {
   flex: 1;
   font-size: var(--font-xs);
   font-weight: 600;
@@ -6511,30 +6608,79 @@ select,
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.layer-folder-count {
-  font-size: 10px;
-  color: var(--text-muted);
-  background: rgba(255,255,255,0.08);
-  border-radius: 10px;
-  padding: 1px 6px;
-  flex-shrink: 0;
-}
-.layer-folder-chk {
-  width: 14px;
-  height: 14px;
-  flex-shrink: 0;
+.layers-fav-btn {
+  background: none;
+  border: none;
+  padding: 4px 6px;
   cursor: pointer;
-  accent-color: var(--primary, #5b9bd5);
+  color: var(--text-muted);
+  flex-shrink: 0;
+  line-height: 1;
+  border-radius: 4px;
+  transition: color 0.15s, transform 0.15s;
+}
+.layers-fav-btn:hover {
+  color: #f5c518;
+  transform: scale(1.15);
+}
+.layers-fav-btn.active {
+  color: #f5c518;
 }
 
-/* フォルダアイテムコンテナ */
-.layer-folder-items {
-  padding: 2px 0;
+/* クイックアクション行 */
+.layers-quick-actions {
+  display: flex;
+  gap: 4px;
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  flex-shrink: 0;
+}
+.layers-qa-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 4px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 6px;
+  color: var(--text-primary, #e8e8e8);
+  font-size: 10px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  line-height: 1.2;
+  text-align: center;
+}
+.layers-qa-btn:hover {
+  background: rgba(91,155,213,0.18);
+  border-color: rgba(91,155,213,0.5);
+}
+.layers-qa-btn svg { flex-shrink: 0; }
+
+/* レイヤーリスト本体（スクロール） */
+.layers-detail-scroll {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* セクションラベル */
+.layers-detail-section {
+  padding-top: 4px;
+}
+.layers-detail-section-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  padding: 6px 12px 3px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
 }
 
 /* 個別レイヤーアイテム */
 .layer-item {
-  padding: 4px 10px 4px 24px;
+  padding: 5px 10px 5px 12px;
   border-top: 1px solid rgba(255,255,255,0.04);
 }
 .layer-item-row1 {
@@ -6557,9 +6703,7 @@ select,
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.layer-item-name.disabled {
-  opacity: 0.4;
-}
+.layer-item-name.disabled { opacity: 0.4; }
 .layer-item-del {
   opacity: 0;
   background: none;
@@ -6572,21 +6716,15 @@ select,
   flex-shrink: 0;
   transition: opacity 0.15s, color 0.15s;
 }
-.layer-item:hover .layer-item-del {
-  opacity: 1;
-}
-.layer-item-del:hover {
-  color: #e55;
-}
+.layer-item:hover .layer-item-del { opacity: 1; }
+.layer-item-del:hover { color: #e55; }
 .layer-item-row2 {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding-top: 2px;
+  padding-top: 3px;
 }
-.layer-item-slider {
-  flex: 1;
-}
+.layer-item-slider { flex: 1; }
 .layer-item-opacity-val {
   font-size: 10px;
   color: var(--text-muted);
@@ -6595,7 +6733,9 @@ select,
   flex-shrink: 0;
 }
 
-/* コースパネルプレースホルダー */
+/* ==========================================================
+   コースパネルプレースホルダー
+   ========================================================== */
 .course-placeholder {
   padding: 30px 16px;
   text-align: center;
