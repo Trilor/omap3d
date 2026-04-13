@@ -6118,8 +6118,11 @@ async function _syncDataOverlayDeckLayers(overlayKey) {
   const showHighRes = currentZoom >= 15.5; // deck.gl は Math.round なので 15.5 → z16
 
   // interleaved モードで等高線レイヤーの直前（下）に描画するための beforeId
+  // visibility:none のレイヤーを beforeId に指定すると MapLibre が描画ポイントを
+  // 確立できず Deck.gl レイヤーが描画されないため、visible なものだけを選ぶ
   const _beforeContour = ['contour-regular-dem1a', 'contour-regular-dem5a', 'contour-regular']
-    .find(id => map.getLayer(id));
+    .find(id => map.getLayer(id) && map.getLayoutProperty(id, 'visibility') === 'visible');
+  console.log(`[DeckSync] _beforeContour=${_beforeContour}`);
 
   const layers = [
     new deck.TileLayer({
