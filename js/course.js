@@ -66,6 +66,76 @@ let _activeCtrlId    = null;  // 選択中コントロールの defId（選択�
 let _activeTab       = 'course'; // 'course' | 'controls'
 let _previewSnapping = false;    // 前フレームのスナップ状態（setPaintProperty 呼び出し抑制用）
 
+// ================================================================
+// 履歴（Undo / Redo）
+// ================================================================
+const HISTORY_MAX  = 50;
+const _undoStack   = [];  // スナップショット配列（古い順）
+const _redoStack   = [];  // redo 用スナップショット配列
+
+/** 現在の編集状態をスナップショットとして返す */
+function _snapshot() {
+  return {
+    controlDefs:    [..._controlDefs.entries()].map(([k, v]) => [k, { ...v }]),
+    courses:        JSON.parse(JSON.stringify(_courses)),
+    selectedRoutes: [..._selectedRoutes.entries()],
+    activeCourseIdx: _activeCourseIdx,
+    nextDefId:      _nextDefId,
+    nextRouteId:    _nextRouteId,
+  };
+}
+
+/** ミューテーション前に呼ぶ。redo スタックはクリアされる */
+function _pushHistory() {
+  _undoStack.push(_snapshot());
+  if (_undoStack.length > HISTORY_MAX) _undoStack.shift();
+  _redoStack.length = 0;
+  _updateHistoryButtons();
+}
+
+/** スナップショットを状態に復元する */
+function _restoreSnapshot(snap) {
+  _controlDefs.clear();
+  snap.controlDefs.forEach(([k, v]) => _controlDefs.set(k, v));
+  _courses.length = 0;
+  snap.courses.forEach(c => _courses.push(c));
+  _selectedRoutes.clear();
+  snap.selectedRoutes.forEach(([k, v]) => _selectedRoutes.set(k, v));
+  _activeCourseIdx = snap.activeCourseIdx;
+  _nextDefId       = snap.nextDefId;
+  _nextRouteId     = snap.nextRouteId;
+  // ドラッグ・描画中状態をリセット
+  _routeDraw    = null;
+  _editRoute    = null;
+  _activeCtrlId = null;
+  _routeStatsCache.clear();
+  _legStats = [];
+  _refreshSource();
+  _scheduleCalc();
+  _renderPanel();
+}
+
+function _undo() {
+  if (_undoStack.length === 0) return;
+  _redoStack.push(_snapshot());
+  _restoreSnapshot(_undoStack.pop());
+  _updateHistoryButtons();
+}
+
+function _redo() {
+  if (_redoStack.length === 0) return;
+  _undoStack.push(_snapshot());
+  _restoreSnapshot(_redoStack.pop());
+  _updateHistoryButtons();
+}
+
+function _updateHistoryButtons() {
+  const undoBtn = document.getElementById('course-undo-btn');
+  const redoBtn = document.getElementById('course-redo-btn');
+  if (undoBtn) undoBtn.disabled = _undoStack.length === 0;
+  if (redoBtn) redoBtn.disabled = _redoStack.length === 0;
+}
+
 /**
  * ルートチョイス描画状態
  * null = 非アクティブ
@@ -812,6 +882,7 @@ function _onCtrlDragEnd() {
   _map.getCanvas().style.cursor = _drawMode ? 'crosshair' : '';
   _map.off('mousemove', _onCtrlDrag);
   if (_dragCtrl) {
+    _pushHistory();
     // ドラッグ終了時に、このコントロールを端点とするルートの座標を同期
     const movedId = _dragCtrl.defId;
     _courses.forEach(course => {
@@ -925,6 +996,7 @@ function _onRouteDrawClick(e) {
 function _commitRouteDraw() {
   if (!_routeDraw || _routeDraw.pts.length < 2) { _cancelRouteDraw(); return; }
 
+  _pushHistory();
   const course   = _activeCourse();
   if (!course.legRoutes) course.legRoutes = {};
   const key      = _routeDraw.legKey;
@@ -953,6 +1025,7 @@ function _cancelRouteDraw() {
 
 /** ルートを削除 */
 function _deleteRoute(key, routeId) {
+  _pushHistory();
   const course = _activeCourse();
   if (!course.legRoutes?.[key]) return;
   course.legRoutes[key] = course.legRoutes[key].filter(r => r.id !== routeId);
@@ -1003,7 +1076,10 @@ function _onVertexDragEnd() {
   _map.dragPan.enable();
   _map.getCanvas().style.cursor = '';
   _map.off('mousemove', _onVertexDrag);
-  if (_editRoute) _editRoute.dragPtIdx = null;
+  if (_editRoute) {
+    _pushHistory();
+    _editRoute.dragPtIdx = null;
+  }
   _renderPanel();
 }
 
@@ -1020,6 +1096,7 @@ function _onMidpointMousedown(e) {
   if (!route) return;
 
   const insertIdx = props.afterIdx + 1;
+  _pushHistory();
   route.coords.splice(insertIdx, 0, [e.lngLat.lng, e.lngLat.lat]);
   _editRoute.dragPtIdx = insertIdx;
 
@@ -1045,6 +1122,7 @@ function _onVertexContextmenu(e) {
   // 端点（index 0 と末尾）は削除不可
   if (props.ptIdx === 0 || props.ptIdx === route.coords.length - 1) return;
 
+  _pushHistory();
   route.coords.splice(props.ptIdx, 1);
   _refreshSource();
   _renderPanel();
@@ -1058,6 +1136,7 @@ function _onVertexContextmenu(e) {
  * 新しいコントロール定義をマスターに登録し、アクティブコースのシーケンスに追加する。
  */
 function _addControl(lng, lat) {
+  _pushHistory();
   const course  = _activeCourse();
   const isFirst = course.sequence.length === 0;
   const type    = isFirst ? 'start' : 'control';
@@ -1089,6 +1168,7 @@ function _addControl(lng, lat) {
 function _addExistingControl(defId) {
   const def = _controlDefs.get(defId);
   if (!def) return;
+  _pushHistory();
   _activeCourse().sequence.push(defId);
   _refreshSource();
   _scheduleCalc();
@@ -1100,6 +1180,7 @@ function _addExistingControl(defId) {
  * 全コースで未使用ならマスターからも削除。
  */
 function _deleteFromSequence(seqIdx) {
+  _pushHistory();
   const course = _activeCourse();
   const [defId] = course.sequence.splice(seqIdx, 1);
 
@@ -1117,6 +1198,7 @@ function _deleteFromSequence(seqIdx) {
  * 全コントロールタブの「削除」ボタン用。
  */
 function _deleteDefFromAll(defId) {
+  _pushHistory();
   _controlDefs.delete(defId);
   _courses.forEach(c => {
     c.sequence = c.sequence.filter(id => id !== defId);
@@ -1367,6 +1449,7 @@ function _renderCourseTab() {
       inp.title = 'コントロールコード';
       inp.addEventListener('click', e => e.stopPropagation()); // 行クリックと競合させない
       inp.addEventListener('change', () => {
+        _pushHistory();
         def.code = inp.value.trim() || def.code;
         inp.value = def.code;
       });
@@ -1531,6 +1614,7 @@ function _renderCourseTab() {
             html: `<span class="cdd-text">${o.html}</span>`,
           };
         }), val => {
+          _pushHistory();
           if (val === 'direct') {
             _selectedRoutes.delete(key);
           } else {
@@ -1627,6 +1711,7 @@ function _renderDefsTab() {
       inp.value = def.code; inp.maxLength = 6;
       inp.title = 'コントロールコード（編集可）';
       inp.addEventListener('change', () => {
+        _pushHistory();
         def.code = inp.value.trim() || def.code;
         inp.value = def.code;
         // コースタブ側も更新
@@ -1891,6 +1976,7 @@ function _importJSON(text) {
 // ================================================================
 
 function _clearCourse() {
+  _pushHistory();
   if (_drawMode)   _setDrawMode(false);
   if (_routeDraw)  _cancelRouteDraw();
   if (_calcAbort)  _calcAbort.aborted = true;
@@ -1963,6 +2049,29 @@ function _setupUI() {
     _clearCourse();
   });
 
+  // Undo / Redo ボタン
+  document.getElementById('course-undo-btn')?.addEventListener('click', _undo);
+  document.getElementById('course-redo-btn')?.addEventListener('click', _redo);
+
+  // Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z — コースパネルが表示中のみ動作
+  document.addEventListener('keydown', e => {
+    // テキスト入力中は除外
+    const tag = document.activeElement?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+    // コースパネルが表示されているか確認
+    const panel = document.getElementById('course-panel');
+    if (!panel || panel.style.display === 'none') return;
+
+    const isZ = e.key === 'z' || e.key === 'Z';
+    const isY = e.key === 'y' || e.key === 'Y';
+    if (!e.ctrlKey && !e.metaKey) return;
+
+    if (isZ && e.shiftKey) { e.preventDefault(); _redo(); return; }
+    if (isZ)               { e.preventDefault(); _undo(); return; }
+    if (isY)               { e.preventDefault(); _redo(); return; }
+  });
+
+  _updateHistoryButtons();
   _renderPanel();
 }
 

@@ -6996,6 +6996,19 @@ select,
 .course-actions .panel-btn-outline {
   flex: 1;
 }
+/* Undo / Redo ボタン — アイコンのみ、固定幅 */
+.course-hist-btn {
+  flex: 0 0 auto !important;
+  width: 30px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.course-hist-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
 .course-clear-btn {
   width: 100%;
   color: var(--color-danger) !important;
