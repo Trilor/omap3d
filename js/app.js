@@ -4404,7 +4404,6 @@ function updateCsVisibility() {
   const z = map.getZoom();
   const showColorRelief = overlay === 'color-relief';
   // 色別標高図は Deck.gl GPU シェーダーで描画するため MapLibre ラスタレイヤーは常に非表示
-  // visibility:none でタイルフェッチを完全に停止する（raster-opacity:0 では停止しない）
   if (map.getLayer('color-relief-layer')) {
     map.setLayoutProperty('color-relief-layer', 'visibility', 'none');
     if (map.getLayer('color-qchizu-layer')) map.setLayoutProperty('color-qchizu-layer', 'visibility', 'none');
@@ -4412,10 +4411,7 @@ function updateCsVisibility() {
   REGIONAL_RELIEF_LAYERS.forEach(layer => {
     if (map.getLayer(layer.layerId)) map.setLayoutProperty(layer.layerId, 'visibility', 'none');
   });
-  // _syncDataOverlayDeckLayers は currentOverlay !== key のときに自動クリアするため
-  // 常に全3キーを同期する（条件付きだと切り替え前のレイヤーが残存するバグが発生）
-  scheduleDataOverlayDeckSync('color-relief');
-  // 傾斜量図も visibility:none でタイルフェッチを停止
+  // 傾斜量図も Deck.gl GPU シェーダーで描画
   const showSlopeRelief = overlay === 'slope';
   if (map.getLayer('slope-relief-layer')) {
     map.setLayoutProperty('slope-relief-layer', 'visibility', 'none');
@@ -4424,9 +4420,8 @@ function updateCsVisibility() {
   REGIONAL_SLOPE_LAYERS.forEach(layer => {
     if (map.getLayer(layer.layerId)) map.setLayoutProperty(layer.layerId, 'visibility', 'none');
   });
-  scheduleSlopeDeckSync();
+  // 色別曲率図も Deck.gl GPU シェーダーで描画
   const showCurvatureRelief = overlay === 'curvature';
-  // 色別曲率図も visibility:none でタイルフェッチを停止
   if (map.getLayer('curvature-relief-layer')) {
     map.setLayoutProperty('curvature-relief-layer', 'visibility', 'none');
     if (map.getLayer('curvature-qchizu-layer')) map.setLayoutProperty('curvature-qchizu-layer', 'visibility', 'none');
@@ -4434,7 +4429,14 @@ function updateCsVisibility() {
   REGIONAL_CURVE_LAYERS.forEach(layer => {
     if (map.getLayer(layer.layerId)) map.setLayoutProperty(layer.layerId, 'visibility', 'none');
   });
-  scheduleDataOverlayDeckSync('curvature');
+  // Deck.gl sync は現在選択中のオーバーレイのみ呼ぶ（全部呼ぶと非選択オーバーレイの
+  // async 処理がレイヤーをクリアして選択中のレイヤーをかき消す競合が起きる）
+  if (overlay in OVERLAY_DATA_CONFIGS) {
+    scheduleDataOverlayDeckSync(overlay);
+  } else {
+    // Deck.gl オーバーレイでない選択時は全データレイヤーをクリア
+    Object.keys(OVERLAY_DATA_CONFIGS).forEach(key => scheduleDataOverlayDeckSync(key));
+  }
   const showRrimRelief = overlay === 'rrim';
   if (map.getLayer('rrim-relief-layer')) {
     map.setLayoutProperty('rrim-relief-layer', 'visibility', showRrimRelief ? 'visible' : 'none');
@@ -4758,22 +4760,21 @@ function applyColorReliefTiles() {
     if (--remaining > 0) _crRepaintTimer = setTimeout(repaint, 100);
   };
   repaint();
-  // Deck.gl GPU シェーダーパスにも通知（color-relief 以外のときは no-op）
-  scheduleDataOverlayDeckSync('color-relief');
 }
 
-// ドラッグ中は UI を即座に更新し、タイル再フェッチはデバウンス（300ms）
-// Deck.gl シェーダーは uniform 更新のみのため毎 input で即時同期する
+// ドラッグ中は UI を即座に更新し、タイル再フェッチはデバウンス（200ms）
 function updateColorReliefUI() {
   syncColorReliefUI();
   updateGradientTrack();
-  // setPaintProperty は重いため 100ms スロットル（タイル更新は change イベントで確定）
   const now = Date.now();
   if (now - _crThrottleTime >= 100) {
     _crThrottleTime = now;
     updateColorContourColors();
   }
-  scheduleDataOverlayDeckSync('color-relief');
+  clearTimeout(_crTileTimer);
+  _crTileTimer = setTimeout(() => {
+    applyColorReliefTiles();
+  }, 200);
 }
 
 // 確定時（ドラッグ終了・数値入力・自動フィット）はタイルを即座に更新
@@ -4783,6 +4784,8 @@ function updateColorReliefSource() {
   updateColorContourColors();
   clearTimeout(_crTileTimer);
   applyColorReliefTiles();
+  // パレット/範囲が変わったとき Deck.gl シェーダーにも即時反映
+  if (currentOverlay === 'color-relief') scheduleDataOverlayDeckSync('color-relief');
 }
 
 // 双方向バインディング初期化
@@ -5406,6 +5409,7 @@ function updateCurvatureReliefSource() {
   updateCurvatureGradientTrack();
   clearTimeout(_cvTileTimer);
   applyCurvatureReliefTiles();
+  if (currentOverlay === 'curvature') scheduleDataOverlayDeckSync('curvature');
 }
 
 (function initCurvatureReliefSlider() {
@@ -5868,6 +5872,7 @@ function _commitDeckLayers() {
   _deckOverlay.setProps({ layers: [..._deckPlateauLayers, ...dataLayers] });
 }
 
+
 function _expandDeckTileUrl(template, tile) {
   return template
     .replace('{z}', String(tile.index.z))
@@ -6038,10 +6043,13 @@ async function _syncDataOverlayDeckLayers(overlayKey) {
   if (currentOverlay !== overlayKey) {
     if (_deckDataLayers[overlayKey]?.length) {
       _deckDataLayers[overlayKey] = [];
+      // 他のキーの同期が完了した後にまとめて commit されるため即時 commit はしない
+      // （複数キーを連続 scheduleDataOverlayDeckSync したときの race condition を防ぐ）
       _commitDeckLayers();
     }
     return;
   }
+
 
   await _loadDeckGl();
   _initDeckOverlay();
@@ -6100,6 +6108,10 @@ async function _syncDataOverlayDeckLayers(overlayKey) {
   const currentZoom = map?.getZoom() ?? 0;
   const showHighRes = currentZoom >= 15.5; // deck.gl は Math.round なので 15.5 → z16
 
+  // interleaved モードで等高線レイヤーの直前（下）に描画するための beforeId
+  const _beforeContour = ['contour-regular-dem1a', 'contour-regular-dem5a', 'contour-regular']
+    .find(id => map.getLayer(id));
+
   const layers = [
     new deck.TileLayer({
       id: `${cfg.layerIdPrefix}-base`,
@@ -6107,6 +6119,7 @@ async function _syncDataOverlayDeckLayers(overlayKey) {
       getTileData: makeTileDataLoader(qBlendUrl),
       renderSubLayers: mkSubLayer,
       updateTriggers: { renderSubLayers: subLayerTrigger },
+      beforeId: _beforeContour,
     }),
   ];
 
@@ -6117,6 +6130,7 @@ async function _syncDataOverlayDeckLayers(overlayKey) {
       getTileData: makeTileDataLoader(qOnlyUrl),
       renderSubLayers: mkSubLayer,
       updateTriggers: { renderSubLayers: subLayerTrigger },
+      beforeId: _beforeContour,
     }));
     cfg.regionalLayers.forEach((layer) => {
       const url = cfg.toDataUrl(layer.tileUrl);
@@ -6129,6 +6143,7 @@ async function _syncDataOverlayDeckLayers(overlayKey) {
         getTileData: makeTileDataLoader(url),
         renderSubLayers: mkSubLayer,
         updateTriggers: { renderSubLayers: subLayerTrigger },
+        beforeId: _beforeContour,
       }));
     });
   }
@@ -6136,6 +6151,7 @@ async function _syncDataOverlayDeckLayers(overlayKey) {
   _deckDataLayers[overlayKey] = layers;
   _commitDeckLayers();
 }
+
 
 function scheduleDataOverlayDeckSync(overlayKey) {
   if (!_dataDeckSyncRafs) _dataDeckSyncRafs = {}; // IIFE 順序ずれ対策
@@ -6171,10 +6187,15 @@ async function _loadDeckGl() {
 
 function _initDeckOverlay() {
   if (_deckOverlay || !window.deck) return;
-  _deckOverlay = new deck.MapboxOverlay({ layers: [] });
+  // interleaved: true で deck.gl を MapLibre の WebGL パイプライン内に挿入する。
+  // 各 TileLayer の beforeId で等高線レイヤーの直前（下）に入れ、
+  // MapLibre 内の描画順を制御する。
+  _deckOverlay = new deck.MapboxOverlay({ interleaved: true, layers: [] });
   map.addControl(_deckOverlay);
   _commitDeckLayers();
 }
+
+
 
 // 指定 tileset.json URL の PLATEAU 3D Tiles を deck.gl で表示する汎用関数
 // （LOD2・LOD3 共用。visible=false で非表示）
