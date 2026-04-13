@@ -691,7 +691,7 @@ function _renderCourseTab() {
       { units: 'kilometers' }
     );
   }
-  if (distEl) distEl.textContent = n >= 2 ? totalDist.toFixed(2) + ' km' : '—';
+  if (distEl) distEl.textContent = n >= 2 ? Math.round(totalDist * 1000) + ' m' : '—';
 
   // 累積登高
   if (climbEl) {
@@ -773,10 +773,10 @@ function _renderCourseTab() {
         const upPart   = legStat.climb   > 0 ? `<span class="course-elev-up">↑${legStat.climb} m</span>`   : '';
         const downPart = legStat.descent > 0 ? `<span class="course-elev-dn">↓${legStat.descent} m</span>` : '';
         statsDiv.innerHTML =
-          `<span class="course-leg-dist">↔ ${legDist.toFixed(2)} km</span>` +
+          `<span class="course-leg-dist">↔ ${Math.round(legDist * 1000)} m</span>` +
           (upPart || downPart ? `<span class="course-leg-elev">${upPart}${downPart}</span>` : '');
       } else {
-        statsDiv.textContent = `↔ ${legDist.toFixed(2)} km`;
+        statsDiv.textContent = `↔ ${Math.round(legDist * 1000)} m`;
       }
       infoDiv.appendChild(statsDiv);
     }
