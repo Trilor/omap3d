@@ -978,10 +978,10 @@ maplibregl.addProtocol('dem2slope', async (params, abortController) => {
   リサイズは nearest=true（数値データ保護）。
   ========================================================
 */
-export async function generateSlopeDataTile(paramsUrl, abortSignal) {
+export async function generateSlopeDataTile(paramsUrl, abortSignal, returnBitmap = false) {
   try {
     const request = _parseProtocolTileRequest(paramsUrl, 'slope-data');
-    if (!request) return { data: _transparentPngBuffer() };
+    if (!request) return returnBitmap ? null : { data: _transparentPngBuffer() };
     const { urlObj, baseUrl, tileOrder, zoomLevel, tileX, tileY, ext } = request;
 
     const qonly = urlObj.searchParams.get('qonly') === '1';
@@ -1002,8 +1002,11 @@ export async function generateSlopeDataTile(paramsUrl, abortSignal) {
       },
       true // nearest: RGB24エンコードデータはバイリニア補間禁止
     );
-    if (!outCanvas) return { data: _transparentPngBuffer() };
+    if (!outCanvas) return returnBitmap ? null : { data: _transparentPngBuffer() };
     const t1 = performance.now();
+
+    // Deck.gl 経由（returnBitmap=true）の場合は PNG エンコードを省略して直接 ImageBitmap を返す
+    if (returnBitmap) return { bitmap: await createImageBitmap(outCanvas) };
 
     const blob = await outCanvas.convertToBlob({ type: 'image/png' });
     const buf  = await blob.arrayBuffer();
@@ -1011,7 +1014,7 @@ export async function generateSlopeDataTile(paramsUrl, abortSignal) {
     console.log(`[slope-data] z${zoomLevel} ${tileX},${tileY} dem:${_demSrcLabel(demMode)} | fetch+calc:${(t1-t0).toFixed(0)}ms  blob:${(t2-t1).toFixed(0)}ms  total:${(t2-t0).toFixed(0)}ms`);
     return { data: buf };
   } catch {
-    return { data: _transparentPngBuffer() };
+    return returnBitmap ? null : { data: _transparentPngBuffer() };
   }
 }
 
@@ -1031,7 +1034,7 @@ maplibregl.addProtocol('slope-data', async (params, abortController) => {
   描画時の着色は deck.gl 側シェーダーで行う。
   ========================================================
 */
-export async function generateReliefDataTile(paramsUrl, abortSignal) {
+export async function generateReliefDataTile(paramsUrl, abortSignal, returnBitmap = false) {
   try {
     const request = _parseProtocolTileRequest(paramsUrl, 'relief-data');
     if (!request) return { data: _transparentPngBuffer() };
@@ -1058,7 +1061,7 @@ export async function generateReliefDataTile(paramsUrl, abortSignal) {
       effectiveRegionalBase, effectiveRegionalExt ?? 'png',
       demMode, effectiveRegionalOrder, null
     );
-    if (!bitmap) return { data: _transparentPngBuffer() };
+    if (!bitmap) return returnBitmap ? null : { data: _transparentPngBuffer() };
 
     const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
     const ctx    = canvas.getContext('2d');
@@ -1080,13 +1083,18 @@ export async function generateReliefDataTile(paramsUrl, abortSignal) {
     ctx.putImageData(imageData, 0, 0);
 
     const t1 = performance.now();
-    const blob = await _rescaleComposite(canvas, true).convertToBlob({ type: 'image/png' });
+    const scaledCanvas = _rescaleComposite(canvas, true);
+
+    // Deck.gl 経由（returnBitmap=true）の場合は PNG エンコードを省略して直接 ImageBitmap を返す
+    if (returnBitmap) return { bitmap: await createImageBitmap(scaledCanvas) };
+
+    const blob = await scaledCanvas.convertToBlob({ type: 'image/png' });
     const buf  = await blob.arrayBuffer();
     const t2   = performance.now();
     console.log(`[relief-data] z${z} ${x},${y} dem:${_demSrcLabel(demMode)} | fetch+calc:${(t1-t0).toFixed(0)}ms  blob:${(t2-t1).toFixed(0)}ms  total:${(t2-t0).toFixed(0)}ms`);
     return { data: buf };
   } catch {
-    return { data: _transparentPngBuffer() };
+    return returnBitmap ? null : { data: _transparentPngBuffer() };
   }
 }
 
@@ -1422,11 +1430,11 @@ maplibregl.addProtocol('dem2curve', async (params, abortController) => {
   dem2curve と同じ TF.js 演算だが、着色せず Float32 → RGB24 エンコードに変更。
   ========================================================
 */
-export async function generateCurveDataTile(paramsUrl, abortSignal) {
+export async function generateCurveDataTile(paramsUrl, abortSignal, returnBitmap = false) {
   try {
-    if (_tfContextLost) return { data: _transparentPngBuffer() };
+    if (_tfContextLost) return returnBitmap ? null : { data: _transparentPngBuffer() };
     const request = _parseProtocolTileRequest(paramsUrl, 'curve-data');
-    if (!request) return { data: _transparentPngBuffer() };
+    if (!request) return returnBitmap ? null : { data: _transparentPngBuffer() };
     const { urlObj, baseUrl, tileOrder, zoomLevel, tileX, tileY, ext } = request;
 
     const terrainScale = Math.max(parseFloat(urlObj.searchParams.get('terrainScale') ?? '1') || 1, 0.1);
@@ -1550,7 +1558,12 @@ export async function generateCurveDataTile(paramsUrl, abortSignal) {
       outCtx.putImageData(outId, 0, 0);
 
       const t1 = performance.now();
-      const blob = await _rescaleComposite(outCanvas, true).convertToBlob({ type: 'image/png' });
+      const scaledCanvas = _rescaleComposite(outCanvas, true);
+
+      // Deck.gl 経由（returnBitmap=true）の場合は PNG エンコードを省略して直接 ImageBitmap を返す
+      if (returnBitmap) return { bitmap: await createImageBitmap(scaledCanvas) };
+
+      const blob = await scaledCanvas.convertToBlob({ type: 'image/png' });
       const buf  = await blob.arrayBuffer();
       const t2   = performance.now();
       console.log(`[curve-data] z${zoomLevel} ${tileX},${tileY} dem:${_demSrcLabel(demMode)} | fetch+calc:${(t1-t0).toFixed(0)}ms  blob:${(t2-t1).toFixed(0)}ms  total:${(t2-t0).toFixed(0)}ms`);
@@ -1560,7 +1573,7 @@ export async function generateCurveDataTile(paramsUrl, abortSignal) {
     }
   } catch(e) {
     if (e?.name === 'AbortError') throw e;
-    return { data: _transparentPngBuffer() };
+    return returnBitmap ? null : { data: _transparentPngBuffer() };
   }
 }
 

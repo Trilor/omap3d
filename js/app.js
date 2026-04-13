@@ -753,9 +753,10 @@ map.on('load', async () => {
   // Q地図カバレッジ外では null タイルを返すためメインソースのオーバーズームが透けて見える。
   const _qBase = QCHIZU_DEM_BASE.replace(/^https?:\/\//, '');
   [
-    { id: 'color-qchizu',    proto: 'dem2relief', params: 'min=0&max=500',           opacity: 'visible',  init: 0 },
-    { id: 'slope-qchizu',    proto: 'dem2slope',  params: 'min=0&max=45',            opacity: 'visible',  init: 0 },
-    { id: 'curvature-qchizu',proto: 'dem2curve',  params: 'min=-0.25&max=0.25',      opacity: 'visible',  init: 0 },
+    // Deck.gl が描画を担うため MapLibre ラスタレイヤーは初期から非表示（タイルフェッチ禁止）
+    { id: 'color-qchizu',    proto: 'dem2relief', params: 'min=0&max=500',           opacity: 'none',  init: 0 },
+    { id: 'slope-qchizu',    proto: 'dem2slope',  params: 'min=0&max=45',            opacity: 'none',  init: 0 },
+    { id: 'curvature-qchizu',proto: 'dem2curve',  params: 'min=-0.25&max=0.25',      opacity: 'none',  init: 0 },
     { id: 'rrim-qchizu',     proto: 'dem2rrim',   params: '',                        opacity: 'none',     init: 0 },
     { id: 'cs-qchizu',       proto: 'dem2cs',     params: '',                        opacity: 'none',     init: CS_INITIAL_OPACITY },
   ].forEach(({ id, proto, params, opacity, init }) => {
@@ -4403,29 +4404,30 @@ function updateCsVisibility() {
   const z = map.getZoom();
   const showColorRelief = overlay === 'color-relief';
   // 色別標高図は Deck.gl GPU シェーダーで描画するため MapLibre ラスタレイヤーは常に非表示
+  // visibility:none でタイルフェッチを完全に停止する（raster-opacity:0 では停止しない）
   if (map.getLayer('color-relief-layer')) {
-    map.setPaintProperty('color-relief-layer', 'raster-opacity', 0);
-    if (map.getLayer('color-qchizu-layer')) map.setPaintProperty('color-qchizu-layer', 'raster-opacity', 0);
+    map.setLayoutProperty('color-relief-layer', 'visibility', 'none');
+    if (map.getLayer('color-qchizu-layer')) map.setLayoutProperty('color-qchizu-layer', 'visibility', 'none');
   }
   REGIONAL_RELIEF_LAYERS.forEach(layer => {
     if (map.getLayer(layer.layerId)) map.setLayoutProperty(layer.layerId, 'visibility', 'none');
   });
   if (showColorRelief) scheduleDataOverlayDeckSync('color-relief');
-  // 傾斜図は Deck.gl GPU シェーダーで描画するため MapLibre ラスタレイヤーは常に非表示
+  // 傾斜量図も visibility:none でタイルフェッチを停止
   const showSlopeRelief = overlay === 'slope';
   if (map.getLayer('slope-relief-layer')) {
-    map.setPaintProperty('slope-relief-layer', 'raster-opacity', 0);
-    if (map.getLayer('slope-qchizu-layer')) map.setPaintProperty('slope-qchizu-layer', 'raster-opacity', 0);
+    map.setLayoutProperty('slope-relief-layer', 'visibility', 'none');
+    if (map.getLayer('slope-qchizu-layer')) map.setLayoutProperty('slope-qchizu-layer', 'visibility', 'none');
   }
   REGIONAL_SLOPE_LAYERS.forEach(layer => {
     if (map.getLayer(layer.layerId)) map.setLayoutProperty(layer.layerId, 'visibility', 'none');
   });
   if (showSlopeRelief) scheduleSlopeDeckSync();
   const showCurvatureRelief = overlay === 'curvature';
-  // 色別曲率図は Deck.gl GPU シェーダーで描画するため MapLibre ラスタレイヤーは常に非表示
+  // 色別曲率図も visibility:none でタイルフェッチを停止
   if (map.getLayer('curvature-relief-layer')) {
-    map.setPaintProperty('curvature-relief-layer', 'raster-opacity', 0);
-    if (map.getLayer('curvature-qchizu-layer')) map.setPaintProperty('curvature-qchizu-layer', 'raster-opacity', 0);
+    map.setLayoutProperty('curvature-relief-layer', 'visibility', 'none');
+    if (map.getLayer('curvature-qchizu-layer')) map.setLayoutProperty('curvature-qchizu-layer', 'visibility', 'none');
   }
   REGIONAL_CURVE_LAYERS.forEach(layer => {
     if (map.getLayer(layer.layerId)) map.setLayoutProperty(layer.layerId, 'visibility', 'none');
@@ -6070,8 +6072,11 @@ async function _syncDataOverlayDeckLayers(overlayKey) {
   // renderSubLayers の再呼び出しトリガー: uniform に影響する値が変わったときに通知
   const subLayerTrigger = [renderMin, renderMax, cfg.getPaletteId(), opacity];
   const makeTileDataLoader = (template) => async (tile) => {
-    const { data } = await cfg.generateTile(_expandDeckTileUrl(template, tile), tile.signal);
-    return await createImageBitmap(new Blob([data], { type: 'image/png' }));
+    // returnBitmap=true で PNG エンコード/デコードの往復を省略（~1200ms 削減）
+    const result = await cfg.generateTile(_expandDeckTileUrl(template, tile), tile.signal, true);
+    if (!result) return null;
+    // bitmap が直接返った場合はそのまま使用。PNG バイト列の場合は後方互換でデコード
+    return result.bitmap ?? await createImageBitmap(new Blob([result.data], { type: 'image/png' }));
   };
 
   // ================================================================
