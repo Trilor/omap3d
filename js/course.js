@@ -2218,16 +2218,5 @@ export function initCoursePlanner(map) {
     _refreshSource();
     _scheduleCalc();
     _renderPanel();
-    // コントロールが存在すれば地図を移動
-    const seqInfo = _buildSequenceInfo();
-    if (seqInfo.length > 0) {
-      const lngs = seqInfo.map(i => i.def.lng);
-      const lats = seqInfo.map(i => i.def.lat);
-      const bbox = [Math.min(...lngs), Math.min(...lats), Math.max(...lngs), Math.max(...lats)];
-      if (bbox[0] === bbox[2] && bbox[1] === bbox[3])
-        map.flyTo({ center: [bbox[0], bbox[1]], zoom: 15, duration: 600 });
-      else
-        map.fitBounds(bbox, { padding: 100, duration: 600 });
-    }
   }
 }
