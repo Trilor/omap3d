@@ -960,19 +960,6 @@ function _deleteDefFromAll(defId) {
 // 描画モード制御
 // ================================================================
 
-function _onMapClick(e) {
-  const hits = _map.queryRenderedFeatures(e.point, { layers: ['course-hit'] });
-  if (hits.length > 0) {
-    // 既存コントロールにスナップして同一座標で追加
-    const [lng, lat] = hits[0].geometry.coordinates;
-    _addControl(lng, lat);
-    _updateDrawHint();
-    return;
-  }
-  _addControl(e.lngLat.lng, e.lngLat.lat);
-  _updateDrawHint();
-}
-
 function _setDrawMode(active) {
   // ルート描画中であればキャンセル
   if (active && _routeDraw) _cancelRouteDraw();
