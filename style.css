@@ -7219,13 +7219,6 @@ select,
   align-self: stretch;
   border-radius: 0 2px 2px 0;
 }
-.cdd-swatch {
-  flex-shrink: 0;
-  width: 8px;
-  height: 8px;
-  border-radius: 2px;
-  border: 1px solid rgba(0,0,0,0.15);
-}
 .cdd-text {
   flex: 1;
   min-width: 0;
@@ -7374,13 +7367,6 @@ select,
 }
 
 /* 色スウォッチ */
-.course-route-swatch {
-  flex-shrink: 0;
-  width: 10px;
-  height: 10px;
-  border-radius: 2px;
-  border: 1px solid rgba(0,0,0,0.15);
-}
 
 .course-route-dist {
   flex: 1;

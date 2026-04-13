@@ -1484,12 +1484,6 @@ function _renderCourseTab() {
         bar.className = 'cdd-color-bar';
         bar.style.background = opt.color ?? '#c020c0';
         ddBtn.appendChild(bar);
-        if (opt.color) {
-          const sw = document.createElement('span');
-          sw.className = 'cdd-swatch';
-          sw.style.background = opt.color;
-          ddBtn.appendChild(sw);
-        }
         const txt = document.createElement('span');
         txt.className = 'cdd-text';
         txt.innerHTML = opt.html;
