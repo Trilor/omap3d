@@ -4695,10 +4695,8 @@ function updateGradientTrack() {
 
 // タイル再フェッチのデバウンスタイマー（updateColorReliefSource での clearTimeout 用に残す）
 let _crTileTimer = null;
-// input 中の setPaintProperty スロットル（100ms）
+// input 中の色別等高線更新スロットル（100ms）
 let _crThrottleTime = 0;
-// ドラッグ中タイル更新スロットル（1秒に1回）
-let _crDragTileTime = 0;
 
 // 色別等高線の line-color を crMin/crMax/パレットに合わせて再設定
 function updateColorContourColors() {
@@ -4713,7 +4711,7 @@ function applyColorReliefTiles() {
   if (currentOverlay === 'color-relief') scheduleDataOverlayDeckSync('color-relief');
 }
 
-// ドラッグ中は UI を即座に更新し、タイル再フェッチはデバウンス（200ms）
+// ドラッグ中は UI を即座に更新し、RAF デバウンスでタイルを更新（傾斜・曲率と同じ挙動）
 function updateColorReliefUI() {
   syncColorReliefUI();
   updateGradientTrack();
@@ -4722,10 +4720,7 @@ function updateColorReliefUI() {
     _crThrottleTime = now;
     updateColorContourColors();
   }
-  clearTimeout(_crTileTimer);
-  _crTileTimer = setTimeout(() => {
-    applyColorReliefTiles();
-  }, 200);
+  applyColorReliefTiles();
 }
 
 // 確定時（ドラッグ終了・数値入力・自動フィット）はタイルを即座に更新
@@ -4735,8 +4730,6 @@ function updateColorReliefSource() {
   updateColorContourColors();
   clearTimeout(_crTileTimer);
   applyColorReliefTiles();
-  // パレット/範囲が変わったとき Deck.gl シェーダーにも即時反映
-  if (currentOverlay === 'color-relief') scheduleDataOverlayDeckSync('color-relief');
 }
 
 // 双方向バインディング初期化
@@ -4756,8 +4749,6 @@ function updateColorReliefSource() {
   minSlider.addEventListener('input', () => {
     crMin = Math.min(parseInt(minSlider.value, 10), crMax);
     updateColorReliefUI();
-    const now = Date.now();
-    if (now - _crDragTileTime >= 1000) { _crDragTileTime = now; applyColorReliefTiles(); }
   });
   minSlider.addEventListener('change', () => {
     crMin = Math.min(parseInt(minSlider.value, 10), crMax);
@@ -4766,8 +4757,6 @@ function updateColorReliefSource() {
   maxSlider.addEventListener('input', () => {
     crMax = Math.max(parseInt(maxSlider.value, 10), crMin);
     updateColorReliefUI();
-    const now = Date.now();
-    if (now - _crDragTileTime >= 1000) { _crDragTileTime = now; applyColorReliefTiles(); }
   });
   maxSlider.addEventListener('change', () => {
     crMax = Math.max(parseInt(maxSlider.value, 10), crMin);
@@ -4838,8 +4827,6 @@ function updateColorReliefSource() {
       }
       clampCrValues();
       updateColorReliefUI();
-      const now = Date.now();
-      if (now - _crDragTileTime >= 1000) { _crDragTileTime = now; applyColorReliefTiles(); }
     }
 
     function finishDrag() {
@@ -4848,7 +4835,6 @@ function updateColorReliefSource() {
       dragPointerId = null;
       trackWrap.classList.remove('cr-dragging');
       selected.classList.remove('cr-dragging');
-      _crDragTileTime = 0; // 次回ドラッグ開始時にすぐ反映されるようリセット
       updateColorReliefSource();
     }
 
