@@ -61,6 +61,7 @@ let _calcAbort       = null;
 let _dragCtrl        = null;  // ドラッグ中のコントロール定義（_controlDefs の value）
 let _activeCtrlId    = null;  // 選択中コントロールの defId（選択モード）
 let _activeTab       = 'course'; // 'course' | 'controls'
+let _previewSnapping = false;    // 前フレームのスナップ状態（setPaintProperty 呼び出し抑制用）
 
 /**
  * ルートチョイス描画状態
@@ -409,10 +410,13 @@ function _updateCursorPreview(e) {
     lngLat = e.lngLat;
   }
 
-  // スナップ時はシンボルを不透明に（吸い付き感を強調）
-  const opacity = snapping ? 0.9 : 0.45;
-  _map.setPaintProperty('course-preview-circle', 'circle-stroke-opacity', opacity);
-  _map.setPaintProperty('course-preview-start',  'icon-opacity',           opacity);
+  // スナップ状態が変化した時だけ setPaintProperty を呼ぶ（毎フレームの再描画を抑制）
+  if (snapping !== _previewSnapping) {
+    const opacity = snapping ? 0.9 : 0.45;
+    _map.setPaintProperty('course-preview-circle', 'circle-stroke-opacity', opacity);
+    _map.setPaintProperty('course-preview-start',  'icon-opacity',           opacity);
+    _previewSnapping = snapping;
+  }
 
   src.setData(_buildPreviewData(lngLat));
 }
@@ -420,6 +424,7 @@ function _updateCursorPreview(e) {
 function _clearPreview() {
   const src = _map?.getSource('course-preview-source');
   if (src) src.setData({ type: 'FeatureCollection', features: [] });
+  _previewSnapping = false; // 次回 enter 時に必ず opacity を再設定させる
 }
 
 function _initPreviewLayers() {
