@@ -169,10 +169,12 @@ function _buildSourceData() {
 
   // コントロールポイント（スタート・コントロール・フィニッシュ）
   _plan.controls.forEach(ctrl => {
+    // label: コントロールは下2桁のみ表示（IOF スタイル）。JS 側で計算して渡す
+    const label = ctrl.type === 'control' ? String(ctrl.code).slice(-2) : '';
     features.push({
       type: 'Feature',
       geometry: { type: 'Point', coordinates: [ctrl.lng, ctrl.lat] },
-      properties: { id: ctrl.id, type: ctrl.type, code: ctrl.code },
+      properties: { id: ctrl.id, type: ctrl.type, code: ctrl.code, label },
     });
   });
 
@@ -203,6 +205,7 @@ function _refreshSource() {
 function _loadStartImage() {
   if (_map.hasImage('course-start-tri')) return;
   // 2x DPI: 64×64 で描いて pixelRatio:2 で登録 → 表示上 32×32px
+  // addImage は HTMLCanvasElement を受け付けないため ImageData で渡す
   const SIZE = 64;
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = SIZE;
@@ -219,7 +222,9 @@ function _loadStartImage() {
   ctx.lineWidth   = 4.5;  // pixelRatio:2 換算で実効 2.25px
   ctx.lineJoin    = 'round';
   ctx.stroke();
-  _map.addImage('course-start-tri', canvas, { pixelRatio: 2, sdf: false });
+  // ImageData として取り出して登録（HTMLCanvasElement は addImage 非対応）
+  const imgData = ctx.getImageData(0, 0, SIZE, SIZE);
+  _map.addImage('course-start-tri', imgData, { pixelRatio: 2, sdf: false });
 }
 
 // ================================================================
@@ -292,15 +297,15 @@ function _initLayers() {
     },
   });
 
-  // ⑤ コントロール番号ラベル（101→01 と下2桁のみ表示）
+  // ⑤ コントロール番号ラベル（JS 側で計算した label プロパティを使用）
   _map.addLayer({
     id: 'course-labels', type: 'symbol', source: 'course-source',
     filter: ['==', ['get', 'type'], 'control'],
     layout: {
-      'text-field':           ['slice', ['get', 'code'], -2],
-      'text-size':            10,
-      'text-font':            ['Open Sans Bold', 'Arial Unicode MS Bold'],
-      'text-allow-overlap':   true,
+      'text-field':            ['get', 'label'],  // JS 側で下2桁に加工済み
+      'text-size':             10,
+      'text-font':             ['Open Sans Bold', 'Arial Unicode MS Bold'],
+      'text-allow-overlap':    true,
       'text-ignore-placement': true,
     },
     paint: {
