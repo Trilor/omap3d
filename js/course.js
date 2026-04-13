@@ -1415,6 +1415,11 @@ function _renderCourseTab() {
 
       const renderDdBtn = (opt) => {
         ddBtn.innerHTML = '';
+        // 左端カラーバー（直結=紫、ルート選択時=ルート色）
+        const bar = document.createElement('span');
+        bar.className = 'cdd-color-bar';
+        bar.style.background = opt.color ?? '#c020c0';
+        ddBtn.appendChild(bar);
         if (opt.color) {
           const sw = document.createElement('span');
           sw.className = 'cdd-swatch';
