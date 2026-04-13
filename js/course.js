@@ -292,7 +292,7 @@ function _closeDdMenu() {
 }
 
 /** ドロップダウンメニューを body に固定表示し、選択時にコールバックを呼ぶ
- *  options: [{ value, html }]
+ *  options: [{ value, html, color }]  color=null → 紫(直結)
  *  anchorEl: トリガーボタン要素（位置計算用）
  *  onSelect: (value) => void
  */
@@ -302,10 +302,19 @@ function _openDropdown(anchorEl, options, onSelect) {
   const menu = document.createElement('div');
   menu.className = 'course-dd-menu';
 
-  options.forEach(({ value, html }) => {
+  options.forEach(({ value, html, color }) => {
     const opt = document.createElement('div');
     opt.className = 'course-dd-opt';
-    opt.innerHTML = html;
+    // 左端カラーバー
+    const bar = document.createElement('span');
+    bar.className = 'cdd-color-bar';
+    bar.style.background = color ?? '#c020c0';
+    opt.appendChild(bar);
+    // コンテンツ（swatch + テキスト）
+    const inner = document.createElement('span');
+    inner.className = 'cdd-opt-inner';
+    inner.innerHTML = html;
+    opt.appendChild(inner);
     opt.addEventListener('mousedown', e => {
       e.stopPropagation();
       _closeDdMenu();
@@ -931,6 +940,7 @@ function _commitRouteDraw() {
   course.legRoutes[key] = existing;
 
   _cancelRouteDraw();
+  _scheduleCalc(); // 新ルートの登高統計を計算
 }
 
 function _cancelRouteDraw() {
@@ -1375,8 +1385,12 @@ function _renderCourseTab() {
       // stats を色付き HTML に変換するヘルパー
       const fmtStatHtml = (distM, stat) => {
         let html = `<span class="cdd-dist">↔ ${distM} m</span>`;
-        if (stat?.climb   > 0) html += ` <span class="cdd-up">↑${stat.climb} m</span>`;
-        if (stat?.descent > 0) html += ` <span class="cdd-dn">↓${stat.descent} m</span>`;
+        if (stat === null) {
+          html += ` <span class="cdd-computing">…</span>`;
+        } else {
+          if (stat.climb   > 0) html += ` <span class="cdd-up">↑${stat.climb} m</span>`;
+          if (stat.descent > 0) html += ` <span class="cdd-dn">↓${stat.descent} m</span>`;
+        }
         return html;
       };
 
@@ -1438,6 +1452,7 @@ function _renderCourseTab() {
         if (_openDdMenu) { _closeDdMenu(); return; }
         _openDropdown(ddBtn, ddOptions.map(o => ({
           value: o.value,
+          color: o.color,
           html: o.color
             ? `<span class="cdd-swatch" style="background:${o.color}"></span><span class="cdd-text">${o.html}</span>`
             : `<span class="cdd-text cdd-text--direct">${o.html}</span>`,

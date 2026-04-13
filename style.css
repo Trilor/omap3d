@@ -7252,19 +7252,33 @@ select,
 .course-dd-opt {
   display: flex;
   align-items: center;
-  gap: 5px;
-  padding: 4px 10px;
+  gap: 0;
+  padding: 4px 10px 4px 0;
   font-size: 10px;
   font-family: inherit;
   cursor: pointer;
   white-space: nowrap;
   color: var(--text-primary);
+  overflow: hidden;
 }
 .course-dd-opt:hover {
   background: var(--bg-subtle);
 }
+/* メニュー項目内のコンテンツラッパー（swatch + テキスト） */
+.cdd-opt-inner {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding-left: 7px;
+  flex: 1;
+  min-width: 0;
+}
 .cdd-text--direct {
   color: var(--text-muted);
+}
+.cdd-computing {
+  color: var(--text-muted);
+  font-style: italic;
 }
 
 /* ＋ / キャンセルボタン（アイコンのみ） */
