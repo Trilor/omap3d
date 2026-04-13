@@ -7033,4 +7033,52 @@ select,
   margin-bottom: 1px;
 }
 
+/* ---- タブ切り替え ---- */
+.course-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1.5px solid var(--border-light);
+  margin: 0 -12px 0;
+  padding: 0 12px;
+}
+.course-tab-btn {
+  flex: 1;
+  padding: 6px 4px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: var(--font-sm);
+  font-family: inherit;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1.5px;
+  transition: color 0.15s, border-color 0.15s;
+}
+.course-tab-btn:hover {
+  color: var(--text-sub);
+}
+.course-tab-btn.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+  font-weight: 600;
+}
+
+.course-tab-pane {
+  padding-top: 8px;
+}
+
+/* ---- 全コントロールタブ補足テキスト ---- */
+.course-defs-note {
+  font-size: 10.5px;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin-bottom: 8px;
+}
+
+/* 未使用コントロールの表示 */
+.course-def-unused {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
 /* コースシンボルは GeoJSON レイヤーで描画するため HTML マーカー CSS は不要 */
