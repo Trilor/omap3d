@@ -5883,9 +5883,14 @@ function _applyDataOverlayRasterTiles(overlayKey) {
 
   const src = map.getSource(cfg.maplibreSourceId);
   if (src) {
-    src.setTiles([makeTileUrl()]);
+    const tileUrl = makeTileUrl();
+    console.log(`[raster-sync] setTiles: ${tileUrl.slice(0, 120)}`);
+    src.setTiles([tileUrl]);
     map.setPaintProperty(cfg.maplibreLayerId, 'raster-opacity', opacity);
     map.setLayoutProperty(cfg.maplibreLayerId, 'visibility', 'visible');
+    console.log(`[raster-sync] layer=${cfg.maplibreLayerId} visibility=visible opacity=${opacity}`);
+  } else {
+    console.warn(`[raster-sync] ソースが見つかりません: ${cfg.maplibreSourceId}`);
   }
 }
 

@@ -1919,6 +1919,48 @@ const _DATA_BASE_URLS = {
   curvature:      (host) => `curve-data://${host}/{z}/{x}/{y}.webp`,
 };
 
+// ================================================================
+// CPU パレット適用
+//   RGB24 エンコード済み ImageData に対して、パレット stops・renderMin/Max を
+//   CPU で適用し、着色済み OffscreenCanvas を返す。
+// ================================================================
+function applyPaletteToImageData(entry, dataMin, dataMax, renderMin, renderMax, stops, opacity = 1) {
+  const { imageData, width, height } = entry;
+  const src = imageData.data;
+
+  const out = new OffscreenCanvas(width, height);
+  const ctx = out.getContext('2d');
+  const outId = ctx.createImageData(width, height);
+  const dst = outId.data;
+
+  const denom = (dataMax - dataMin) || 1;
+  const renderDenom = (renderMax - renderMin) || 1;
+  const alpha = Math.round(Math.max(0, Math.min(1, opacity)) * 255);
+
+  for (let i = 0; i < src.length; i += 4) {
+    if (src[i + 3] === 0) {
+      dst[i] = 0; dst[i + 1] = 0; dst[i + 2] = 0; dst[i + 3] = 0;
+      continue;
+    }
+    const norm = (src[i] * 65536 + src[i + 1] * 256 + src[i + 2]) / 16777215;
+    const dataValue = dataMin + norm * denom;
+    const t = Math.max(0, Math.min(1, (dataValue - renderMin) / renderDenom));
+    let si = 0;
+    while (si < stops.length - 2 && stops[si + 1].t <= t) si++;
+    const lo = stops[si];
+    const hi = stops[si + 1] ?? lo;
+    const seg = (hi.t - lo.t) || 1;
+    const f = Math.max(0, Math.min(1, (t - lo.t) / seg));
+    dst[i]     = Math.round(lo.r + f * (hi.r - lo.r));
+    dst[i + 1] = Math.round(lo.g + f * (hi.g - lo.g));
+    dst[i + 2] = Math.round(lo.b + f * (hi.b - lo.b));
+    dst[i + 3] = alpha;
+  }
+
+  ctx.putImageData(outId, 0, 0);
+  return out;
+}
+
 // 初期ダミープロトコル（addSource 時に tiles が必要なため透明 PNG を返す）
 maplibregl.addProtocol('data-render-init', async () => ({ data: _transparentPngBuffer() }));
 
@@ -1939,40 +1981,43 @@ maplibregl.addProtocol('data-render-init', async () => ({ data: _transparentPngB
 // ================================================================
 maplibregl.addProtocol('data-render', async (params, abortController) => {
   try {
-    const url = params.url; // data-render://slope/12/3456/1234?min=...
+    const url = params.url;
     // パスから overlayKey/z/x/y を抽出
-    const m = url.match(/^data-render:\/\/([^/]+)\/(\d+)\/(\d+)\/(\d+)/);
-    if (!m) return { data: _transparentPngBuffer() };
+    const m = url.match(/^data-render:\/\/([^/?]+)\/(\d+)\/(\d+)\/(\d+)/);
+    if (!m) { console.warn('[data-render] URL パース失敗:', url); return { data: _transparentPngBuffer() }; }
     const [, overlayKey, zs, xs, ys] = m;
-    const z = parseInt(zs), x = parseInt(xs), y = parseInt(ys);
 
-    const urlObj = new URL(url.replace(/^data-render:\/\//, 'https://dummy/'));
-    const renderMin = parseFloat(urlObj.searchParams.get('min') ?? '0');
-    const renderMax = parseFloat(urlObj.searchParams.get('max') ?? '1');
-    const dataMin   = parseFloat(urlObj.searchParams.get('dataMin') ?? '0');
-    const dataMax   = parseFloat(urlObj.searchParams.get('dataMax') ?? '1');
-    const stopsRaw  = urlObj.searchParams.get('stops');
+    // クエリパラメータ抽出（? 以降を直接パース）
+    const qIdx = url.indexOf('?');
+    const searchParams = new URLSearchParams(qIdx >= 0 ? url.slice(qIdx + 1) : '');
+    const renderMin = parseFloat(searchParams.get('min') ?? '0');
+    const renderMax = parseFloat(searchParams.get('max') ?? '1');
+    const dataMin   = parseFloat(searchParams.get('dataMin') ?? '0');
+    const dataMax   = parseFloat(searchParams.get('dataMax') ?? '1');
+    const stopsRaw  = searchParams.get('stops');
     const stops     = stopsRaw ? JSON.parse(decodeURIComponent(stopsRaw)) : [
       { t: 0, r: 0, g: 0, b: 0 }, { t: 1, r: 255, g: 255, b: 255 },
     ];
 
+    console.log(`[data-render] ${overlayKey} z${zs}/${xs}/${ys} min=${renderMin} max=${renderMax}`);
+
     // 1. キャッシュ確認
-    const cacheKey = `${overlayKey}/${z}/${x}/${y}`;
+    const cacheKey = `${overlayKey}/${zs}/${xs}/${ys}`;
     let entry = _dataTileCacheGet(cacheKey);
 
     if (!entry) {
       // 2. 数値タイル生成
       const generateFn = _DATA_GENERATE_FNS[overlayKey];
-      if (!generateFn) return { data: _transparentPngBuffer() };
+      if (!generateFn) { console.warn('[data-render] generateFn なし:', overlayKey); return { data: _transparentPngBuffer() }; }
 
-      // QCHIZU_DEM_BASE からホスト部分を取得してデータ URL を組み立てる
       const host = QCHIZU_DEM_BASE.replace(/^https?:\/\//, '');
       const makeUrl = _DATA_BASE_URLS[overlayKey];
       if (!makeUrl) return { data: _transparentPngBuffer() };
       const dataUrl = makeUrl(host).replace('{z}', zs).replace('{x}', xs).replace('{y}', ys);
 
+      console.log(`[data-render] generateTile: ${dataUrl}`);
       const result = await generateFn(dataUrl, abortController.signal, true);
-      if (!result?.bitmap) return { data: _transparentPngBuffer() };
+      if (!result?.bitmap) { console.warn('[data-render] bitmap なし'); return { data: _transparentPngBuffer() }; }
 
       // ImageBitmap → ImageData に変換してキャッシュ
       const canvas = new OffscreenCanvas(result.bitmap.width, result.bitmap.height);
@@ -1982,6 +2027,9 @@ maplibregl.addProtocol('data-render', async (params, abortController) => {
       const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
       entry = { imageData, width: canvas.width, height: canvas.height };
       _dataTileCacheSet(cacheKey, entry);
+      console.log(`[data-render] キャッシュ保存: ${cacheKey}`);
+    } else {
+      console.log(`[data-render] キャッシュヒット: ${cacheKey}`);
     }
 
     // 3. CPU 色塗り
@@ -1992,6 +2040,7 @@ maplibregl.addProtocol('data-render', async (params, abortController) => {
     return { data: await blob.arrayBuffer() };
   } catch (e) {
     if (e?.name === 'AbortError') throw e;
+    console.error('[data-render] エラー:', e);
     return { data: _transparentPngBuffer() };
   }
 });
