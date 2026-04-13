@@ -1402,6 +1402,8 @@ function _updateCourseSelect() {
     sel.appendChild(opt);
   });
   if (delBtn) delBtn.disabled = _courses.length <= 1;
+  // カスタムセレクト（app.js の makeCustomSelect）の表示を同期
+  if (typeof sel._csRefresh === 'function') sel._csRefresh();
 }
 
 /**
