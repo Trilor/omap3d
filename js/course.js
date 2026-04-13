@@ -51,7 +51,7 @@ let _activeCourseIdx = 0;   // アクティブコースの index
 let _nextDefId       = 0;   // defId 生成カウンタ
 let _drawMode        = false;
 let _calcTimer       = null;
-let _legStats        = [];  // [{distKm, climb}] レグ統計キャッシュ
+let _legStats        = [];  // [{distKm, climb, descent}] レグ統計キャッシュ
 let _calcAbort       = null;
 let _dragDef         = null;  // ドラッグ中のマスター定義（_controlDefs の value への参照）
 let _activeTab       = 'course'; // 'course' | 'controls'
@@ -169,14 +169,15 @@ async function _calcLegStats(from, to, abortFlag) {
   const elevs = await Promise.all(promises);
   if (abortFlag.aborted) return null;
 
-  let climb = 0;
+  let climb = 0, descent = 0;
   for (let i = 1; i < elevs.length; i++) {
     if (elevs[i] != null && elevs[i - 1] != null) {
       const d = elevs[i] - elevs[i - 1];
-      if (d > 0) climb += d;
+      if (d > 0) climb   += d;
+      else        descent -= d; // descent は正値で保持
     }
   }
-  return { distKm, climb: Math.round(climb) };
+  return { distKm, climb: Math.round(climb), descent: Math.round(descent) };
 }
 
 async function _recalcAll() {
@@ -695,7 +696,11 @@ function _renderCourseTab() {
   // 累積登高
   if (climbEl) {
     if (_legStats.length > 0 && _legStats.every(s => s != null)) {
-      climbEl.textContent = _legStats.reduce((s, l) => s + (l?.climb ?? 0), 0) + ' m';
+      const totalClimb   = _legStats.reduce((s, l) => s + (l?.climb   ?? 0), 0);
+      const totalDescent = _legStats.reduce((s, l) => s + (l?.descent ?? 0), 0);
+      climbEl.innerHTML =
+        `<span class="course-elev-up">↑${totalClimb} m</span>` +
+        `<span class="course-elev-dn">↓${totalDescent} m</span>`;
     } else if (n < 2) {
       climbEl.textContent = '—';
     }
@@ -764,7 +769,15 @@ function _renderCourseTab() {
     if (legDist != null) {
       const statsDiv = document.createElement('div');
       statsDiv.className = 'course-ctrl-leg-stats';
-      statsDiv.textContent = `↔ ${legDist.toFixed(2)} km${legStat ? ` ↑${legStat.climb} m` : ''}`;
+      if (legStat) {
+        const upPart   = legStat.climb   > 0 ? `<span class="course-elev-up">↑${legStat.climb} m</span>`   : '';
+        const downPart = legStat.descent > 0 ? `<span class="course-elev-dn">↓${legStat.descent} m</span>` : '';
+        statsDiv.innerHTML =
+          `<span class="course-leg-dist">↔ ${legDist.toFixed(2)} km</span>` +
+          (upPart || downPart ? `<span class="course-leg-elev">${upPart}${downPart}</span>` : '');
+      } else {
+        statsDiv.textContent = `↔ ${legDist.toFixed(2)} km`;
+      }
       infoDiv.appendChild(statsDiv);
     }
 

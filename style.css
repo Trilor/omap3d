@@ -7081,4 +7081,37 @@ select,
   font-style: italic;
 }
 
+/* ---- 登高・下降表示 ---- */
+/* レグ行（↔距離 と ↑↓高低差 を横並び） */
+.course-ctrl-leg-stats {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.course-leg-dist {
+  color: var(--text-muted);
+}
+.course-leg-elev {
+  display: flex;
+  gap: 4px;
+}
+.course-elev-up {
+  color: #e05050;
+  font-weight: 600;
+}
+.course-elev-dn {
+  color: #4a9fe8;
+  font-weight: 600;
+}
+
+/* 累積統計セルの登高・下降（横並び） */
+#course-stat-climb {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
 /* コースシンボルは GeoJSON レイヤーで描画するため HTML マーカー CSS は不要 */
