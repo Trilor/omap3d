@@ -7155,13 +7155,7 @@ select,
 .course-leg-line::before {
   content: '';
   width: 2px;
-  background: var(--leg-line-color,
-    repeating-linear-gradient(
-      to bottom,
-      #c020c0 0px, #c020c0 5px,
-      transparent 5px, transparent 9px
-    )
-  );
+  background: var(--leg-line-color, #c020c0);
   border-radius: 1px;
   opacity: 0.7;
 }
@@ -7185,31 +7179,108 @@ select,
   font-size: 10px;
 }
 
-/* ルート選択プルダウン行 */
+/* ルート選択行（カスタムドロップダウン ＋ ＋ボタン） */
 .course-leg-select-row {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
 }
 
-/* 選択中ルートの色見本（プルダウン左隣） */
-.course-leg-sel-swatch {
+/* カスタムドロップダウン トリガーボタン */
+.course-leg-dd-btn {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 6px 2px 5px;
+  border: 1px solid var(--border-input);
+  border-radius: 4px;
+  background-color: var(--bg-surface);
+  color: var(--text-primary);
+  font-size: 10px;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+  line-height: 1.5;
+  transition: border-color 0.1s;
+}
+.course-leg-dd-btn:hover {
+  border-color: var(--primary);
+}
+.cdd-swatch {
   flex-shrink: 0;
   width: 8px;
   height: 8px;
   border-radius: 2px;
   border: 1px solid rgba(0,0,0,0.15);
 }
-
-/* ルート選択 <select> */
-.course-leg-route-sel {
+.cdd-text {
   flex: 1;
   min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cdd-dist  { color: var(--text-muted); }
+.cdd-up    { color: #e05050; font-weight: 600; }
+.cdd-dn    { color: #4a9fe8; font-weight: 600; }
+
+/* ドロップダウンメニュー（body 直下、position: fixed） */
+.course-dd-menu {
+  position: fixed;
+  z-index: 10100;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-input);
+  border-radius: 5px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.18);
+  padding: 3px 0;
+  max-height: 240px;
+  overflow-y: auto;
+}
+.course-dd-opt {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
   font-size: 10px;
-  padding: 2px 4px;
-  background-color: var(--bg-surface);
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
   color: var(--text-primary);
-  line-height: 1.4;
+}
+.course-dd-opt:hover {
+  background: var(--bg-subtle);
+}
+.cdd-text--direct {
+  color: var(--text-muted);
+}
+
+/* ＋ / キャンセルボタン（アイコンのみ） */
+.course-leg-add-btn {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--border-input);
+  border-radius: 4px;
+  background-color: var(--bg-surface);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: border-color 0.1s, color 0.1s, background-color 0.1s;
+}
+.course-leg-add-btn:hover {
+  border-color: #c020c0;
+  color: #c020c0;
+  background-color: rgba(192, 32, 192, 0.05);
+}
+.course-leg-add-btn.is-active {
+  border-color: var(--color-danger, #c0392b);
+  color: var(--color-danger, #c0392b);
+  background-color: rgba(192, 57, 43, 0.05);
 }
 
 /* ルート管理行のルート番号ラベル */
