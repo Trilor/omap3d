@@ -5912,21 +5912,23 @@ uniform float u_stopT[8];
 uniform vec3  u_stopRGB[8];
 uniform float u_stopCount;
 vec3 _dataPalette(float t) {
-  if (u_stopCount < 2.0) return vec3(t, t, t);
-  if (t <= u_stopT[0]) return u_stopRGB[0];
-  vec3 col = u_stopRGB[0];
-  for (int i = 0; i < 7; i++) {
-    if (float(i + 1) >= u_stopCount) break;
-    float t0 = u_stopT[i];
-    float t1 = u_stopT[i + 1];
-    if (t <= t1) {
-      float denom = max(t1 - t0, 1e-6);
-      float n = clamp((t - t0) / denom, 0.0, 1.0);
-      col = mix(u_stopRGB[i], u_stopRGB[i + 1], n);
-      break;
-    }
-  }
-  return col;
+  // 全ストップを定数インデックスで先読みする
+  // (ループ変数による uniform 配列インデックスは WebGL1 実装で拒否されることがある)
+  float s0=u_stopT[0],s1=u_stopT[1],s2=u_stopT[2],s3=u_stopT[3];
+  float s4=u_stopT[4],s5=u_stopT[5],s6=u_stopT[6],s7=u_stopT[7];
+  vec3  c0=u_stopRGB[0],c1=u_stopRGB[1],c2=u_stopRGB[2],c3=u_stopRGB[3];
+  vec3  c4=u_stopRGB[4],c5=u_stopRGB[5],c6=u_stopRGB[6],c7=u_stopRGB[7];
+  float n = u_stopCount;
+  if (n < 2.0) return vec3(t, t, t);
+  if (t <= s0) return c0;
+  // 各セグメント: t が区間内か、またはそのセグメントが最後の区間なら補間して返す
+  if (t < s1 || n < 2.5) return mix(c0,c1,clamp((t-s0)/max(s1-s0,1e-6),0.,1.));
+  if (t < s2 || n < 3.5) return mix(c1,c2,clamp((t-s1)/max(s2-s1,1e-6),0.,1.));
+  if (t < s3 || n < 4.5) return mix(c2,c3,clamp((t-s2)/max(s3-s2,1e-6),0.,1.));
+  if (t < s4 || n < 5.5) return mix(c3,c4,clamp((t-s3)/max(s4-s3,1e-6),0.,1.));
+  if (t < s5 || n < 6.5) return mix(c4,c5,clamp((t-s4)/max(s5-s4,1e-6),0.,1.));
+  if (t < s6 || n < 7.5) return mix(c5,c6,clamp((t-s5)/max(s6-s5,1e-6),0.,1.));
+  return mix(c6,c7,clamp((t-s6)/max(s7-s6,1e-6),0.,1.));
 }
         `,
         'fs:DECKGL_FILTER_COLOR': `
