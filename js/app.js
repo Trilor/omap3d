@@ -4396,6 +4396,7 @@ function updateMagneticAttribution() {
 let currentOverlay = 'none'; // 選択中のオーバーレイキー（'none' = オーバーレイなし）
 
 function updateCsVisibility() {
+  console.log(`[updateCsVisibility] overlay=${currentOverlay}`, new Error().stack.split('\n').slice(1,4).join(' | '));
   const basemap    = currentBasemap;
   const overlayOn  = currentOverlay !== 'none';
   const overlay    = currentOverlay;
@@ -5869,6 +5870,7 @@ var _dataDeckSyncRafs = {}; // overlayKey → RAF ID
 function _commitDeckLayers() {
   if (!_deckOverlay) return;
   const dataLayers = Object.values(_deckDataLayers).flat();
+  console.log(`[commitDeckLayers] total=${dataLayers.length} state=${JSON.stringify(Object.fromEntries(Object.entries(_deckDataLayers).map(([k,v])=>[k,v.length])))}`, new Error().stack.split('\n').slice(1,4).join(' | '));
   _deckOverlay.setProps({ layers: [..._deckPlateauLayers, ...dataLayers] });
 }
 
@@ -6040,19 +6042,26 @@ async function _syncDataOverlayDeckLayers(overlayKey) {
   const cfg = OVERLAY_DATA_CONFIGS[overlayKey];
   if (!cfg) return;
 
+  console.log(`[DeckSync] START overlayKey=${overlayKey} currentOverlay=${currentOverlay}`);
+
   if (currentOverlay !== overlayKey) {
     if (_deckDataLayers[overlayKey]?.length) {
+      console.log(`[DeckSync] CLEAR ${overlayKey} (currentOverlay=${currentOverlay})`);
       _deckDataLayers[overlayKey] = [];
-      // 他のキーの同期が完了した後にまとめて commit されるため即時 commit はしない
-      // （複数キーを連続 scheduleDataOverlayDeckSync したときの race condition を防ぐ）
       _commitDeckLayers();
+    } else {
+      console.log(`[DeckSync] SKIP ${overlayKey} (already empty)`);
     }
     return;
   }
 
-
   await _loadDeckGl();
+  console.log(`[DeckSync] after _loadDeckGl: overlayKey=${overlayKey} currentOverlay=${currentOverlay}`);
+  const isFirstInit = !_deckOverlay;
   _initDeckOverlay();
+  // 初回 addControl 時、Deck.gl 内部が非同期で setProps({layers:[]}) を呼ぶ。
+  // それより後に commit しないとレイヤーが上書きされて消えるため 1 フレーム待つ。
+  if (isFirstInit) await new Promise(r => requestAnimationFrame(r));
   const LayerClass = _getDataShaderLayerClass();
   if (!LayerClass) return;
 
@@ -6148,6 +6157,7 @@ async function _syncDataOverlayDeckLayers(overlayKey) {
     });
   }
 
+  console.log(`[DeckSync] COMMIT ${overlayKey}: ${layers.length} layers, currentOverlay=${currentOverlay}`);
   _deckDataLayers[overlayKey] = layers;
   _commitDeckLayers();
 }
@@ -6190,9 +6200,11 @@ function _initDeckOverlay() {
   // interleaved: true で deck.gl を MapLibre の WebGL パイプライン内に挿入する。
   // 各 TileLayer の beforeId で等高線レイヤーの直前（下）に入れ、
   // MapLibre 内の描画順を制御する。
+  // 注意: addControl 完了後に Deck.gl 内部が setProps({layers:[]}) を呼ぶため、
+  // ここでは _commitDeckLayers を呼ばない。呼び出し元の _syncDataOverlayDeckLayers で
+  // レイヤーを設定してから commit する。
   _deckOverlay = new deck.MapboxOverlay({ interleaved: true, layers: [] });
   map.addControl(_deckOverlay);
-  _commitDeckLayers();
 }
 
 
