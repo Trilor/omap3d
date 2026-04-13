@@ -1542,7 +1542,7 @@ function _renderCourseTab() {
             color: o.color,
             node,
             html: o.color
-              ? `<span class="cdd-swatch" style="background:${o.color}"></span><span class="cdd-text">${o.html}</span>`
+              ? `<span class="cdd-text">${o.html}</span>`
               : `<span class="cdd-text cdd-text--direct">${o.html}</span>`,
           };
         }), val => {
