@@ -7155,13 +7155,15 @@ select,
 .course-leg-line::before {
   content: '';
   width: 2px;
-  background: repeating-linear-gradient(
-    to bottom,
-    #c020c0 0px, #c020c0 5px,
-    transparent 5px, transparent 9px
+  background: var(--leg-line-color,
+    repeating-linear-gradient(
+      to bottom,
+      #c020c0 0px, #c020c0 5px,
+      transparent 5px, transparent 9px
+    )
   );
   border-radius: 1px;
-  opacity: 0.55;
+  opacity: 0.7;
 }
 
 /* 右側コンテンツ */
@@ -7174,13 +7176,47 @@ select,
   padding: 5px 0;
 }
 
-/* 距離・登高行 */
+/* 距離・登高行（後方互換用、現在は course-leg-select-row に移行） */
 .course-leg-stats {
   display: flex;
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
   font-size: 10px;
+}
+
+/* ルート選択プルダウン行 */
+.course-leg-select-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* 選択中ルートの色見本（プルダウン左隣） */
+.course-leg-sel-swatch {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  border: 1px solid rgba(0,0,0,0.15);
+}
+
+/* ルート選択 <select> */
+.course-leg-route-sel {
+  flex: 1;
+  min-width: 0;
+  font-size: 10px;
+  padding: 2px 4px;
+  background-color: var(--bg-surface);
+  color: var(--text-primary);
+  line-height: 1.4;
+}
+
+/* ルート管理行のルート番号ラベル */
+.course-route-label {
+  flex: 1;
+  color: var(--text-muted);
+  font-size: 10.5px;
 }
 
 /* ---- ルートチョイスリスト ---- */

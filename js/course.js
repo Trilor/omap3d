@@ -58,6 +58,8 @@ let _drawMode        = false;
 let _calcTimer       = null;
 let _legStats        = [];  // [{distKm, climb, descent}] レグ統計キャッシュ
 let _calcAbort       = null;
+const _selectedRoutes   = new Map(); // legKey → routeId | null（null = 直結）
+const _routeStatsCache  = new Map(); // routeId → { distKm, climb, descent } | null
 let _dragCtrl        = null;  // ドラッグ中のコントロール定義（_controlDefs の value）
 let _activeCtrlId    = null;  // 選択中コントロールの defId（選択モード）
 let _activeTab       = 'course'; // 'course' | 'controls'
@@ -204,6 +206,34 @@ async function _calcLegStats(from, to, abortFlag) {
   return { distKm, climb: Math.round(climb), descent: Math.round(descent) };
 }
 
+/** ルートチョイスの登高計算（任意ポリライン） */
+async function _calcRouteStats(coords, abortFlag) {
+  if (coords.length < 2) return null;
+  const line   = turf.lineString(coords);
+  const distKm = turf.length(line, { units: 'kilometers' });
+  const distM  = distKm * 1000;
+  const steps  = Math.max(2, Math.ceil(distM / CLIMB_SAMPLE_M));
+
+  const promises = [];
+  for (let i = 0; i <= steps; i++) {
+    const pt = turf.along(line, (i / steps) * distKm, { units: 'kilometers' });
+    const [lng, lat] = pt.geometry.coordinates;
+    promises.push(_elevAt(lng, lat));
+  }
+  const elevs = await Promise.all(promises);
+  if (abortFlag.aborted) return null;
+
+  let climb = 0, descent = 0;
+  for (let i = 1; i < elevs.length; i++) {
+    if (elevs[i] != null && elevs[i - 1] != null) {
+      const d = elevs[i] - elevs[i - 1];
+      if (d > 0) climb   += d;
+      else        descent -= d;
+    }
+  }
+  return { distKm, climb: Math.round(climb), descent: Math.round(descent) };
+}
+
 async function _recalcAll() {
   if (_calcAbort) _calcAbort.aborted = true;
   const abortFlag = { aborted: false };
@@ -215,6 +245,7 @@ async function _recalcAll() {
   const climbEl = document.getElementById('course-stat-climb');
   if (climbEl) climbEl.textContent = '計算中…';
 
+  // レグ統計（直結線）
   const results = await Promise.all(
     seqInfo.slice(1).map((item, i) =>
       _calcLegStats(seqInfo[i].def, item.def, abortFlag)
@@ -223,6 +254,22 @@ async function _recalcAll() {
   if (abortFlag.aborted) return;
 
   _legStats = results;
+
+  // ルートチョイス統計
+  _routeStatsCache.clear();
+  const course = _activeCourse();
+  if (course.legRoutes) {
+    await Promise.all(
+      Object.values(course.legRoutes).flatMap(routes =>
+        routes.map(async route => {
+          const stats = await _calcRouteStats(route.coords, abortFlag);
+          if (!abortFlag.aborted) _routeStatsCache.set(route.id, stats);
+        })
+      )
+    );
+  }
+  if (abortFlag.aborted) return;
+
   _renderPanel();
 }
 
@@ -847,6 +894,9 @@ function _deleteRoute(key, routeId) {
   course.legRoutes[key] = course.legRoutes[key].filter(r => r.id !== routeId);
   if (course.legRoutes[key].length === 0) delete course.legRoutes[key];
   if (_editRoute?.routeId === routeId) _editRoute = null;
+  // 削除したルートが選択中なら直結に戻す
+  if (_selectedRoutes.get(key) === routeId) _selectedRoutes.delete(key);
+  _routeStatsCache.delete(routeId);
   _refreshSource();
   _renderPanel();
 }
@@ -1238,37 +1288,89 @@ function _renderCourseTab() {
       const isActive = _routeDraw?.legKey === key;
       const hasEdit  = _editRoute?.legKey  === key;
 
+      // 選択中ルートの色（null = 直結 = デフォルト紫破線）
+      const selRouteId = _selectedRoutes.get(key) ?? null;
+      // 削除済みルートが選択中になっていた場合は解除
+      const selRoute   = selRouteId ? routes.find(r => r.id === selRouteId) ?? null : null;
+      if (selRouteId && !selRoute) _selectedRoutes.delete(key);
+      const barColor = selRoute ? routeColor(selRoute.colorIdx) : null;
+
       const legRow = document.createElement('div');
       legRow.className = 'course-leg-item';
       if (isActive) legRow.classList.add('is-drawing');
 
-      // 縦棒
+      // 縦棒（選択ルート色で上書き）
       const lineDiv = document.createElement('div');
       lineDiv.className = 'course-leg-line';
+      if (barColor) lineDiv.style.setProperty('--leg-line-color', barColor);
 
       // 右側コンテンツ
       const legContent = document.createElement('div');
       legContent.className = 'course-leg-content';
 
-      // 距離・登高行
-      const statsDiv = document.createElement('div');
-      statsDiv.className = 'course-leg-stats';
-      if (legStat) {
-        const upPart   = legStat.climb   > 0 ? `<span class="course-elev-up">↑${legStat.climb} m</span>`   : '';
-        const downPart = legStat.descent > 0 ? `<span class="course-elev-dn">↓${legStat.descent} m</span>` : '';
-        statsDiv.innerHTML =
-          `<span class="course-leg-dist">↔ ${Math.round(legDist * 1000)} m</span>` +
-          (upPart || downPart ? `<span class="course-leg-elev">${upPart}${downPart}</span>` : '');
-      } else {
-        statsDiv.innerHTML = `<span class="course-leg-dist">↔ ${Math.round(legDist * 1000)} m</span>`;
-      }
-      legContent.appendChild(statsDiv);
+      // ─── ルート選択プルダウン ───────────────────────────────
+      const selRow = document.createElement('div');
+      selRow.className = 'course-leg-select-row';
 
-      // 既存ルートチョイス一覧
+      // 選択中ルートの色見本
+      const selSwatch = document.createElement('span');
+      selSwatch.className = 'course-leg-sel-swatch';
+      selSwatch.style.background = barColor ?? 'transparent';
+      selSwatch.style.visibility = barColor ? 'visible' : 'hidden';
+      selRow.appendChild(selSwatch);
+
+      // stats をテキスト化するヘルパー
+      const fmtStat = (distM, stat) => {
+        let s = `↔ ${distM} m`;
+        if (stat?.climb   > 0) s += `  ↑${stat.climb} m`;
+        if (stat?.descent > 0) s += `  ↓${stat.descent} m`;
+        return s;
+      };
+
+      const routeSel = document.createElement('select');
+      routeSel.className = 'course-leg-route-sel';
+      routeSel.addEventListener('click', e => e.stopPropagation());
+
+      // 直結オプション
+      const directOpt = document.createElement('option');
+      directOpt.value = 'direct';
+      directOpt.textContent = `直結　${fmtStat(Math.round(legDist * 1000), legStat)}`;
+      if (!selRoute) directOpt.selected = true;
+      routeSel.appendChild(directOpt);
+
+      // ルートチョイスオプション
+      routes.forEach((route, ri) => {
+        const opt = document.createElement('option');
+        opt.value = route.id;
+        const rDistM = route.coords.length >= 2
+          ? Math.round(turf.length(turf.lineString(route.coords), { units: 'kilometers' }) * 1000)
+          : 0;
+        const rStat = _routeStatsCache.get(route.id) ?? null;
+        opt.textContent = `ルート${ri + 1}　${fmtStat(rDistM, rStat)}`;
+        if (selRoute?.id === route.id) opt.selected = true;
+        routeSel.appendChild(opt);
+      });
+
+      routeSel.addEventListener('change', e => {
+        e.stopPropagation();
+        const val = routeSel.value;
+        if (val === 'direct') {
+          _selectedRoutes.delete(key);
+        } else {
+          _selectedRoutes.set(key, val);
+        }
+        _refreshSource();
+        _renderPanel();
+      });
+
+      selRow.appendChild(routeSel);
+      legContent.appendChild(selRow);
+
+      // ─── ルートチョイス管理行（スウォッチ + 編集 + 削除）───────
       if (routes.length > 0) {
         const routeList = document.createElement('div');
         routeList.className = 'course-route-list';
-        routes.forEach(route => {
+        routes.forEach((route, ri) => {
           const rItem = document.createElement('div');
           rItem.className = 'course-route-item';
           if (hasEdit && _editRoute.routeId === route.id) rItem.classList.add('is-editing');
@@ -1278,13 +1380,10 @@ function _renderCourseTab() {
           swatch.className = 'course-route-swatch';
           swatch.style.background = routeColor(route.colorIdx);
 
-          // 距離表示（端点間の折れ線長）
-          const rDist = route.coords.length >= 2
-            ? Math.round(turf.length(turf.lineString(route.coords), { units: 'kilometers' }) * 1000)
-            : '—';
+          // ルート番号
           const rLabel = document.createElement('span');
-          rLabel.className = 'course-route-dist';
-          rLabel.textContent = `${rDist} m`;
+          rLabel.className = 'course-route-label';
+          rLabel.textContent = `ルート${ri + 1}`;
 
           // 編集トグルボタン
           const editBtn = document.createElement('button');
@@ -1677,6 +1776,8 @@ function _clearCourse() {
   course.sequence   = [];
   course.legRoutes  = {};
   _legStats         = [];
+  _selectedRoutes.clear();
+  _routeStatsCache.clear();
 
   _refreshSource();
   _renderPanel();
