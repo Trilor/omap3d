@@ -7193,10 +7193,14 @@ select,
   display: flex;
   align-items: center;
   gap: 5px;
-  padding: 2px 6px 2px 5px;
+  padding: 2px var(--chevron-pad-r) 2px 5px;
   border: 1px solid var(--border-input);
   border-radius: 4px;
   background-color: var(--bg-surface);
+  background-image: var(--chevron-down);
+  background-repeat: no-repeat;
+  background-position: right var(--chevron-inset) center;
+  background-size: var(--chevron-size-down);
   color: var(--text-primary);
   font-size: 10px;
   font-family: inherit;
