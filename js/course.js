@@ -735,5 +735,19 @@ export function initCoursePlanner(map) {
     },
   });
 
+  // 3D 地形有効時のマーカー位置ずれ補正
+  // 原因: HTML マーカーは map.project() で投影するが、3D 地形の GPU フレームバッファは
+  //        move イベントより 1 フレーム後に確定するため標高値が 1 フレーム遅れる。
+  //        GeoJSON レイヤー（レグ線）は WebGL で直接描画されるため影響を受けない。
+  // 対策: 各フレームの描画完了後（render イベント）に全マーカーへ setLngLat を呼び、
+  //        正確な標高値で投影を再計算させる。コントロール数が少ないため負荷は軽微。
+  map.on('render', () => {
+    if (_markers.length === 0) return;
+    for (const { marker, id } of _markers) {
+      const ctrl = _plan.controls.find(c => c.id === id);
+      if (ctrl) marker.setLngLat([ctrl.lng, ctrl.lat]);
+    }
+  });
+
   _setupUI();
 }
