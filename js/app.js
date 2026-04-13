@@ -4412,7 +4412,9 @@ function updateCsVisibility() {
   REGIONAL_RELIEF_LAYERS.forEach(layer => {
     if (map.getLayer(layer.layerId)) map.setLayoutProperty(layer.layerId, 'visibility', 'none');
   });
-  if (showColorRelief) scheduleDataOverlayDeckSync('color-relief');
+  // _syncDataOverlayDeckLayers は currentOverlay !== key のときに自動クリアするため
+  // 常に全3キーを同期する（条件付きだと切り替え前のレイヤーが残存するバグが発生）
+  scheduleDataOverlayDeckSync('color-relief');
   // 傾斜量図も visibility:none でタイルフェッチを停止
   const showSlopeRelief = overlay === 'slope';
   if (map.getLayer('slope-relief-layer')) {
@@ -4422,7 +4424,7 @@ function updateCsVisibility() {
   REGIONAL_SLOPE_LAYERS.forEach(layer => {
     if (map.getLayer(layer.layerId)) map.setLayoutProperty(layer.layerId, 'visibility', 'none');
   });
-  if (showSlopeRelief) scheduleSlopeDeckSync();
+  scheduleSlopeDeckSync();
   const showCurvatureRelief = overlay === 'curvature';
   // 色別曲率図も visibility:none でタイルフェッチを停止
   if (map.getLayer('curvature-relief-layer')) {
@@ -4432,7 +4434,7 @@ function updateCsVisibility() {
   REGIONAL_CURVE_LAYERS.forEach(layer => {
     if (map.getLayer(layer.layerId)) map.setLayoutProperty(layer.layerId, 'visibility', 'none');
   });
-  if (showCurvatureRelief) scheduleDataOverlayDeckSync('curvature');
+  scheduleDataOverlayDeckSync('curvature');
   const showRrimRelief = overlay === 'rrim';
   if (map.getLayer('rrim-relief-layer')) {
     map.setLayoutProperty('rrim-relief-layer', 'visibility', showRrimRelief ? 'visible' : 'none');
