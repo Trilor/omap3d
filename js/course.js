@@ -1420,7 +1420,6 @@ function _renderCourseTab() {
   const distEl   = document.getElementById('course-stat-dist');
   const climbEl  = document.getElementById('course-stat-climb');
   const countEl  = document.getElementById('course-stat-count');
-  const clearBtn = document.getElementById('course-clear-btn');
   const exportBtn= document.getElementById('course-export-btn');
   const xmlBtn   = document.getElementById('course-xml-btn');
   if (!listEl) return;
@@ -1431,7 +1430,6 @@ function _renderCourseTab() {
 
   if (emptyEl)   emptyEl.style.display  = n ? 'none' : '';
   if (statsSec)  statsSec.style.display = n >= 2 ? '' : 'none';
-  if (clearBtn)  clearBtn.disabled      = n === 0;
   if (exportBtn) exportBtn.disabled     = n === 0;
   if (xmlBtn)    xmlBtn.disabled        = n === 0;
 
@@ -2262,11 +2260,7 @@ function _setupUI() {
     importFileEl.value = '';
   });
 
-  document.getElementById('course-clear-btn')?.addEventListener('click', () => {
-    if (_activeCourse().sequence.length === 0) return;
-    if (!confirm('コースを全削除しますか？')) return;
-    _clearCourse();
-  });
+
 
   // Undo / Redo ボタン
   document.getElementById('course-undo-btn')?.addEventListener('click', _undo);
