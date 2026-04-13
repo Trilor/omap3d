@@ -4396,7 +4396,6 @@ function updateMagneticAttribution() {
 let currentOverlay = 'none'; // 選択中のオーバーレイキー（'none' = オーバーレイなし）
 
 function updateCsVisibility() {
-  console.log(`[updateCsVisibility] overlay=${currentOverlay}`, new Error().stack.split('\n').slice(1,4).join(' | '));
   const basemap    = currentBasemap;
   const overlayOn  = currentOverlay !== 'none';
   const overlay    = currentOverlay;
@@ -5870,7 +5869,6 @@ var _dataDeckSyncRafs = {}; // overlayKey → RAF ID
 function _commitDeckLayers() {
   if (!_deckOverlay) return;
   const dataLayers = Object.values(_deckDataLayers).flat();
-  console.log(`[commitDeckLayers] total=${dataLayers.length} state=${JSON.stringify(Object.fromEntries(Object.entries(_deckDataLayers).map(([k,v])=>[k,v.length])))}`, new Error().stack.split('\n').slice(1,4).join(' | '));
   _deckOverlay.setProps({ layers: [..._deckPlateauLayers, ...dataLayers] });
 }
 
@@ -6042,36 +6040,24 @@ async function _syncDataOverlayDeckLayers(overlayKey) {
   const cfg = OVERLAY_DATA_CONFIGS[overlayKey];
   if (!cfg) return;
 
-  console.log(`[DeckSync] START overlayKey=${overlayKey} currentOverlay=${currentOverlay}`);
-
   if (currentOverlay !== overlayKey) {
     if (_deckDataLayers[overlayKey]?.length) {
-      console.log(`[DeckSync] CLEAR ${overlayKey} (currentOverlay=${currentOverlay})`);
       _deckDataLayers[overlayKey] = [];
       _commitDeckLayers();
-    } else {
-      console.log(`[DeckSync] SKIP ${overlayKey} (already empty)`);
     }
     return;
   }
 
   await _loadDeckGl();
-  console.log(`[DeckSync] after _loadDeckGl: overlayKey=${overlayKey} currentOverlay=${currentOverlay}`);
-  if (currentOverlay !== overlayKey) {
-    console.log(`[DeckSync] ABORT after _loadDeckGl: currentOverlay changed to ${currentOverlay}`);
-    return;
-  }
+  if (currentOverlay !== overlayKey) return;
+
   const isFirstInit = !_deckOverlay;
   _initDeckOverlay();
   // 初回 addControl 時、Deck.gl 内部が非同期で setProps({layers:[]}) を呼ぶ。
   // それより後に commit しないとレイヤーが上書きされて消えるため 1 フレーム待つ。
   if (isFirstInit) {
     await new Promise(r => requestAnimationFrame(r));
-    console.log(`[DeckSync] after RAF wait: overlayKey=${overlayKey} currentOverlay=${currentOverlay}`);
-    if (currentOverlay !== overlayKey) {
-      console.log(`[DeckSync] ABORT after RAF: currentOverlay changed to ${currentOverlay}`);
-      return;
-    }
+    if (currentOverlay !== overlayKey) return;
   }
   const LayerClass = _getDataShaderLayerClass();
   if (!LayerClass) return;
@@ -6133,8 +6119,6 @@ async function _syncDataOverlayDeckLayers(overlayKey) {
   // 確立できず Deck.gl レイヤーが描画されないため、visible なものだけを選ぶ
   const _beforeContour = ['contour-regular-dem1a', 'contour-regular-dem5a', 'contour-regular']
     .find(id => map.getLayer(id) && map.getLayoutProperty(id, 'visibility') === 'visible');
-  console.log(`[DeckSync] _beforeContour=${_beforeContour}`);
-
   const layers = [
     new deck.TileLayer({
       id: `${cfg.layerIdPrefix}-base`,
@@ -6171,7 +6155,6 @@ async function _syncDataOverlayDeckLayers(overlayKey) {
     });
   }
 
-  console.log(`[DeckSync] COMMIT ${overlayKey}: ${layers.length} layers, currentOverlay=${currentOverlay}`);
   _deckDataLayers[overlayKey] = layers;
   _commitDeckLayers();
 }
@@ -6191,28 +6174,13 @@ function scheduleDataOverlayDeckSync(overlayKey) {
 // 後方互換エイリアス
 function scheduleSlopeDeckSync() { scheduleDataOverlayDeckSync('slope'); }
 
-// deck.gl v8.9 + loaders.gl v3 を動的に読み込む
-function _loadScript(url) {
-  return new Promise((resolve, reject) => {
-    const s = document.createElement('script');
-    s.src = url;
-    s.onload = resolve;
-    s.onerror = () => reject(new Error(`スクリプトの読み込みに失敗: ${url}`));
-    document.head.appendChild(s);
-  });
-}
-
-let _loadDeckGlPromise = null;
+// deck.gl v8.9 + loaders.gl v3 は index.html で事前読み込み済み
+// window.deck の存在を確認するだけで済む（動的ロード不要）
 async function _loadDeckGl() {
   if (window.deck) return;
-  // 複数の呼び出しが同時に走っても同じ Promise を共有して二重ロードを防ぐ
-  if (_loadDeckGlPromise) return _loadDeckGlPromise;
-  _loadDeckGlPromise = (async () => {
-    // loaders.gl 3D Tiles を先に読み込み、次に deck.gl 本体
-    await _loadScript('https://unpkg.com/@loaders.gl/3d-tiles@3.4.14/dist/dist.min.js');
-    await _loadScript('https://unpkg.com/deck.gl@8.9.35/dist.min.js');
-  })();
-  return _loadDeckGlPromise;
+  // 万一 window.deck が未定義の場合は次フレームまで待機して再確認
+  await new Promise(r => requestAnimationFrame(r));
+  if (!window.deck) throw new Error('deck.gl の読み込みに失敗しました');
 }
 
 function _initDeckOverlay() {
