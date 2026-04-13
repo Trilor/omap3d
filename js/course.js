@@ -1528,9 +1528,7 @@ function _renderCourseTab() {
             value: o.value,
             color: o.color,
             node,
-            html: o.color
-              ? `<span class="cdd-text">${o.html}</span>`
-              : `<span class="cdd-text cdd-text--direct">${o.html}</span>`,
+            html: `<span class="cdd-text">${o.html}</span>`,
           };
         }), val => {
           if (val === 'direct') {

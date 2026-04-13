@@ -7257,9 +7257,6 @@ select,
   flex: 1;
   min-width: 0;
 }
-.cdd-text--direct {
-  color: var(--text-muted);
-}
 .cdd-computing {
   color: var(--text-muted);
   font-style: italic;
