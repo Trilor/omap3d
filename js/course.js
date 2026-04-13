@@ -241,7 +241,26 @@ function _buildPreviewData(lngLat) {
 
 function _updateCursorPreview(e) {
   const src = _map?.getSource('course-preview-source');
-  if (src) src.setData(_buildPreviewData(e.lngLat));
+  if (!src) return;
+
+  // 既存コントロールへのスナップ判定
+  const hits = _map.queryRenderedFeatures(e.point, { layers: ['course-hit'] });
+  let lngLat;
+  let snapping = false;
+  if (hits.length > 0) {
+    const [lng, lat] = hits[0].geometry.coordinates;
+    lngLat = { lng, lat };
+    snapping = true;
+  } else {
+    lngLat = e.lngLat;
+  }
+
+  // スナップ時はシンボルを不透明に（吸い付き感を強調）
+  const opacity = snapping ? 0.9 : 0.45;
+  _map.setPaintProperty('course-preview-circle', 'circle-stroke-opacity', opacity);
+  _map.setPaintProperty('course-preview-start', 'icon-opacity', opacity);
+
+  src.setData(_buildPreviewData(lngLat));
 }
 
 function _clearPreview() {
@@ -429,6 +448,7 @@ function _initLayers() {
 // ================================================================
 
 function _startDrag(e) {
+  if (_drawMode) return; // 描画モード中はドラッグ無効（クリックでスナップ追加）
   if (!e.features?.length) return;
   const id = e.features[0].properties.id;
   _dragCtrl = _plan.controls.find(c => c.id === id);
@@ -515,9 +535,14 @@ function _renumberControls() {
 // ================================================================
 
 function _onMapClick(e) {
-  // ヒット領域に既存コントロールがある場合は追加しない
   const hits = _map.queryRenderedFeatures(e.point, { layers: ['course-hit'] });
-  if (hits.length > 0) return;
+  if (hits.length > 0) {
+    // 既存コントロールにスナップ: その座標で新コントロールを追加
+    const [lng, lat] = hits[0].geometry.coordinates;
+    _addControl(lng, lat);
+    _updateDrawHint();
+    return;
+  }
   _addControl(e.lngLat.lng, e.lngLat.lat);
   _updateDrawHint();
 }
@@ -848,9 +873,9 @@ export function initCoursePlanner(map) {
   // ドラッグ: course-hit レイヤー上の mousedown でカスタムドラッグ開始
   map.on('mousedown', 'course-hit', _startDrag);
 
-  // ホバーカーソル
+  // ホバーカーソル（描画モード中はスナップ扱いなので crosshair のまま）
   map.on('mouseenter', 'course-hit', () => {
-    if (!_dragCtrl) map.getCanvas().style.cursor = 'grab';
+    if (!_dragCtrl && !_drawMode) map.getCanvas().style.cursor = 'grab';
   });
   map.on('mouseleave', 'course-hit', () => {
     if (!_dragCtrl) map.getCanvas().style.cursor = _drawMode ? 'crosshair' : '';
