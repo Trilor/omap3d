@@ -5873,12 +5873,6 @@ function _commitDeckLayers() {
 }
 
 
-function _expandDeckTileUrl(template, tile) {
-  return template
-    .replace('{z}', String(tile.index.z))
-    .replace('{x}', String(tile.index.x))
-    .replace('{y}', String(tile.index.y));
-}
 
 // パレット停止点を deck.gl シェーダーの uniform 配列に変換
 function _buildPaletteUniforms(paletteId) {
@@ -6089,13 +6083,22 @@ async function _syncDataOverlayDeckLayers(overlayKey) {
   const qOnlyUrl  = cfg.qOnlyUrl();
   // renderSubLayers の再呼び出しトリガー: uniform に影響する値が変わったときに通知
   const subLayerTrigger = [renderMin, renderMax, cfg.getPaletteId(), opacity];
+  // getTileData: relief-data:// / slope-data:// は fetch() では解決できないため、
+  // tile.index から URL を組み立てて generateTile（MapLibre プロトコルハンドラー）を呼ぶ。
+  // Deck.gl TileLayer は getTileData が定義されていれば data を自動フェッチしないが、
+  // data=null だとタイル要求自体が始まらないため識別用文字列を渡す。
   const makeTileDataLoader = (template) => async (tile) => {
-    // returnBitmap=true で PNG エンコード/デコードの往復を省略（~1200ms 削減）
-    const result = await cfg.generateTile(_expandDeckTileUrl(template, tile), tile.signal, true);
+    const url = template
+      .replace('{z}', String(tile.index.z))
+      .replace('{x}', String(tile.index.x))
+      .replace('{y}', String(tile.index.y));
+    const result = await cfg.generateTile(url, tile.signal, true);
     if (!result) return null;
-    // bitmap が直接返った場合はそのまま使用。PNG バイト列の場合は後方互換でデコード
     return result.bitmap ?? await createImageBitmap(new Blob([result.data], { type: 'image/png' }));
   };
+  // data に null を渡すと Deck.gl がタイル要求を開始しないため、
+  // カスタムスキームURLをそのまま渡して getTileData で上書きする
+  // （Deck.gl 8.9 は getTileData がある場合 data を fetch しない）
 
   // ================================================================
   // ズームレベル別レイヤー構成
@@ -6114,11 +6117,8 @@ async function _syncDataOverlayDeckLayers(overlayKey) {
   const currentZoom = map?.getZoom() ?? 0;
   const showHighRes = currentZoom >= 15.5; // deck.gl は Math.round なので 15.5 → z16
 
-  // interleaved モードで等高線レイヤーの直前（下）に描画するための beforeId
-  // visibility:none のレイヤーを beforeId に指定すると MapLibre が描画ポイントを
-  // 確立できず Deck.gl レイヤーが描画されないため、visible なものだけを選ぶ
-  const _beforeContour = ['contour-regular-dem1a', 'contour-regular-dem5a', 'contour-regular']
-    .find(id => map.getLayer(id) && map.getLayoutProperty(id, 'visibility') === 'visible');
+  // Deck.gl interleaved モードで beforeId を使わない場合、MapLibre の全レイヤーより前面に描画される。
+  // 等高線より下への挿入は断念し、色別標高図/傾斜図/曲率図を最前面で表示する。
   const layers = [
     new deck.TileLayer({
       id: `${cfg.layerIdPrefix}-base`,
@@ -6126,7 +6126,6 @@ async function _syncDataOverlayDeckLayers(overlayKey) {
       getTileData: makeTileDataLoader(qBlendUrl),
       renderSubLayers: mkSubLayer,
       updateTriggers: { renderSubLayers: subLayerTrigger },
-      beforeId: _beforeContour,
     }),
   ];
 
@@ -6137,7 +6136,6 @@ async function _syncDataOverlayDeckLayers(overlayKey) {
       getTileData: makeTileDataLoader(qOnlyUrl),
       renderSubLayers: mkSubLayer,
       updateTriggers: { renderSubLayers: subLayerTrigger },
-      beforeId: _beforeContour,
     }));
     cfg.regionalLayers.forEach((layer) => {
       const url = cfg.toDataUrl(layer.tileUrl);
@@ -6150,7 +6148,6 @@ async function _syncDataOverlayDeckLayers(overlayKey) {
         getTileData: makeTileDataLoader(url),
         renderSubLayers: mkSubLayer,
         updateTriggers: { renderSubLayers: subLayerTrigger },
-        beforeId: _beforeContour,
       }));
     });
   }
