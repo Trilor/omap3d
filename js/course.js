@@ -91,6 +91,15 @@ function _pushHistory() {
   if (_undoStack.length > HISTORY_MAX) _undoStack.shift();
   _redoStack.length = 0;
   _updateHistoryButtons();
+  // ミューテーション前の状態を保存するのではなく、呼び出し後に保存するため
+  // 実際の保存は _saveAfterMutation() で行う
+}
+
+let _saveTimer = null;
+/** デバウンスして LocalStorage に保存（連続操作でも 300ms に 1 回）*/
+function _scheduleSave() {
+  if (_saveTimer) clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(_saveToStorage, 300);
 }
 
 /** スナップショットを状態に復元する */
@@ -120,6 +129,7 @@ function _undo() {
   _redoStack.push(_snapshot());
   _restoreSnapshot(_undoStack.pop());
   _updateHistoryButtons();
+  _saveToStorage();
 }
 
 function _redo() {
@@ -127,6 +137,7 @@ function _redo() {
   _undoStack.push(_snapshot());
   _restoreSnapshot(_redoStack.pop());
   _updateHistoryButtons();
+  _saveToStorage();
 }
 
 function _updateHistoryButtons() {
@@ -558,6 +569,7 @@ function _buildRoutePreviewData(cursorLngLat) {
 function _refreshSource() {
   const src = _map?.getSource('course-source');
   if (src) src.setData(_buildSourceData());
+  _scheduleSave();
 }
 
 // ================================================================
@@ -1972,6 +1984,86 @@ function _importJSON(text) {
 }
 
 // ================================================================
+// LocalStorage 永続化
+// ================================================================
+
+const LS_KEY = 'teledrop_course_v2';
+
+/** 現在の編集状態を LocalStorage に保存する */
+function _saveToStorage() {
+  try {
+    const usedDefIds = new Set(_courses.flatMap(c => c.sequence));
+    const controlDefs = {};
+    usedDefIds.forEach(id => {
+      const def = _controlDefs.get(id);
+      if (def) controlDefs[id] = { type: def.type, code: def.code, lng: def.lng, lat: def.lat };
+    });
+    const data = {
+      version:        2,
+      nextDefId:      _nextDefId,
+      nextRouteId:    _nextRouteId,
+      activeCourseIdx: _activeCourseIdx,
+      selectedRoutes: [..._selectedRoutes.entries()],
+      controlDefs,
+      courses: _courses.map(c => ({
+        id:        c.id,
+        name:      c.name,
+        sequence:  [...c.sequence],
+        legRoutes: Object.fromEntries(
+          Object.entries(c.legRoutes ?? {}).map(([key, routes]) => [
+            key,
+            routes.map(r => ({ id: r.id, colorIdx: r.colorIdx, coords: r.coords })),
+          ])
+        ),
+      })),
+    };
+    localStorage.setItem(LS_KEY, JSON.stringify(data));
+  } catch (e) {
+    // QuotaExceededError など — サイレントに無視
+    console.warn('course save failed:', e);
+  }
+}
+
+/** LocalStorage からコース状態を復元する。成功したら true を返す */
+function _loadFromStorage() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return false;
+    const data = JSON.parse(raw);
+    if (data.version !== 2) return false;
+
+    // _controlDefs 復元
+    _controlDefs.clear();
+    Object.entries(data.controlDefs ?? {}).forEach(([id, def]) => {
+      _controlDefs.set(id, { defId: id, type: def.type, code: def.code ?? '', lng: def.lng, lat: def.lat });
+    });
+
+    // _courses 復元
+    _courses.length = 0;
+    (data.courses ?? []).forEach(c => {
+      const legRoutes = {};
+      Object.entries(c.legRoutes ?? {}).forEach(([key, routes]) => {
+        legRoutes[key] = routes.map(r => ({ id: r.id, colorIdx: r.colorIdx ?? 0, coords: r.coords ?? [] }));
+      });
+      _courses.push({ id: c.id, name: c.name, sequence: [...(c.sequence ?? [])], legRoutes });
+    });
+    if (_courses.length === 0) _courses.push({ id: 'course0', name: 'コース1', sequence: [], legRoutes: {} });
+
+    // カウンタ・選択状態復元
+    _nextDefId       = data.nextDefId       ?? _nextDefId;
+    _nextRouteId     = data.nextRouteId     ?? _nextRouteId;
+    _activeCourseIdx = data.activeCourseIdx ?? 0;
+    _selectedRoutes.clear();
+    (data.selectedRoutes ?? []).forEach(([k, v]) => _selectedRoutes.set(k, v));
+
+    return true;
+  } catch (e) {
+    console.warn('course load failed:', e);
+    return false;
+  }
+}
+
+// ================================================================
 // コースクリア
 // ================================================================
 
@@ -2120,4 +2212,22 @@ export function initCoursePlanner(map) {
   map.on('click', _onMapClick);
 
   _setupUI();
+
+  // ── LocalStorage からコース状態を復元 ──────────────────────
+  if (_loadFromStorage()) {
+    _refreshSource();
+    _scheduleCalc();
+    _renderPanel();
+    // コントロールが存在すれば地図を移動
+    const seqInfo = _buildSequenceInfo();
+    if (seqInfo.length > 0) {
+      const lngs = seqInfo.map(i => i.def.lng);
+      const lats = seqInfo.map(i => i.def.lat);
+      const bbox = [Math.min(...lngs), Math.min(...lats), Math.max(...lngs), Math.max(...lats)];
+      if (bbox[0] === bbox[2] && bbox[1] === bbox[3])
+        map.flyTo({ center: [bbox[0], bbox[1]], zoom: 15, duration: 600 });
+      else
+        map.fitBounds(bbox, { padding: 100, duration: 600 });
+    }
+  }
 }
