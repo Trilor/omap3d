@@ -1246,22 +1246,48 @@ function _renderCourseTab() {
   if (exportBtn) exportBtn.disabled     = n === 0;
   if (xmlBtn)    xmlBtn.disabled        = n === 0;
 
-  // 合計距離（即時）
+  // 選択ルートを考慮したレグ統計（距離・登高）を収集
+  // _legStats[i] は直結線、_routeStatsCache はルートチョイス
+  const effectiveStats = seqInfo.slice(1).map((item, i) => {
+    const k          = legKey(seqInfo[i].def.defId, item.def.defId);
+    const selRouteId = _selectedRoutes.get(k);
+    if (selRouteId) return _routeStatsCache.get(selRouteId) ?? null;
+    return _legStats[i] ?? null;
+  });
+
+  // 合計距離（選択ルート考慮）
   let totalDist = 0;
   for (let i = 1; i < n; i++) {
-    totalDist += turf.distance(
-      turf.point([seqInfo[i - 1].def.lng, seqInfo[i - 1].def.lat]),
-      turf.point([seqInfo[i].def.lng,     seqInfo[i].def.lat]),
-      { units: 'kilometers' }
-    );
+    const k          = legKey(seqInfo[i - 1].def.defId, seqInfo[i].def.defId);
+    const selRouteId = _selectedRoutes.get(k);
+    if (selRouteId) {
+      // ルートチョイスが選択されている場合はそのポリライン距離を使用
+      const route = (course.legRoutes?.[k] ?? []).find(r => r.id === selRouteId);
+      if (route?.coords.length >= 2) {
+        totalDist += turf.length(turf.lineString(route.coords), { units: 'kilometers' });
+      } else {
+        totalDist += turf.distance(
+          turf.point([seqInfo[i - 1].def.lng, seqInfo[i - 1].def.lat]),
+          turf.point([seqInfo[i].def.lng,     seqInfo[i].def.lat]),
+          { units: 'kilometers' }
+        );
+      }
+    } else {
+      // 直結線
+      totalDist += turf.distance(
+        turf.point([seqInfo[i - 1].def.lng, seqInfo[i - 1].def.lat]),
+        turf.point([seqInfo[i].def.lng,     seqInfo[i].def.lat]),
+        { units: 'kilometers' }
+      );
+    }
   }
   if (distEl) distEl.textContent = n >= 2 ? Math.round(totalDist * 1000) + ' m' : '—';
 
-  // 累積登高
+  // 累積登高（選択ルート考慮）
   if (climbEl) {
-    if (_legStats.length > 0 && _legStats.every(s => s != null)) {
-      const totalClimb   = _legStats.reduce((s, l) => s + (l?.climb   ?? 0), 0);
-      const totalDescent = _legStats.reduce((s, l) => s + (l?.descent ?? 0), 0);
+    if (effectiveStats.length > 0 && effectiveStats.every(s => s != null)) {
+      const totalClimb   = effectiveStats.reduce((s, l) => s + (l.climb   ?? 0), 0);
+      const totalDescent = effectiveStats.reduce((s, l) => s + (l.descent ?? 0), 0);
       climbEl.innerHTML =
         `<span class="course-elev-up">↑${totalClimb} m</span>` +
         `<span class="course-elev-dn">↓${totalDescent} m</span>`;
