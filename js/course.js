@@ -305,12 +305,7 @@ function _openDropdown(anchorEl, options, onSelect) {
   options.forEach(({ value, html, color, node }) => {
     const opt = document.createElement('div');
     opt.className = 'course-dd-opt';
-    // 左端カラーバー
-    const bar = document.createElement('span');
-    bar.className = 'cdd-color-bar';
-    bar.style.background = color ?? '#c020c0';
-    opt.appendChild(bar);
-    // コンテンツ（swatch + テキスト）
+    // コンテンツ
     const inner = document.createElement('span');
     inner.className = 'cdd-opt-inner';
     inner.innerHTML = html;
@@ -1433,8 +1428,10 @@ function _renderCourseTab() {
       selRow.className = 'course-leg-select-row';
 
       // stats を色付き HTML に変換するヘルパー
-      const fmtStatHtml = (distM, stat) => {
-        let html = `<span class="cdd-dist">${distM} m</span>`;
+      // color: 距離バッジの背景色（薄め）に使用。null = 直結（紫）
+      const fmtStatHtml = (distM, stat, color) => {
+        const bg = color ?? '#c020c0';
+        let html = `<span class="cdd-dist" style="background:${bg}28;">${distM} m</span>`;
         if (stat === null) {
           html += ` <span class="cdd-computing">…</span>`;
         } else {
@@ -1447,11 +1444,11 @@ function _renderCourseTab() {
       // ドロップダウンのオプション定義
       const ddOptions = [];
 
-      // 直結オプション（スウォッチなし）
+      // 直結オプション
       ddOptions.push({
         value: 'direct',
         color: null,
-        html: fmtStatHtml(Math.round(legDist * 1000), legStat),
+        html: fmtStatHtml(Math.round(legDist * 1000), legStat, null),
       });
 
       // ルートチョイスオプション
@@ -1459,11 +1456,12 @@ function _renderCourseTab() {
         const rDistM = route.coords.length >= 2
           ? Math.round(turf.length(turf.lineString(route.coords), { units: 'kilometers' }) * 1000)
           : 0;
-        const rStat = _routeStatsCache.get(route.id) ?? null;
+        const rStat  = _routeStatsCache.get(route.id) ?? null;
+        const rColor = routeColor(route.colorIdx);
         ddOptions.push({
           value: route.id,
-          color: routeColor(route.colorIdx),
-          html:  fmtStatHtml(rDistM, rStat),
+          color: rColor,
+          html:  fmtStatHtml(rDistM, rStat, rColor),
         });
       });
 
@@ -1479,11 +1477,6 @@ function _renderCourseTab() {
 
       const renderDdBtn = (opt) => {
         ddBtn.innerHTML = '';
-        // 左端カラーバー（直結=紫、ルート選択時=ルート色）
-        const bar = document.createElement('span');
-        bar.className = 'cdd-color-bar';
-        bar.style.background = opt.color ?? '#c020c0';
-        ddBtn.appendChild(bar);
         const txt = document.createElement('span');
         txt.className = 'cdd-text';
         txt.innerHTML = opt.html;

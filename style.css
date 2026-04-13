@@ -7193,8 +7193,7 @@ select,
   display: flex;
   align-items: center;
   gap: 5px;
-  padding: 2px var(--chevron-pad-r) 2px 0;
-  overflow: hidden;
+  padding: 2px var(--chevron-pad-r) 2px 6px;
   border: 1px solid var(--border-input);
   border-radius: 4px;
   background-color: var(--bg-surface);
@@ -7213,12 +7212,6 @@ select,
 .course-leg-dd-btn:hover {
   border-color: var(--primary);
 }
-.cdd-color-bar {
-  flex-shrink: 0;
-  width: 5px;
-  align-self: stretch;
-  border-radius: 0 2px 2px 0;
-}
 .cdd-text {
   flex: 1;
   min-width: 0;
@@ -7226,7 +7219,7 @@ select,
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.cdd-dist  { color: var(--text-muted); }
+.cdd-dist  { color: var(--text-primary); font-weight: 600; border-radius: 3px; padding: 0 4px; }
 .cdd-up    { color: #e05050; font-weight: 600; }
 .cdd-dn    { color: #4a9fe8; font-weight: 600; }
 
@@ -7246,13 +7239,12 @@ select,
   display: flex;
   align-items: center;
   gap: 0;
-  padding: 4px 10px 4px 0;
+  padding: 4px 10px;
   font-size: 10px;
   font-family: inherit;
   cursor: pointer;
   white-space: nowrap;
   color: var(--text-primary);
-  overflow: hidden;
 }
 .course-dd-opt:hover {
   background: var(--bg-subtle);
@@ -7262,7 +7254,6 @@ select,
   display: flex;
   align-items: center;
   gap: 5px;
-  padding-left: 7px;
   flex: 1;
   min-width: 0;
 }
