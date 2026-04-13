@@ -4581,6 +4581,16 @@ document.getElementById('overlay-cards').addEventListener('click', (e) => {
 // ズーム17の境界を跨いだとき 0.5m ↔ 1m を自動切替
 map.on('zoomend', updateCsVisibility);
 
+// z16 境界を跨いだとき Deck.gl データオーバーレイのレイヤー構成を更新
+// （高解像度レイヤー: z16未満では配列から除外、z16以上で追加）
+var _lastDeckZoomAbove16 = false;
+map.on('zoomend', () => {
+  const above16 = map.getZoom() >= 15.5;
+  if (above16 === _lastDeckZoomAbove16) return; // 閾値を跨いでいなければスキップ
+  _lastDeckZoomAbove16 = above16;
+  if (currentOverlay in OVERLAY_DATA_CONFIGS) scheduleDataOverlayDeckSync(currentOverlay);
+});
+
 // ---- deck.gl 建物レイヤー: 地図移動・ズーム変更で位置連動自動更新 ----
 function _onMapMoveForPlateau() {
   const mode = document.getElementById('sel-building')?.value ?? '';
@@ -6062,7 +6072,24 @@ async function _syncDataOverlayDeckLayers(overlayKey) {
     return await createImageBitmap(new Blob([data], { type: 'image/png' }));
   };
 
-  _deckDataLayers[overlayKey] = [
+  // ================================================================
+  // ズームレベル別レイヤー構成
+  //
+  // Deck.gl TileLayer の minZoom はタイルズームの下限値であり、
+  // 「マップズームが minZoom 未満のとき非表示」ではない。
+  // 例: minZoom=16 でマップ z10 → z16 タイルを overzoomed で表示しようとするため
+  // z10 のビューポートをカバーする数千枚の z16 タイルを要求してしまう。
+  //
+  // 対策: z16 高解像度レイヤーはレイヤー配列への追加・削除でズームを制御する。
+  //   z < 16 : base レイヤーのみ（DEM10B / DEM5A / Q 地図をズームに応じて自動選択）
+  //   z ≥ 16 : base + qonly（z16 固定）+ 地域DEM（エリア内のみ）
+  //
+  // ズーム変化時は zoomend ハンドラーが scheduleDataOverlayDeckSync を再呼び出し。
+  // ================================================================
+  const currentZoom = map?.getZoom() ?? 0;
+  const showHighRes = currentZoom >= 15.5; // deck.gl は Math.round なので 15.5 → z16
+
+  const layers = [
     new deck.TileLayer({
       id: `${cfg.layerIdPrefix}-base`,
       data: qBlendUrl, maxZoom: cfg.maxZoomBase, minZoom: 0,
@@ -6070,16 +6097,19 @@ async function _syncDataOverlayDeckLayers(overlayKey) {
       renderSubLayers: mkSubLayer,
       updateTriggers: { renderSubLayers: subLayerTrigger },
     }),
-    new deck.TileLayer({
+  ];
+
+  if (showHighRes) {
+    layers.push(new deck.TileLayer({
       id: `${cfg.layerIdPrefix}-qonly-z16`,
       data: qOnlyUrl, minZoom: 16, maxZoom: 16,
       getTileData: makeTileDataLoader(qOnlyUrl),
       renderSubLayers: mkSubLayer,
       updateTriggers: { renderSubLayers: subLayerTrigger },
-    }),
-    ...cfg.regionalLayers.map((layer) => {
+    }));
+    cfg.regionalLayers.forEach((layer) => {
       const url = cfg.toDataUrl(layer.tileUrl);
-      return new deck.TileLayer({
+      layers.push(new deck.TileLayer({
         id: `${cfg.layerIdPrefix}-${layer.sourceId}`,
         data: url,
         minZoom: Math.max(16, layer.minzoom ?? 0),
@@ -6088,9 +6118,11 @@ async function _syncDataOverlayDeckLayers(overlayKey) {
         getTileData: makeTileDataLoader(url),
         renderSubLayers: mkSubLayer,
         updateTriggers: { renderSubLayers: subLayerTrigger },
-      });
-    }),
-  ];
+      }));
+    });
+  }
+
+  _deckDataLayers[overlayKey] = layers;
   _commitDeckLayers();
 }
 
