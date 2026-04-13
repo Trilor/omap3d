@@ -4429,13 +4429,19 @@ function updateCsVisibility() {
   REGIONAL_CURVE_LAYERS.forEach(layer => {
     if (map.getLayer(layer.layerId)) map.setLayoutProperty(layer.layerId, 'visibility', 'none');
   });
-  // Deck.gl sync は現在選択中のオーバーレイのみ呼ぶ（全部呼ぶと非選択オーバーレイの
-  // async 処理がレイヤーをクリアして選択中のレイヤーをかき消す競合が起きる）
+  // 非選択オーバーレイのレイヤーを即時クリア（残存防止）
+  // async sync を呼ぶと競合するため、ここで直接クリアして commit する
+  let needCommit = false;
+  Object.keys(OVERLAY_DATA_CONFIGS).forEach(key => {
+    if (key !== overlay && _deckDataLayers[key]?.length) {
+      _deckDataLayers[key] = [];
+      needCommit = true;
+    }
+  });
+  if (needCommit) _commitDeckLayers();
+  // 選択中のオーバーレイのみ async sync（タイル生成・シェーダー描画）
   if (overlay in OVERLAY_DATA_CONFIGS) {
     scheduleDataOverlayDeckSync(overlay);
-  } else {
-    // Deck.gl オーバーレイでない選択時は全データレイヤーをクリア
-    Object.keys(OVERLAY_DATA_CONFIGS).forEach(key => scheduleDataOverlayDeckSync(key));
   }
   const showRrimRelief = overlay === 'rrim';
   if (map.getLayer('rrim-relief-layer')) {
@@ -6351,6 +6357,15 @@ function setTerrain3dEnabled(enabled, { updateCard = true } = {}) {
     map.setTerrain(null);
   }
   syncTerrainRasterOpacity();
+  // setTerrain で MapLibre の WebGL パイプラインが再構築されるため、
+  // Deck.gl interleaved オーバーレイを再初期化して再描画する
+  if (_deckOverlay) {
+    map.removeControl(_deckOverlay);
+    _deckOverlay = null;
+  }
+  if (currentOverlay in OVERLAY_DATA_CONFIGS) {
+    scheduleDataOverlayDeckSync(currentOverlay);
+  }
 }
 
 terrain3dCard.addEventListener('click', (e) => {
