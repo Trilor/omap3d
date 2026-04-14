@@ -6108,6 +6108,17 @@ h4,
   background: #ffffff !important;
 }
 
+/* 右パネル: 左パネルと対称に統一 */
+#right-panel {
+  width: 292px !important;
+  border-radius: 16px 0 0 16px !important;
+  border: 2px solid var(--border-light) !important;
+  border-right: 1px solid var(--border-light) !important;
+  box-shadow: none !important;
+  overflow: hidden !important;
+  background: #ffffff !important;
+}
+
 /* ---- 検索バー: pill shape ---- */
 #unified-search-input {
   border-radius: 9999px !important;
