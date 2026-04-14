@@ -1,18 +1,29 @@
 /* ================================================================
-   course.js — コースプランナーモジュール（v3）
-   Purple Pen 互換リレーショナル構造
+   course.js — コースプランナーモジュール（v4）
+   Purple Pen 互換リレーショナル構造 + IndexedDB 永続化
 
    データモデル:
-   · _controlDefs (Map) — コントロール定義マスターリスト（物理ポイントの実体）
-   · _courses[]         — コース一覧（各コースは defId の順番リストを保持）
-   · マスター座標変更 → _refreshSource() 1回で全コース即時同期（同一 WebGL フレーム）
+   · _controlDefs (Map) — アクティブイベントのコントロールマスター
+   · _courses[]         — アクティブイベントのコース一覧
+   · _activeEventId     — 現在ロード中のイベント ID（null = なし）
 
-   エクスポート:
-   · JSON v2 形式（マスター + コース参照リスト）
-   · IOF XML 3.0 形式（Purple Pen 互換）
+   永続化: IndexedDB workspace-db.js（v3）
+   · events ストア: イベントメタデータ + controlDefs
+   · courses ストア: 各コース（sequence は defId 参照のみ）
+
    ================================================================ */
 
 import { QCHIZU_DEM_BASE, DEM5A_BASE, ROUTE_COLORS, routeColor, ROUTE_COLOR_CMYK } from './config.js';
+import {
+  getAllWsEvents,
+  getWsEvent,
+  saveWsEvent,
+  deleteWsEvent,
+  getCoursesByEvent,
+  saveWsCourse,
+  deleteWsCourse,
+  deleteCoursesForEvent,
+} from './workspace-db.js';
 
 // ================================================================
 // 定数
@@ -56,6 +67,9 @@ const _courses = [{ id: 'course0', name: 'コース1', sequence: [], legRoutes: 
 let _activeCourseIdx = 0;   // アクティブコースの index
 let _nextDefId       = 0;   // defId 生成カウンタ
 let _nextRouteId     = 0;   // ルート ID 生成カウンタ
+let _activeEventId        = null; // 現在ロード中のイベント ID
+let _activeEventName      = '';   // 現在ロード中のイベント名（パンくず用）
+let _activeEventTerrainId = null; // 現在ロード中のイベントの terrain_id
 let _drawMode        = false;
 let _calcTimer       = null;
 let _legStats        = [];  // [{distKm, climb, descent}] レグ統計キャッシュ
@@ -104,12 +118,7 @@ function _pushHistory() {
   // 実際の保存は _saveAfterMutation() で行う
 }
 
-let _saveTimer = null;
-/** デバウンスして LocalStorage に保存（連続操作でも 300ms に 1 回）*/
-function _scheduleSave() {
-  if (_saveTimer) clearTimeout(_saveTimer);
-  _saveTimer = setTimeout(_saveToStorage, 300);
-}
+// _saveTimer / _scheduleSave は IndexedDB 永続化セクションで定義（後述）
 
 /** スナップショットを状態に復元する */
 function _restoreSnapshot(snap) {
@@ -1370,10 +1379,12 @@ function _addCourse() {
   _pushHistory();
   const idx = _courses.length;
   _courses.push({
-    id:         'course' + idx,
-    name:       `コース${idx + 1}`,
-    sequence:   [],
-    legRoutes:  {},
+    id:        'course-' + Date.now(),
+    event_id:  _activeEventId,
+    name:      `コース${idx + 1}`,
+    sequence:  [],
+    legRoutes: {},
+    terrainId: null,
   });
   _activeCourseIdx = _courses.length - 1;
   _activeTab = 'course';
@@ -1382,6 +1393,7 @@ function _addCourse() {
   _legStats     = [];
   _refreshSource();
   _renderPanel();
+  _scheduleSave();
 }
 
 function _deleteCourse(idx) {
@@ -1406,6 +1418,17 @@ function _deleteCourse(idx) {
   _refreshSource();
   _scheduleCalc();
   _renderPanel();
+  _scheduleSave();
+}
+
+/**
+ * コース ID を指定して削除する（app.js のツリー UI から呼び出す）
+ * @param {string} courseId
+ */
+export function deleteCourseById(courseId) {
+  const idx = _courses.findIndex(c => c.id === courseId);
+  if (idx === -1) return;
+  _deleteCourse(idx);
 }
 
 // ================================================================
@@ -1499,7 +1522,7 @@ function _renderPanel() {
   _updateDrawModeUI();
   _updateDrawHint();
   _updateTabUI();
-  _updateCourseSelect();
+  _updateBreadcrumb();
   _refreshSource(false); // タブ切り替えで地図表示を同期（保存は不要）
   // コース名入力が編集中でなければ非表示のまま維持
   const nameInput = document.getElementById('course-name-input');
@@ -1518,22 +1541,30 @@ function _updateTabUI() {
   });
 }
 
-/** コース選択プルダウンを更新 */
-function _updateCourseSelect() {
-  const sel = document.getElementById('course-select');
-  const delBtn = document.getElementById('course-del-btn');
-  if (!sel) return;
-  sel.innerHTML = '';
-  _courses.forEach((c, i) => {
-    const opt = document.createElement('option');
-    opt.value = i;
-    opt.textContent = c.name;
-    if (i === _activeCourseIdx) opt.selected = true;
-    sel.appendChild(opt);
-  });
+/** パンくずリストを更新（右パネル上部） */
+function _updateBreadcrumb() {
+  const bc       = document.getElementById('course-breadcrumb');
+  const delBtn   = document.getElementById('course-del-btn');
+  if (!bc) return;
+
+  const eventEl  = bc.querySelector('.course-bc-event');
+  const itemEl   = bc.querySelector('.course-bc-item');
+  if (eventEl) eventEl.textContent = _activeEventName || 'イベント';
+  if (itemEl) {
+    if (_activeTab === 'controls') {
+      itemEl.textContent = '全コントロール';
+      itemEl.className   = 'course-bc-item course-bc-controls';
+    } else {
+      itemEl.textContent = _activeCourse()?.name ?? '';
+      itemEl.className   = 'course-bc-item course-bc-course';
+    }
+  }
   if (delBtn) delBtn.disabled = _courses.length <= 1;
-  // カスタムセレクト（app.js の makeCustomSelect）の表示を同期
-  if (typeof sel._csRefresh === 'function') sel._csRefresh();
+}
+
+/** 後方互換: プルダウンが残っている場合も更新 */
+function _updateCourseSelect() {
+  _updateBreadcrumb();
 }
 
 /**
@@ -2686,83 +2717,178 @@ async function _importPPen(xmlText) {
 }
 
 // ================================================================
-// LocalStorage 永続化
+// IndexedDB 永続化（v4: localStorage から完全移行）
 // ================================================================
 
-const LS_KEY = 'teledrop_course_v2';
+const LS_KEY = 'teledrop_course_v2'; // 移行元キー（移行後は削除）
 
-/** 現在の編集状態を LocalStorage に保存する */
-function _saveToStorage() {
+/**
+ * 現在のアクティブイベント状態を IndexedDB に保存する（非同期・fire-and-forget）
+ * イベントレコードに controlDefs を含め、コースレコードを courses ストアに upsert する。
+ */
+async function _saveToDb() {
+  if (!_activeEventId) return;
   try {
-    const usedDefIds = new Set(_courses.flatMap(c => c.sequence));
-    const controlDefs = {};
-    usedDefIds.forEach(id => {
-      const def = _controlDefs.get(id);
-      if (def) controlDefs[id] = { code: def.code, lng: def.lng, lat: def.lat };
+    // ── イベントレコードを更新 ──
+    const controlDefsObj = {};
+    _controlDefs.forEach((def, id) => {
+      controlDefsObj[id] = { code: def.code, lng: def.lng, lat: def.lat };
     });
-    const data = {
-      version:        2,
-      nextDefId:      _nextDefId,
-      nextRouteId:    _nextRouteId,
-      activeCourseIdx: _activeCourseIdx,
-      selectedRoutes: [..._selectedRoutes.entries()],
-      controlDefs,
-      courses: _courses.map(c => ({
-        id:        c.id,
-        name:      c.name,
-        sequence:  [...c.sequence],
-        terrainId: c.terrainId ?? null,
+    await saveWsEvent({
+      id:            _activeEventId,
+      name:          _activeEventName,
+      terrain_id:    _activeEventTerrainId,
+      source:        'local',
+      controlDefs:   controlDefsObj,
+      nextDefId:     _nextDefId,
+      nextRouteId:   _nextRouteId,
+      activeCourseId: _courses[_activeCourseIdx]?.id ?? null,
+    });
+
+    // ── 既存コースを全削除して upsert ──（シンプルな全置換）
+    await deleteCoursesForEvent(_activeEventId);
+    for (const c of _courses) {
+      await saveWsCourse({
+        id:             c.id,
+        event_id:       _activeEventId,
+        name:           c.name,
+        sequence:       [...c.sequence],
+        selectedRoutes: [..._selectedRoutes.entries()].filter(([k]) => {
+          // このコースのレッグキーのみ保存
+          const [from] = k.split('>');
+          return c.sequence.includes(from);
+        }),
         legRoutes: Object.fromEntries(
           Object.entries(c.legRoutes ?? {}).map(([key, routes]) => [
             key,
             routes.map(r => ({ id: r.id, colorIdx: r.colorIdx, coords: r.coords })),
           ])
         ),
-      })),
-    };
-    localStorage.setItem(LS_KEY, JSON.stringify(data));
+      });
+    }
   } catch (e) {
-    // QuotaExceededError など — サイレントに無視
     console.warn('course save failed:', e);
   }
 }
 
-/** LocalStorage からコース状態を復元する。成功したら true を返す */
-function _loadFromStorage() {
-  try {
-    const raw = localStorage.getItem(LS_KEY);
-    if (!raw) return false;
-    const data = JSON.parse(raw);
-    if (data.version !== 2) return false;
+/** デバウンスして IndexedDB に保存（300ms）*/
+let _saveTimer = null;
+function _scheduleSave() {
+  if (_saveTimer) clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(_saveToDb, 300);
+}
 
-    // _controlDefs 復元
+/**
+ * IndexedDB からイベントとコースを読み込んでメモリに展開する
+ * @param {string} eventId
+ * @returns {Promise<boolean>} 成功 true
+ */
+async function _loadEventFromDb(eventId) {
+  try {
+    const event = await getWsEvent(eventId);
+    if (!event) return false;
+
+    _activeEventId       = event.id;
+    _activeEventName     = event.name;
+    _activeEventTerrainId = event.terrain_id ?? null;
+    _nextDefId           = event.nextDefId   ?? 0;
+    _nextRouteId         = event.nextRouteId ?? 0;
+
+    // controlDefs 復元
     _controlDefs.clear();
-    Object.entries(data.controlDefs ?? {}).forEach(([id, def]) => {
+    Object.entries(event.controlDefs ?? {}).forEach(([id, def]) => {
       _controlDefs.set(id, { defId: id, code: def.code ?? '', lng: def.lng, lat: def.lat });
     });
 
-    // _courses 復元
+    // courses 復元
+    const dbCourses = await getCoursesByEvent(eventId);
     _courses.length = 0;
-    (data.courses ?? []).forEach(c => {
+    _selectedRoutes.clear();
+    dbCourses.forEach(c => {
       const legRoutes = {};
       Object.entries(c.legRoutes ?? {}).forEach(([key, routes]) => {
-        legRoutes[key] = routes.map(r => ({ id: r.id, colorIdx: r.colorIdx ?? 0, coords: r.coords ?? [] }));
+        legRoutes[key] = routes.map(r => ({
+          id: r.id, colorIdx: r.colorIdx ?? 0, coords: r.coords ?? [],
+        }));
       });
-      _courses.push({ id: c.id, name: c.name, sequence: [...(c.sequence ?? [])], legRoutes, terrainId: c.terrainId ?? null });
+      _courses.push({
+        id: c.id,
+        name: c.name,
+        sequence: [...(c.sequence ?? [])],
+        legRoutes,
+        terrainId: null, // コースはイベントに属するため terrain_id は不要
+      });
+      // selectedRoutes をマージ
+      (c.selectedRoutes ?? []).forEach(([k, v]) => _selectedRoutes.set(k, v));
     });
-    if (_courses.length === 0) _courses.push({ id: 'course0', name: 'コース1', sequence: [], legRoutes: {}, terrainId: null });
 
-    // カウンタ・選択状態復元
-    _nextDefId       = data.nextDefId       ?? _nextDefId;
-    _nextRouteId     = data.nextRouteId     ?? _nextRouteId;
-    _activeCourseIdx = data.activeCourseIdx ?? 0;
-    _selectedRoutes.clear();
-    (data.selectedRoutes ?? []).forEach(([k, v]) => _selectedRoutes.set(k, v));
+    if (_courses.length === 0) {
+      _courses.push({ id: 'course0', name: 'コース1', sequence: [], legRoutes: {}, terrainId: null });
+    }
+
+    // activeCourseIdx を復元
+    const savedActiveId = event.activeCourseId;
+    const idx = savedActiveId ? _courses.findIndex(c => c.id === savedActiveId) : -1;
+    _activeCourseIdx = idx >= 0 ? idx : 0;
 
     return true;
   } catch (e) {
     console.warn('course load failed:', e);
     return false;
+  }
+}
+
+/**
+ * localStorage の旧データ（v2）を IndexedDB へ移行する。
+ * 移行成功後は localStorage のキーを削除する。
+ * @returns {Promise<string|null>} 作成したイベントの id（移行データなしなら null）
+ */
+async function _migrateFromLocalStorage() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    if (!data.controlDefs && !data.courses?.length) {
+      localStorage.removeItem(LS_KEY);
+      return null;
+    }
+
+    const eventId   = 'event-migrated-' + Date.now();
+    const eventName = '移行済みコース';
+
+    await saveWsEvent({
+      id:            eventId,
+      name:          eventName,
+      terrain_id:    null,
+      source:        'local',
+      controlDefs:   data.controlDefs ?? {},
+      nextDefId:     data.nextDefId   ?? 0,
+      nextRouteId:   data.nextRouteId ?? 0,
+      activeCourseId: null,
+    });
+
+    const courses = data.courses ?? [];
+    for (const c of courses) {
+      const legRoutes = {};
+      Object.entries(c.legRoutes ?? {}).forEach(([key, routes]) => {
+        legRoutes[key] = routes.map(r => ({ id: r.id, colorIdx: r.colorIdx ?? 0, coords: r.coords ?? [] }));
+      });
+      await saveWsCourse({
+        id:        c.id,
+        event_id:  eventId,
+        name:      c.name,
+        sequence:  [...(c.sequence ?? [])],
+        legRoutes,
+        selectedRoutes: data.selectedRoutes ?? [],
+      });
+    }
+
+    localStorage.removeItem(LS_KEY);
+    console.info('[course] localStorage → IndexedDB 移行完了:', eventId);
+    return eventId;
+  } catch (e) {
+    console.warn('migration failed:', e);
+    return null;
   }
 }
 
@@ -2807,37 +2933,32 @@ function _setupUI() {
     }
   }, true);
 
-  // コース名インライン編集（鉛筆ボタン → input に差し替え）
-  const courseSelect = document.getElementById('course-select');
-  const nameInput    = document.getElementById('course-name-input');
-  const renameBtn    = document.getElementById('course-rename-btn');
-  if (courseSelect && nameInput && renameBtn) {
+  // コース名インライン編集（鉛筆ボタン → パンくずの課題名をクリック可能にする）
+  const nameInput = document.getElementById('course-name-input');
+  const renameBtn = document.getElementById('course-rename-btn');
+  if (nameInput && renameBtn) {
     const _enterNameEdit = () => {
-      nameInput.value = _activeCourse().name;
-      courseSelect.style.display = 'none';
-      renameBtn.style.display    = 'none';
-      nameInput.style.display    = '';
+      if (!_activeCourse()) return;
+      nameInput.value        = _activeCourse().name;
+      nameInput.style.display = '';
+      renameBtn.style.display = 'none';
       nameInput.focus();
       nameInput.select();
     };
     const _commitNameEdit = () => {
+      if (!_activeCourse()) return;
       const name = nameInput.value.trim() || _activeCourse().name;
       _activeCourse().name    = name;
       nameInput.style.display = 'none';
-      courseSelect.style.display = '';
-      renameBtn.style.display    = '';
-      _updateCourseSelect();
+      renameBtn.style.display = '';
+      _updateBreadcrumb();
       _scheduleSave();
     };
     renameBtn.addEventListener('click', _enterNameEdit);
     nameInput.addEventListener('blur',    _commitNameEdit);
     nameInput.addEventListener('keydown', e => {
       if (e.key === 'Enter')  { e.preventDefault(); _commitNameEdit(); }
-      if (e.key === 'Escape') {
-        nameInput.style.display    = 'none';
-        courseSelect.style.display = '';
-        renameBtn.style.display    = '';
-      }
+      if (e.key === 'Escape') { nameInput.style.display = 'none'; renameBtn.style.display = ''; }
     });
   }
 
@@ -2847,17 +2968,6 @@ function _setupUI() {
       _activeTab = btn.dataset.tab;
       _renderPanel();
     });
-  });
-
-  // コース選択プルダウン
-  document.getElementById('course-select')?.addEventListener('change', e => {
-    _activeCourseIdx = Number(e.target.value);
-    _activeCtrlId = null;
-    _editRoute    = null;
-    _legStats     = [];
-    _refreshSource();
-    _scheduleCalc();
-    _renderPanel();
   });
 
   // コース追加ボタン
@@ -2978,35 +3088,105 @@ export function setCourseMapVisible(visible) {
   }
 }
 
+// ================================================================
+// 公開 API — イベント・コース管理
+// ================================================================
+
+/** アクティブイベントの ID を返す */
+export function getActiveEventId() { return _activeEventId; }
+/** アクティブイベントの名前を返す */
+export function getActiveEventName() { return _activeEventName; }
+
 /**
- * 全コースのサマリー一覧を返す（renderExplorer 用）
- * @returns {{ id:string, name:string, terrainId:string|null, isEmpty:boolean }[]}
+ * パンくずデータを返す（右パネル表示用）
  */
-export function getCoursesSummary() {
-  return _courses.map(c => ({
-    id:        c.id,
-    name:      c.name,
-    terrainId: c.terrainId ?? null,
-    isEmpty:   c.sequence.length === 0,
-    isActive:  _courses[_activeCourseIdx]?.id === c.id,
-  }));
+export function getActiveBreadcrumb() {
+  return {
+    eventName: _activeEventName,
+    itemName:  _activeTab === 'controls' ? '全コントロール' : (_activeCourse()?.name ?? ''),
+    itemType:  _activeTab, // 'course' | 'controls'
+  };
 }
 
 /**
- * テレイン用に新しいコースを作成し、アクティブにする
+ * 新しいイベントを作成して IndexedDB に保存し、ロードする
  * @param {string|null} terrainId
- * @returns {string} 新しいコースの id
+ * @param {string}      name
+ * @returns {Promise<string>} イベント ID
  */
-export function createCourseForTerrain(terrainId) {
-  _pushHistory();
-  const id   = 'course' + Date.now();
-  const name = terrainId ? 'コース' + (_courses.filter(c => c.terrainId === terrainId).length + 1) : 'コース' + (_courses.length + 1);
-  _courses.push({ id, name, sequence: [], legRoutes: {}, terrainId: terrainId ?? null });
-  _activeCourseIdx = _courses.length - 1;
-  _refreshSource();
-  _renderPanel();
-  _saveToStorage();
+export async function createEvent(terrainId, name) {
+  const id = 'event-' + Date.now();
+  await saveWsEvent({
+    id,
+    name:          name || 'イベント',
+    terrain_id:    terrainId ?? null,
+    source:        'local',
+    controlDefs:   {},
+    nextDefId:     0,
+    nextRouteId:   0,
+    activeCourseId: null,
+  });
+  await loadEvent(id);
   return id;
+}
+
+/**
+ * 指定イベントをメモリにロードする（アクティブイベント切替）
+ * @param {string} eventId
+ * @returns {Promise<boolean>}
+ */
+export async function loadEvent(eventId) {
+  // 現在のイベントを保存してから切り替え
+  if (_activeEventId && _activeEventId !== eventId) {
+    await _saveToDb();
+  }
+  const ok = await _loadEventFromDb(eventId);
+  if (ok) {
+    _undoStack.length = 0;
+    _redoStack.length = 0;
+    _activeCtrlId = null;
+    _editRoute    = null;
+    _legStats     = [];
+    _routeStatsCache.clear();
+    _refreshSource();
+    _scheduleCalc();
+    _renderPanel();
+  }
+  return ok;
+}
+
+/**
+ * アクティブイベントを削除する（呼び出し後は loadEvent で別イベントを選ぶこと）
+ * @param {string} eventId
+ */
+export async function deleteEvent(eventId) {
+  await deleteWsEvent(eventId);
+  if (_activeEventId === eventId) {
+    _activeEventId        = null;
+    _activeEventName      = '';
+    _activeEventTerrainId = null;
+    _controlDefs.clear();
+    _courses.length = 0;
+    _courses.push({ id: 'course0', name: 'コース1', sequence: [], legRoutes: {}, terrainId: null });
+    _activeCourseIdx = 0;
+    _undoStack.length = 0;
+    _redoStack.length = 0;
+    _refreshSource();
+    _renderPanel();
+  }
+}
+
+/**
+ * 全コースのサマリー一覧を返す（renderExplorer 用）
+ * アクティブイベントのコースのみ返す。
+ */
+export function getCoursesSummary() {
+  return _courses.map(c => ({
+    id:       c.id,
+    name:     c.name,
+    isEmpty:  c.sequence.length === 0,
+    isActive: _courses[_activeCourseIdx]?.id === c.id,
+  }));
 }
 
 /**
@@ -3017,24 +3197,34 @@ export function setActiveCourse(courseId) {
   const idx = _courses.findIndex(c => c.id === courseId);
   if (idx === -1) return;
   _activeCourseIdx = idx;
+  _activeTab       = 'course';
   _refreshSource();
   _scheduleCalc();
   _renderPanel();
 }
 
-/**
- * コースの terrainId を変更する（ドラッグ＆ドロップ用）
- * @param {string} courseId
- * @param {string|null} terrainId
- */
-export function setCourseTerrainId(courseId, terrainId) {
-  const course = _courses.find(c => c.id === courseId);
-  if (!course) return;
-  course.terrainId = terrainId ?? null;
-  _saveToStorage();
+/** 全コントロールタブを表示する（ツリーの「全コントロール」ノードから呼び出す） */
+export function showAllControlsTab() {
+  _activeTab = 'controls';
+  _renderPanel();
 }
 
-export function initCoursePlanner(map) {
+/** アクティブイベントにコースを追加する（app.js のツリー UI から呼び出す） */
+export function addCourseToActiveEvent() {
+  if (!_activeEventId) return;
+  _addCourse();
+}
+
+/** 後方互換 (DnD で course の terrain を移動していたが今はイベント単位) — no-op */
+export function setCourseTerrainId(_courseId, _terrainId) {}
+
+/** 後方互換: 旧 createCourseForTerrain は createEvent に統合 */
+export async function createCourseForTerrain(terrainId) {
+  const id = await createEvent(terrainId, 'イベント');
+  return id;
+}
+
+export async function initCoursePlanner(map) {
   _map = map;
 
   _initLayers();
@@ -3078,10 +3268,22 @@ export function initCoursePlanner(map) {
 
   _setupUI();
 
-  // ── LocalStorage からコース状態を復元 ──────────────────────
-  if (_loadFromStorage()) {
-    _refreshSource();
-    _scheduleCalc();
-    _renderPanel();
+  // ── IndexedDB からコース状態を復元（または localStorage から移行） ──
+  // まず localStorage の旧データを移行（初回のみ）
+  const migratedEventId = await _migrateFromLocalStorage();
+
+  // 次に既存イベントをロード（最後に使ったもの or 最初のもの or 移行済み）
+  const allEvents = await getAllWsEvents();
+  const targetEventId =
+    migratedEventId ??
+    (allEvents.length > 0 ? allEvents[0].id : null);
+
+  if (targetEventId) {
+    const ok = await _loadEventFromDb(targetEventId);
+    if (ok) {
+      _refreshSource();
+      _scheduleCalc();
+      _renderPanel();
+    }
   }
 }
