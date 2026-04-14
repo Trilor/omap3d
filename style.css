@@ -7865,6 +7865,130 @@ select,
 .expl-storage-clear:hover { color: #c0392b; background: rgba(192,57,43,0.06); }
 
 /* ================================================================
+   エクスプローラー — テレインフォルダ
+   ================================================================ */
+.expl-terrain-folder {
+  margin-bottom: 2px;
+}
+
+/* フォルダヘッダー */
+.expl-terrain-hd {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 6px 5px 4px;
+  cursor: pointer;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-sub);
+  user-select: none;
+  transition: background 0.1s;
+}
+.expl-terrain-hd:hover { background: var(--bg-subtle); color: var(--text-main); }
+
+/* chevron は共通 .expl-section-chevron を再利用 */
+.expl-terrain-folder.is-collapsed .expl-section-chevron { transform: rotate(-90deg); }
+
+.expl-terrain-icon {
+  width: 14px; height: 14px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--primary);
+  flex-shrink: 0;
+}
+.expl-uncategorized .expl-terrain-icon { color: var(--text-muted); }
+
+.expl-terrain-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.expl-uncategorized-label { color: var(--text-muted); font-weight: 500; }
+
+/* コンテンツ数バッジ */
+.expl-terrain-badge {
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* ヘッダーアクションボタン（フライ・削除） */
+.expl-terrain-fly,
+.expl-terrain-del {
+  width: 20px; height: 20px;
+  display: flex; align-items: center; justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 3px;
+  opacity: 0;
+  transition: opacity 0.1s, background 0.1s;
+  flex-shrink: 0;
+}
+.expl-terrain-hd:hover .expl-terrain-fly,
+.expl-terrain-hd:hover .expl-terrain-del { opacity: 1; }
+.expl-terrain-fly:hover { background: var(--bg-subtle); color: var(--primary); }
+.expl-terrain-del:hover { background: rgba(192,57,43,0.08); color: #c0392b; }
+
+/* フォルダボディ */
+.expl-terrain-body {
+  padding-left: 16px;
+}
+.expl-terrain-folder.is-collapsed .expl-terrain-body { display: none; }
+
+/* フォルダ内の追加ボタン行 */
+.expl-terrain-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 2px 0 4px;
+}
+.expl-terrain-add-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 11px;
+  cursor: pointer;
+  border-radius: 4px;
+  text-align: left;
+  width: 100%;
+  transition: background 0.1s, color 0.1s;
+}
+.expl-terrain-add-btn:hover {
+  background: var(--bg-subtle);
+  color: var(--primary);
+}
+
+/* フォーカスアニメーション（テレイン追加直後） */
+@keyframes expl-folder-highlight {
+  0%   { background: color-mix(in srgb, var(--primary) 18%, transparent); }
+  100% { background: transparent; }
+}
+.expl-terrain-folder.is-focused > .expl-terrain-hd {
+  animation: expl-folder-highlight 1.2s ease-out forwards;
+}
+
+/* ワークスペース空状態ヒント */
+.expl-ws-hint {
+  padding: 24px 16px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+/* ================================================================
    汎用コンテキストメニュー（.ctx-menu）
    課題コンテキストメニュー（#course-ctx-menu）と共通スタイル
    ================================================================ */

@@ -1125,6 +1125,7 @@ const gpxState = {
   smoothedBearing: 0,        // bearing ローパスフィルタ値（カクカク防止）
   smoothedZoom:    15,       // zoom ローパスフィルタ値
   fileName:        null,     // 読み込んだ GPX ファイル名（レイヤーパネル表示用）
+  terrainId:       null,     // 関連付けられたワークスペーステレイン ID（null = 未分類）
 };
 const GPX_CAM_DIST_MIN = 1;
 const GPX_CAM_DIST_MAX = 500;
@@ -3316,7 +3317,7 @@ async function renderTerrainSearchResults(terrains) {
       }
     });
 
-    // ＋ボタン → ワークスペースに追加
+    // ＋ボタン → ワークスペースに追加 → エクスプローラータブへ切替
     const addBtn = card.querySelector('.terrain-add-btn');
     addBtn?.addEventListener('click', async () => {
       await saveWsTerrain({ ...t, visible: true });
@@ -3324,7 +3325,11 @@ async function renderTerrainSearchResults(terrains) {
       addBtn.textContent = '追加済';
       const wsAll = await getWsTerrains();
       updateWorkspaceTerrainSource(map, wsAll);
-      renderWorkspaceTerrainList();
+      // エクスプローラータブへ切替してフォルダを展開
+      _focusTerrainId = t.id;
+      _explorerCollapsed[t.id] = false;
+      _openSidebarPanel('layers');
+      await renderExplorer();
     });
 
     res.appendChild(card);
@@ -3398,11 +3403,9 @@ async function renderWorkspaceTerrainList() {
 // 起動時にワークスペーステレインを復元して描画
 getWsTerrains().then(all => {
   if (all.length > 0) {
-    // map.on('load') 後に initTerrainLayers が呼ばれるので、
-    // ソースが存在する場合のみ更新（idle 後に確実に実行）
     map.once('idle', () => updateWorkspaceTerrainSource(map, all));
   }
-  renderWorkspaceTerrainList();
+  renderExplorer();
 }).catch(() => {});
 
 // ---- 地図カタログ: GeoJSON 読み込み ----
@@ -6366,7 +6369,15 @@ document.addEventListener('keydown', e => {
 }, true);
 
 // ---- セクション折りたたみ状態 ----
-const _explorerCollapsed = { course: false, map: false, gpx: false };
+// キー: 'course' | テレイン ID 文字列 | 'uncategorized'
+const _explorerCollapsed = { course: false };
+
+/** 次にファイルインプットが発火したとき関連付けるテレイン ID（null = 未分類） */
+let _pendingImportTerrainId = null;
+let _pendingGpxTerrainId    = null;
+
+/** 次の renderExplorer でフォーカス展開するテレイン ID */
+let _focusTerrainId = null;
 
 // ================================================================
 // 右パネル コンテンツビルダー（地図・GPX）
@@ -6532,12 +6543,12 @@ function openCourseEditor() {
 }
 
 /** エクスプローラーを再描画する（外部モジュールからも呼び出し可能） */
-function renderExplorer() {
+async function renderExplorer() {
   const treeEl = document.getElementById('explorer-tree');
   if (!treeEl) return;
   treeEl.innerHTML = '';
 
-  // ── コースセクション ──────────────────────────────────
+  // ── コースセクション（テレインに属さない単体セクション） ──
   const courseItems = [{ id: 'course-main', label: '現在のコース' }];
   treeEl.appendChild(_buildExplorerSection('コース', 'course', courseItems, {
     addTitle: 'コースを追加',
@@ -6558,7 +6569,6 @@ function renderExplorer() {
     },
     itemIcon: _svgCourseIcon(),
     badgeText: item => {
-      // コース内のバリエーション数を返す（course.js の _courses[] は非公開なのでLocalStorageから推定）
       try {
         const raw = localStorage.getItem('teledrop_course_v2');
         if (!raw) return null;
@@ -6568,95 +6578,343 @@ function renderExplorer() {
     },
   }));
 
-  // ── 地図セクション ────────────────────────────────────
-  const mapItems = localMapLayers.map(e => ({ id: 'map-' + e.id, label: e.name, data: e }));
-  treeEl.appendChild(_buildExplorerSection('地図', 'map', mapItems, {
-    addTitle: '地図を追加',
-    addAction: () => document.getElementById('explorer-map-input')?.click(),
-    onItemClick: (item) => {
-      _explorerActiveId = item.id;
-      renderExplorer();
-      openRightPanel(item.data.name.replace(/\.kmz$/i, ''), _buildMapLayerRightPanel(item.data));
-    },
-    onItemCtx: (item, x, y) => {
-      _showExplorerCtx(x, y, [
-        { label: '地図を中心に表示', action: () => {
-          if (item.data?.bbox) {
-            const b = item.data.bbox;
-            map.fitBounds([[b.west, b.south], [b.east, b.north]], { padding: 60, duration: 600 });
-          }
-        }},
-        { separator: true },
-        { label: '削除', danger: true, action: () => {
-          if (confirm(`「${item.data.name}」を削除しますか？`)) {
-            removeLocalMapLayer(item.data.id);
-            renderExplorer();
-          }
-        }},
-      ]);
-    },
-    itemIcon: _svgMapIcon(),
-    footer: () => {
-      // ストレージ情報バー
-      const hasDb = localMapLayers.some(e => e.dbId != null);
-      if (!hasDb) return null;
-      const bar = document.createElement('div');
-      bar.className = 'expl-storage-bar';
-      bar.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0018 0V5"/><path d="M3 12a9 3 0 0018 0"/></svg>';
-      const text = document.createElement('span');
-      text.id = 'storage-usage-text';
-      text.className = 'storage-usage-text';
-      text.textContent = 'ストレージ使用量: ---';
-      const clearBtn = document.createElement('button');
-      clearBtn.className = 'expl-storage-clear';
-      clearBtn.textContent = '全消去';
-      clearBtn.id = 'storage-clear-btn';
-      clearBtn.title = '保存した地図をすべてストレージから削除する';
-      bar.appendChild(text);
-      bar.appendChild(clearBtn);
-      return bar;
-    },
-  }));
+  // ── テレインフォルダ ──
+  let wsTerrains = [];
+  try { wsTerrains = await getWsTerrains(); } catch { /* ignore */ }
 
-  // ── GPX セクション ────────────────────────────────────
-  const gpxItems = gpxState.fileName
-    ? [{ id: 'gpx-main', label: gpxState.fileName, data: gpxState }]
-    : [];
-  treeEl.appendChild(_buildExplorerSection('GPX', 'gpx', gpxItems, {
-    addTitle: 'GPXを追加',
-    addAction: () => document.getElementById('explorer-gpx-input')?.click(),
-    onItemClick: (item) => {
-      _explorerActiveId = item.id;
-      renderExplorer();
-      openRightPanel(item.data.fileName ?? 'GPX', _buildGpxRightPanel());
-    },
-    onItemCtx: (item, x, y) => {
-      _showExplorerCtx(x, y, [
-        { label: gpxState.isPlaying ? '一時停止' : '再生',
-          action: () => {
-            const playBtn = document.getElementById('gpx-play-pause');
-            if (playBtn) playBtn.click();
-          }
-        },
-        { separator: true },
-        { label: '削除', danger: true, action: () => {
-          if (confirm('GPXトラックを削除しますか？')) {
-            gpxState.trackPoints = [];
-            gpxState.fileName = null;
-            const src = map.getSource('gpx-source');
-            if (src) src.setData({ type: 'FeatureCollection', features: [] });
-            document.getElementById('gpx-status').innerHTML = '';
-            renderExplorer();
-          }
-        }},
-      ]);
-    },
-    itemIcon: _svgGpxIcon(),
-  }));
+  const focusId = _focusTerrainId;
+  _focusTerrainId = null;
 
-  // ストレージ情報バーの文字を既存の updateStorageInfo 系に任せる
-  const storageEl = document.getElementById('storage-info-bar');
-  if (storageEl) storageEl.style.display = 'none'; // 旧バーを非表示化
+  wsTerrains.forEach(t => {
+    const mapsInTerrain = localMapLayers.filter(e => e.terrainId === t.id);
+    const gpxInTerrain  = (gpxState.fileName && gpxState.terrainId === t.id) ? gpxState : null;
+    const folder = _buildTerrainFolder(t, mapsInTerrain, gpxInTerrain);
+    if (focusId === t.id) {
+      folder.classList.add('is-focused');
+      requestAnimationFrame(() => folder.scrollIntoView({ behavior: 'smooth', block: 'nearest' }));
+    }
+    treeEl.appendChild(folder);
+  });
+
+  // ── 未分類フォルダ ──
+  const uncatMaps = localMapLayers.filter(e => !e.terrainId);
+  const uncatGpx  = (gpxState.fileName && !gpxState.terrainId) ? gpxState : null;
+  if (uncatMaps.length > 0 || uncatGpx) {
+    treeEl.appendChild(_buildUncategorizedFolder(uncatMaps, uncatGpx));
+  }
+
+  // ── ワークスペースが空のとき案内メッセージ ──
+  if (wsTerrains.length === 0 && uncatMaps.length === 0 && !uncatGpx) {
+    const hint = document.createElement('div');
+    hint.className = 'expl-ws-hint';
+    hint.innerHTML = '<span>テレインタブで検索し「＋」でテレインを追加すると<br>ここにフォルダが作成されます</span>';
+    treeEl.appendChild(hint);
+  }
+
+  // ── ストレージバー（DB 保存レイヤーがある場合） ──
+  const hasDb = localMapLayers.some(e => e.dbId != null);
+  if (hasDb) {
+    const bar = document.createElement('div');
+    bar.className = 'expl-storage-bar';
+    bar.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0018 0V5"/><path d="M3 12a9 3 0 0018 0"/></svg>';
+    const text = document.createElement('span');
+    text.id = 'storage-usage-text';
+    text.className = 'storage-usage-text';
+    text.textContent = 'ストレージ使用量: ---';
+    const clearBtn = document.createElement('button');
+    clearBtn.className = 'expl-storage-clear';
+    clearBtn.textContent = '全消去';
+    clearBtn.id = 'storage-clear-btn';
+    clearBtn.title = '保存した地図をすべてストレージから削除する';
+    bar.appendChild(text);
+    bar.appendChild(clearBtn);
+    treeEl.appendChild(bar);
+  }
+}
+
+/**
+ * テレインフォルダ DOM を構築して返す
+ * @param {object} terrain
+ * @param {Array}  maps     — localMapLayers のうちこのテレインに属するもの
+ * @param {object|null} gpx — gpxState（属する場合のみ）
+ */
+function _buildTerrainFolder(terrain, maps, gpx) {
+  const collapsed = _explorerCollapsed[terrain.id] ?? false;
+
+  const folder = document.createElement('div');
+  folder.className = 'expl-terrain-folder' + (collapsed ? ' is-collapsed' : '');
+  folder.dataset.terrainId = terrain.id;
+
+  // ── ヘッダー ──
+  const hd = document.createElement('div');
+  hd.className = 'expl-terrain-hd';
+
+  const chevron = document.createElement('span');
+  chevron.className = 'expl-section-chevron';
+  chevron.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>`;
+
+  const tfIcon = document.createElement('span');
+  tfIcon.className = 'expl-terrain-icon';
+  tfIcon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>`;
+
+  const lbl = document.createElement('span');
+  lbl.className = 'expl-terrain-label';
+  lbl.textContent = terrain.name;
+
+  const total = maps.length + (gpx ? 1 : 0);
+  if (total > 0) {
+    const badge = document.createElement('span');
+    badge.className = 'expl-terrain-badge';
+    const parts = [];
+    if (maps.length > 0) parts.push(`地図 ${maps.length}`);
+    if (gpx) parts.push('GPX');
+    badge.textContent = parts.join(' | ');
+    lbl.appendChild(badge);
+  }
+
+  const flyBtn = document.createElement('button');
+  flyBtn.className = 'expl-terrain-fly';
+  flyBtn.title = 'この場所へ移動';
+  flyBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>`;
+  flyBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    if (terrain.center) map.easeTo({ center: terrain.center, zoom: Math.max(map.getZoom(), 12), duration: EASE_DURATION });
+  });
+
+  const delBtn = document.createElement('button');
+  delBtn.className = 'expl-terrain-del';
+  delBtn.title = 'ワークスペースから削除';
+  delBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="1" y1="1" x2="11" y2="11"/><line x1="11" y1="1" x2="1" y2="11"/></svg>`;
+  delBtn.addEventListener('click', async e => {
+    e.stopPropagation();
+    if (!confirm(`「${terrain.name}」をワークスペースから削除しますか？\n関連付けられた地図・GPXは未分類に移動します。`)) return;
+    localMapLayers.filter(m => m.terrainId === terrain.id).forEach(m => { m.terrainId = null; });
+    if (gpxState.terrainId === terrain.id) gpxState.terrainId = null;
+    await deleteWsTerrain(terrain.id);
+    const all = await getWsTerrains();
+    updateWorkspaceTerrainSource(map, all);
+    renderExplorer();
+  });
+
+  hd.appendChild(chevron);
+  hd.appendChild(tfIcon);
+  hd.appendChild(lbl);
+  hd.appendChild(flyBtn);
+  hd.appendChild(delBtn);
+  hd.addEventListener('click', () => {
+    _explorerCollapsed[terrain.id] = !(_explorerCollapsed[terrain.id] ?? false);
+    folder.classList.toggle('is-collapsed', !!_explorerCollapsed[terrain.id]);
+  });
+  folder.appendChild(hd);
+
+  // ── ボディ ──
+  const body = document.createElement('div');
+  body.className = 'expl-terrain-body';
+  maps.forEach(entry => body.appendChild(_buildMapItem(entry)));
+  if (gpx) body.appendChild(_buildGpxItem());
+
+  const actions = document.createElement('div');
+  actions.className = 'expl-terrain-actions';
+  const addMapBtn2 = document.createElement('button');
+  addMapBtn2.className = 'expl-terrain-add-btn';
+  addMapBtn2.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> 地図を追加`;
+  addMapBtn2.addEventListener('click', () => {
+    _pendingImportTerrainId = terrain.id;
+    document.getElementById('explorer-map-input')?.click();
+  });
+  const addGpxBtn2 = document.createElement('button');
+  addGpxBtn2.className = 'expl-terrain-add-btn';
+  addGpxBtn2.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> GPX を追加`;
+  addGpxBtn2.addEventListener('click', () => {
+    _pendingGpxTerrainId = terrain.id;
+    document.getElementById('explorer-gpx-input')?.click();
+  });
+  actions.appendChild(addMapBtn2);
+  actions.appendChild(addGpxBtn2);
+  body.appendChild(actions);
+  folder.appendChild(body);
+  return folder;
+}
+
+/** 未分類フォルダ DOM を構築して返す */
+function _buildUncategorizedFolder(maps, gpx) {
+  const collapsed = _explorerCollapsed['uncategorized'] ?? true; // デフォルト折りたたみ
+
+  const folder = document.createElement('div');
+  folder.className = 'expl-terrain-folder expl-uncategorized' + (collapsed ? ' is-collapsed' : '');
+
+  const hd = document.createElement('div');
+  hd.className = 'expl-terrain-hd';
+
+  const chevron = document.createElement('span');
+  chevron.className = 'expl-section-chevron';
+  chevron.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>`;
+
+  const ucIcon = document.createElement('span');
+  ucIcon.className = 'expl-terrain-icon';
+  ucIcon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>`;
+
+  const lbl = document.createElement('span');
+  lbl.className = 'expl-terrain-label expl-uncategorized-label';
+  lbl.textContent = '未分類';
+
+  const total = maps.length + (gpx ? 1 : 0);
+  if (total > 0) {
+    const badge = document.createElement('span');
+    badge.className = 'expl-terrain-badge';
+    badge.textContent = total + ' 件';
+    lbl.appendChild(badge);
+  }
+
+  hd.appendChild(chevron);
+  hd.appendChild(ucIcon);
+  hd.appendChild(lbl);
+  hd.addEventListener('click', () => {
+    _explorerCollapsed['uncategorized'] = !(_explorerCollapsed['uncategorized'] ?? true);
+    folder.classList.toggle('is-collapsed', !!_explorerCollapsed['uncategorized']);
+  });
+  folder.appendChild(hd);
+
+  const body = document.createElement('div');
+  body.className = 'expl-terrain-body';
+  maps.forEach(entry => body.appendChild(_buildMapItem(entry)));
+  if (gpx) body.appendChild(_buildGpxItem());
+
+  const actions = document.createElement('div');
+  actions.className = 'expl-terrain-actions';
+  const addMapBtn3 = document.createElement('button');
+  addMapBtn3.className = 'expl-terrain-add-btn';
+  addMapBtn3.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> 地図を追加`;
+  addMapBtn3.addEventListener('click', () => {
+    _pendingImportTerrainId = null;
+    document.getElementById('explorer-map-input')?.click();
+  });
+  const addGpxBtn3 = document.createElement('button');
+  addGpxBtn3.className = 'expl-terrain-add-btn';
+  addGpxBtn3.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> GPX を追加`;
+  addGpxBtn3.addEventListener('click', () => {
+    _pendingGpxTerrainId = null;
+    document.getElementById('explorer-gpx-input')?.click();
+  });
+  actions.appendChild(addMapBtn3);
+  actions.appendChild(addGpxBtn3);
+  body.appendChild(actions);
+  folder.appendChild(body);
+  return folder;
+}
+
+/** 地図レイヤーのエクスプローラーアイテムを構築して返す */
+function _buildMapItem(entry) {
+  const row = document.createElement('div');
+  row.className = 'expl-item' + (('map-' + entry.id) === _explorerActiveId ? ' is-active' : '');
+
+  const icon = document.createElement('span');
+  icon.className = 'expl-item-icon';
+  icon.innerHTML = _svgMapIcon();
+
+  const lbl2 = document.createElement('span');
+  lbl2.className = 'expl-item-label';
+  lbl2.textContent = entry.name;
+
+  const moreBtn = document.createElement('button');
+  moreBtn.className = 'expl-item-more';
+  moreBtn.title = 'オプション';
+  moreBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>`;
+
+  const _mapCtxItems = () => [
+    { label: '地図を中心に表示', action: () => {
+      if (entry.bbox) {
+        const b = entry.bbox;
+        map.fitBounds([[b.west, b.south], [b.east, b.north]], { padding: 60, duration: 600 });
+      }
+    }},
+    { separator: true },
+    { label: '削除', danger: true, action: () => {
+      if (confirm(`「${entry.name}」を削除しますか？`)) {
+        removeLocalMapLayer(entry.id);
+        renderExplorer();
+      }
+    }},
+  ];
+
+  moreBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    const r = moreBtn.getBoundingClientRect();
+    _showExplorerCtx(r.right + 4, r.top, _mapCtxItems());
+  });
+  row.addEventListener('click', () => {
+    _explorerActiveId = 'map-' + entry.id;
+    renderExplorer();
+    openRightPanel(entry.name.replace(/\.kmz$/i, ''), _buildMapLayerRightPanel(entry));
+  });
+  row.addEventListener('contextmenu', e => {
+    e.preventDefault();
+    _showExplorerCtx(e.clientX, e.clientY, _mapCtxItems());
+  });
+
+  row.appendChild(icon);
+  row.appendChild(lbl2);
+  row.appendChild(moreBtn);
+  return row;
+}
+
+/** GPX アイテムのエクスプローラー DOM を構築して返す */
+function _buildGpxItem() {
+  const row = document.createElement('div');
+  row.className = 'expl-item' + ('gpx-main' === _explorerActiveId ? ' is-active' : '');
+
+  const icon = document.createElement('span');
+  icon.className = 'expl-item-icon';
+  icon.innerHTML = _svgGpxIcon();
+
+  const lbl3 = document.createElement('span');
+  lbl3.className = 'expl-item-label';
+  lbl3.textContent = gpxState.fileName ?? 'GPXトラック';
+
+  const moreBtn = document.createElement('button');
+  moreBtn.className = 'expl-item-more';
+  moreBtn.title = 'オプション';
+  moreBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>`;
+  moreBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    const r = moreBtn.getBoundingClientRect();
+    _showExplorerGpxCtx(r.right + 4, r.top);
+  });
+  row.addEventListener('click', () => {
+    _explorerActiveId = 'gpx-main';
+    renderExplorer();
+    openRightPanel(gpxState.fileName ?? 'GPX', _buildGpxRightPanel());
+  });
+  row.addEventListener('contextmenu', e => {
+    e.preventDefault();
+    _showExplorerGpxCtx(e.clientX, e.clientY);
+  });
+
+  row.appendChild(icon);
+  row.appendChild(lbl3);
+  row.appendChild(moreBtn);
+  return row;
+}
+
+/** GPX コンテキストメニューを表示する */
+function _showExplorerGpxCtx(x, y) {
+  _showExplorerCtx(x, y, [
+    { label: gpxState.isPlaying ? '一時停止' : '再生',
+      action: () => document.getElementById('gpx-play-pause')?.click()
+    },
+    { separator: true },
+    { label: '削除', danger: true, action: () => {
+      if (confirm('GPXトラックを削除しますか？')) {
+        gpxState.trackPoints = [];
+        gpxState.fileName    = null;
+        gpxState.terrainId   = null;
+        const src = map.getSource('gpx-source');
+        if (src) src.setData({ type: 'FeatureCollection', features: [] });
+        document.getElementById('gpx-status').innerHTML = '';
+        renderExplorer();
+      }
+    }},
+  ]);
 }
 
 /** エクスプローラーセクションの DOM を構築して返す */
@@ -6782,10 +7040,16 @@ function _svgGpxIcon() {
 document.getElementById('explorer-map-input')?.addEventListener('change', async e => {
   const files = [...e.target.files];
   if (!files.length) return;
+  const terrainId = _pendingImportTerrainId;
+  _pendingImportTerrainId = null;
   e.target.value = '';
   for (const f of files) {
+    const prevCount = localMapLayers.length;
     if (/\.kmz$/i.test(f.name)) await loadKmz(f);
     else await loadImageWithJgw(f, null);
+    // 新しく追加されたレイヤーにテレイン ID を付与
+    const added = localMapLayers.slice(prevCount);
+    added.forEach(entry => { entry.terrainId = terrainId ?? null; });
   }
   renderExplorer();
 });
@@ -6793,8 +7057,11 @@ document.getElementById('explorer-map-input')?.addEventListener('change', async 
 document.getElementById('explorer-gpx-input')?.addEventListener('change', async e => {
   const file = e.target.files[0];
   if (!file) return;
+  const terrainId = _pendingGpxTerrainId;
+  _pendingGpxTerrainId = null;
   e.target.value = '';
   await loadGpx(file);
+  gpxState.terrainId = terrainId ?? null;
   renderExplorer();
 });
 
