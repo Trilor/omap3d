@@ -933,6 +933,120 @@ function _onCtrlDragEnd() {
   }
 }
 
+// ================================================================
+// 右クリック カスタムコンテキストメニュー
+// ================================================================
+
+/** 既存のコンテキストメニューを閉じる */
+function _closeCtxMenu() {
+  document.getElementById('course-ctx-menu')?.remove();
+}
+
+/**
+ * カスタムコンテキストメニューを表示する。
+ * items: [{ label, action, danger? } | { separator: true }]
+ */
+function _showCtxMenu(clientX, clientY, items) {
+  _closeCtxMenu();
+
+  const menu = document.createElement('div');
+  menu.id = 'course-ctx-menu';
+  menu.className = 'course-ctx-menu';
+  menu.style.visibility = 'hidden'; // 寸法取得後に表示
+
+  for (const item of items) {
+    if (item.separator) {
+      const sep = document.createElement('div');
+      sep.className = 'ctx-menu-sep';
+      menu.appendChild(sep);
+    } else {
+      const btn = document.createElement('button');
+      btn.className = 'ctx-menu-item' + (item.danger ? ' ctx-menu-danger' : '');
+      btn.textContent = item.label;
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        _closeCtxMenu();
+        item.action();
+      });
+      menu.appendChild(btn);
+    }
+  }
+
+  document.body.appendChild(menu);
+
+  // 画面外はみ出し補正
+  const rect = menu.getBoundingClientRect();
+  const mw   = rect.width  || 160;
+  const mh   = rect.height || items.length * 34;
+  const vw   = window.innerWidth, vh = window.innerHeight;
+  menu.style.left       = Math.min(clientX, vw - mw - 8) + 'px';
+  menu.style.top        = Math.min(clientY, vh - mh - 8) + 'px';
+  menu.style.visibility = 'visible';
+
+  // 外側クリック・Escape で閉じる
+  const onOutside = () => _closeCtxMenu();
+  const onKey     = e  => { if (e.key === 'Escape') { _closeCtxMenu(); document.removeEventListener('keydown', onKey); } };
+  setTimeout(() => {
+    document.addEventListener('click',       onOutside, { once: true });
+    document.addEventListener('contextmenu', onOutside, { once: true });
+    document.addEventListener('keydown',     onKey);
+  }, 0);
+}
+
+/**
+ * 地図右クリック: _drawMode / _routeDraw 中はカスタムメニューを表示し
+ * ブラウザのデフォルトコンテキストメニューをキャンセルする。
+ */
+function _onMapContextmenu(e) {
+  if (!_drawMode && !_routeDraw) return; // 通常モードはブラウザデフォルトに任せる
+
+  e.originalEvent.preventDefault(); // ブラウザデフォルト防止
+
+  const { clientX, clientY } = e.originalEvent;
+  const items = [];
+
+  if (_drawMode) {
+    const course    = _activeCourse();
+    const seq       = course.sequence;
+    const ctrlHits  = _map.queryRenderedFeatures(e.point, { layers: ['course-hit'] });
+    const hitDefId  = ctrlHits.length > 0 ? ctrlHits[0].properties.id : null;
+
+    // コントロール上の右クリック → そのコントロールを削除（最後の出現を対象）
+    if (hitDefId) {
+      const def     = _controlDefs.get(hitDefId);
+      const lastIdx = seq.reduce((best, id, i) => id === hitDefId ? i : best, -1);
+      if (lastIdx >= 0) {
+        const label = def
+          ? (def.type === 'start' ? 'スタートを削除' : `コントロール ${def.code} を削除`)
+          : 'このコントロールを削除';
+        items.push({ label, danger: true, action: () => _deleteFromSequence(lastIdx) });
+      }
+    }
+
+    // 最後のコントロールを戻す（置き間違いの即時修正用）
+    if (seq.length > 0) {
+      items.push({
+        label: '最後のコントロールを戻す',
+        action: () => _deleteFromSequence(seq.length - 1),
+      });
+    }
+
+    items.push({ separator: true });
+    items.push({ label: '描画終了', action: () => _setDrawMode(false) });
+
+  } else if (_routeDraw) {
+    // ルートチョイス描画中: 現在の点列で確定 or キャンセル
+    items.push({
+      label: 'ここで確定する',
+      action: () => _commitRouteDraw(),
+    });
+    items.push({ label: '描画をキャンセル', danger: true, action: () => _cancelRouteDraw() });
+  }
+
+  if (items.length === 0) return;
+  _showCtxMenu(clientX, clientY, items);
+}
+
 /** 地図上の何もない場所クリック → 選択解除 / ルート描画への処理分岐 */
 function _onMapClick(e) {
   // ルートチョイス描画中
@@ -2871,7 +2985,9 @@ export function initCoursePlanner(map) {
   map.on('mouseleave', 'course-midpoint', () => { if (!_editRoute?.dragPtIdx) map.getCanvas().style.cursor = ''; });
 
   // ── 地図クリック（全モード共通入口） ──────────────────────
-  map.on('click', _onMapClick);
+  map.on('click',        _onMapClick);
+  // 右クリック: 描画モード中はカスタムメニュー、それ以外はブラウザデフォルト
+  map.on('contextmenu',  _onMapContextmenu);
 
   _setupUI();
 
