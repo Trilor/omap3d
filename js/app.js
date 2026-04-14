@@ -7709,6 +7709,7 @@ document.querySelectorAll('.sidebar-nav-btn').forEach(btn => {
       document.getElementById('panel-' + panel).classList.add('active');
       _sidebarCurrentPanel = panel;
       _sidebarOpen = true;
+      _openedByHover = false; // クリックで開いた → ホバークローズを無効化
     }
     // CSSアニメーション完了後に幅を反映
     // display:none は即時反映されるため rAF 1フレームで幅を取得可能
@@ -7725,10 +7726,154 @@ document.querySelectorAll('.sidebar-close-btn').forEach(btn => {
     sbPanel.classList.add('sb-hidden');
     document.querySelectorAll('.sidebar-nav-btn').forEach(b => b.classList.remove('active'));
     _sidebarOpen = false;
+    _openedByHover = false;
     requestAnimationFrame(updateSidebarWidth);
   });
 });
 
+// ================================================================
+// Phase 1 — 左パネル Pin/Overlay モード ＋ ホバー展開 ＋ 右パネル
+// ================================================================
+
+// ピン留め状態（true=固定Push / false=オーバーレイ、localStorage で永続化）
+let _sidebarPinned = localStorage.getItem('teledrop-sidebar-pinned') !== 'false';
+// ホバー展開で開いているかどうか（false=クリックで開いた → ホバークローズしない）
+let _openedByHover = false;
+let _hoverOpenTimer  = null;
+let _hoverCloseTimer = null;
+
+/** ピン状態を CSS クラスに反映する */
+function _updatePinMode() {
+  const panel = document.getElementById('sidebar-panel');
+  if (!panel) return;
+  panel.classList.toggle('lp-overlay', !_sidebarPinned);
+  document.querySelectorAll('.sidebar-pin-btn').forEach(b =>
+    b.classList.toggle('is-pinned', _sidebarPinned)
+  );
+  requestAnimationFrame(updateSidebarWidth);
+}
+
+// 起動時に反映
+_updatePinMode();
+
+// ピンボタン SVG（画鋲アイコン）
+const _PIN_BTN_SVG_PINNED  = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/></svg>`;
+const _PIN_BTN_SVG_OVERLAY = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" opacity="0.7"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/></svg>`;
+
+/** ピンボタンの SVG を現在の状態に合わせて更新する */
+function _refreshPinBtnIcon() {
+  document.querySelectorAll('.sidebar-pin-btn').forEach(b => {
+    b.innerHTML = _sidebarPinned ? _PIN_BTN_SVG_PINNED : _PIN_BTN_SVG_OVERLAY;
+    b.title = _sidebarPinned ? 'フローティング表示に切り替え' : 'パネルを固定する';
+  });
+}
+
+// 各セクションヘッダーにピンボタンを注入（閉じるボタンの直前）
+document.querySelectorAll('.sidebar-section-header').forEach(hd => {
+  const btn = document.createElement('button');
+  btn.className = 'sidebar-pin-btn' + (_sidebarPinned ? ' is-pinned' : '');
+  btn.title     = _sidebarPinned ? 'フローティング表示に切り替え' : 'パネルを固定する';
+  btn.setAttribute('aria-label', btn.title);
+  btn.innerHTML = _sidebarPinned ? _PIN_BTN_SVG_PINNED : _PIN_BTN_SVG_OVERLAY;
+  btn.addEventListener('click', e => {
+    e.stopPropagation();
+    _sidebarPinned = !_sidebarPinned;
+    _openedByHover = false; // ピン操作でホバー状態をリセット
+    localStorage.setItem('teledrop-sidebar-pinned', String(_sidebarPinned));
+    _updatePinMode();
+    _refreshPinBtnIcon();
+  });
+  const closeBtn = hd.querySelector('.sidebar-close-btn');
+  if (closeBtn) hd.insertBefore(btn, closeBtn);
+  else          hd.appendChild(btn);
+});
+
+// ---- ホバー展開 ----
+
+const _lpIconBar = document.getElementById('sidebar-icon-bar');
+const _lpPanel   = document.getElementById('sidebar-panel');
+
+/** ホバーでパネルを開く（直前に開いていたパネルを再表示） */
+function _hoverOpenPanel() {
+  if (_sidebarOpen) return; // 既に開いている
+  const panelId = _sidebarCurrentPanel || 'terrain';
+  const sbPanel = document.getElementById('sidebar-panel');
+  document.querySelectorAll('.sidebar-nav-btn').forEach(b  => b.classList.remove('active'));
+  document.querySelectorAll('.sidebar-section').forEach(s  => s.classList.remove('active'));
+  const navBtn  = document.querySelector(`.sidebar-nav-btn[data-panel="${panelId}"]`);
+  const section = document.getElementById('panel-' + panelId);
+  if (navBtn)   navBtn.classList.add('active');
+  if (section)  section.classList.add('active');
+  sbPanel.classList.remove('sb-hidden');
+  _sidebarOpen   = true;
+  _openedByHover = true;
+  requestAnimationFrame(updateSidebarWidth);
+}
+
+/** ホバーで開いたパネルを閉じる（クリックで開いた場合は閉じない） */
+function _hoverClosePanel() {
+  if (!_openedByHover) return;
+  const sbPanel = document.getElementById('sidebar-panel');
+  sbPanel.classList.add('sb-hidden');
+  document.querySelectorAll('.sidebar-nav-btn').forEach(b => b.classList.remove('active'));
+  _sidebarOpen   = false;
+  _openedByHover = false;
+  requestAnimationFrame(updateSidebarWidth);
+}
+
+// アイコンバーへの enter: 閉じていればホバー展開タイマーをセット
+_lpIconBar.addEventListener('mouseenter', () => {
+  clearTimeout(_hoverCloseTimer);
+  if (!_sidebarOpen) {
+    clearTimeout(_hoverOpenTimer);
+    _hoverOpenTimer = setTimeout(_hoverOpenPanel, 250);
+  }
+});
+
+// アイコンバーから leave: ホバー展開タイマーをキャンセル or クローズタイマーをセット
+_lpIconBar.addEventListener('mouseleave', () => {
+  clearTimeout(_hoverOpenTimer);
+  if (_openedByHover) {
+    _hoverCloseTimer = setTimeout(_hoverClosePanel, 400);
+  }
+});
+
+// パネルへの enter: クローズタイマーをキャンセル（マウスがパネルに移動したので継続表示）
+_lpPanel?.addEventListener('mouseenter', () => {
+  clearTimeout(_hoverCloseTimer);
+});
+
+// パネルから leave: ホバーで開いていたらクローズタイマーをセット
+_lpPanel?.addEventListener('mouseleave', () => {
+  if (_openedByHover) {
+    _hoverCloseTimer = setTimeout(_hoverClosePanel, 400);
+  }
+});
+
+// ---- 右パネル ----
+
+/** 右パネルを開く。Phase 3 でコースエディターがここに統合される。*/
+function openRightPanel(title, contentEl) {
+  const panel   = document.getElementById('right-panel');
+  const titleEl = document.getElementById('right-panel-title');
+  const bodyEl  = document.getElementById('right-panel-body');
+  if (!panel) return;
+  if (titleEl) titleEl.textContent = title ?? '';
+  if (bodyEl && contentEl instanceof HTMLElement) {
+    bodyEl.innerHTML = '';
+    bodyEl.appendChild(contentEl);
+  }
+  panel.classList.add('rp-open');
+}
+
+/** 右パネルを閉じる */
+function closeRightPanel() {
+  document.getElementById('right-panel')?.classList.remove('rp-open');
+}
+
+document.getElementById('right-panel-close-btn')?.addEventListener('click', closeRightPanel);
+
+// ================================================================
 // ---- 縮尺セレクト（現在の縮尺をリアルタイム表示 ＋ プリセット選択でズーム） ----
 // モニターの物理PPIを考慮した実寸縮尺を計算・表示する。
 // 物理PPI: ユーザーが選択したモニターの実際のピクセル密度
