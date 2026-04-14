@@ -8059,6 +8059,104 @@ select,
   margin-right: 2px;
 }
 
+/* ================================================================
+   イベントフォルダ（コースファイル単位のサブフォルダ）
+   ================================================================ */
+.expl-event-folder {
+  margin: 2px 0;
+}
+.expl-event-folder.is-collapsed .expl-event-body { display: none; }
+.expl-event-folder.is-collapsed .expl-section-chevron { transform: rotate(-90deg); }
+
+.expl-event-hd {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px 3px 4px;
+  border-radius: 5px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.1s;
+}
+.expl-event-hd:hover { background: var(--bg-subtle); }
+.expl-event-hd.is-active-event { background: color-mix(in srgb, var(--primary) 10%, transparent); }
+
+.expl-event-icon {
+  color: var(--primary);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.expl-event-label {
+  flex: 1;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-main);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.expl-event-label:hover { color: var(--primary); }
+
+/* コース追加・削除ボタン */
+.expl-event-add-btn,
+.expl-event-del {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px; height: 18px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 3px;
+  opacity: 0;
+  flex-shrink: 0;
+  transition: opacity 0.1s, background 0.1s, color 0.1s;
+}
+.expl-event-hd:hover .expl-event-add-btn,
+.expl-event-hd:hover .expl-event-del { opacity: 1; }
+.expl-event-add-btn:hover { background: color-mix(in srgb, var(--primary) 12%, transparent); color: var(--primary); }
+.expl-event-del:hover    { background: rgba(192,57,43,0.1); color: #c0392b; }
+
+/* イベントボディ（コース一覧） */
+.expl-event-body {
+  padding-left: 20px;
+  padding-top: 1px;
+  padding-bottom: 3px;
+}
+
+/* 全コントロールノード */
+.expl-all-controls-item {
+  border-left: 2px solid transparent;
+}
+.expl-all-controls-item.is-active {
+  border-left-color: var(--primary);
+}
+.expl-ctrl-icon {
+  color: var(--primary);
+  opacity: 0.75;
+  display: flex;
+  align-items: center;
+}
+.expl-all-controls-item.is-active .expl-ctrl-icon { opacity: 1; }
+
+/* インラインリネーム入力 */
+.expl-inline-rename {
+  flex: 1;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 1px 4px;
+  border: 1px solid var(--primary);
+  border-radius: 3px;
+  background: var(--bg-surface);
+  color: var(--text-main);
+  outline: none;
+  min-width: 0;
+}
+
 /* ワークスペース空状態ヒント */
 .expl-ws-hint {
   padding: 24px 16px;

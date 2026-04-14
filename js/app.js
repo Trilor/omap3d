@@ -35,7 +35,7 @@
    ================================================================ */
 
 import { getDeclination, setDeclinationModel } from './magneticDeclination.js';
-import { initCoursePlanner, setMapLayersGetter, setCourseMapVisible, getCoursesSummary, createCourseForTerrain, setActiveCourse, setCourseTerrainId, createEvent, loadEvent, getActiveEventId, showAllControlsTab, deleteEvent, getActiveEventName, addCourseToActiveEvent, deleteCourseById } from './course.js';
+import { initCoursePlanner, setMapLayersGetter, setCourseMapVisible, getCoursesSummary, createCourseForTerrain, setActiveCourse, setCourseTerrainId, createEvent, loadEvent, getActiveEventId, showAllControlsTab, deleteEvent, getActiveEventName, addCourseToActiveEvent, deleteCourseById, renameEvent } from './course.js';
 import {
   saveMapLayer, getAllMapLayers, deleteMapLayer,
   updateMapLayerState, clearAllMapLayers, estimateStorageUsage,
@@ -6831,6 +6831,9 @@ function _showAddPopover(anchorBtn, terrainId) {
     const row = document.createElement('button');
     row.className = 'expl-add-popover-item';
     row.innerHTML = `<span class="expl-add-popover-icon">${item.icon}</span><span>${item.label}</span>`;
+    // mousedown を止めないと document の mousedown リスナーがポップオーバーを削除し
+    // click イベントが発火しなくなる
+    row.addEventListener('mousedown', e => e.stopPropagation());
     row.addEventListener('click', e => {
       e.stopPropagation();
       _closeAddPopover();
@@ -6942,13 +6945,58 @@ function _buildEventFolder(event, courses) {
   chevron.className = 'expl-section-chevron';
   chevron.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>`;
 
+  // シェブロンクリック → 展開/折りたたみのみ
+  chevron.addEventListener('click', e => {
+    e.stopPropagation();
+    _explorerCollapsed[key] = !(_explorerCollapsed[key] ?? false);
+    folder.classList.toggle('is-collapsed', !!_explorerCollapsed[key]);
+  });
+
   const evIcon = document.createElement('span');
   evIcon.className = 'expl-event-icon';
   evIcon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>`;
 
+  // イベントラベル（クリック → イベントロード + 全コントロール表示 / ダブルクリック → リネーム）
   const lbl = document.createElement('span');
   lbl.className = 'expl-event-label';
   lbl.textContent = event.name;
+  lbl.title = 'クリック: コース編集を開く　ダブルクリック: 名前を変更';
+
+  lbl.addEventListener('click', async e => {
+    e.stopPropagation();
+    // 展開しておく
+    _explorerCollapsed[key] = false;
+    folder.classList.remove('is-collapsed');
+    // イベントをロードして全コントロールビューへ
+    if (getActiveEventId() !== event.id) await loadEvent(event.id);
+    _explorerActiveId = 'controls-' + event.id;
+    showAllControlsTab();
+    openCourseEditor();
+    renderExplorer();
+  });
+
+  lbl.addEventListener('dblclick', e => {
+    e.stopPropagation();
+    // インライン入力に置き換え
+    const input = document.createElement('input');
+    input.type      = 'text';
+    input.value     = event.name;
+    input.className = 'expl-inline-rename';
+    input.maxLength = 60;
+    lbl.replaceWith(input);
+    input.focus();
+    input.select();
+    const commit = async () => {
+      const newName = input.value.trim() || event.name;
+      await renameEvent(event.id, newName);
+      await renderExplorer();
+    };
+    input.addEventListener('blur', commit);
+    input.addEventListener('keydown', e2 => {
+      if (e2.key === 'Enter')  { input.blur(); }
+      if (e2.key === 'Escape') { input.value = event.name; input.blur(); }
+    });
+  });
 
   // コース追加ボタン（＋）
   const addCourseBtn = document.createElement('button');
@@ -6958,7 +7006,10 @@ function _buildEventFolder(event, courses) {
   addCourseBtn.addEventListener('click', async e => {
     e.stopPropagation();
     if (getActiveEventId() !== event.id) await loadEvent(event.id);
-    addCourseToActiveEvent();
+    const newCourseId = addCourseToActiveEvent();
+    if (newCourseId) _explorerActiveId = 'course-' + newCourseId;
+    _explorerCollapsed[key] = false;
+    folder.classList.remove('is-collapsed');
     await renderExplorer();
     openCourseEditor();
   });
@@ -6971,6 +7022,10 @@ function _buildEventFolder(event, courses) {
   delBtn.addEventListener('click', async e => {
     e.stopPropagation();
     if (!confirm(`「${event.name}」を削除しますか？\n全コントロールとコースが削除されます。`)) return;
+    if (_explorerActiveId?.startsWith('controls-' + event.id) ||
+        _explorerActiveId?.startsWith('course-')) {
+      _explorerActiveId = null;
+    }
     await deleteEvent(event.id);
     await renderExplorer();
   });
@@ -6980,8 +7035,9 @@ function _buildEventFolder(event, courses) {
   hd.appendChild(lbl);
   hd.appendChild(addCourseBtn);
   hd.appendChild(delBtn);
+  // ヘッダー本体クリック（ラベル・ボタン以外）→ 展開/折りたたみ
   hd.addEventListener('click', e => {
-    if (e.target.closest('.expl-event-add-btn, .expl-event-del')) return;
+    if (e.target.closest('.expl-event-add-btn, .expl-event-del, .expl-event-label, .expl-section-chevron')) return;
     _explorerCollapsed[key] = !(_explorerCollapsed[key] ?? false);
     folder.classList.toggle('is-collapsed', !!_explorerCollapsed[key]);
   });

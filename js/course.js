@@ -1377,9 +1377,10 @@ function _deleteDefFromAll(defId) {
 
 function _addCourse() {
   _pushHistory();
-  const idx = _courses.length;
+  const idx   = _courses.length;
+  const newId = 'course-' + Date.now();
   _courses.push({
-    id:        'course-' + Date.now(),
+    id:        newId,
     event_id:  _activeEventId,
     name:      `コース${idx + 1}`,
     sequence:  [],
@@ -1394,6 +1395,7 @@ function _addCourse() {
   _refreshSource();
   _renderPanel();
   _scheduleSave();
+  return newId;
 }
 
 function _deleteCourse(idx) {
@@ -3115,16 +3117,26 @@ export function getActiveBreadcrumb() {
  * @returns {Promise<string>} イベント ID
  */
 export async function createEvent(terrainId, name) {
-  const id = 'event-' + Date.now();
+  const id              = 'event-' + Date.now();
+  const defaultCourseId = 'course-' + Date.now();
   await saveWsEvent({
     id,
-    name:          name || 'イベント',
-    terrain_id:    terrainId ?? null,
-    source:        'local',
-    controlDefs:   {},
-    nextDefId:     0,
-    nextRouteId:   0,
-    activeCourseId: null,
+    name:           name || 'イベント',
+    terrain_id:     terrainId ?? null,
+    source:         'local',
+    controlDefs:    {},
+    nextDefId:      0,
+    nextRouteId:    0,
+    activeCourseId: defaultCourseId,
+  });
+  // デフォルトコースを DB に保存（renderExplorer が getCoursesByEvent で取得できるようにする）
+  await saveWsCourse({
+    id:             defaultCourseId,
+    event_id:       id,
+    name:           'コース1',
+    sequence:       [],
+    legRoutes:      {},
+    selectedRoutes: [],
   });
   await loadEvent(id);
   return id;
@@ -3209,10 +3221,30 @@ export function showAllControlsTab() {
   _renderPanel();
 }
 
-/** アクティブイベントにコースを追加する（app.js のツリー UI から呼び出す） */
+/**
+ * アクティブイベントにコースを追加する（app.js のツリー UI から呼び出す）
+ * @returns {string|null} 追加したコースの ID（イベント未ロード時は null）
+ */
 export function addCourseToActiveEvent() {
-  if (!_activeEventId) return;
-  _addCourse();
+  if (!_activeEventId) return null;
+  return _addCourse();
+}
+
+/**
+ * イベント名を変更して IndexedDB に保存する
+ * @param {string} eventId
+ * @param {string} name
+ */
+export async function renameEvent(eventId, name) {
+  const trimmed = name?.trim();
+  if (!trimmed) return;
+  const ev = await getWsEvent(eventId);
+  if (!ev) return;
+  await saveWsEvent({ ...ev, name: trimmed });
+  if (_activeEventId === eventId) {
+    _activeEventName = trimmed;
+    _updateBreadcrumb();
+  }
 }
 
 /** 後方互換 (DnD で course の terrain を移動していたが今はイベント単位) — no-op */
