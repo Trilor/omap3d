@@ -7025,23 +7025,24 @@ function _buildEventFolder(event, courses) {
   lbl.addEventListener('click', e => {
     e.stopPropagation();
     if (_lblClickTimer) return; // dblclick判定待ち中は無視
-    _lblClickTimer = setTimeout(async () => {
+    // 折りたたみ状態は即時トグル（遅延なし）
+    const wasCollapsed = _explorerCollapsed[key] ?? false;
+    _explorerCollapsed[key] = !wasCollapsed;
+    folder.classList.toggle('is-collapsed', !wasCollapsed);
+
+    if (wasCollapsed) {
+      // 展開した場合のみ: 250ms 後にイベントロード・エディタを開く
+      _lblClickTimer = setTimeout(async () => {
+        _lblClickTimer = null;
+        if (getActiveEventId() !== event.id) await loadEvent(event.id);
+        _explorerActiveId = 'controls-' + event.id;
+        showAllControlsTab();
+        openCourseEditor();
+        renderExplorer();
+      }, 250);
+    } else {
       _lblClickTimer = null;
-      // 展開済みなら折りたたむ（テレインフォルダと同じトグル動作）
-      if (!(_explorerCollapsed[key] ?? false)) {
-        _explorerCollapsed[key] = true;
-        folder.classList.add('is-collapsed');
-        return;
-      }
-      // 折りたたまれていれば展開してイベントをロード
-      _explorerCollapsed[key] = false;
-      folder.classList.remove('is-collapsed');
-      if (getActiveEventId() !== event.id) await loadEvent(event.id);
-      _explorerActiveId = 'controls-' + event.id;
-      showAllControlsTab();
-      openCourseEditor();
-      renderExplorer();
-    }, 250);
+    }
   });
 
   lbl.addEventListener('dblclick', e => {
