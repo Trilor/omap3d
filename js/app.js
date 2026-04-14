@@ -6954,6 +6954,33 @@ function _makeDraggable(el, item) {
 }
 
 /**
+ * イベントの controlDefs からバウンディングボックスを計算して地図を移動する
+ * @param {object} event — IndexedDB の events レコード（controlDefs を含む）
+ */
+function _flyToEventControls(event) {
+  const defs = Object.values(event.controlDefs ?? {});
+  if (defs.length === 0) return;
+  let minLng = Infinity, maxLng = -Infinity, minLat = Infinity, maxLat = -Infinity;
+  for (const d of defs) {
+    if (d.lng < minLng) minLng = d.lng;
+    if (d.lng > maxLng) maxLng = d.lng;
+    if (d.lat < minLat) minLat = d.lat;
+    if (d.lat > maxLat) maxLat = d.lat;
+  }
+  if (!isFinite(minLng)) return;
+  const panelWidth = document.getElementById('sidebar')?.offsetWidth ?? SIDEBAR_DEFAULT_WIDTH;
+  if (defs.length === 1) {
+    map.easeTo({ center: [minLng, minLat], zoom: Math.max(map.getZoom(), 15), duration: EASE_DURATION });
+  } else {
+    map.fitBounds([[minLng, minLat], [maxLng, maxLat]], {
+      padding: { top: FIT_BOUNDS_PAD, bottom: FIT_BOUNDS_PAD,
+                 left: panelWidth + FIT_BOUNDS_PAD_SIDEBAR, right: FIT_BOUNDS_PAD },
+      duration: EASE_DURATION, maxZoom: 18,
+    });
+  }
+}
+
+/**
  * イベントサブフォルダ DOM を構築して返す
  * @param {object} event   — IndexedDB の events レコード
  * @param {Array}  courses — getCoursesByEvent() の結果配列
@@ -7005,6 +7032,7 @@ function _buildEventFolder(event, courses) {
       folder.classList.remove('is-collapsed');
       // イベントをロードして全コントロールビューへ
       if (getActiveEventId() !== event.id) await loadEvent(event.id);
+      _flyToEventControls(event);
       _explorerActiveId = 'controls-' + event.id;
       showAllControlsTab();
       openCourseEditor();
