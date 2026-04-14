@@ -7963,15 +7963,15 @@ select,
   pointer-events: auto;
 }
 
-/* 右パネル ドラッグリサイズハンドル */
+/* 右パネル ドラッグリサイズハンドル（パネル外側6px・内側6pxの計12px） */
 #rp-resize-handle {
   position: absolute;
-  left: 0;
+  left: -6px;
   top: 0;
-  width: 6px;
+  width: 12px;
   height: 100%;
   cursor: w-resize;
-  z-index: 1;
+  z-index: 12;
   user-select: none;
 }
 
