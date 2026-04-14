@@ -7034,10 +7034,14 @@ function _buildEventFolder(event, courses) {
       // 展開した場合のみ: 250ms 後にイベントロード・エディタを開く
       _lblClickTimer = setTimeout(async () => {
         _lblClickTimer = null;
-        if (getActiveEventId() !== event.id) await loadEvent(event.id);
-        _explorerActiveId = 'controls-' + event.id;
-        showAllControlsTab();
-        openCourseEditor();
+        // 別イベントをロードした時だけ全コントロールに切り替え
+        // （同じイベント内でコース選択中の場合はそのまま保持）
+        if (getActiveEventId() !== event.id) {
+          await loadEvent(event.id);
+          _explorerActiveId = 'controls-' + event.id;
+          showAllControlsTab();
+          openCourseEditor();
+        }
         renderExplorer();
       }, 250);
     } else {
