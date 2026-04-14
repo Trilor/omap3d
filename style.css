@@ -45,12 +45,12 @@
   /* 52px(アイコンバー) + 230px(--panel-w) */
 }
 
-/* サイドバー幅の変化を 0.15s で補間。これにより calc(var(--sidebar-w)+X) が使われる
+/* サイドバー幅の変化を 0.2s で補間。これにより calc(var(--sidebar-w)+X) が使われる
    すべての要素（検索ボックス・縮尺・出典など）が同時にスムーズに追従する */
 :root {
   --panel-w: 230px;
   /* ★ パネル幅の唯一の定義。変更はここだけでよい */
-  transition: --sidebar-w 0.15s ease;
+  transition: --sidebar-w 0.2s ease;
 
   /* ===== テーマカラー（ミュートティール） ===== */
   --primary: #2a9d8f;
@@ -7895,6 +7895,13 @@ select,
   height: 100vh;
   z-index: 11;  /* 地図コントロールより前面 */
   box-shadow: 4px 0 24px rgba(0, 0, 0, 0.18);
+  /* 開くアニメーション */
+  animation: lp-slide-in 0.2s ease forwards;
+}
+
+@keyframes lp-slide-in {
+  from { transform: translateX(-100%); opacity: 0.6; }
+  to   { transform: translateX(0);     opacity: 1; }
 }
 
 /* ピン留めボタン（各セクションヘッダーに注入） */
