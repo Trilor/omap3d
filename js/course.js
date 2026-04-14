@@ -34,10 +34,11 @@ let _map = null;
 /**
  * コントロール定義マスターリスト（物理コントロールポイントの実体）
  * key: defId (string)
- * value: { defId, type:'start'|'control', code:string, lng:number, lat:number }
+ * value: { defId, code:string, lng:number, lat:number }
  *
- * ※ type はすべて小文字（IOF XML エクスポート時に Pascal ケースに変換）
- * ※ コース末尾の 'control' は auto-finish として描画・エクスポート（二重円）
+ * ※ type フィールドは廃止。シンボルはコース内の位置で決定:
+ *     先頭 → △ スタート / 末尾（2点以上）→ ◎ フィニッシュ / それ以外 → ○ コントロール
+ * ※ IOF XML / Purple Pen エクスポート時も position から種別を導出する
  */
 const _controlDefs = new Map();
 
@@ -180,11 +181,12 @@ function _activeCourse() { return _courses[_activeCourseIdx]; }
 /**
  * アクティブコースのシーケンスを解決し、描画・計算に必要な情報配列を返す。
  *
- * 各要素: { def, seqIdx, seq, isFinish }
+ * 各要素: { def, seqIdx, seq, isStart, isFinish }
  *   def      — _controlDefs のエントリ（マスターへの参照）
  *   seqIdx   — course.sequence 内のインデックス（削除処理に使用）
- *   seq      — 地図ラベル用連番（'control' かつ非 finish の場合のみ 1 始まり）
- *   isFinish — コース末尾の 'control' かつ 2 点以上の場合 true（auto-finish）
+ *   seq      — 地図ラベル用連番（コントロール＝isStart でも isFinish でもない場合のみ 1 始まり）
+ *   isStart  — コース先頭の場合 true（△ スタート）
+ *   isFinish — コース末尾かつ 2 点以上の場合 true（◎ フィニッシュ）
  */
 function _buildSequenceInfo() {
   const course  = _activeCourse();
@@ -196,9 +198,10 @@ function _buildSequenceInfo() {
   seqArr.forEach((defId, seqIdx) => {
     const def = _controlDefs.get(defId);
     if (!def) return;
-    const isFinish = def.type === 'control' && seqIdx === lastIdx && seqArr.length >= 2;
-    const seq = (def.type === 'control' && !isFinish) ? ++ctrlSeq : 0;
-    result.push({ def, seqIdx, seq, isFinish });
+    const isStart  = seqIdx === 0;
+    const isFinish = !isStart && seqIdx === lastIdx && seqArr.length >= 2;
+    const seq = (!isStart && !isFinish) ? ++ctrlSeq : 0;
+    result.push({ def, seqIdx, seq, isStart, isFinish });
   });
 
   return result;
@@ -460,23 +463,24 @@ function _buildSourceData() {
   const course   = _activeCourse();
 
   // コントロール点（スタートに bearing を付与）
-  seqInfo.forEach(({ def, seq, isFinish }) => {
-    const label   = (def.type === 'control' && !isFinish) ? String(seq) : '';
+  seqInfo.forEach(({ def, seq, isStart, isFinish }) => {
+    const label   = (!isStart && !isFinish) ? String(seq) : '';
     const selected = def.defId === _activeCtrlId;
 
     // スタートは 1→2 ポイントへの方位角で三角を向ける
     let bearing = 0;
-    if (def.type === 'start' && seqInfo.length >= 2) {
+    if (isStart && seqInfo.length >= 2) {
       bearing = turf.bearing(
         turf.point([def.lng, def.lat]),
         turf.point([seqInfo[1].def.lng, seqInfo[1].def.lat])
       );
     }
 
+    const geoType = isStart ? 'start' : 'control';
     features.push({
       type: 'Feature',
       geometry: { type: 'Point', coordinates: [def.lng, def.lat] },
-      properties: { id: def.defId, type: def.type, seq, label, isFinish, selected, bearing },
+      properties: { id: def.defId, type: geoType, seq, label, isFinish, selected, bearing },
     });
   });
 
@@ -1016,8 +1020,9 @@ function _onMapContextmenu(e) {
       const def     = _controlDefs.get(hitDefId);
       const lastIdx = seq.reduce((best, id, i) => id === hitDefId ? i : best, -1);
       if (lastIdx >= 0) {
+        const isStartDef = lastIdx === 0;
         const label = def
-          ? (def.type === 'start' ? 'スタートを削除' : `コントロール ${def.code} を削除`)
+          ? (isStartDef ? 'スタートを削除' : `コントロール ${def.code} を削除`)
           : 'このコントロールを削除';
         items.push({ label, danger: true, action: () => _deleteFromSequence(lastIdx) });
       }
@@ -1285,20 +1290,19 @@ function _addControl(lng, lat) {
   _pushHistory();
   const course  = _activeCourse();
   const isFirst = course.sequence.length === 0;
-  const type    = isFirst ? 'start' : 'control';
 
-  // code の自動採番（'control' のみ）
+  // code の自動採番（スタート以外のみ）
   // 既存コードの最大値 + 1 とし、削除後の重複を防ぐ
   let code = '';
-  if (type === 'control') {
+  if (!isFirst) {
     const usedCodes = [..._controlDefs.values()]
-      .filter(d => d.type === 'control' && /^\d+$/.test(d.code))
+      .filter(d => /^\d+$/.test(d.code))
       .map(d => parseInt(d.code, 10));
     const maxCode = usedCodes.length > 0 ? Math.max(...usedCodes) : 100;
     code = String(maxCode + 1);
   }
 
-  const def = { defId: 'd' + (_nextDefId++), type, code, lng, lat };
+  const def = { defId: 'd' + (_nextDefId++), code, lng, lat };
   _controlDefs.set(def.defId, def);
   course.sequence.push(def.defId);
 
@@ -1477,9 +1481,9 @@ function _svgFinish(size = 24) {
   </svg>`;
 }
 
-function _ctrlSvg(def, isFinish) {
-  if (def.type === 'start') return _svgStart();
-  if (isFinish)             return _svgFinish();
+function _ctrlSvg(isStart, isFinish) {
+  if (isStart)  return _svgStart();
+  if (isFinish) return _svgFinish();
   return _svgControl();
 }
 
@@ -1610,13 +1614,13 @@ function _renderCourseTab() {
   }
 
   // コントロール数（スタートを除く）
-  const numCtrls = seqInfo.filter(item => item.def.type === 'control').length;
+  const numCtrls = seqInfo.filter(item => !item.isStart).length;
   if (countEl) countEl.textContent = numCtrls + ' 個';
 
   // ── リスト構築 ──────────────────────────────────────────────
   listEl.innerHTML = '';
 
-  seqInfo.forEach(({ def, seqIdx, seq, isFinish }, i) => {
+  seqInfo.forEach(({ def, seqIdx, seq, isStart, isFinish }, i) => {
     // ① コントロール行
     const ctrlRow = document.createElement('div');
     ctrlRow.className = 'course-ctrl-item';
@@ -1632,12 +1636,12 @@ function _renderCourseTab() {
 
     const symDiv = document.createElement('div');
     symDiv.className = 'course-ctrl-sym';
-    symDiv.innerHTML = _ctrlSvg(def, isFinish);
+    symDiv.innerHTML = _ctrlSvg(isStart, isFinish);
 
     const infoDiv = document.createElement('div');
     infoDiv.className = 'course-ctrl-info';
 
-    if (def.type === 'start') {
+    if (isStart) {
       const lbl = document.createElement('span');
       lbl.className = 'course-ctrl-type-label';
       lbl.textContent = 'スタート';
@@ -1889,9 +1893,10 @@ function _renderDefsTab() {
     course.sequence.forEach((defId, idx) => {
       const def = _controlDefs.get(defId);
       if (!def) return;
-      const isFinish = def.type === 'control' && idx === course.sequence.length - 1 && course.sequence.length >= 2;
-      const seq = (def.type === 'control' && !isFinish) ? ++ctrlSeq : 0;
-      const label = def.type === 'start' ? 'S' : isFinish ? 'F' : String(seq);
+      const isStartPos  = idx === 0;
+      const isFinishPos = !isStartPos && idx === course.sequence.length - 1 && course.sequence.length >= 2;
+      const seq = (!isStartPos && !isFinishPos) ? ++ctrlSeq : 0;
+      const label = isStartPos ? 'S' : isFinishPos ? 'F' : String(seq);
       const existing = usageMap.get(defId) ?? [];
       existing.push(label);
       usageMap.set(defId, existing);
@@ -1900,7 +1905,8 @@ function _renderDefsTab() {
 
   _controlDefs.forEach((def) => {
     const usageLabels = usageMap.get(def.defId) ?? [];
-    const isStart = def.type === 'start';
+    // どのコースでも先頭に置かれていたらスタートとして表示
+    const isStart = _courses.some(c => c.sequence[0] === def.defId);
 
     const row = document.createElement('div');
     row.className = 'course-ctrl-item course-def-item';
@@ -1992,23 +1998,24 @@ function _exportIOFXML() {
   const defXmlId = (def) => (def.code && def.code.trim()) ? def.code.trim() : def.defId;
 
   // IOF XML の type 文字列（Pascal ケース）
-  const xmlType = (def, isFinish) =>
-    def.type === 'start' ? 'Start' : isFinish ? 'Finish' : 'Control';
+  const xmlType = (isStart, isFinish) =>
+    isStart ? 'Start' : isFinish ? 'Finish' : 'Control';
 
   // ユニークな Control 定義を収集（コース使用分のみ）
   // 同一 defId がシーケンスに複数回登場しても 1 つの Control 要素として出力
-  const seenDefs = new Map(); // defId → { def, isFinish }
-  seqInfo.forEach(({ def, isFinish }) => {
+  const seenDefs = new Map(); // defId → { def, isStart, isFinish }
+  seqInfo.forEach(({ def, isStart, isFinish }) => {
     if (!seenDefs.has(def.defId)) {
-      seenDefs.set(def.defId, { def, isFinish });
-    } else if (isFinish) {
-      seenDefs.get(def.defId).isFinish = true;
+      seenDefs.set(def.defId, { def, isStart, isFinish });
+    } else {
+      if (isFinish) seenDefs.get(def.defId).isFinish = true;
+      if (isStart)  seenDefs.get(def.defId).isStart  = true;
     }
   });
 
   // Control 要素 XML
-  const controlsXml = [...seenDefs.values()].map(({ def, isFinish }) =>
-    `    <Control type="${xmlType(def, isFinish)}">\n` +
+  const controlsXml = [...seenDefs.values()].map(({ def, isStart, isFinish }) =>
+    `    <Control type="${xmlType(isStart, isFinish)}">\n` +
     `      <Id>${_escXml(defXmlId(def))}</Id>\n` +
     `      <Position lng="${def.lng.toFixed(9)}" lat="${def.lat.toFixed(9)}" />\n` +
     `    </Control>`
@@ -2025,8 +2032,8 @@ function _exportIOFXML() {
   }
 
   // CourseControl 要素 XML
-  const courseControlsXml = seqInfo.map(({ def, seq, isFinish }, i) => {
-    const type = xmlType(def, isFinish);
+  const courseControlsXml = seqInfo.map(({ def, seq, isStart, isFinish }, i) => {
+    const type = xmlType(isStart, isFinish);
     const legM = i > 0
       ? Math.round(turf.distance(
           turf.point([seqInfo[i - 1].def.lng, seqInfo[i - 1].def.lat]),
@@ -2079,7 +2086,7 @@ function _exportJSON() {
   usedDefIds.forEach(id => {
     const def = _controlDefs.get(id);
     if (def) controlDefs[id] = {
-      type: def.type, code: def.code,
+      code: def.code,
       lng: +def.lng.toFixed(7), lat: +def.lat.toFixed(7),
     };
   });
@@ -2121,7 +2128,7 @@ function _importJSON(text) {
     if (data.version === 2) {
       // v2: リレーショナル形式
       Object.entries(data.controlDefs ?? {}).forEach(([id, def]) => {
-        _controlDefs.set(id, { defId: id, type: def.type, code: def.code ?? '', lng: def.lng, lat: def.lat });
+        _controlDefs.set(id, { defId: id, code: def.code ?? '', lng: def.lng, lat: def.lat });
         const num = parseInt(id.replace(/^\D+/, ''), 10);
         if (!isNaN(num) && num >= _nextDefId) _nextDefId = num + 1;
       });
@@ -2161,7 +2168,7 @@ function _importJSON(text) {
       }
       data.controls.forEach(c => {
         const defId = 'd' + (_nextDefId++);
-        const def   = { defId, type: c.type, code: c.code ?? '', lng: c.lng, lat: c.lat };
+        const def   = { defId, code: c.code ?? '', lng: c.lng, lat: c.lat };
         _controlDefs.set(defId, def);
         _activeCourse().sequence.push(defId);
       });
@@ -2269,6 +2276,10 @@ function _buildPPenXML(title, imgFilename, scale, dpi, widthMM, heightMM, bbox) 
   const usedDefIds = new Set(_courses.flatMap(c => c.sequence));
   if (usedDefIds.size === 0) return null;
 
+  // スタート: いずれかのコースの先頭要素
+  const startDefIds = new Set(
+    _courses.map(c => c.sequence.length > 0 ? c.sequence[0] : null).filter(Boolean)
+  );
   // フィニッシュ: いずれかのコースの最後要素
   const finishDefIds = new Set(
     _courses.map(c => c.sequence.length > 0 ? c.sequence[c.sequence.length - 1] : null).filter(Boolean)
@@ -2324,7 +2335,7 @@ function _buildPPenXML(title, imgFilename, scale, dpi, widthMM, heightMM, bbox) 
     if (!def) continue;
     const cid = defIdToCtrlId.get(defId);
     const mm  = toMM(def.lng, def.lat);
-    const kind = def.type === 'start' ? 'start'
+    const kind = startDefIds.has(defId)  ? 'start'
                : finishDefIds.has(defId) ? 'finish'
                : 'normal';
     l(`  <control id="${cid}" kind="${kind}">`);
@@ -2568,11 +2579,7 @@ async function _importPPen(xmlText) {
       const [lng, lat] = mmToLngLat(xMM, yMM);
 
       const defId = 'd' + (_nextDefId++);
-      _controlDefs.set(defId, {
-        defId, code,
-        type: kind === 'start' ? 'start' : 'control',
-        lng, lat,
-      });
+      _controlDefs.set(defId, { defId, code, lng, lat });
       ctrlIdMap.set(pid, defId);
     }
 
@@ -2687,7 +2694,7 @@ function _saveToStorage() {
     const controlDefs = {};
     usedDefIds.forEach(id => {
       const def = _controlDefs.get(id);
-      if (def) controlDefs[id] = { type: def.type, code: def.code, lng: def.lng, lat: def.lat };
+      if (def) controlDefs[id] = { code: def.code, lng: def.lng, lat: def.lat };
     });
     const data = {
       version:        2,
@@ -2726,7 +2733,7 @@ function _loadFromStorage() {
     // _controlDefs 復元
     _controlDefs.clear();
     Object.entries(data.controlDefs ?? {}).forEach(([id, def]) => {
-      _controlDefs.set(id, { defId: id, type: def.type, code: def.code ?? '', lng: def.lng, lat: def.lat });
+      _controlDefs.set(id, { defId: id, code: def.code ?? '', lng: def.lng, lat: def.lat });
     });
 
     // _courses 復元
