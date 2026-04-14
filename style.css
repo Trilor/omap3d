@@ -8098,4 +8098,27 @@ select,
   flex-direction: column;
   overflow-y: auto;
   height: 100%;
+  padding: 10px 14px 20px;
+  box-sizing: border-box;
+}
+
+/* コースエディター内の settings-group-title: 親パディングが適用されるので自前の左右パディングをリセット */
+#course-editor-view .settings-group-title {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+/* コースエディター内の settings-group 区切り線はパネル幅いっぱいに伸ばす */
+#course-editor-view .settings-group {
+  margin-left: -14px;
+  margin-right: -14px;
+  padding-left: 14px;
+  padding-right: 14px;
+  padding-bottom: 10px;
+}
+
+/* タブはすでに -12px マージンを持つので、親の14pxに合わせて更新 */
+#course-editor-view .course-tabs {
+  margin: 0 -14px;
+  padding: 0 14px;
 }
