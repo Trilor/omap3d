@@ -956,7 +956,7 @@ map.on('load', async () => {
   // 地図が安定表示されたらURLをフル状態に更新（Google Maps方式）
   // hash:true がハッシュを確定した後に updateShareableUrl を呼ぶことで
   // https://teledrop.pages.dev/ → https://teledrop.pages.dev/?overlay=cs#15/35.02/135.78 に自動遷移する
-  map.once('idle', updateShareableUrl);
+  map.once('idle', () => { updateShareableUrl(); renderExplorer(); });
 
   console.log('3D OMap Viewer 初期化完了（OriLibreベースマップ）');
 });
@@ -2901,6 +2901,8 @@ function renderLocalMapList() {
   renderOtherMapsTree();
   // レイヤーパネルも更新
   renderLayersPanel();
+  // エクスプローラーも同期
+  renderExplorer();
 }
 
 
@@ -4413,7 +4415,7 @@ gpxUploadBtn.addEventListener('click', () => gpxFileInput.click());
 // GPXファイルが選択されたら loadGpx を呼び出す（単一ファイル）
 gpxFileInput.addEventListener('change', async (e) => {
   const file = e.target.files[0];
-  if (file) await loadGpx(file);
+  if (file) { await loadGpx(file); renderExplorer(); }
   e.target.value = ''; // 同じファイルを再選択できるようにリセット
 });
 
@@ -4664,7 +4666,7 @@ document.addEventListener('drop', async (e) => {
 
   // KMZ もモーダル経由に統一。GPX は即座に処理する
   for (const file of kmzFiles) await openImportModalFromKmz(file);
-  for (const file of gpxFiles) await loadGpx(file);
+  for (const file of gpxFiles) { await loadGpx(file); renderExplorer(); }
 
   // 画像は統合インポートモーダルへ（1枚ずつ）
   // ワールドファイル付きの場合は従来の imgwModal にフォールバック
@@ -7872,6 +7874,363 @@ function closeRightPanel() {
 }
 
 document.getElementById('right-panel-close-btn')?.addEventListener('click', closeRightPanel);
+
+// ================================================================
+// Phase 2 — エクスプローラー ファイルツリー
+// ================================================================
+
+/** 現在選択中のエクスプローラーアイテムの ID */
+let _explorerActiveId = null;
+
+/** 表示中のエクスプローラーコンテキストメニュー */
+let _explorerCtx = null;
+
+/** コンテキストメニューを閉じる */
+function _closeExplorerCtx() {
+  _explorerCtx?.remove();
+  _explorerCtx = null;
+}
+
+/**
+ * コンテキストメニューを表示する
+ * items: { label, icon?, action, danger?, separator? }[]
+ */
+function _showExplorerCtx(x, y, items) {
+  _closeExplorerCtx();
+  const menu = document.createElement('div');
+  menu.className = 'ctx-menu';
+
+  items.forEach(item => {
+    if (item.separator) {
+      const sep = document.createElement('div');
+      sep.className = 'ctx-menu-sep';
+      menu.appendChild(sep);
+      return;
+    }
+    const btn = document.createElement('button');
+    btn.className = 'ctx-menu-item' + (item.danger ? ' ctx-menu-danger' : '');
+    btn.textContent = item.label;
+    btn.addEventListener('click', () => { _closeExplorerCtx(); item.action(); });
+    menu.appendChild(btn);
+  });
+
+  document.body.appendChild(menu);
+  _explorerCtx = menu;
+
+  // オーバーフロー補正
+  const vw = window.innerWidth, vh = window.innerHeight;
+  const { width: mw, height: mh } = menu.getBoundingClientRect();
+  menu.style.left = Math.min(x, vw - mw - 8) + 'px';
+  menu.style.top  = Math.min(y, vh - mh - 8) + 'px';
+}
+
+// 外側クリック / Escape でコンテキストメニューを閉じる
+document.addEventListener('mousedown', e => {
+  if (_explorerCtx && !_explorerCtx.contains(e.target)) _closeExplorerCtx();
+}, true);
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && _explorerCtx) _closeExplorerCtx();
+}, true);
+
+// ---- セクション折りたたみ状態 ----
+const _explorerCollapsed = { course: false, map: false, gpx: false };
+
+/** エクスプローラーを再描画する（外部モジュールからも呼び出し可能） */
+function renderExplorer() {
+  const treeEl = document.getElementById('explorer-tree');
+  if (!treeEl) return;
+  treeEl.innerHTML = '';
+
+  // ── コースセクション ──────────────────────────────────
+  const courseItems = [{ id: 'course-main', label: '現在のコース' }];
+  treeEl.appendChild(_buildExplorerSection('コース', 'course', courseItems, {
+    addTitle: '新規コース',
+    addAction: () => {
+      // コースタブを開く（Phase 3 で右パネルに移行）
+      const btn = document.querySelector('.sidebar-nav-btn[data-panel="course"]');
+      if (btn) btn.click();
+    },
+    onItemClick: (item) => {
+      _explorerActiveId = item.id;
+      renderExplorer();
+      // Phase 3: 右パネルにコースエディターを表示
+    },
+    onItemCtx: (item, x, y) => {
+      _showExplorerCtx(x, y, [
+        { label: 'コースタブで編集', action: () => {
+          const btn = document.querySelector('.sidebar-nav-btn[data-panel="course"]');
+          if (btn) btn.click();
+        }},
+        { separator: true },
+        { label: 'JSON エクスポート', action: () => document.getElementById('course-export-btn')?.click() },
+        { label: 'IOF XML エクスポート', action: () => document.getElementById('course-xml-btn')?.click() },
+        { label: 'Purple Pen (.ppen) エクスポート', action: () => document.getElementById('course-ppen-btn')?.click() },
+      ]);
+    },
+    itemIcon: _svgCourseIcon(),
+    badgeText: item => {
+      // コース内のバリエーション数を返す（course.js の _courses[] は非公開なのでLocalStorageから推定）
+      try {
+        const raw = localStorage.getItem('teledrop_course_v2');
+        if (!raw) return null;
+        const d = JSON.parse(raw);
+        return d.courses?.length > 1 ? d.courses.length + 'バリアント' : null;
+      } catch { return null; }
+    },
+  }));
+
+  // ── 地図セクション ────────────────────────────────────
+  const mapItems = localMapLayers.map(e => ({ id: 'map-' + e.id, label: e.name, data: e }));
+  treeEl.appendChild(_buildExplorerSection('地図', 'map', mapItems, {
+    addTitle: '地図を追加',
+    addAction: () => document.getElementById('explorer-map-input')?.click(),
+    onItemClick: (item) => {
+      _explorerActiveId = item.id;
+      renderExplorer();
+      // 地図の中心へ移動
+      if (item.data?.bbox) {
+        const b = item.data.bbox;
+        map.fitBounds([[b.west, b.south], [b.east, b.north]], { padding: 60, duration: 600 });
+      }
+    },
+    onItemCtx: (item, x, y) => {
+      _showExplorerCtx(x, y, [
+        { label: '地図を中心に表示', action: () => {
+          if (item.data?.bbox) {
+            const b = item.data.bbox;
+            map.fitBounds([[b.west, b.south], [b.east, b.north]], { padding: 60, duration: 600 });
+          }
+        }},
+        { separator: true },
+        { label: '削除', danger: true, action: () => {
+          if (confirm(`「${item.data.name}」を削除しますか？`)) {
+            removeLocalMapLayer(item.data.id);
+            renderExplorer();
+          }
+        }},
+      ]);
+    },
+    itemIcon: _svgMapIcon(),
+    footer: () => {
+      // ストレージ情報バー
+      const hasDb = localMapLayers.some(e => e.dbId != null);
+      if (!hasDb) return null;
+      const bar = document.createElement('div');
+      bar.className = 'expl-storage-bar';
+      bar.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0018 0V5"/><path d="M3 12a9 3 0 0018 0"/></svg>';
+      const text = document.createElement('span');
+      text.id = 'storage-usage-text';
+      text.className = 'storage-usage-text';
+      text.textContent = 'ストレージ使用量: ---';
+      const clearBtn = document.createElement('button');
+      clearBtn.className = 'expl-storage-clear';
+      clearBtn.textContent = '全消去';
+      clearBtn.id = 'storage-clear-btn';
+      clearBtn.title = '保存した地図をすべてストレージから削除する';
+      bar.appendChild(text);
+      bar.appendChild(clearBtn);
+      return bar;
+    },
+  }));
+
+  // ── GPX セクション ────────────────────────────────────
+  const gpxItems = gpxState.fileName
+    ? [{ id: 'gpx-main', label: gpxState.fileName, data: gpxState }]
+    : [];
+  treeEl.appendChild(_buildExplorerSection('GPX', 'gpx', gpxItems, {
+    addTitle: 'GPXを追加',
+    addAction: () => document.getElementById('explorer-gpx-input')?.click(),
+    onItemClick: (item) => {
+      _explorerActiveId = item.id;
+      renderExplorer();
+      // GPX セクションをテレインパネルで開く（Phase 3 で右パネルに移行）
+      const btn = document.querySelector('.sidebar-nav-btn[data-panel="terrain"]');
+      if (btn) btn.click();
+    },
+    onItemCtx: (item, x, y) => {
+      _showExplorerCtx(x, y, [
+        { label: gpxState.isPlaying ? '一時停止' : '再生',
+          action: () => {
+            const playBtn = document.getElementById('gpx-play-pause');
+            if (playBtn) playBtn.click();
+          }
+        },
+        { separator: true },
+        { label: '削除', danger: true, action: () => {
+          if (confirm('GPXトラックを削除しますか？')) {
+            gpxState.trackPoints = [];
+            gpxState.fileName = null;
+            const src = map.getSource('gpx-source');
+            if (src) src.setData({ type: 'FeatureCollection', features: [] });
+            document.getElementById('gpx-status').innerHTML = '';
+            renderExplorer();
+          }
+        }},
+      ]);
+    },
+    itemIcon: _svgGpxIcon(),
+  }));
+
+  // ストレージ情報バーの文字を既存の updateStorageInfo 系に任せる
+  const storageEl = document.getElementById('storage-info-bar');
+  if (storageEl) storageEl.style.display = 'none'; // 旧バーを非表示化
+}
+
+/** エクスプローラーセクションの DOM を構築して返す */
+function _buildExplorerSection(label, key, items, opts = {}) {
+  const collapsed = _explorerCollapsed[key] ?? false;
+
+  const section = document.createElement('div');
+  section.className = 'expl-section' + (collapsed ? ' is-collapsed' : '');
+
+  // ── ヘッダー ──
+  const hd = document.createElement('div');
+  hd.className = 'expl-section-hd';
+
+  const chevron = document.createElement('span');
+  chevron.className = 'expl-section-chevron';
+  chevron.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>`;
+
+  const lbl = document.createElement('span');
+  lbl.className = 'expl-section-label';
+  lbl.textContent = label;
+
+  const addBtn = document.createElement('button');
+  addBtn.className = 'expl-section-add';
+  addBtn.title = opts.addTitle ?? '追加';
+  addBtn.setAttribute('aria-label', opts.addTitle ?? '追加');
+  addBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
+  addBtn.addEventListener('click', e => { e.stopPropagation(); opts.addAction?.(); });
+
+  hd.appendChild(chevron);
+  hd.appendChild(lbl);
+  hd.appendChild(addBtn);
+  hd.addEventListener('click', () => {
+    _explorerCollapsed[key] = !_explorerCollapsed[key];
+    section.classList.toggle('is-collapsed', _explorerCollapsed[key]);
+  });
+  section.appendChild(hd);
+
+  // ── ボディ ──
+  const body = document.createElement('div');
+  body.className = 'expl-section-body';
+
+  if (items.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'expl-empty';
+    empty.textContent = 'アイテムがありません';
+    body.appendChild(empty);
+  } else {
+    items.forEach(item => {
+      const row = document.createElement('div');
+      row.className = 'expl-item' + (item.id === _explorerActiveId ? ' is-active' : '');
+
+      const icon = document.createElement('span');
+      icon.className = 'expl-item-icon';
+      icon.innerHTML = opts.itemIcon ?? '';
+
+      const lbl2 = document.createElement('span');
+      lbl2.className = 'expl-item-label';
+      lbl2.textContent = item.label;
+
+      row.appendChild(icon);
+      row.appendChild(lbl2);
+
+      // バッジ（コースバリアント数など）
+      if (opts.badgeText) {
+        const badge = opts.badgeText(item);
+        if (badge) {
+          const bdg = document.createElement('span');
+          bdg.className = 'expl-item-badge';
+          bdg.textContent = badge;
+          row.appendChild(bdg);
+        }
+      }
+
+      // ⋮ ボタン（コンテキストメニュートリガー）
+      if (opts.onItemCtx) {
+        const moreBtn = document.createElement('button');
+        moreBtn.className = 'expl-item-more';
+        moreBtn.title = 'オプション';
+        moreBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>`;
+        moreBtn.addEventListener('click', e => {
+          e.stopPropagation();
+          const r = moreBtn.getBoundingClientRect();
+          opts.onItemCtx(item, r.right + 4, r.top);
+        });
+        row.appendChild(moreBtn);
+      }
+
+      // クリック & 右クリック
+      row.addEventListener('click', () => opts.onItemClick?.(item));
+      if (opts.onItemCtx) {
+        row.addEventListener('contextmenu', e => {
+          e.preventDefault();
+          opts.onItemCtx(item, e.clientX, e.clientY);
+        });
+      }
+
+      body.appendChild(row);
+    });
+  }
+
+  // フッター（ストレージバーなど）
+  if (opts.footer) {
+    const footerEl = opts.footer();
+    if (footerEl) body.appendChild(footerEl);
+  }
+
+  section.appendChild(body);
+  return section;
+}
+
+// ── アイコン SVG ──
+function _svgCourseIcon() {
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>`;
+}
+function _svgMapIcon() {
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>`;
+}
+function _svgGpxIcon() {
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>`;
+}
+
+// ── ファイル追加インプットのハンドラ ──
+document.getElementById('explorer-map-input')?.addEventListener('change', async e => {
+  const files = [...e.target.files];
+  if (!files.length) return;
+  e.target.value = '';
+  for (const f of files) {
+    if (/\.kmz$/i.test(f.name)) await loadKmz(f);
+    else await loadImageWithJgw(f, null);
+  }
+  renderExplorer();
+});
+
+document.getElementById('explorer-gpx-input')?.addEventListener('change', async e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  e.target.value = '';
+  await loadGpx(file);
+  renderExplorer();
+});
+
+document.getElementById('explorer-json-input')?.addEventListener('change', async e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  e.target.value = '';
+  const text = await file.text();
+  // course.js の import ハンドラと同じ処理をトリガー
+  const courseImportInput = document.getElementById('course-import-file');
+  if (courseImportInput) {
+    // DataTransfer を使って既存ハンドラに渡す（同ファイルのイベントを再発行）
+    const dt = new DataTransfer();
+    dt.items.add(file);
+    courseImportInput.files = dt.files;
+    courseImportInput.dispatchEvent(new Event('change'));
+  }
+  renderExplorer();
+});
 
 // ================================================================
 // ---- 縮尺セレクト（現在の縮尺をリアルタイム表示 ＋ プリセット選択でズーム） ----

@@ -7707,6 +7707,175 @@ select,
 }
 
 /* ================================================================
+   Phase 2 — エクスプローラー ファイルツリー
+   ================================================================ */
+
+.explorer-tree {
+  padding: 6px 0;
+}
+
+/* ── セクション（コース / 地図 / GPX） ── */
+.expl-section {
+  margin-bottom: 2px;
+}
+
+.expl-section-hd {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 8px 3px 6px;
+  cursor: pointer;
+  user-select: none;
+  color: var(--text-muted);
+  font-size: 10.5px;
+  font-weight: var(--font-bold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.expl-section-hd:hover { color: var(--text-main); }
+
+.expl-section-chevron {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  transition: transform 0.15s;
+}
+.expl-section.is-collapsed .expl-section-chevron {
+  transform: rotate(-90deg);
+}
+
+.expl-section-label { flex: 1; }
+
+.expl-section-add {
+  width: 20px; height: 20px;
+  border: none; border-radius: 3px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0;
+  transition: opacity 0.12s, background 0.12s;
+  flex-shrink: 0;
+}
+.expl-section-hd:hover .expl-section-add { opacity: 1; }
+.expl-section-add:hover {
+  background: var(--bg-subtle);
+  color: var(--text-main);
+}
+
+.expl-section-body {
+  overflow: hidden;
+}
+.expl-section.is-collapsed .expl-section-body {
+  display: none;
+}
+
+/* ── ファイルアイテム ── */
+.expl-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px 5px 22px;
+  cursor: pointer;
+  border-radius: 4px;
+  margin: 0 4px;
+  position: relative;
+  font-size: 12px;
+  color: var(--text-main);
+  user-select: none;
+}
+.expl-item:hover { background: var(--bg-subtle); }
+.expl-item.is-active {
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+  color: var(--primary);
+}
+
+.expl-item-icon {
+  width: 14px; height: 14px;
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+.expl-item.is-active .expl-item-icon { color: var(--primary); }
+
+.expl-item-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.expl-item-badge {
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 8px;
+  background: var(--bg-subtle);
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.expl-item-more {
+  width: 20px; height: 20px;
+  border: none; border-radius: 3px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0;
+  transition: opacity 0.12s;
+  flex-shrink: 0;
+}
+.expl-item:hover .expl-item-more,
+.expl-item.is-active .expl-item-more { opacity: 1; }
+.expl-item-more:hover { background: var(--bg-subtle); color: var(--text-main); }
+
+/* 空状態メッセージ */
+.expl-empty {
+  padding: 6px 22px 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* ストレージ情報バー（地図セクション下部） */
+.expl-storage-bar {
+  margin: 4px 8px 2px;
+  padding: 5px 8px;
+  font-size: 10.5px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-top: 1px solid var(--border-light);
+}
+.expl-storage-clear {
+  margin-left: auto;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 10.5px;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 3px;
+}
+.expl-storage-clear:hover { color: #c0392b; background: rgba(192,57,43,0.06); }
+
+/* ================================================================
+   汎用コンテキストメニュー（.ctx-menu）
+   課題コンテキストメニュー（#course-ctx-menu）と共通スタイル
+   ================================================================ */
+.ctx-menu {
+  position: fixed;
+  z-index: 10500;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-input);
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+  padding: 4px 0;
+  min-width: 170px;
+}
+
+/* ================================================================
    Phase 1 — 左パネル オーバーレイモード
    ================================================================ */
 
