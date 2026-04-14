@@ -7742,6 +7742,9 @@ select,
   width: 14px;
   height: 14px;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   transition: transform 0.15s;
 }
 .expl-section.is-collapsed .expl-section-chevron {

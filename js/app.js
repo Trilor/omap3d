@@ -6544,11 +6544,30 @@ function openCourseEditor() {
 }
 
 /** エクスプローラーを再描画する（外部モジュールからも呼び出し可能） */
+/** renderExplorer の多重実行を防ぐフラグ */
+let _explorerRendering = false;
+let _explorerRenderPending = false;
+
 async function renderExplorer() {
+  // 既にレンダリング中なら完了後に1回だけ再実行（多重 DB 呼び出し防止）
+  if (_explorerRendering) { _explorerRenderPending = true; return; }
+  _explorerRendering = true;
+  try {
+    await _renderExplorerOnce();
+  } finally {
+    _explorerRendering = false;
+    if (_explorerRenderPending) {
+      _explorerRenderPending = false;
+      renderExplorer();
+    }
+  }
+}
+
+async function _renderExplorerOnce() {
   const treeEl = document.getElementById('explorer-tree');
   if (!treeEl) return;
-  treeEl.innerHTML = '';
 
+  // ── すべての非同期データを先に取得してからDOMを一括更新（ちらつき防止）──
   let wsTerrains = [];
   try { wsTerrains = await getWsTerrains(); } catch { /* ignore */ }
 
@@ -6566,33 +6585,40 @@ async function renderExplorer() {
     }));
   }
 
-  // ── テレインフォルダ ──
-  for (const t of wsTerrains) {
-    const mapsInTerrain   = localMapLayers.filter(e => e.terrainId === t.id);
-    const gpxInTerrain    = (gpxState.fileName && gpxState.terrainId === t.id) ? gpxState : null;
-    const eventsWithCourses = await fetchEventsWithCourses(t.id);
-    const folder = _buildTerrainFolder(t, mapsInTerrain, gpxInTerrain, eventsWithCourses);
-    if (focusId === t.id) {
-      folder.classList.add('is-focused');
-      requestAnimationFrame(() => folder.scrollIntoView({ behavior: 'smooth', block: 'nearest' }));
-    }
-    treeEl.appendChild(folder);
-  }
+  // ── テレインフォルダ（全データを並列取得）──
+  const terrainData = await Promise.all(wsTerrains.map(async t => ({
+    terrain:           t,
+    maps:              localMapLayers.filter(e => e.terrainId === t.id),
+    gpx:               (gpxState.fileName && gpxState.terrainId === t.id) ? gpxState : null,
+    eventsWithCourses: await fetchEventsWithCourses(t.id),
+  })));
 
-  // ── 未分類フォルダ ──
+  // ── 未分類 ──
   const uncatMaps   = localMapLayers.filter(e => !e.terrainId);
   const uncatGpx    = (gpxState.fileName && !gpxState.terrainId) ? gpxState : null;
   const uncatEvents = await fetchEventsWithCourses(null);
-  if (uncatMaps.length > 0 || uncatGpx || uncatEvents.length > 0) {
-    treeEl.appendChild(_buildUncategorizedFolder(uncatMaps, uncatGpx, uncatEvents));
+
+  // ── 全データ取得完了 → ここで初めて DOM を置換（ちらつきゼロ）──
+  const frag = document.createDocumentFragment();
+
+  for (const { terrain, maps, gpx, eventsWithCourses } of terrainData) {
+    const folder = _buildTerrainFolder(terrain, maps, gpx, eventsWithCourses);
+    if (focusId === terrain.id) {
+      folder.classList.add('is-focused');
+      requestAnimationFrame(() => folder.scrollIntoView({ behavior: 'smooth', block: 'nearest' }));
+    }
+    frag.appendChild(folder);
   }
 
-  // ── ワークスペースが空のとき案内メッセージ ──
+  if (uncatMaps.length > 0 || uncatGpx || uncatEvents.length > 0) {
+    frag.appendChild(_buildUncategorizedFolder(uncatMaps, uncatGpx, uncatEvents));
+  }
+
   if (wsTerrains.length === 0 && uncatMaps.length === 0 && !uncatGpx && uncatEvents.length === 0) {
     const hint = document.createElement('div');
     hint.className = 'expl-ws-hint';
     hint.innerHTML = '<span>検索タブでテレインを探し「＋」で追加すると<br>ここにフォルダが作成されます</span>';
-    treeEl.appendChild(hint);
+    frag.appendChild(hint);
   }
 
   // ── ストレージバー（DB 保存レイヤーがある場合） ──
@@ -6612,8 +6638,12 @@ async function renderExplorer() {
     clearBtn.title = '保存した地図をすべてストレージから削除する';
     bar.appendChild(text);
     bar.appendChild(clearBtn);
-    treeEl.appendChild(bar);
+    frag.appendChild(bar);
   }
+
+  // 一括置換（ここでのみ DOM がちらつく可能性があるが、ほぼ1フレーム未満）
+  treeEl.innerHTML = '';
+  treeEl.appendChild(frag);
 }
 
 /**
