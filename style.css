@@ -8053,14 +8053,6 @@ select,
   background: color-mix(in srgb, var(--primary) 10%, transparent);
 }
 
-/* コースアイテム — 編集中インジケーター */
-.expl-item-active-dot {
-  width: 6px; height: 6px;
-  border-radius: 50%;
-  background: var(--primary);
-  flex-shrink: 0;
-  margin-right: 2px;
-}
 
 /* ================================================================
    イベントフォルダ（コースファイル単位のサブフォルダ）

@@ -7152,13 +7152,6 @@ function _buildCourseItem(courseInfo) {
   lbl.className = 'expl-item-label';
   lbl.textContent = courseInfo.name;
 
-  if (courseInfo.isActive) {
-    const dot = document.createElement('span');
-    dot.className = 'expl-item-active-dot';
-    dot.title = '編集中';
-    row.appendChild(dot);
-  }
-
   const moreBtn = document.createElement('button');
   moreBtn.className = 'expl-item-more';
   moreBtn.title = 'オプション';
