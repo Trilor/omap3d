@@ -6992,21 +6992,30 @@ function _buildEventFolder(event, courses) {
   lbl.textContent = event.name;
   lbl.title = 'クリック: コース編集を開く　ダブルクリック: 名前を変更';
 
-  lbl.addEventListener('click', async e => {
+  // クリック/ダブルクリック区別用タイマー（dblclick時にclickの処理をキャンセル）
+  let _lblClickTimer = null;
+
+  lbl.addEventListener('click', e => {
     e.stopPropagation();
-    // 展開しておく
-    _explorerCollapsed[key] = false;
-    folder.classList.remove('is-collapsed');
-    // イベントをロードして全コントロールビューへ
-    if (getActiveEventId() !== event.id) await loadEvent(event.id);
-    _explorerActiveId = 'controls-' + event.id;
-    showAllControlsTab();
-    openCourseEditor();
-    renderExplorer();
+    if (_lblClickTimer) return; // dblclick判定待ち中は無視
+    _lblClickTimer = setTimeout(async () => {
+      _lblClickTimer = null;
+      // 展開しておく
+      _explorerCollapsed[key] = false;
+      folder.classList.remove('is-collapsed');
+      // イベントをロードして全コントロールビューへ
+      if (getActiveEventId() !== event.id) await loadEvent(event.id);
+      _explorerActiveId = 'controls-' + event.id;
+      showAllControlsTab();
+      openCourseEditor();
+      renderExplorer();
+    }, 250);
   });
 
   lbl.addEventListener('dblclick', e => {
     e.stopPropagation();
+    // clickのタイマーをキャンセルして renderExplorer を抑制
+    if (_lblClickTimer) { clearTimeout(_lblClickTimer); _lblClickTimer = null; }
     // インライン入力に置き換え
     const input = document.createElement('input');
     input.type      = 'text';
