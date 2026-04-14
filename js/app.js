@@ -7871,6 +7871,9 @@ function openRightPanel(title, contentEl) {
 /** 右パネルを閉じる */
 function closeRightPanel() {
   document.getElementById('right-panel')?.classList.remove('rp-open');
+  // エクスプローラーのアクティブ選択状態を解除して再描画
+  _explorerActiveId = null;
+  renderExplorer();
 }
 
 document.getElementById('right-panel-close-btn')?.addEventListener('click', closeRightPanel);
@@ -7934,6 +7937,145 @@ document.addEventListener('keydown', e => {
 
 // ---- セクション折りたたみ状態 ----
 const _explorerCollapsed = { course: false, map: false, gpx: false };
+
+// ================================================================
+// 右パネル コンテンツビルダー（地図・GPX）
+// ================================================================
+
+/**
+ * 地図レイヤーの右パネルコンテンツを生成する。
+ * 可視トグル・透明度スライダー・中心移動・削除ボタンを含む。
+ */
+function _buildMapLayerRightPanel(entry) {
+  const wrap = document.createElement('div');
+  wrap.className = 'rp-map-panel';
+
+  const pct = Math.round(entry.opacity * 100);
+
+  wrap.innerHTML = `
+    <div class="rp-section">
+      <div class="rp-row">
+        <label class="toggle-switch">
+          <input type="checkbox" id="rp-vis-${entry.id}" ${entry.visible ? 'checked' : ''} />
+          <span class="toggle-slider"></span>
+        </label>
+        <span class="rp-label">表示</span>
+      </div>
+      <div class="rp-row rp-opacity-row">
+        <span class="rp-label">透明度</span>
+        <input type="range" class="ui-slider rp-opacity-slider" min="0" max="100" step="5" value="${pct}" ${entry.visible ? '' : 'disabled'} />
+        <span class="rp-opacity-val">${pct}%</span>
+      </div>
+    </div>
+    <div class="rp-section rp-actions">
+      <button class="rp-action-btn" id="rp-fitbounds-${entry.id}">
+        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/></svg>
+        地図の中心に移動
+      </button>
+      <button class="rp-action-btn rp-action-danger" id="rp-del-${entry.id}">
+        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+        削除
+      </button>
+    </div>`;
+
+  // 可視トグル
+  const visChk = wrap.querySelector(`#rp-vis-${entry.id}`);
+  const slider  = wrap.querySelector('.rp-opacity-slider');
+  const valSpan = wrap.querySelector('.rp-opacity-val');
+  visChk.addEventListener('change', () => {
+    entry.visible = visChk.checked;
+    slider.disabled = !entry.visible;
+    if (map.getLayer(entry.layerId)) {
+      map.setLayoutProperty(entry.layerId, 'visibility', entry.visible ? 'visible' : 'none');
+    }
+  });
+
+  // 透明度スライダー
+  updateSliderGradient(slider);
+  slider.addEventListener('input', () => {
+    entry.opacity = parseInt(slider.value) / 100;
+    valSpan.textContent = slider.value + '%';
+    updateSliderGradient(slider);
+    if (entry.visible && map.getLayer(entry.layerId)) {
+      map.setPaintProperty(entry.layerId, 'raster-opacity', toRasterOpacity(entry.opacity));
+    }
+  });
+
+  // 中心移動ボタン
+  wrap.querySelector(`#rp-fitbounds-${entry.id}`)?.addEventListener('click', () => {
+    if (entry.bbox) {
+      const b = entry.bbox;
+      map.fitBounds([[b.west, b.south], [b.east, b.north]], { padding: 60, duration: 600 });
+    }
+  });
+
+  // 削除ボタン
+  wrap.querySelector(`#rp-del-${entry.id}`)?.addEventListener('click', () => {
+    if (confirm(`「${entry.name}」を削除しますか？`)) {
+      removeLocalMapLayer(entry.id);
+      closeRightPanel();
+      renderExplorer();
+    }
+  });
+
+  return wrap;
+}
+
+/**
+ * GPX トラックの右パネルコンテンツを生成する。
+ * ファイル情報・再生コントロール・削除ボタンを含む。
+ */
+function _buildGpxRightPanel() {
+  const wrap = document.createElement('div');
+  wrap.className = 'rp-gpx-panel';
+
+  const pts   = gpxState.trackPoints.length;
+  const dur   = gpxState.totalDuration ?? 0;
+
+  // 既存の formatMMSS を利用（app.js 内で定義済み）
+  const durStr = typeof formatMMSS === 'function' ? formatMMSS(dur) : '--:--';
+
+  wrap.innerHTML = `
+    <div class="rp-section">
+      <div class="rp-info-row"><span class="rp-info-label">ポイント数</span><span class="rp-info-val">${pts.toLocaleString()}</span></div>
+      <div class="rp-info-row"><span class="rp-info-label">総時間</span><span class="rp-info-val">${durStr}</span></div>
+    </div>
+    <div class="rp-section rp-gpx-controls">
+      <button class="rp-gpx-playpause rp-action-btn" id="rp-gpx-play">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        <span>${gpxState.isPlaying ? '一時停止' : '再生'}</span>
+      </button>
+    </div>
+    <div class="rp-section rp-actions">
+      <button class="rp-action-btn rp-action-danger" id="rp-gpx-del">
+        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+        削除
+      </button>
+    </div>`;
+
+  // 再生/一時停止：既存の play-pause-btn をプログラマチックに click
+  wrap.querySelector('#rp-gpx-play')?.addEventListener('click', () => {
+    document.getElementById('play-pause-btn')?.click();
+    // ボタンラベルを更新
+    const span = wrap.querySelector('#rp-gpx-play span');
+    if (span) span.textContent = gpxState.isPlaying ? '一時停止' : '再生';
+  });
+
+  // 削除ボタン
+  wrap.querySelector('#rp-gpx-del')?.addEventListener('click', () => {
+    if (confirm('GPXトラックを削除しますか？')) {
+      gpxState.trackPoints = [];
+      gpxState.fileName = null;
+      const src = map.getSource('gpx-source');
+      if (src) src.setData({ type: 'FeatureCollection', features: [] });
+      document.getElementById('gpx-status').innerHTML = '';
+      closeRightPanel();
+      renderExplorer();
+    }
+  });
+
+  return wrap;
+}
 
 // ================================================================
 // Phase 3 — コースエディタービュー切り替え
@@ -8017,11 +8159,7 @@ function renderExplorer() {
     onItemClick: (item) => {
       _explorerActiveId = item.id;
       renderExplorer();
-      // 地図の中心へ移動
-      if (item.data?.bbox) {
-        const b = item.data.bbox;
-        map.fitBounds([[b.west, b.south], [b.east, b.north]], { padding: 60, duration: 600 });
-      }
+      openRightPanel(item.data.name.replace(/\.kmz$/i, ''), _buildMapLayerRightPanel(item.data));
     },
     onItemCtx: (item, x, y) => {
       _showExplorerCtx(x, y, [
@@ -8073,9 +8211,7 @@ function renderExplorer() {
     onItemClick: (item) => {
       _explorerActiveId = item.id;
       renderExplorer();
-      // GPX セクションをテレインパネルで開く（Phase 3 で右パネルに移行）
-      const btn = document.querySelector('.sidebar-nav-btn[data-panel="terrain"]');
-      if (btn) btn.click();
+      openRightPanel(item.data.fileName ?? 'GPX', _buildGpxRightPanel());
     },
     onItemCtx: (item, x, y) => {
       _showExplorerCtx(x, y, [
