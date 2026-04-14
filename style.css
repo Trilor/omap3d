@@ -47,7 +47,9 @@
 
 :root {
   --panel-w: 230px;
-  /* ★ パネル幅の唯一の定義。変更はここだけでよい */
+  /* ★ 左パネル幅。変更はここだけでよい */
+  --rp-w: 320px;
+  /* ★ 右パネル幅のデフォルト。ドラッグリサイズで上書きされる */
 
   /* ===== テーマカラー（ミュートティール） ===== */
   --primary: #2a9d8f;
@@ -3925,7 +3927,7 @@ label.setting-label {
 /* 右パネルが開いている間、コントロール群を右パネル幅分左に移動 */
 body.rp-open .maplibregl-ctrl-top-right,
 body.rp-open .maplibregl-ctrl-bottom-right {
-  right: var(--panel-w) !important;
+  right: var(--rp-w) !important;
 }
 
 .maplibregl-ctrl-bottom-left {
@@ -6108,9 +6110,9 @@ h4,
   background: #ffffff !important;
 }
 
-/* 右パネル: 左パネルと対称に統一 */
+/* 右パネル: 左パネルと対称に統一（幅はドラッグリサイズ変数を維持） */
 #right-panel {
-  width: 292px !important;
+  width: var(--rp-w) !important;
   border-radius: 16px 0 0 16px !important;
   border: 2px solid var(--border-light) !important;
   border-right: 1px solid var(--border-light) !important;
@@ -7941,7 +7943,7 @@ select,
   position: fixed;
   right: 0;
   top: 0;
-  width: var(--panel-w);   /* 左パネルと同じ幅 */
+  width: var(--rp-w);   /* 右パネル専用幅（ドラッグリサイズで変化） */
   height: 100vh;
   background: var(--bg-surface);
   border-left: 1px solid var(--border-muted);
@@ -7959,6 +7961,23 @@ select,
   transform: translateX(0);
   visibility: visible;
   pointer-events: auto;
+}
+
+/* 右パネル ドラッグリサイズハンドル */
+#rp-resize-handle {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 6px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 1;
+  user-select: none;
+}
+#rp-resize-handle:hover,
+#rp-resize-handle.dragging {
+  background: var(--primary);
+  opacity: 0.25;
 }
 
 .right-panel-header {

@@ -7711,7 +7711,6 @@ document.querySelectorAll('.sidebar-nav-btn').forEach(btn => {
       document.getElementById('panel-' + panel).classList.add('active');
       _sidebarCurrentPanel = panel;
       _sidebarOpen = true;
-      _openedByHover = false; // クリックで開いた → ホバークローズを無効化
     }
     // CSSアニメーション完了後に幅を反映
     // display:none は即時反映されるため rAF 1フレームで幅を取得可能
@@ -7728,21 +7727,16 @@ document.querySelectorAll('.sidebar-close-btn').forEach(btn => {
     sbPanel.classList.add('sb-hidden');
     document.querySelectorAll('.sidebar-nav-btn').forEach(b => b.classList.remove('active'));
     _sidebarOpen = false;
-    _openedByHover = false;
     requestAnimationFrame(updateSidebarWidth);
   });
 });
 
 // ================================================================
-// Phase 1 — 左パネル Pin/Overlay モード ＋ ホバー展開 ＋ 右パネル
+// Phase 1 — 左パネル Pin/Overlay モード ＋ 右パネル
 // ================================================================
 
 // ピン留め状態（true=固定Push / false=オーバーレイ、localStorage で永続化）
 let _sidebarPinned = localStorage.getItem('teledrop-sidebar-pinned') !== 'false';
-// ホバー展開で開いているかどうか（false=クリックで開いた → ホバークローズしない）
-let _openedByHover = false;
-let _hoverOpenTimer  = null;
-let _hoverCloseTimer = null;
 
 /** ピン状態を CSS クラスに反映する */
 function _updatePinMode() {
@@ -7780,7 +7774,6 @@ document.querySelectorAll('.sidebar-section-header').forEach(hd => {
   btn.addEventListener('click', e => {
     e.stopPropagation();
     _sidebarPinned = !_sidebarPinned;
-    _openedByHover = false; // ピン操作でホバー状態をリセット
     localStorage.setItem('teledrop-sidebar-pinned', String(_sidebarPinned));
     _updatePinMode();
     _refreshPinBtnIcon();
@@ -7790,67 +7783,6 @@ document.querySelectorAll('.sidebar-section-header').forEach(hd => {
   else          hd.appendChild(btn);
 });
 
-// ---- ホバー展開 ----
-
-const _lpIconBar = document.getElementById('sidebar-icon-bar');
-const _lpPanel   = document.getElementById('sidebar-panel');
-
-/** ホバーでパネルを開く（直前に開いていたパネルを再表示） */
-function _hoverOpenPanel() {
-  if (_sidebarOpen) return; // 既に開いている
-  const panelId = _sidebarCurrentPanel || 'terrain';
-  const sbPanel = document.getElementById('sidebar-panel');
-  document.querySelectorAll('.sidebar-nav-btn').forEach(b  => b.classList.remove('active'));
-  document.querySelectorAll('.sidebar-section').forEach(s  => s.classList.remove('active'));
-  const navBtn  = document.querySelector(`.sidebar-nav-btn[data-panel="${panelId}"]`);
-  const section = document.getElementById('panel-' + panelId);
-  if (navBtn)   navBtn.classList.add('active');
-  if (section)  section.classList.add('active');
-  sbPanel.classList.remove('sb-hidden');
-  _sidebarOpen   = true;
-  _openedByHover = true;
-  requestAnimationFrame(updateSidebarWidth);
-}
-
-/** ホバーで開いたパネルを閉じる（クリックで開いた場合は閉じない） */
-function _hoverClosePanel() {
-  if (!_openedByHover) return;
-  const sbPanel = document.getElementById('sidebar-panel');
-  sbPanel.classList.add('sb-hidden');
-  document.querySelectorAll('.sidebar-nav-btn').forEach(b => b.classList.remove('active'));
-  _sidebarOpen   = false;
-  _openedByHover = false;
-  requestAnimationFrame(updateSidebarWidth);
-}
-
-// アイコンバーへの enter: 閉じていればホバー展開タイマーをセット
-_lpIconBar.addEventListener('mouseenter', () => {
-  clearTimeout(_hoverCloseTimer);
-  if (!_sidebarOpen) {
-    clearTimeout(_hoverOpenTimer);
-    _hoverOpenTimer = setTimeout(_hoverOpenPanel, 250);
-  }
-});
-
-// アイコンバーから leave: ホバー展開タイマーをキャンセル or クローズタイマーをセット
-_lpIconBar.addEventListener('mouseleave', () => {
-  clearTimeout(_hoverOpenTimer);
-  if (_openedByHover) {
-    _hoverCloseTimer = setTimeout(_hoverClosePanel, 400);
-  }
-});
-
-// パネルへの enter: クローズタイマーをキャンセル（マウスがパネルに移動したので継続表示）
-_lpPanel?.addEventListener('mouseenter', () => {
-  clearTimeout(_hoverCloseTimer);
-});
-
-// パネルから leave: ホバーで開いていたらクローズタイマーをセット
-_lpPanel?.addEventListener('mouseleave', () => {
-  if (_openedByHover) {
-    _hoverCloseTimer = setTimeout(_hoverClosePanel, 400);
-  }
-});
 
 // ---- 右パネル ----
 
@@ -7884,6 +7816,48 @@ function closeRightPanel() {
 }
 
 document.getElementById('right-panel-close-btn')?.addEventListener('click', closeRightPanel);
+
+// ---- 右パネル ドラッグリサイズ ----
+(function () {
+  const RP_W_KEY = 'teledrop-rp-w';
+  const RP_W_MIN = 220;
+  const RP_W_MAX = 680;
+
+  /** --rp-w をセットし localStorage に保存 */
+  function _setRpWidth(px) {
+    const clamped = Math.min(RP_W_MAX, Math.max(RP_W_MIN, px));
+    document.documentElement.style.setProperty('--rp-w', clamped + 'px');
+    localStorage.setItem(RP_W_KEY, String(clamped));
+  }
+
+  // 起動時に保存値を復元
+  const saved = parseInt(localStorage.getItem(RP_W_KEY), 10);
+  if (!isNaN(saved)) _setRpWidth(saved);
+
+  const handle = document.getElementById('rp-resize-handle');
+  if (!handle) return;
+
+  handle.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    handle.classList.add('dragging');
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+
+    const onMove = (ev) => {
+      // 右パネルは right:0 固定なので幅 = 画面右端 - マウスX
+      _setRpWidth(window.innerWidth - ev.clientX);
+    };
+    const onUp = () => {
+      handle.classList.remove('dragging');
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+})();
 
 // ================================================================
 // Phase 2 — エクスプローラー ファイルツリー
