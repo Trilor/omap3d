@@ -8101,6 +8101,23 @@ select,
 }
 .expl-event-label:hover { color: var(--primary); }
 
+/* この場所へ移動ボタン */
+.expl-event-fly {
+  width: 18px; height: 18px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 3px;
+  opacity: 0;
+  flex-shrink: 0;
+  transition: opacity 0.1s, background 0.1s, color 0.1s;
+}
+.expl-event-hd:hover .expl-event-fly { opacity: 1; }
+.expl-event-hd.is-active-event .expl-event-fly { opacity: 1; }
+.expl-event-fly:hover { background: var(--bg-subtle); color: var(--primary); }
+
 /* コース追加・削除ボタン */
 .expl-event-add-btn,
 .expl-event-del {

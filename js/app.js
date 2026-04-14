@@ -7032,7 +7032,6 @@ function _buildEventFolder(event, courses) {
       folder.classList.remove('is-collapsed');
       // イベントをロードして全コントロールビューへ
       if (getActiveEventId() !== event.id) await loadEvent(event.id);
-      _flyToEventControls(event);
       _explorerActiveId = 'controls-' + event.id;
       showAllControlsTab();
       openCourseEditor();
@@ -7097,14 +7096,25 @@ function _buildEventFolder(event, courses) {
     await renderExplorer();
   });
 
+  // この場所へ移動ボタン
+  const flyBtn = document.createElement('button');
+  flyBtn.className = 'expl-event-fly';
+  flyBtn.title = 'この場所へ移動';
+  flyBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>`;
+  flyBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    _flyToEventControls(event);
+  });
+
   hd.appendChild(chevron);
   hd.appendChild(evIcon);
   hd.appendChild(lbl);
+  hd.appendChild(flyBtn);
   hd.appendChild(addCourseBtn);
   hd.appendChild(delBtn);
   // ヘッダー本体クリック（ラベル・ボタン以外）→ 展開/折りたたみ
   hd.addEventListener('click', e => {
-    if (e.target.closest('.expl-event-add-btn, .expl-event-del, .expl-event-label, .expl-section-chevron')) return;
+    if (e.target.closest('.expl-event-add-btn, .expl-event-del, .expl-event-fly, .expl-event-label, .expl-section-chevron')) return;
     _explorerCollapsed[key] = !(_explorerCollapsed[key] ?? false);
     folder.classList.toggle('is-collapsed', !!_explorerCollapsed[key]);
   });
