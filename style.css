@@ -48,7 +48,7 @@
 :root {
   --panel-w: 230px;
   /* ★ 左パネル幅。変更はここだけでよい */
-  --rp-w: 320px;
+  --rp-w: 220px;
   /* ★ 右パネル幅のデフォルト。ドラッグリサイズで上書きされる */
 
   /* ===== テーマカラー（ミュートティール） ===== */
@@ -7963,16 +7963,22 @@ select,
   pointer-events: auto;
 }
 
-/* 右パネル ドラッグリサイズハンドル（パネル外側6px・内側6pxの計12px） */
+/* 右パネル ドラッグリサイズハンドル
+   パネル外に独立した fixed 要素として配置（overflow:hidden の影響を受けない）
+   パネルが閉じているときは非表示 */
 #rp-resize-handle {
-  position: absolute;
-  left: -6px;
+  display: none;
+  position: fixed;
   top: 0;
+  right: calc(var(--rp-w) - 6px); /* パネル左端を中心に ±6px */
   width: 12px;
-  height: 100%;
+  height: 100vh;
   cursor: w-resize;
   z-index: 12;
   user-select: none;
+}
+body.rp-open #rp-resize-handle {
+  display: block;
 }
 
 .right-panel-header {
