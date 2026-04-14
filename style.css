@@ -7979,6 +7979,86 @@ select,
   animation: expl-folder-highlight 1.2s ease-out forwards;
 }
 
+/* ＋▾ ポップオーバーボタン */
+.expl-add-pop-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  padding: 2px 5px;
+  border: 1px solid var(--border-input);
+  background: var(--bg-surface);
+  color: var(--text-sub);
+  cursor: pointer;
+  border-radius: 4px;
+  opacity: 0;
+  font-size: 11px;
+  transition: opacity 0.1s, background 0.1s, color 0.1s;
+  flex-shrink: 0;
+}
+.expl-terrain-hd:hover .expl-add-pop-btn { opacity: 1; }
+.expl-add-pop-btn:hover {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+
+/* ポップオーバーメニュー本体 */
+.expl-add-popover {
+  position: fixed;
+  z-index: 10600;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-input);
+  border-radius: 7px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.18);
+  padding: 4px 0;
+  min-width: 160px;
+}
+.expl-add-popover-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 12px;
+  border: none;
+  background: transparent;
+  color: var(--text-main);
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.1s;
+}
+.expl-add-popover-item:hover { background: var(--bg-subtle); }
+.expl-add-popover-icon {
+  width: 14px; height: 14px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--primary);
+  flex-shrink: 0;
+}
+
+/* ドラッグ中アイテム */
+.expl-draggable { cursor: grab; }
+.expl-draggable:active { cursor: grabbing; }
+.expl-draggable.is-dragging { opacity: 0.4; }
+
+/* DnD ドロップ先ハイライト */
+.expl-terrain-folder.dnd-over {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+  border-radius: 6px;
+}
+.expl-terrain-folder.dnd-over > .expl-terrain-hd {
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+}
+
+/* コースアイテム — 編集中インジケーター */
+.expl-item-active-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--primary);
+  flex-shrink: 0;
+  margin-right: 2px;
+}
+
 /* ワークスペース空状態ヒント */
 .expl-ws-hint {
   padding: 24px 16px;

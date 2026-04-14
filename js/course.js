@@ -44,13 +44,14 @@ const _controlDefs = new Map();
 
 /**
  * コース一覧
- * { id:string, name:string, sequence:string[], legRoutes:{[legKey]:Route[]} }
+ * { id:string, name:string, sequence:string[], legRoutes:{[legKey]:Route[]}, terrainId:string|null }
  * sequence   = defId の配列。同一 defId が複数回登場可能（同一ポイント再訪）
  * legRoutes  = レッグごとのルートチョイス配列
  *              key: legKey(fromId, toId)
  *              value: [{ id, colorIdx, coords:[[lng,lat],...] }]
+ * terrainId  = 所属ワークスペーステレイン ID（null = 未分類）
  */
-const _courses = [{ id: 'course0', name: 'コース1', sequence: [], legRoutes: {} }];
+const _courses = [{ id: 'course0', name: 'コース1', sequence: [], legRoutes: {}, terrainId: null }];
 
 let _activeCourseIdx = 0;   // アクティブコースの index
 let _nextDefId       = 0;   // defId 生成カウンタ
@@ -2710,6 +2711,7 @@ function _saveToStorage() {
         id:        c.id,
         name:      c.name,
         sequence:  [...c.sequence],
+        terrainId: c.terrainId ?? null,
         legRoutes: Object.fromEntries(
           Object.entries(c.legRoutes ?? {}).map(([key, routes]) => [
             key,
@@ -2746,9 +2748,9 @@ function _loadFromStorage() {
       Object.entries(c.legRoutes ?? {}).forEach(([key, routes]) => {
         legRoutes[key] = routes.map(r => ({ id: r.id, colorIdx: r.colorIdx ?? 0, coords: r.coords ?? [] }));
       });
-      _courses.push({ id: c.id, name: c.name, sequence: [...(c.sequence ?? [])], legRoutes });
+      _courses.push({ id: c.id, name: c.name, sequence: [...(c.sequence ?? [])], legRoutes, terrainId: c.terrainId ?? null });
     });
-    if (_courses.length === 0) _courses.push({ id: 'course0', name: 'コース1', sequence: [], legRoutes: {} });
+    if (_courses.length === 0) _courses.push({ id: 'course0', name: 'コース1', sequence: [], legRoutes: {}, terrainId: null });
 
     // カウンタ・選択状態復元
     _nextDefId       = data.nextDefId       ?? _nextDefId;
@@ -2974,6 +2976,62 @@ export function setCourseMapVisible(visible) {
   for (const id of _COURSE_LAYERS) {
     if (_map.getLayer(id)) _map.setLayoutProperty(id, 'visibility', v);
   }
+}
+
+/**
+ * 全コースのサマリー一覧を返す（renderExplorer 用）
+ * @returns {{ id:string, name:string, terrainId:string|null, isEmpty:boolean }[]}
+ */
+export function getCoursesSummary() {
+  return _courses.map(c => ({
+    id:        c.id,
+    name:      c.name,
+    terrainId: c.terrainId ?? null,
+    isEmpty:   c.sequence.length === 0,
+    isActive:  _courses[_activeCourseIdx]?.id === c.id,
+  }));
+}
+
+/**
+ * テレイン用に新しいコースを作成し、アクティブにする
+ * @param {string|null} terrainId
+ * @returns {string} 新しいコースの id
+ */
+export function createCourseForTerrain(terrainId) {
+  _pushHistory();
+  const id   = 'course' + Date.now();
+  const name = terrainId ? 'コース' + (_courses.filter(c => c.terrainId === terrainId).length + 1) : 'コース' + (_courses.length + 1);
+  _courses.push({ id, name, sequence: [], legRoutes: {}, terrainId: terrainId ?? null });
+  _activeCourseIdx = _courses.length - 1;
+  _refreshSource();
+  _renderPanel();
+  _saveToStorage();
+  return id;
+}
+
+/**
+ * 指定コースをアクティブにする
+ * @param {string} courseId
+ */
+export function setActiveCourse(courseId) {
+  const idx = _courses.findIndex(c => c.id === courseId);
+  if (idx === -1) return;
+  _activeCourseIdx = idx;
+  _refreshSource();
+  _scheduleCalc();
+  _renderPanel();
+}
+
+/**
+ * コースの terrainId を変更する（ドラッグ＆ドロップ用）
+ * @param {string} courseId
+ * @param {string|null} terrainId
+ */
+export function setCourseTerrainId(courseId, terrainId) {
+  const course = _courses.find(c => c.id === courseId);
+  if (!course) return;
+  course.terrainId = terrainId ?? null;
+  _saveToStorage();
 }
 
 export function initCoursePlanner(map) {

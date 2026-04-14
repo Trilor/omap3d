@@ -35,7 +35,7 @@
    ================================================================ */
 
 import { getDeclination, setDeclinationModel } from './magneticDeclination.js';
-import { initCoursePlanner, setMapLayersGetter, setCourseMapVisible } from './course.js';
+import { initCoursePlanner, setMapLayersGetter, setCourseMapVisible, getCoursesSummary, createCourseForTerrain, setActiveCourse, setCourseTerrainId } from './course.js';
 import {
   saveMapLayer, getAllMapLayers, deleteMapLayer,
   updateMapLayerState, clearAllMapLayers, estimateStorageUsage,
@@ -6548,47 +6548,19 @@ async function renderExplorer() {
   if (!treeEl) return;
   treeEl.innerHTML = '';
 
-  // ── コースセクション（テレインに属さない単体セクション） ──
-  const courseItems = [{ id: 'course-main', label: '現在のコース' }];
-  treeEl.appendChild(_buildExplorerSection('コース', 'course', courseItems, {
-    addTitle: 'コースを追加',
-    addAction: () => openCourseEditor(),
-    onItemClick: (item) => {
-      _explorerActiveId = item.id;
-      renderExplorer();
-      openCourseEditor();
-    },
-    onItemCtx: (item, x, y) => {
-      _showExplorerCtx(x, y, [
-        { label: 'コースを編集', action: () => openCourseEditor() },
-        { separator: true },
-        { label: 'JSON エクスポート', action: () => document.getElementById('course-export-btn')?.click() },
-        { label: 'IOF XML エクスポート', action: () => document.getElementById('course-xml-btn')?.click() },
-        { label: 'Purple Pen (.ppen) エクスポート', action: () => document.getElementById('course-ppen-btn')?.click() },
-      ]);
-    },
-    itemIcon: _svgCourseIcon(),
-    badgeText: item => {
-      try {
-        const raw = localStorage.getItem('teledrop_course_v2');
-        if (!raw) return null;
-        const d = JSON.parse(raw);
-        return d.courses?.length > 1 ? d.courses.length + 'バリアント' : null;
-      } catch { return null; }
-    },
-  }));
-
-  // ── テレインフォルダ ──
   let wsTerrains = [];
   try { wsTerrains = await getWsTerrains(); } catch { /* ignore */ }
 
-  const focusId = _focusTerrainId;
-  _focusTerrainId = null;
+  const allCourses = getCoursesSummary();
+  const focusId    = _focusTerrainId;
+  _focusTerrainId  = null;
 
+  // ── テレインフォルダ ──
   wsTerrains.forEach(t => {
-    const mapsInTerrain = localMapLayers.filter(e => e.terrainId === t.id);
-    const gpxInTerrain  = (gpxState.fileName && gpxState.terrainId === t.id) ? gpxState : null;
-    const folder = _buildTerrainFolder(t, mapsInTerrain, gpxInTerrain);
+    const mapsInTerrain    = localMapLayers.filter(e => e.terrainId === t.id);
+    const gpxInTerrain     = (gpxState.fileName && gpxState.terrainId === t.id) ? gpxState : null;
+    const coursesInTerrain = allCourses.filter(c => c.terrainId === t.id);
+    const folder = _buildTerrainFolder(t, mapsInTerrain, gpxInTerrain, coursesInTerrain);
     if (focusId === t.id) {
       folder.classList.add('is-focused');
       requestAnimationFrame(() => folder.scrollIntoView({ behavior: 'smooth', block: 'nearest' }));
@@ -6597,17 +6569,18 @@ async function renderExplorer() {
   });
 
   // ── 未分類フォルダ ──
-  const uncatMaps = localMapLayers.filter(e => !e.terrainId);
-  const uncatGpx  = (gpxState.fileName && !gpxState.terrainId) ? gpxState : null;
-  if (uncatMaps.length > 0 || uncatGpx) {
-    treeEl.appendChild(_buildUncategorizedFolder(uncatMaps, uncatGpx));
+  const uncatMaps    = localMapLayers.filter(e => !e.terrainId);
+  const uncatGpx     = (gpxState.fileName && !gpxState.terrainId) ? gpxState : null;
+  const uncatCourses = allCourses.filter(c => !c.terrainId);
+  if (uncatMaps.length > 0 || uncatGpx || uncatCourses.length > 0) {
+    treeEl.appendChild(_buildUncategorizedFolder(uncatMaps, uncatGpx, uncatCourses));
   }
 
   // ── ワークスペースが空のとき案内メッセージ ──
-  if (wsTerrains.length === 0 && uncatMaps.length === 0 && !uncatGpx) {
+  if (wsTerrains.length === 0 && uncatMaps.length === 0 && !uncatGpx && uncatCourses.length === 0) {
     const hint = document.createElement('div');
     hint.className = 'expl-ws-hint';
-    hint.innerHTML = '<span>テレインタブで検索し「＋」でテレインを追加すると<br>ここにフォルダが作成されます</span>';
+    hint.innerHTML = '<span>検索タブでテレインを探し「＋」で追加すると<br>ここにフォルダが作成されます</span>';
     treeEl.appendChild(hint);
   }
 
@@ -6634,16 +6607,20 @@ async function renderExplorer() {
 
 /**
  * テレインフォルダ DOM を構築して返す
- * @param {object} terrain
- * @param {Array}  maps     — localMapLayers のうちこのテレインに属するもの
- * @param {object|null} gpx — gpxState（属する場合のみ）
+ * @param {object}        terrain
+ * @param {Array}         maps     — localMapLayers のうちこのテレインに属するもの
+ * @param {object|null}   gpx      — gpxState（属する場合のみ）
+ * @param {Array}         courses  — getCoursesSummary() のうちこのテレインに属するもの
  */
-function _buildTerrainFolder(terrain, maps, gpx) {
+function _buildTerrainFolder(terrain, maps, gpx, courses = []) {
   const collapsed = _explorerCollapsed[terrain.id] ?? false;
 
   const folder = document.createElement('div');
   folder.className = 'expl-terrain-folder' + (collapsed ? ' is-collapsed' : '');
   folder.dataset.terrainId = terrain.id;
+
+  // DnD ドロップターゲット設定
+  _setupFolderDropTarget(folder, terrain.id);
 
   // ── ヘッダー ──
   const hd = document.createElement('div');
@@ -6661,16 +6638,20 @@ function _buildTerrainFolder(terrain, maps, gpx) {
   lbl.className = 'expl-terrain-label';
   lbl.textContent = terrain.name;
 
-  const total = maps.length + (gpx ? 1 : 0);
+  const total = maps.length + (gpx ? 1 : 0) + courses.length;
   if (total > 0) {
     const badge = document.createElement('span');
     badge.className = 'expl-terrain-badge';
     const parts = [];
+    if (courses.length > 0) parts.push(`コース ${courses.length}`);
     if (maps.length > 0) parts.push(`地図 ${maps.length}`);
     if (gpx) parts.push('GPX');
     badge.textContent = parts.join(' | ');
     lbl.appendChild(badge);
   }
+
+  // ＋▾ ポップオーバーボタン
+  const addPopBtn = _buildAddPopoverBtn(terrain.id);
 
   const flyBtn = document.createElement('button');
   flyBtn.className = 'expl-terrain-fly';
@@ -6687,9 +6668,10 @@ function _buildTerrainFolder(terrain, maps, gpx) {
   delBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="1" y1="1" x2="11" y2="11"/><line x1="11" y1="1" x2="1" y2="11"/></svg>`;
   delBtn.addEventListener('click', async e => {
     e.stopPropagation();
-    if (!confirm(`「${terrain.name}」をワークスペースから削除しますか？\n関連付けられた地図・GPXは未分類に移動します。`)) return;
+    if (!confirm(`「${terrain.name}」をワークスペースから削除しますか？\n関連付けられたファイルは未分類に移動します。`)) return;
     localMapLayers.filter(m => m.terrainId === terrain.id).forEach(m => { m.terrainId = null; });
     if (gpxState.terrainId === terrain.id) gpxState.terrainId = null;
+    getCoursesSummary().filter(c => c.terrainId === terrain.id).forEach(c => setCourseTerrainId(c.id, null));
     await deleteWsTerrain(terrain.id);
     const all = await getWsTerrains();
     updateWorkspaceTerrainSource(map, all);
@@ -6699,9 +6681,12 @@ function _buildTerrainFolder(terrain, maps, gpx) {
   hd.appendChild(chevron);
   hd.appendChild(tfIcon);
   hd.appendChild(lbl);
+  hd.appendChild(addPopBtn);
   hd.appendChild(flyBtn);
   hd.appendChild(delBtn);
-  hd.addEventListener('click', () => {
+  hd.addEventListener('click', e => {
+    // addPopBtn, flyBtn, delBtn のクリックは伝播を止めているので不要だが念のため
+    if (e.target.closest('.expl-terrain-fly, .expl-terrain-del, .expl-add-pop-btn')) return;
     _explorerCollapsed[terrain.id] = !(_explorerCollapsed[terrain.id] ?? false);
     folder.classList.toggle('is-collapsed', !!_explorerCollapsed[terrain.id]);
   });
@@ -6710,38 +6695,22 @@ function _buildTerrainFolder(terrain, maps, gpx) {
   // ── ボディ ──
   const body = document.createElement('div');
   body.className = 'expl-terrain-body';
+  courses.forEach(c => body.appendChild(_buildCourseItem(c)));
   maps.forEach(entry => body.appendChild(_buildMapItem(entry)));
   if (gpx) body.appendChild(_buildGpxItem());
-
-  const actions = document.createElement('div');
-  actions.className = 'expl-terrain-actions';
-  const addMapBtn2 = document.createElement('button');
-  addMapBtn2.className = 'expl-terrain-add-btn';
-  addMapBtn2.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> 地図を追加`;
-  addMapBtn2.addEventListener('click', () => {
-    _pendingImportTerrainId = terrain.id;
-    document.getElementById('explorer-map-input')?.click();
-  });
-  const addGpxBtn2 = document.createElement('button');
-  addGpxBtn2.className = 'expl-terrain-add-btn';
-  addGpxBtn2.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> GPX を追加`;
-  addGpxBtn2.addEventListener('click', () => {
-    _pendingGpxTerrainId = terrain.id;
-    document.getElementById('explorer-gpx-input')?.click();
-  });
-  actions.appendChild(addMapBtn2);
-  actions.appendChild(addGpxBtn2);
-  body.appendChild(actions);
   folder.appendChild(body);
   return folder;
 }
 
 /** 未分類フォルダ DOM を構築して返す */
-function _buildUncategorizedFolder(maps, gpx) {
-  const collapsed = _explorerCollapsed['uncategorized'] ?? true; // デフォルト折りたたみ
+function _buildUncategorizedFolder(maps, gpx, courses = []) {
+  const collapsed = _explorerCollapsed['uncategorized'] ?? true;
 
   const folder = document.createElement('div');
   folder.className = 'expl-terrain-folder expl-uncategorized' + (collapsed ? ' is-collapsed' : '');
+  folder.dataset.terrainId = 'null'; // DnD ターゲット識別用
+
+  _setupFolderDropTarget(folder, null);
 
   const hd = document.createElement('div');
   hd.className = 'expl-terrain-hd';
@@ -6758,7 +6727,7 @@ function _buildUncategorizedFolder(maps, gpx) {
   lbl.className = 'expl-terrain-label expl-uncategorized-label';
   lbl.textContent = '未分類';
 
-  const total = maps.length + (gpx ? 1 : 0);
+  const total = maps.length + (gpx ? 1 : 0) + courses.length;
   if (total > 0) {
     const badge = document.createElement('span');
     badge.className = 'expl-terrain-badge';
@@ -6766,10 +6735,14 @@ function _buildUncategorizedFolder(maps, gpx) {
     lbl.appendChild(badge);
   }
 
+  const addPopBtnUc = _buildAddPopoverBtn(null);
+
   hd.appendChild(chevron);
   hd.appendChild(ucIcon);
   hd.appendChild(lbl);
-  hd.addEventListener('click', () => {
+  hd.appendChild(addPopBtnUc);
+  hd.addEventListener('click', e => {
+    if (e.target.closest('.expl-add-pop-btn')) return;
     _explorerCollapsed['uncategorized'] = !(_explorerCollapsed['uncategorized'] ?? true);
     folder.classList.toggle('is-collapsed', !!_explorerCollapsed['uncategorized']);
   });
@@ -6777,30 +6750,219 @@ function _buildUncategorizedFolder(maps, gpx) {
 
   const body = document.createElement('div');
   body.className = 'expl-terrain-body';
+  courses.forEach(c => body.appendChild(_buildCourseItem(c)));
   maps.forEach(entry => body.appendChild(_buildMapItem(entry)));
   if (gpx) body.appendChild(_buildGpxItem());
-
-  const actions = document.createElement('div');
-  actions.className = 'expl-terrain-actions';
-  const addMapBtn3 = document.createElement('button');
-  addMapBtn3.className = 'expl-terrain-add-btn';
-  addMapBtn3.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> 地図を追加`;
-  addMapBtn3.addEventListener('click', () => {
-    _pendingImportTerrainId = null;
-    document.getElementById('explorer-map-input')?.click();
-  });
-  const addGpxBtn3 = document.createElement('button');
-  addGpxBtn3.className = 'expl-terrain-add-btn';
-  addGpxBtn3.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> GPX を追加`;
-  addGpxBtn3.addEventListener('click', () => {
-    _pendingGpxTerrainId = null;
-    document.getElementById('explorer-gpx-input')?.click();
-  });
-  actions.appendChild(addMapBtn3);
-  actions.appendChild(addGpxBtn3);
-  body.appendChild(actions);
   folder.appendChild(body);
   return folder;
+}
+
+/**
+ * ＋▾ ポップオーバーボタンを構築して返す
+ * @param {string|null} terrainId — null = 未分類
+ */
+function _buildAddPopoverBtn(terrainId) {
+  const btn = document.createElement('button');
+  btn.className = 'expl-add-pop-btn';
+  btn.title = '追加';
+  btn.setAttribute('aria-label', '追加メニュー');
+  btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg><svg xmlns="http://www.w3.org/2000/svg" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>`;
+
+  btn.addEventListener('click', e => {
+    e.stopPropagation();
+    _showAddPopover(btn, terrainId);
+  });
+  return btn;
+}
+
+/** ＋▾ ポップオーバーメニューを表示する */
+let _openAddPopover = null;
+function _showAddPopover(anchorBtn, terrainId) {
+  // 既存のポップオーバーを閉じる
+  _openAddPopover?.remove();
+  _openAddPopover = null;
+
+  const menu = document.createElement('div');
+  menu.className = 'expl-add-popover';
+
+  const items = [
+    {
+      icon: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>`,
+      label: 'コースを作成',
+      action: () => {
+        createCourseForTerrain(terrainId);
+        renderExplorer();
+        openCourseEditor();
+      },
+    },
+    {
+      icon: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>`,
+      label: '地図を追加',
+      action: () => {
+        _pendingImportTerrainId = terrainId;
+        document.getElementById('explorer-map-input')?.click();
+      },
+    },
+    {
+      icon: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>`,
+      label: 'GPX を追加',
+      action: () => {
+        _pendingGpxTerrainId = terrainId;
+        document.getElementById('explorer-gpx-input')?.click();
+      },
+    },
+  ];
+
+  items.forEach(item => {
+    const row = document.createElement('button');
+    row.className = 'expl-add-popover-item';
+    row.innerHTML = `<span class="expl-add-popover-icon">${item.icon}</span><span>${item.label}</span>`;
+    row.addEventListener('click', e => {
+      e.stopPropagation();
+      _closeAddPopover();
+      item.action();
+    });
+    menu.appendChild(row);
+  });
+
+  document.body.appendChild(menu);
+  _openAddPopover = menu;
+
+  // アンカーボタン直下に配置
+  const r = anchorBtn.getBoundingClientRect();
+  menu.style.position = 'fixed';
+  menu.style.top  = (r.bottom + 4) + 'px';
+  menu.style.left = Math.max(4, r.right - menu.offsetWidth) + 'px';
+
+  // クリックアウトで閉じる
+  setTimeout(() => {
+    document.addEventListener('mousedown', _closeAddPopover, { once: true });
+  }, 0);
+}
+
+function _closeAddPopover() {
+  _openAddPopover?.remove();
+  _openAddPopover = null;
+}
+
+// ================================================================
+// ドラッグ＆ドロップ
+// ================================================================
+
+/** ドラッグ中のアイテム情報 */
+let _dndItem = null; // { type:'map'|'gpx'|'course', id:string }
+
+/**
+ * フォルダに DnD ドロップターゲットの設定をする
+ * @param {HTMLElement}   folder
+ * @param {string|null}   terrainId
+ */
+function _setupFolderDropTarget(folder, terrainId) {
+  folder.addEventListener('dragover', e => {
+    if (!_dndItem) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    folder.classList.add('dnd-over');
+  });
+  folder.addEventListener('dragleave', e => {
+    if (!folder.contains(e.relatedTarget)) folder.classList.remove('dnd-over');
+  });
+  folder.addEventListener('drop', async e => {
+    e.preventDefault();
+    folder.classList.remove('dnd-over');
+    if (!_dndItem) return;
+    const { type, id } = _dndItem;
+    _dndItem = null;
+    if (type === 'map') {
+      const entry = localMapLayers.find(m => m.id === id);
+      if (entry) entry.terrainId = terrainId;
+    } else if (type === 'gpx') {
+      gpxState.terrainId = terrainId;
+    } else if (type === 'course') {
+      setCourseTerrainId(id, terrainId);
+    }
+    await renderExplorer();
+  });
+}
+
+/**
+ * アイテム要素に draggable を設定する
+ * @param {HTMLElement} el
+ * @param {{ type:string, id:string }} item
+ */
+function _makeDraggable(el, item) {
+  el.draggable = true;
+  el.classList.add('expl-draggable');
+  el.addEventListener('dragstart', e => {
+    _dndItem = item;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', item.type + ':' + item.id);
+    el.classList.add('is-dragging');
+  });
+  el.addEventListener('dragend', () => {
+    el.classList.remove('is-dragging');
+    _dndItem = null;
+    // 全フォルダの dnd-over を解除
+    document.querySelectorAll('.dnd-over').forEach(f => f.classList.remove('dnd-over'));
+  });
+}
+
+/** コースアイテムを構築して返す */
+function _buildCourseItem(courseInfo) {
+  const row = document.createElement('div');
+  row.className = 'expl-item' + (('course-' + courseInfo.id) === _explorerActiveId ? ' is-active' : '');
+
+  const icon = document.createElement('span');
+  icon.className = 'expl-item-icon';
+  icon.innerHTML = _svgCourseIcon();
+
+  const lbl = document.createElement('span');
+  lbl.className = 'expl-item-label';
+  lbl.textContent = courseInfo.name;
+
+  if (courseInfo.isActive) {
+    const dot = document.createElement('span');
+    dot.className = 'expl-item-active-dot';
+    dot.title = '編集中';
+    row.appendChild(dot);
+  }
+
+  const moreBtn = document.createElement('button');
+  moreBtn.className = 'expl-item-more';
+  moreBtn.title = 'オプション';
+  moreBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>`;
+  moreBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    const r = moreBtn.getBoundingClientRect();
+    _showExplorerCtx(r.right + 4, r.top, [
+      { label: 'コースを編集', action: () => { setActiveCourse(courseInfo.id); renderExplorer(); openCourseEditor(); } },
+      { separator: true },
+      { label: 'JSON エクスポート', action: () => document.getElementById('course-export-btn')?.click() },
+      { label: 'IOF XML エクスポート', action: () => document.getElementById('course-xml-btn')?.click() },
+      { label: 'Purple Pen (.ppen) エクスポート', action: () => document.getElementById('course-ppen-btn')?.click() },
+    ]);
+  });
+
+  row.addEventListener('click', () => {
+    _explorerActiveId = 'course-' + courseInfo.id;
+    setActiveCourse(courseInfo.id);
+    renderExplorer();
+    openCourseEditor();
+  });
+  row.addEventListener('contextmenu', e => {
+    e.preventDefault();
+    _showExplorerCtx(e.clientX, e.clientY, [
+      { label: 'コースを編集', action: () => { setActiveCourse(courseInfo.id); renderExplorer(); openCourseEditor(); } },
+    ]);
+  });
+
+  row.appendChild(icon);
+  row.appendChild(lbl);
+  row.appendChild(moreBtn);
+
+  // DnD
+  _makeDraggable(row, { type: 'course', id: courseInfo.id });
+  return row;
 }
 
 /** 地図レイヤーのエクスプローラーアイテムを構築して返す */
@@ -6855,6 +7017,7 @@ function _buildMapItem(entry) {
   row.appendChild(icon);
   row.appendChild(lbl2);
   row.appendChild(moreBtn);
+  _makeDraggable(row, { type: 'map', id: String(entry.id) });
   return row;
 }
 
@@ -6893,6 +7056,7 @@ function _buildGpxItem() {
   row.appendChild(icon);
   row.appendChild(lbl3);
   row.appendChild(moreBtn);
+  _makeDraggable(row, { type: 'gpx', id: 'gpx-main' });
   return row;
 }
 
