@@ -6,4 +6,6 @@
    ================================================================ */
 
 import './protocols.js';
+import './workspace-db.js';
+import './terrain-search.js';
 import './app.js';

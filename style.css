@@ -520,8 +520,7 @@ body {
    ================================================================ */
 .sidebar-scroll,
 .terrain-upper,
-.terrain-lower,
-.miller-scroll-wrap {
+.terrain-lower {
   scrollbar-width: thin;
   scrollbar-color: var(--border-input) transparent;
 }
@@ -2226,236 +2225,226 @@ label.setting-label {
   margin: 4px 10px 8px;
 }
 
-/* Millerブラウザ全体スクロール */
-.miller-scroll-wrap {
-  max-height: 250px;
+/* ===== テレイン検索カードリスト ===== */
+
+/* 検索結果コンテナ（スクロール可能） */
+.terrain-search-results {
+  max-height: 260px;
   overflow-y: auto;
+  border-top: 1px solid var(--border-muted);
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-input) transparent;
 }
 
-/* ===== Miller Columns ブラウザ ===== */
-#miller-browser {
-  border-bottom: 1px solid #e0e0e0;
-}
-
-/* パンくずバー */
-.miller-breadcrumb {
-  display: flex;
-  align-items: center;
-  padding: 3px 8px;
-  font-size: var(--font-xs);
-  color: var(--text-caption);
-  border-bottom: 1px solid #e8e8e8;
-  background: var(--bg-subtle);
-  min-height: 20px;
-  gap: 2px;
-  flex-wrap: nowrap;
-  overflow-x: auto;
-}
-
-.miller-bc-root {
-  color: var(--text-muted);
-  font-size: var(--font-xs);
-  cursor: default;
-  white-space: nowrap;
-}
-
-.miller-bc-sep {
-  color: var(--text-disabled);
-  margin: 0 1px;
-  flex-shrink: 0;
-}
-
-.miller-bc-item {
-  color: var(--primary);
-  font-weight: 600;
-  position: relative;
-  flex-shrink: 0;
-  white-space: nowrap;
-}
-
-.miller-bc-current {
-  color: var(--primary);
-  font-weight: 600;
-  flex-shrink: 0;
-  white-space: nowrap;
-}
-
-.miller-bc-dropdown {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  background: var(--bg-surface);
-  border: 1px solid var(--border-input);
-  border-radius: 4px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
-  min-width: 120px;
-  max-height: 180px;
-  overflow-y: auto;
-  z-index: 200;
-}
-
-.miller-bc-dropdown-item {
-  padding: 5px 10px;
-  font-size: var(--font-sm);
-  cursor: pointer;
-  color: var(--text-main);
-  white-space: nowrap;
-}
-
-.miller-bc-dropdown-item:hover {
-  background: var(--primary-light);
-}
-
-.miller-bc-dropdown-item.current {
-  color: var(--primary);
-  font-weight: 700;
-}
-
-/* 3列コンテナ */
-.miller-wrap {
-  display: flex;
-  height: 210px;
-}
-
-/* 各列 */
-.miller-col {
-  flex: 1;
-  border-right: 1px solid #e0e0e0;
-  overflow-y: auto;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.miller-col:last-child {
-  border-right: none;
-}
-
-/* 列ごとの幅比率: 地方(狭め) / 都道府県(標準) / テレイン(広め) */
-#miller-col-region {
-  flex: 0.75;
-}
-
-#miller-col-pref {
-  flex: 1.05;
-}
-
-#miller-col-terrain {
-  flex: 1.45;
-}
-
-/* 列ヘッダー */
-.miller-col-hd {
-  padding: 3px 6px;
-  font-size: var(--font-xs);
-  font-weight: var(--font-bold);
-  color: var(--text-muted);
-  letter-spacing: 0.05em;
-  border-bottom: 1px solid #e8e8e8;
-  background: var(--bg-hover);
-  text-transform: uppercase;
-  position: sticky;
-  top: 0;
-  flex-shrink: 0;
-}
-
-/* 列内アイテム */
-.miller-item {
-  padding: 2px 6px;
-  font-size: var(--font-xs);
-  line-height: 1.5;
-  cursor: pointer;
-  border-bottom: 1px solid #f5f5f5;
-  color: var(--text-main);
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  min-width: 0;
-}
-
-.miller-item:hover {
-  background: var(--primary-light);
-  color: var(--primary-dark);
-}
-
-.miller-item.selected {
-  background: var(--primary);
-  color: var(--on-primary);
-}
-
-.miller-item.disabled {
-  color: var(--text-disabled);
-  cursor: default;
-  font-style: italic;
-}
-
-.miller-item-name {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  min-width: 0;
-}
-
-.miller-item-count {
-  font-size: var(--font-xs);
-  opacity: 0.65;
-  flex-shrink: 0;
-}
-
-/* ★ テレイン列のお気に入りボタン */
-.miller-item-star {
-  background: none;
-  border: none;
-  padding: 2px 3px;
-  margin-left: 2px;
-  cursor: pointer;
-  color: transparent; /* 通常は非表示（ホバー時に現れる） */
-  flex-shrink: 0;
-  line-height: 1;
-  border-radius: 3px;
-  transition: color 0.12s, transform 0.12s;
-}
-.miller-item:hover .miller-item-star,
-.miller-item-star.active {
-  color: var(--text-muted);
-}
-.miller-item-star:hover {
-  color: #f5c518 !important;
-  transform: scale(1.2);
-}
-.miller-item-star.active {
-  color: #f5c518;
-}
-/* 選択中アイテムでは白で表示 */
-.miller-item.selected .miller-item-star {
-  color: rgba(255,255,255,0.5);
-}
-.miller-item.selected .miller-item-star.active {
-  color: #f5c518;
-}
-.miller-item.selected .miller-item-star:hover {
-  color: #f5c518 !important;
-}
-
-/* テレイン選択後のフレーム一覧ヘッダー */
-.miller-frame-hd {
-  padding: 5px 10px;
-  font-size: var(--font-xs);
-  font-weight: var(--font-bold);
-  color: var(--text-muted);
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  background: var(--bg-hover);
-  border-bottom: 1px solid #e8e8e8;
-}
-
-/* 空状態メッセージ */
-.miller-empty {
-  padding: 12px 10px;
+/* 空/ローディング状態メッセージ */
+.terrain-search-empty,
+.terrain-search-loading {
+  padding: 14px 10px;
   font-size: var(--font-sm);
   color: var(--text-disabled);
   text-align: center;
+}
+
+.terrain-search-loading {
+  color: var(--text-muted);
+}
+
+/* テレイン検索カード */
+.terrain-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--border-muted);
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.terrain-card:last-child {
+  border-bottom: none;
+}
+
+.terrain-card:hover {
+  background: var(--primary-light);
+}
+
+.terrain-card.hovered {
+  background: var(--primary-light);
+}
+
+/* カード左: テキスト情報 */
+.terrain-card-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.terrain-card-name {
+  font-size: var(--font-sm);
+  font-weight: var(--font-semi);
+  color: var(--text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.4;
+}
+
+.terrain-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 2px;
+  flex-wrap: wrap;
+}
+
+.terrain-card-pref {
+  font-size: var(--font-xs);
+  color: var(--text-muted);
+}
+
+/* タイプバッジ */
+.terrain-type-badge {
+  font-size: 10px;
+  line-height: 1;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-weight: var(--font-semi);
+  flex-shrink: 0;
+}
+
+.terrain-type-badge.sprint {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.terrain-type-badge.forest {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.terrain-type-badge.other {
+  background: var(--bg-hover);
+  color: var(--text-muted);
+}
+
+/* カード右: アクションボタン */
+.terrain-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+/* ＋ワークスペースに追加ボタン */
+.terrain-add-btn {
+  background: none;
+  border: 1px solid var(--border-input);
+  border-radius: 4px;
+  padding: 3px 7px;
+  font-size: var(--font-xs);
+  color: var(--primary);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s, border-color 0.12s;
+  line-height: 1.4;
+}
+
+.terrain-add-btn:hover {
+  background: var(--primary-light);
+  border-color: var(--primary);
+}
+
+.terrain-add-btn:disabled {
+  color: var(--text-disabled);
+  border-color: var(--border-muted);
+  cursor: default;
+  background: none;
+}
+
+/* ===== ワークスペーステレイン一覧 ===== */
+.workspace-terrain-list {
+  padding: 2px 0;
+}
+
+/* ワークスペーステレイン行 */
+.ws-terrain-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--border-muted);
+  min-width: 0;
+}
+
+.ws-terrain-row:last-child {
+  border-bottom: none;
+}
+
+/* 目玉トグルボタン */
+.ws-terrain-eye {
+  background: none;
+  border: none;
+  padding: 2px 4px;
+  cursor: pointer;
+  color: var(--primary);
+  flex-shrink: 0;
+  border-radius: 3px;
+  transition: opacity 0.12s;
+}
+
+.ws-terrain-eye.hidden {
+  color: var(--text-disabled);
+  opacity: 0.5;
+}
+
+.ws-terrain-eye:hover {
+  opacity: 0.7;
+}
+
+/* テレイン名 */
+.ws-terrain-name {
+  flex: 1;
+  font-size: var(--font-sm);
+  color: var(--text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.ws-terrain-row.hidden-terrain .ws-terrain-name {
+  color: var(--text-disabled);
+}
+
+/* 地図フライトボタン */
+.ws-terrain-fly {
+  background: none;
+  border: none;
+  padding: 2px 4px;
+  cursor: pointer;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  border-radius: 3px;
+  transition: color 0.12s;
+}
+
+.ws-terrain-fly:hover {
+  color: var(--primary);
+}
+
+/* 削除ボタン */
+.ws-terrain-del {
+  background: none;
+  border: none;
+  padding: 2px 4px;
+  cursor: pointer;
+  color: var(--text-disabled);
+  flex-shrink: 0;
+  border-radius: 3px;
+  transition: color 0.12s;
+}
+
+.ws-terrain-del:hover {
+  color: #dc2626;
 }
 
 /* ===== タブバー ===== */
@@ -4737,7 +4726,6 @@ body.rp-open .maplibregl-ctrl-bottom-right {
 .panel-btn-primary,
 .panel-btn-outline:hover,
 .sim-map-fly-btn:hover,
-.miller-item.selected,
 .type-chip.active,
 .frame-img-pick-btn:hover,
 .frame-popup-upload,
@@ -7970,8 +7958,8 @@ select,
   display: none;
   position: fixed;
   top: 0;
-  right: calc(var(--rp-w) - 6px); /* パネル左端を中心に ±6px */
-  width: 12px;
+  right: calc(var(--rp-w) - 4px); /* パネル左端を中心に ±6px */
+  width: 8px;
   height: 100vh;
   cursor: w-resize;
   z-index: 12;
