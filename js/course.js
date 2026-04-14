@@ -12,7 +12,7 @@
    · IOF XML 3.0 形式（Purple Pen 互換）
    ================================================================ */
 
-import { QCHIZU_DEM_BASE, DEM5A_BASE, ROUTE_COLORS, routeColor } from './config.js';
+import { QCHIZU_DEM_BASE, DEM5A_BASE, ROUTE_COLORS, routeColor, ROUTE_COLOR_CMYK } from './config.js';
 
 // ================================================================
 // 定数
@@ -65,6 +65,13 @@ let _dragCtrl        = null;  // ドラッグ中のコントロール定義（_c
 let _activeCtrlId    = null;  // 選択中コントロールの defId（選択モード）
 let _activeTab       = 'course'; // 'course' | 'controls'（コースタブは activeCourseIdx と連動）
 let _previewSnapping = false;    // 前フレームのスナップ状態（setPaintProperty 呼び出し抑制用）
+
+// ================================================================
+// 外部 getter（app.js が initCoursePlanner の後に登録する）
+// ================================================================
+/** app.js から localMapLayers 参照を受け取る。エクスポート・インポート時に使用 */
+let _getMapLayers = () => [];
+export function setMapLayersGetter(fn) { _getMapLayers = fn; }
 
 // ================================================================
 // 履歴（Undo / Redo）
@@ -2067,6 +2074,493 @@ function _importJSON(text) {
 }
 
 // ================================================================
+// Purple Pen (.ppen) エクスポート / インポート
+// ================================================================
+
+// ---- 座標ユーティリティ ----
+
+/** Haversine距離（m）*/
+function _haversineM(lng1, lat1, lng2, lat2) {
+  const R = 6371000;
+  const rad = d => d * Math.PI / 180;
+  const dLat = rad(lat2 - lat1), dLng = rad(lng2 - lng1);
+  const a = Math.sin(dLat / 2) ** 2
+          + Math.cos(rad(lat1)) * Math.cos(rad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.asin(Math.sqrt(a));
+}
+
+/** 画像 URL から自然サイズ（px）を取得（非同期） */
+function _imgDimensions(url) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload  = () => resolve({ w: img.naturalWidth, h: img.naturalHeight });
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+
+/** ダウンロードヘルパー */
+function _downloadFile(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a   = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1500);
+}
+
+// ---- CMYK ↔ colorIdx 変換 ----
+
+/** CMYK小数文字列 "C,M,Y,K"（0〜1）→ 最近傍 colorIdx */
+function _parsePPenCmyk(str) {
+  const parts = (str || '').split(',').map(parseFloat);
+  if (parts.length < 4) return 0;
+  const [c, m, y, k] = parts.map(v => Math.round(v * 100));
+  let bestIdx = 0, bestDist = Infinity;
+  ROUTE_COLOR_CMYK.forEach(({ cmyk }, idx) => {
+    const d = (cmyk[0] - c) ** 2 + (cmyk[1] - m) ** 2
+            + (cmyk[2] - y) ** 2 + (cmyk[3] - k) ** 2;
+    if (d < bestDist) { bestDist = d; bestIdx = idx; }
+  });
+  return bestIdx;
+}
+
+/** colorIdx → CMYK小数文字列（"0.00,1.00,1.00,0.00" 形式） */
+function _cmykStr(colorIdx) {
+  const entry = ROUTE_COLOR_CMYK[((colorIdx % ROUTE_COLOR_CMYK.length) + ROUTE_COLOR_CMYK.length) % ROUTE_COLOR_CMYK.length];
+  return entry.cmyk.map(v => (v / 100).toFixed(2)).join(',');
+}
+
+// ---- .ppen XML 生成 ----
+
+/**
+ * 現在のコースデータを .ppen XML 文字列に変換する。
+ * 座標系: 原点 = 地図南西角、x 東向き・y 北向き（OCAD 準拠）
+ * @param {string} title  イベント名
+ * @param {string} imgFilename  画像ファイル名（相対パス）
+ * @param {number} scale  縮尺分母（例: 10000）
+ * @param {number} dpi    画像 DPI
+ * @param {number} widthMM  地図上の画像幅（mm）
+ * @param {number} heightMM 地図上の画像高さ（mm）
+ * @param {object} bbox   { west, south, east, north }
+ */
+function _buildPPenXML(title, imgFilename, scale, dpi, widthMM, heightMM, bbox) {
+  const esc  = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const toMM = (lng, lat) => ({
+    x: ((lng - bbox.west)  / (bbox.east  - bbox.west))  * widthMM,
+    y: ((lat - bbox.south) / (bbox.north - bbox.south)) * heightMM,
+  });
+  const fmt = v => v.toFixed(6);
+
+  const usedDefIds = new Set(_courses.flatMap(c => c.sequence));
+  if (usedDefIds.size === 0) return null;
+
+  // フィニッシュ: いずれかのコースの最後要素
+  const finishDefIds = new Set(
+    _courses.map(c => c.sequence.length > 0 ? c.sequence[c.sequence.length - 1] : null).filter(Boolean)
+  );
+
+  // defId → integer control ID（1始まり）
+  const defIdToCtrlId = new Map();
+  let ctrlId = 1;
+  for (const id of usedDefIds) defIdToCtrlId.set(id, ctrlId++);
+
+  // コントロールコードの最小値（numbering start）
+  const codes = [...usedDefIds]
+    .map(id => parseInt(_controlDefs.get(id)?.code || '0', 10))
+    .filter(n => n > 0);
+  const startNum = codes.length ? Math.min(...codes) : 31;
+
+  // コースコントロール割り当て（全コース通し番号）
+  const ccList = []; // { ccId, defId, courseIdx }
+  let ccId = 1;
+  for (let ci = 0; ci < _courses.length; ci++) {
+    if (_courses[ci].sequence.length === 0) continue;
+    for (const defId of _courses[ci].sequence) {
+      ccList.push({ ccId: ccId++, defId, courseIdx: ci });
+    }
+  }
+  // コース → 最初の ccId
+  const courseFirstCC = new Map();
+  for (const cc of ccList) {
+    if (!courseFirstCC.has(cc.courseIdx)) courseFirstCC.set(cc.courseIdx, cc.ccId);
+  }
+
+  const out = [];
+  const l   = s => out.push(s);
+
+  l('<course-scribe-event>');
+  l('  <event id="1">');
+  l(`    <title>${esc(title)}</title>`);
+  l(`    <map kind="bitmap" scale="${scale}" dpi="${Math.round(dpi)}" absolute-path="${esc(imgFilename)}">${esc(imgFilename)}</map>`);
+  l('    <standards map="2017" description="2018" />');
+  l(`    <all-controls print-scale="${scale}" description-kind="symbols" />`);
+  l('    <print-area automatic="true" restrict-to-page-size="true" left="0" top="0" right="0" bottom="0" page-width="827" page-height="1169" page-margins="0" page-landscape="false" />');
+  l(`    <numbering start="${startNum}" disallow-invertible="false" />`);
+  l('    <punch-card rows="3" columns="8" left-to-right="true" top-to-bottom="false" />');
+  l(`    <course-appearance scale-sizes="RelativeTo${scale}" scale-sizes-circle-gaps="true" number-font="Roboto" auto-leg-gap-size="3.5" blend-purple="true" blend-style="blend" />`);
+  l('    <descriptions lang="ja" color="black" />');
+  l('    <ocad overprint-colors="false" />');
+  l('  </event>');
+  l('');
+
+  // コントロール定義
+  for (const defId of usedDefIds) {
+    const def = _controlDefs.get(defId);
+    if (!def) continue;
+    const cid = defIdToCtrlId.get(defId);
+    const mm  = toMM(def.lng, def.lat);
+    const kind = def.type === 'start' ? 'start'
+               : finishDefIds.has(defId) ? 'finish'
+               : 'normal';
+    l(`  <control id="${cid}" kind="${kind}">`);
+    if (kind === 'normal') l(`    <code>${esc(def.code)}</code>`);
+    l(`    <location x="${fmt(mm.x)}" y="${fmt(mm.y)}" />`);
+    if (kind === 'finish') l('    <description box="all" iof-2004-ref="14.3" />');
+    l('  </control>');
+  }
+  l('');
+
+  // コース定義
+  let courseOrder = 0;
+  for (let ci = 0; ci < _courses.length; ci++) {
+    if (_courses[ci].sequence.length === 0) continue;
+    courseOrder++;
+    const firstCC = courseFirstCC.get(ci) ?? 1;
+    l(`  <course id="${courseOrder}" kind="normal" order="${courseOrder}">`);
+    l(`    <name>${esc(_courses[ci].name)}</name>`);
+    l('    <labels label-kind="sequence" />');
+    l(`    <first course-control="${firstCC}" />`);
+    l('    <print-area automatic="true" restrict-to-page-size="true" left="0" top="0" right="0" bottom="0" page-width="583" page-height="827" page-margins="0" page-landscape="false" />');
+    l(`    <options print-scale="${scale}" hide-from-reports="false" description-kind="symbols" />`);
+    l('  </course>');
+  }
+  l('');
+
+  // コースコントロール（リンクリスト）
+  for (let i = 0; i < ccList.length; i++) {
+    const cc   = ccList[i];
+    const cid  = defIdToCtrlId.get(cc.defId);
+    const next = (i + 1 < ccList.length && ccList[i + 1].courseIdx === cc.courseIdx)
+                 ? ccList[i + 1].ccId : null;
+    l(`  <course-control id="${cc.ccId}" control="${cid}">`);
+    if (next !== null) l(`    <next course-control="${next}" />`);
+    l('  </course-control>');
+  }
+  l('');
+
+  // ルートチョイス（special-object kind="line"）
+  // コースIDは courseOrder と対応させる
+  let soId = 1;
+  courseOrder = 0;
+  for (let ci = 0; ci < _courses.length; ci++) {
+    if (_courses[ci].sequence.length === 0) continue;
+    courseOrder++;
+    const course = _courses[ci];
+    for (const routes of Object.values(course.legRoutes ?? {})) {
+      for (const route of routes) {
+        l(`  <special-object id="${soId++}" kind="line">`);
+        l(`    <appearance line-kind="dashed" color="${_cmykStr(route.colorIdx)}" line-width="0.5" gap-size="0.5" dash-size="2" />`);
+        for (const [lng, lat] of route.coords) {
+          const mm = toMM(lng, lat);
+          l(`    <location x="${fmt(mm.x)}" y="${fmt(mm.y)}" />`);
+        }
+        l('    <courses>');
+        l(`      <course course="${courseOrder}" />`);
+        l('    </courses>');
+        l('  </special-object>');
+      }
+    }
+  }
+
+  l('</course-scribe-event>');
+  return out.join('\n');
+}
+
+// ---- エクスポートダイアログ ----
+
+/** Purple Pen エクスポートダイアログを開く */
+function _exportPPen() {
+  const overlay = document.getElementById('ppen-export-overlay');
+  if (!overlay) return;
+
+  const imageLayers = _getMapLayers();
+  const sel       = document.getElementById('ppen-export-image');
+  const noImgMsg  = document.getElementById('ppen-no-image-msg');
+  const goBtn     = document.getElementById('ppen-export-go');
+
+  // 画像セレクタ更新
+  if (sel) {
+    sel.innerHTML = '';
+    imageLayers.forEach(layer => {
+      const opt = document.createElement('option');
+      opt.value       = String(layer.id);
+      opt.textContent = layer.name;
+      sel.appendChild(opt);
+    });
+  }
+  if (noImgMsg) noImgMsg.style.display = imageLayers.length ? 'none' : '';
+  if (goBtn)   goBtn.disabled           = imageLayers.length === 0;
+
+  // タイトルの初期値
+  const titleEl = document.getElementById('ppen-export-title');
+  if (titleEl && !titleEl.value) titleEl.value = _activeCourse().name || 'コース';
+
+  overlay.style.display = 'flex';
+}
+
+/** Purple Pen エクスポート実行（ダイアログ確定後）*/
+async function _doExportPPen() {
+  const title    = document.getElementById('ppen-export-title')?.value?.trim() || _activeCourse().name || 'コース';
+  const scale    = parseInt(document.getElementById('ppen-export-scale')?.value || '10000', 10);
+  const layerIdS = document.getElementById('ppen-export-image')?.value;
+  const layerId  = parseInt(layerIdS ?? '-1', 10);
+  const layer    = _getMapLayers().find(l => l.id === layerId);
+
+  if (!layer) { alert('地図画像を選択してください'); return; }
+
+  // 画像ピクセル寸法
+  let dims;
+  try { dims = await _imgDimensions(layer.objectUrl); }
+  catch { alert('画像の読み込みに失敗しました'); return; }
+
+  const { w: imgW, h: imgH } = dims;
+  const bbox = layer.bbox;
+
+  // 地理的寸法（m）→ mm 換算
+  const centerLat = (bbox.south + bbox.north) / 2;
+  const widthM    = _haversineM(bbox.west, centerLat, bbox.east, centerLat);
+  const heightM   = _haversineM(bbox.west, bbox.south, bbox.west, bbox.north);
+  const widthMM   = widthM  / (scale / 1000);
+  const heightMM  = heightM / (scale / 1000);
+  const dpi       = imgW * 25.4 / widthMM;
+
+  const xml = _buildPPenXML(title, layer.name, scale, dpi, widthMM, heightMM, bbox);
+  if (!xml) { alert('エクスポートするコントロールがありません'); return; }
+
+  const ppenName = title.replace(/[\\/:*?"<>|]/g, '_') + '.ppen';
+
+  // 画像 blob 取得
+  let imgBlob;
+  try {
+    const resp = await fetch(layer.objectUrl);
+    imgBlob = await resp.blob();
+  } catch { alert('画像データの取得に失敗しました'); return; }
+
+  document.getElementById('ppen-export-overlay').style.display = 'none';
+
+  // フォルダ選択（showDirectoryPicker 対応ブラウザ）
+  if (window.showDirectoryPicker) {
+    try {
+      const dir = await window.showDirectoryPicker({ mode: 'readwrite' });
+
+      const writeFile = async (filename, blob) => {
+        const fh = await dir.getFileHandle(filename, { create: true });
+        const w  = await fh.createWritable();
+        await w.write(blob); await w.close();
+      };
+      await writeFile(ppenName, new Blob([xml], { type: 'text/xml;charset=utf-8' }));
+      await writeFile(layer.name, imgBlob);
+      alert(`${ppenName} と ${layer.name} をエクスポートしました`);
+    } catch (err) {
+      if (err.name !== 'AbortError') {
+        console.error('.ppen export error:', err);
+        alert('エクスポートに失敗しました: ' + err.message);
+      }
+    }
+  } else {
+    // ZIP 非対応時: 個別ダウンロード（2ファイル）
+    _downloadFile(new Blob([xml], { type: 'text/xml;charset=utf-8' }), ppenName);
+    setTimeout(() => _downloadFile(imgBlob, layer.name), 600);
+  }
+}
+
+// ---- インポート ----
+
+/**
+ * .ppen XML テキストをパースしてコースを読み込む。
+ * 座標変換のため、対応画像が localMapLayers に読み込まれている必要がある。
+ */
+async function _importPPen(xmlText) {
+  try {
+    const parser = new DOMParser();
+    const doc    = parser.parseFromString(xmlText, 'text/xml');
+
+    // マップ情報取得
+    const mapEl      = doc.querySelector('map');
+    const mapKind    = mapEl?.getAttribute('kind') ?? 'bitmap';
+    const scale      = parseFloat(mapEl?.getAttribute('scale')  || '10000');
+    const dpi        = parseFloat(mapEl?.getAttribute('dpi')    || '96');
+    const mapFilename = (mapEl?.textContent ?? '').trim();
+
+    // 座標変換セットアップ（ビットマップ地図の場合）
+    let bbox = null, widthMM = 0, heightMM = 0;
+
+    if (mapKind === 'bitmap' && mapFilename) {
+      // localMapLayers からファイル名でマッチング
+      const layers    = _getMapLayers();
+      const baseName  = mapFilename.replace(/.*[\\/]/, ''); // パス区切り除去
+      const matchLayer = layers.find(l =>
+        l.name === mapFilename ||
+        l.name === baseName ||
+        l.name.endsWith('/' + baseName) ||
+        l.name.endsWith('\\' + baseName)
+      );
+      if (matchLayer) {
+        try {
+          const dims = await _imgDimensions(matchLayer.objectUrl);
+          bbox      = matchLayer.bbox;
+          widthMM   = dims.w * 25.4 / dpi;
+          heightMM  = dims.h * 25.4 / dpi;
+        } catch { /* 取得失敗時は変換なし */ }
+      }
+      if (!bbox) {
+        const ok = confirm(
+          `この .ppen は画像マップ「${baseName}」を使用しています。\n` +
+          `TeleDrop にこの画像が読み込まれていないため座標変換ができません。\n\n` +
+          `先に「${baseName}」を地図に読み込んでから再インポートしてください。\n` +
+          `このまま（座標変換なし）でインポートしますか？`
+        );
+        if (!ok) return;
+      }
+    }
+
+    // mm → lat/lng（bbox がない場合は 1/1000 スケールの緯度経度に変換）
+    const mmToLngLat = (xMM, yMM) => {
+      if (!bbox) return [xMM / 1000, yMM / 1000];
+      return [
+        bbox.west  + (xMM / widthMM)  * (bbox.east  - bbox.west),
+        bbox.south + (yMM / heightMM) * (bbox.north  - bbox.south),
+      ];
+    };
+
+    _clearCourse();
+
+    // コントロール定義の読み込み
+    // Purple Pen control id → TeleDrop defId
+    const ctrlIdMap = new Map();
+
+    for (const ctrlEl of doc.querySelectorAll('control')) {
+      const pid  = ctrlEl.getAttribute('id');
+      const kind = ctrlEl.getAttribute('kind') ?? 'normal';
+      if (kind === 'map-issue') continue; // map-issue は無視
+
+      const code  = ctrlEl.querySelector('code')?.textContent?.trim() ?? '';
+      const locEl = ctrlEl.querySelector('location');
+      if (!locEl) continue;
+
+      const xMM = parseFloat(locEl.getAttribute('x') || '0');
+      const yMM = parseFloat(locEl.getAttribute('y') || '0');
+      const [lng, lat] = mmToLngLat(xMM, yMM);
+
+      const defId = 'd' + (_nextDefId++);
+      _controlDefs.set(defId, {
+        defId, code,
+        type: kind === 'start' ? 'start' : 'control',
+        lng, lat,
+      });
+      ctrlIdMap.set(pid, defId);
+    }
+
+    // course-control リンクリストの解析
+    const ccMap = new Map(); // ccId → { ctrlPid, nextCcId }
+    for (const ccEl of doc.querySelectorAll('course-control')) {
+      ccMap.set(ccEl.getAttribute('id'), {
+        ctrlPid:  ccEl.getAttribute('control'),
+        nextCcId: ccEl.querySelector('next')?.getAttribute('course-control') ?? null,
+      });
+    }
+    const buildSeq = firstCcId => {
+      const seq = []; let cur = firstCcId; const seen = new Set();
+      while (cur && !seen.has(cur)) {
+        seen.add(cur);
+        const cc = ccMap.get(cur); if (!cc) break;
+        const defId = ctrlIdMap.get(cc.ctrlPid); if (defId) seq.push(defId);
+        cur = cc.nextCcId;
+      }
+      return seq;
+    };
+
+    // コース読み込み（order 順にソート）
+    const courseEls = [...doc.querySelectorAll('course')]
+      .filter(e => e.getAttribute('kind') !== 'relay')
+      .sort((a, b) => parseInt(a.getAttribute('order') || '0', 10) - parseInt(b.getAttribute('order') || '0', 10));
+
+    if (courseEls.length === 0) { alert('.ppen にコースが見つかりませんでした'); return; }
+
+    while (_courses.length < courseEls.length)
+      _courses.push({ id: 'course' + _courses.length, name: `コース${_courses.length + 1}`, sequence: [], legRoutes: {} });
+
+    const courseIdToIdx = new Map();
+    for (let i = 0; i < courseEls.length; i++) {
+      const el = courseEls[i];
+      courseIdToIdx.set(el.getAttribute('id'), i);
+      _courses[i].name     = el.querySelector('name')?.textContent?.trim() || `コース${i + 1}`;
+      _courses[i].sequence = buildSeq(el.querySelector('first')?.getAttribute('course-control'));
+      _courses[i].legRoutes = {};
+    }
+
+    // ルートチョイス（special-object kind="line"）
+    for (const soEl of doc.querySelectorAll('special-object[kind="line"]')) {
+      const colorStr = soEl.querySelector('appearance')?.getAttribute('color') ?? '0.00,1.00,1.00,0.00';
+      const colorIdx = _parsePPenCmyk(colorStr);
+
+      const locEls = soEl.querySelectorAll('location');
+      if (locEls.length < 2) continue;
+      const coords = [...locEls].map(loc =>
+        mmToLngLat(parseFloat(loc.getAttribute('x') || '0'), parseFloat(loc.getAttribute('y') || '0'))
+      );
+
+      // 属するコース
+      const coursesEl = soEl.querySelector('courses');
+      const courseRefs = coursesEl
+        ? [...coursesEl.querySelectorAll('course')].map(c => c.getAttribute('course'))
+        : courseEls.map(e => e.getAttribute('id'));
+
+      for (const ref of courseRefs) {
+        const ci = courseIdToIdx.get(ref);
+        if (ci == null || ci >= _courses.length) continue;
+        const course = _courses[ci];
+        const seq    = course.sequence;
+
+        // 最近傍のレッグに割り当て（先頭・末尾座標で距離最小判定）
+        const [sLng, sLat] = coords[0];
+        const [eLng, eLat] = coords[coords.length - 1];
+        let bestKey = null, bestDist = Infinity;
+        for (let si = 0; si < seq.length - 1; si++) {
+          const fd = _controlDefs.get(seq[si]);
+          const td = _controlDefs.get(seq[si + 1]);
+          if (!fd || !td) continue;
+          const d = (sLng - fd.lng) ** 2 + (sLat - fd.lat) ** 2
+                  + (eLng - td.lng) ** 2 + (eLat - td.lat) ** 2;
+          if (d < bestDist) { bestDist = d; bestKey = legKey(seq[si], seq[si + 1]); }
+        }
+        if (!bestKey) continue;
+        if (!course.legRoutes[bestKey]) course.legRoutes[bestKey] = [];
+        course.legRoutes[bestKey].push({ id: 'r' + (_nextRouteId++), colorIdx, coords });
+      }
+    }
+
+    _activeCourseIdx = 0;
+    _refreshSource();
+    _scheduleCalc();
+    _renderPanel();
+
+    // 地図をコントロール範囲にフィット
+    const allDefs = [..._controlDefs.values()];
+    if (allDefs.length > 0) {
+      _map.fitBounds([
+        [Math.min(...allDefs.map(d => d.lng)), Math.min(...allDefs.map(d => d.lat))],
+        [Math.max(...allDefs.map(d => d.lng)), Math.max(...allDefs.map(d => d.lat))],
+      ], { padding: 100, duration: 600 });
+    }
+  } catch (e) {
+    console.error('.ppen import error:', e);
+    alert('.ppen の読み込みに失敗しました: ' + e.message);
+  }
+}
+
+// ================================================================
 // LocalStorage 永続化
 // ================================================================
 
@@ -2275,14 +2769,35 @@ function _setupUI() {
     if (exportMenu) exportMenu.style.display = 'none';
     _exportIOFXML();
   });
+  // Purple Pen エクスポート
+  document.getElementById('course-ppen-btn')?.addEventListener('click', () => {
+    if (exportMenu) exportMenu.style.display = 'none';
+    _exportPPen();
+  });
+  // .ppen エクスポートダイアログのボタン
+  document.getElementById('ppen-export-go')?.addEventListener('click', _doExportPPen);
+  document.getElementById('ppen-export-cancel')?.addEventListener('click', () => {
+    document.getElementById('ppen-export-overlay').style.display = 'none';
+  });
+  document.getElementById('ppen-close-btn')?.addEventListener('click', () => {
+    document.getElementById('ppen-export-overlay').style.display = 'none';
+  });
+  // オーバーレイ背景クリックで閉じる
+  document.getElementById('ppen-export-overlay')?.addEventListener('click', e => {
+    if (e.target === e.currentTarget) e.currentTarget.style.display = 'none';
+  });
 
   const importFileEl = document.getElementById('course-import-file');
   document.getElementById('course-import-btn')?.addEventListener('click', () => importFileEl?.click());
   importFileEl?.addEventListener('change', () => {
     const f = importFileEl.files[0]; if (!f) return;
+    const isPPen = f.name.toLowerCase().endsWith('.ppen');
     const reader = new FileReader();
-    reader.onload = e => _importJSON(e.target.result);
-    reader.readAsText(f);
+    reader.onload = e => {
+      if (isPPen) _importPPen(e.target.result);
+      else        _importJSON(e.target.result);
+    };
+    reader.readAsText(f, 'utf-8');
     importFileEl.value = '';
   });
 

@@ -6814,6 +6814,93 @@ select,
   border-color: #7a1a94;
 }
 
+/* ---- Purple Pen エクスポートダイアログ ---- */
+.ppen-export-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ppen-export-modal {
+  width: 300px;
+}
+.ppen-export-body {
+  padding: 14px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.ppen-export-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ppen-field-label {
+  font-size: 10.5px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+.ppen-text-input {
+  padding: 5px 8px;
+  border: 1px solid var(--border-input);
+  border-radius: 4px;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-size: 11px;
+  font-family: inherit;
+}
+.ppen-text-input:focus {
+  outline: none;
+  border-color: var(--primary, #9320b0);
+  box-shadow: 0 0 0 2px rgba(147, 32, 176, 0.15);
+}
+.ppen-select {
+  padding: 4px 6px;
+  border: 1px solid var(--border-input);
+  border-radius: 4px;
+  background-color: var(--bg-surface);
+  color: var(--text-primary);
+  font-size: 11px;
+  font-family: inherit;
+}
+.ppen-export-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 2px;
+}
+.ppen-cancel-btn {
+  padding: 5px 14px;
+  border: 1px solid var(--border-input);
+  border-radius: 4px;
+  background: var(--bg-surface);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.1s;
+}
+.ppen-cancel-btn:hover {
+  border-color: var(--text-muted);
+}
+.ppen-go-btn {
+  padding: 5px 16px;
+  border: none;
+  border-radius: 4px;
+  background: #9320b0;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.ppen-go-btn:hover  { background: #7a1a94; }
+.ppen-go-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
 /* 地図上フローティングヒント（トースト） */
 .course-map-toast {
   position: fixed;

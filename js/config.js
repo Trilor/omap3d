@@ -413,3 +413,20 @@ export const ROUTE_COLORS = [
 export function routeColor(index) {
   return ROUTE_COLORS[((index % ROUTE_COLORS.length) + ROUTE_COLORS.length) % ROUTE_COLORS.length];
 }
+
+// ---- ルートカラー ↔ Purple Pen CMYK 対応テーブル ----
+// エクスポート（hex→CMYK）・インポート（CMYK→colorIdx）の両方向で使用する。
+// cmyk: [C, M, Y, K] は 0〜100 の整数。
+// .ppen ファイル上では各値を 100 で割った小数（例: "0.00,1.00,1.00,0.00"）で表記する。
+export const ROUTE_COLOR_CMYK = [
+  { hex: '#FF0000', cmyk: [  0, 100, 100,  0] }, // 0: R  (赤)
+  { hex: '#233791', cmyk: [100, 100,   0,  0] }, // 1: B  (青)
+  { hex: '#008D36', cmyk: [100,   0, 100,  0] }, // 2: G  (緑)
+  { hex: '#F99A1C', cmyk: [  0,  40,  90,  0] }, // 3: YR (オレンジ)
+  { hex: '#E7007E', cmyk: [  0, 100,   0,  0] }, // 4: RP (赤紫)
+  { hex: '#009FE0', cmyk: [100,   0,   0,  0] }, // 5: BG (青緑/シアン)
+  { hex: '#A6D625', cmyk: [ 30,   0, 100,  0] }, // 6: GY (黄緑)
+  { hex: '#A8258F', cmyk: [ 40, 100,   0,  0] }, // 7: P  (紫)
+  { hex: '#FFF200', cmyk: [  0,   0, 100,  0] }, // 8: Y  (黄)
+  { hex: '#5C0E7F', cmyk: [ 80, 100,   0,  0] }, // 9: PB (紫青)
+];
