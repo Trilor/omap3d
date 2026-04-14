@@ -7173,6 +7173,9 @@ function _buildAllControlsItem(eventId) {
   row.appendChild(lbl);
 
   row.addEventListener('click', async () => {
+    // 即時: 選択スタイルを先に反映（再描画待ち不要）
+    document.querySelectorAll('.expl-item.is-active').forEach(el => el.classList.remove('is-active'));
+    row.classList.add('is-active');
     _explorerActiveId = 'controls-' + eventId;
     if (getActiveEventId() !== eventId) await loadEvent(eventId);
     showAllControlsTab();
@@ -7201,6 +7204,9 @@ function _buildCourseItem(courseInfo) {
   moreBtn.title = 'オプション';
   moreBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>`;
   const openThisCourse = async () => {
+    // 即時: 選択スタイルを先に反映（再描画待ち不要）
+    document.querySelectorAll('.expl-item.is-active').forEach(el => el.classList.remove('is-active'));
+    row.classList.add('is-active');
     _explorerActiveId = 'course-' + courseInfo.id;
     if (courseInfo.eventId && getActiveEventId() !== courseInfo.eventId) {
       await loadEvent(courseInfo.eventId);
