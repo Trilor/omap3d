@@ -7890,6 +7890,8 @@ select,
   height: 100vh;
   z-index: 11;  /* 地図コントロールより前面 */
   box-shadow: 4px 0 24px rgba(0, 0, 0, 0.18);
+  border-radius: 0 8px 8px 0; /* 地図側（右）の角を丸める */
+  overflow: hidden;
 }
 
 /* ピン留めボタン（各セクションヘッダーに注入） */
@@ -7933,6 +7935,7 @@ select,
   background: var(--bg-surface);
   border-left: 1px solid var(--border-muted);
   box-shadow: -4px 0 24px rgba(0, 0, 0, 0.16);
+  border-radius: 8px 0 0 8px; /* 地図側（左）の角を丸める */
   z-index: 9;
   display: flex;
   flex-direction: column;
