@@ -8102,7 +8102,7 @@ function openCourseEditor() {
   document.getElementById('right-panel-title').textContent = 'コース';
   // 動的コンテンツを消してコースエディターを表示
   document.getElementById('rp-dynamic-content').innerHTML = '';
-  document.getElementById('course-editor-view').style.display = '';
+  document.getElementById('course-editor-view').style.display = 'block';
   panel.classList.add('rp-open');
   document.body.classList.add('rp-open');
   setCourseMapVisible(true);
