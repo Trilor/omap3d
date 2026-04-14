@@ -7866,11 +7866,13 @@ function openRightPanel(title, contentEl) {
     bodyEl.appendChild(contentEl);
   }
   panel.classList.add('rp-open');
+  document.body.classList.add('rp-open');
 }
 
 /** 右パネルを閉じる */
 function closeRightPanel() {
   document.getElementById('right-panel')?.classList.remove('rp-open');
+  document.body.classList.remove('rp-open');
   // エクスプローラーのアクティブ選択状態を解除して再描画
   _explorerActiveId = null;
   renderExplorer();

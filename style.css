@@ -3923,6 +3923,14 @@ label.setting-label {
 .maplibregl-ctrl-top-right,
 .maplibregl-ctrl-bottom-right {
   z-index: 20 !important;
+  /* 右パネルが開いたとき panel-w 分だけ左に逃がす */
+  transition: right 0.2s ease !important;
+}
+
+/* 右パネルが開いている間、コントロール群を右パネル幅分左に移動 */
+body.rp-open .maplibregl-ctrl-top-right,
+body.rp-open .maplibregl-ctrl-bottom-right {
+  right: var(--panel-w) !important;
 }
 
 .maplibregl-ctrl-bottom-left {
