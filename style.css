@@ -45,12 +45,9 @@
   /* 52px(アイコンバー) + 230px(--panel-w) */
 }
 
-/* サイドバー幅の変化を 0.2s で補間。これにより calc(var(--sidebar-w)+X) が使われる
-   すべての要素（検索ボックス・縮尺・出典など）が同時にスムーズに追従する */
 :root {
   --panel-w: 230px;
   /* ★ パネル幅の唯一の定義。変更はここだけでよい */
-  transition: --sidebar-w 0.2s ease;
 
   /* ===== テーマカラー（ミュートティール） ===== */
   --primary: #2a9d8f;
@@ -3923,8 +3920,6 @@ label.setting-label {
 .maplibregl-ctrl-top-right,
 .maplibregl-ctrl-bottom-right {
   z-index: 20 !important;
-  /* 右パネルが開いたとき panel-w 分だけ左に逃がす */
-  transition: right 0.2s ease !important;
 }
 
 /* 右パネルが開いている間、コントロール群を右パネル幅分左に移動 */
@@ -7895,13 +7890,6 @@ select,
   height: 100vh;
   z-index: 11;  /* 地図コントロールより前面 */
   box-shadow: 4px 0 24px rgba(0, 0, 0, 0.18);
-  /* 開くアニメーション */
-  animation: lp-slide-in 0.2s ease forwards;
-}
-
-@keyframes lp-slide-in {
-  from { transform: translateX(-100%); opacity: 0.6; }
-  to   { transform: translateX(0);     opacity: 1; }
 }
 
 /* ピン留めボタン（各セクションヘッダーに注入） */
@@ -7949,9 +7937,7 @@ select,
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  /* アニメーション: スライドイン */
   transform: translateX(100%);
-  transition: transform 0.2s ease, visibility 0.2s;
   visibility: hidden;
   pointer-events: none;
 }
@@ -8088,24 +8074,22 @@ select,
   top: 0; left: 0; right: 0; bottom: 0;
   display: flex;
   flex-direction: column;
-  transition: transform 0.22s cubic-bezier(0.4,0,0.2,1);
-  will-change: transform;
 }
 
 /* デフォルト: エクスプローラー表示中 */
 #explorer-view {
-  transform: translateX(0);
+  /* 表示（デフォルト） */
 }
 #course-editor-view {
-  transform: translateX(100%);
+  display: none;
 }
 
 /* コースエディター表示中（.ce-active を panel-layers に付与） */
 #panel-layers.ce-active #explorer-view {
-  transform: translateX(-30%);
+  display: none;
 }
 #panel-layers.ce-active #course-editor-view {
-  transform: translateX(0);
+  display: flex;
 }
 
 /* コースエディターヘッダー（戻るボタン行） */
