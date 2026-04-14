@@ -8075,7 +8075,6 @@ select,
 }
 .expl-event-hd:hover { background: var(--bg-subtle); }
 .expl-event-hd.is-active-event {
-  background: color-mix(in srgb, var(--primary) 12%, transparent);
   color: var(--primary);
 }
 .expl-event-hd.is-active-event .expl-event-label { color: var(--primary); }
