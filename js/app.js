@@ -7855,16 +7855,19 @@ _lpPanel?.addEventListener('mouseleave', () => {
 // ---- 右パネル ----
 
 /** 右パネルを開く。Phase 3 でコースエディターがここに統合される。*/
+/**
+ * 右パネルを地図・GPX などの動的コンテンツで開く。
+ * コースエディターは非表示、#rp-dynamic-content に contentEl を挿入する。
+ */
 function openRightPanel(title, contentEl) {
   const panel   = document.getElementById('right-panel');
-  const titleEl = document.getElementById('right-panel-title');
-  const bodyEl  = document.getElementById('right-panel-body');
   if (!panel) return;
-  if (titleEl) titleEl.textContent = title ?? '';
-  if (bodyEl && contentEl instanceof HTMLElement) {
-    bodyEl.innerHTML = '';
-    bodyEl.appendChild(contentEl);
-  }
+  document.getElementById('right-panel-title').textContent = title ?? '';
+  // コースエディターを隠して動的コンテンツを表示
+  document.getElementById('course-editor-view').style.display = 'none';
+  const dynEl = document.getElementById('rp-dynamic-content');
+  dynEl.innerHTML = '';
+  if (contentEl instanceof HTMLElement) dynEl.appendChild(contentEl);
   panel.classList.add('rp-open');
   document.body.classList.add('rp-open');
 }
@@ -7873,7 +7876,9 @@ function openRightPanel(title, contentEl) {
 function closeRightPanel() {
   document.getElementById('right-panel')?.classList.remove('rp-open');
   document.body.classList.remove('rp-open');
-  // エクスプローラーのアクティブ選択状態を解除して再描画
+  document.getElementById('course-editor-view').style.display = 'none';
+  document.getElementById('rp-dynamic-content').innerHTML = '';
+  setCourseMapVisible(false);
   _explorerActiveId = null;
   renderExplorer();
 }
@@ -8087,34 +8092,21 @@ function _buildGpxRightPanel() {
  * エクスプローラービューをコースエディタービューへスライドイン。
  * エクスプローラーパネルが閉じていれば先に開く。
  */
+/**
+ * 右パネルにコースエディターを表示する。
+ * #course-editor-view は #right-panel-body に常駐しており、display を切り替えるだけ。
+ */
 function openCourseEditor() {
-  const layersPanel = document.getElementById('panel-layers');
-  // エクスプローラーパネルが非表示なら開く（toggle を避けて直接 active を付与）
-  if (!layersPanel?.classList.contains('active')) {
-    document.querySelectorAll('.sidebar-section').forEach(s => s.classList.remove('active'));
-    document.querySelectorAll('.sidebar-nav-btn').forEach(b => b.classList.remove('active'));
-    layersPanel?.classList.add('active');
-    const layersBtn = document.querySelector('.sidebar-nav-btn[data-panel="layers"]');
-    layersBtn?.classList.add('active');
-    _sidebarCurrentPanel = 'layers';
-    _sidebarOpen = true;
-    _openedByHover = false;
-    requestAnimationFrame(updateSidebarWidth);
-  }
-  layersPanel?.classList.add('ce-active');
+  const panel = document.getElementById('right-panel');
+  if (!panel) return;
+  document.getElementById('right-panel-title').textContent = 'コース';
+  // 動的コンテンツを消してコースエディターを表示
+  document.getElementById('rp-dynamic-content').innerHTML = '';
+  document.getElementById('course-editor-view').style.display = '';
+  panel.classList.add('rp-open');
+  document.body.classList.add('rp-open');
   setCourseMapVisible(true);
 }
-
-/**
- * コースエディタービューからエクスプローラービューへ戻る。
- */
-function closeCourseEditor() {
-  document.getElementById('panel-layers')?.classList.remove('ce-active');
-  setCourseMapVisible(false);
-}
-
-// 戻るボタンのイベント（DOM 構築後に一度だけ登録）
-document.getElementById('course-back-btn')?.addEventListener('click', closeCourseEditor);
 
 /** エクスプローラーを再描画する（外部モジュールからも呼び出し可能） */
 function renderExplorer() {
