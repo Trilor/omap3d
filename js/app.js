@@ -35,7 +35,7 @@
    ================================================================ */
 
 import { getDeclination, setDeclinationModel } from './magneticDeclination.js';
-import { initCoursePlanner, setMapLayersGetter, setCourseMapVisible, getCoursesSummary, createCourseForTerrain, setActiveCourse, setCourseTerrainId, createEvent, loadEvent, getActiveEventId, showAllControlsTab, deleteEvent, getActiveEventName, addCourseToActiveEvent, deleteCourseById, renameEvent } from './course.js';
+import { initCoursePlanner, setMapLayersGetter, setCourseMapVisible, getCoursesSummary, createCourseForTerrain, setActiveCourse, setCourseTerrainId, createEvent, loadEvent, getActiveEventId, showAllControlsTab, deleteEvent, getActiveEventName, addCourseToActiveEvent, deleteCourseById, renameEvent, renameCourse } from './course.js';
 import {
   saveMapLayer, getAllMapLayers, deleteMapLayer,
   updateMapLayerState, clearAllMapLayers, estimateStorageUsage,
@@ -6954,6 +6954,32 @@ function _makeDraggable(el, item) {
 }
 
 /**
+ * ラベル要素をインライン入力に置き換えてリネームを行う共通ヘルパー
+ * @param {HTMLElement} lbl       — 置き換え対象のラベル要素
+ * @param {string}      current   — 現在の名前
+ * @param {Function}    onCommit  — async (newName: string) => void
+ */
+function _startInlineRename(lbl, current, onCommit) {
+  const input = document.createElement('input');
+  input.type      = 'text';
+  input.value     = current;
+  input.className = 'expl-inline-rename';
+  input.maxLength = 60;
+  lbl.replaceWith(input);
+  input.focus();
+  input.select();
+  const commit = async () => {
+    const newName = input.value.trim() || current;
+    await onCommit(newName);
+  };
+  input.addEventListener('blur', commit);
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter')  { input.blur(); }
+    if (e.key === 'Escape') { input.value = current; input.blur(); }
+  });
+}
+
+/**
  * イベントの controlDefs からバウンディングボックスを計算して地図を移動する
  * @param {object} event — IndexedDB の events レコード（controlDefs を含む）
  */
@@ -7128,6 +7154,25 @@ function _buildEventFolder(event, courses) {
     _explorerCollapsed[key] = !(_explorerCollapsed[key] ?? false);
     folder.classList.toggle('is-collapsed', !!_explorerCollapsed[key]);
   });
+  hd.addEventListener('contextmenu', e => {
+    e.preventDefault();
+    e.stopPropagation();
+    _showExplorerCtx(e.clientX, e.clientY, [
+      { label: '名前を変更', action: () => _startInlineRename(lbl, event.name, async n => {
+          await renameEvent(event.id, n);
+          await renderExplorer();
+        })
+      },
+      { separator: true },
+      { label: 'イベントを削除', danger: true, action: async () => {
+          if (!confirm(`「${event.name}」を削除しますか？\n全コントロールとコースが削除されます。`)) return;
+          if (_explorerActiveId?.startsWith('controls-' + event.id) || _explorerActiveId?.startsWith('course-')) _explorerActiveId = null;
+          await deleteEvent(event.id);
+          await renderExplorer();
+        }
+      },
+    ]);
+  });
   folder.appendChild(hd);
 
   // ── ボディ ──
@@ -7229,28 +7274,34 @@ function _buildCourseItem(courseInfo) {
     await renderExplorer();
   };
 
+  const renameThisCourse = () => _startInlineRename(lbl, courseInfo.name, async n => {
+    await renameCourse(courseInfo.id, n);
+    await renderExplorer();
+  });
+
+  lbl.addEventListener('dblclick', e => { e.stopPropagation(); renameThisCourse(); });
+
+  const _courseCtxItems = () => [
+    { label: 'コースを編集', action: openThisCourse },
+    { label: '名前を変更',   action: renameThisCourse },
+    { separator: true },
+    { label: 'JSON エクスポート', action: () => document.getElementById('course-export-btn')?.click() },
+    { label: 'IOF XML エクスポート', action: () => document.getElementById('course-xml-btn')?.click() },
+    { label: 'Purple Pen (.ppen) エクスポート', action: () => document.getElementById('course-ppen-btn')?.click() },
+    { separator: true },
+    { label: 'コースを削除', danger: true, action: deleteThisCourse },
+  ];
+
   moreBtn.addEventListener('click', e => {
     e.stopPropagation();
     const r = moreBtn.getBoundingClientRect();
-    _showExplorerCtx(r.right + 4, r.top, [
-      { label: 'コースを編集', action: openThisCourse },
-      { separator: true },
-      { label: 'JSON エクスポート', action: () => document.getElementById('course-export-btn')?.click() },
-      { label: 'IOF XML エクスポート', action: () => document.getElementById('course-xml-btn')?.click() },
-      { label: 'Purple Pen (.ppen) エクスポート', action: () => document.getElementById('course-ppen-btn')?.click() },
-      { separator: true },
-      { label: 'コースを削除', danger: true, action: deleteThisCourse },
-    ]);
+    _showExplorerCtx(r.right + 4, r.top, _courseCtxItems());
   });
 
   row.addEventListener('click', openThisCourse);
   row.addEventListener('contextmenu', e => {
     e.preventDefault();
-    _showExplorerCtx(e.clientX, e.clientY, [
-      { label: 'コースを編集', action: openThisCourse },
-      { separator: true },
-      { label: 'コースを削除', danger: true, action: deleteThisCourse },
-    ]);
+    _showExplorerCtx(e.clientX, e.clientY, _courseCtxItems());
   });
 
   row.appendChild(icon);
@@ -7278,6 +7329,13 @@ function _buildMapItem(entry) {
   moreBtn.title = 'オプション';
   moreBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>`;
 
+  const renameMapItem = () => _startInlineRename(lbl2, entry.name, async n => {
+    entry.name = n;
+    renderOtherMapsTree();
+    await renderExplorer();
+  });
+  lbl2.addEventListener('dblclick', e => { e.stopPropagation(); renameMapItem(); });
+
   const _mapCtxItems = () => [
     { label: '地図を中心に表示', action: () => {
       if (entry.bbox) {
@@ -7285,6 +7343,7 @@ function _buildMapItem(entry) {
         map.fitBounds([[b.west, b.south], [b.east, b.north]], { padding: 60, duration: 600 });
       }
     }},
+    { label: '名前を変更', action: renameMapItem },
     { separator: true },
     { label: '削除', danger: true, action: () => {
       if (confirm(`「${entry.name}」を削除しますか？`)) {
@@ -7333,10 +7392,16 @@ function _buildGpxItem() {
   moreBtn.className = 'expl-item-more';
   moreBtn.title = 'オプション';
   moreBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>`;
+  const renameGpx = () => _startInlineRename(lbl3, gpxState.fileName ?? 'GPXトラック', async n => {
+    gpxState.fileName = n;
+    await renderExplorer();
+  });
+  lbl3.addEventListener('dblclick', e => { e.stopPropagation(); renameGpx(); });
+
   moreBtn.addEventListener('click', e => {
     e.stopPropagation();
     const r = moreBtn.getBoundingClientRect();
-    _showExplorerGpxCtx(r.right + 4, r.top);
+    _showExplorerGpxCtx(r.right + 4, r.top, renameGpx);
   });
   row.addEventListener('click', () => {
     _explorerActiveId = 'gpx-main';
@@ -7345,7 +7410,7 @@ function _buildGpxItem() {
   });
   row.addEventListener('contextmenu', e => {
     e.preventDefault();
-    _showExplorerGpxCtx(e.clientX, e.clientY);
+    _showExplorerGpxCtx(e.clientX, e.clientY, renameGpx);
   });
 
   row.appendChild(icon);
@@ -7356,11 +7421,12 @@ function _buildGpxItem() {
 }
 
 /** GPX コンテキストメニューを表示する */
-function _showExplorerGpxCtx(x, y) {
+function _showExplorerGpxCtx(x, y, onRename) {
   _showExplorerCtx(x, y, [
     { label: gpxState.isPlaying ? '一時停止' : '再生',
       action: () => document.getElementById('gpx-play-pause')?.click()
     },
+    { label: '名前を変更', action: onRename },
     { separator: true },
     { label: '削除', danger: true, action: () => {
       if (confirm('GPXトラックを削除しますか？')) {

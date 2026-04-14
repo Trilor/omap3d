@@ -20,6 +20,7 @@ import {
   saveWsEvent,
   deleteWsEvent,
   getCoursesByEvent,
+  getWsCourse,
   saveWsCourse,
   deleteWsCourse,
   deleteCoursesForEvent,
@@ -3244,6 +3245,27 @@ export async function renameEvent(eventId, name) {
   if (_activeEventId === eventId) {
     _activeEventName = trimmed;
     _updateBreadcrumb();
+  }
+}
+
+/**
+ * コース名を変更する
+ * @param {string} courseId
+ * @param {string} newName
+ */
+export async function renameCourse(courseId, newName) {
+  const trimmed = newName?.trim();
+  if (!trimmed) return;
+  // アクティブイベント内のコースはメモリを直接更新して保存
+  const course = _courses.find(c => c.id === courseId);
+  if (course) {
+    course.name = trimmed;
+    _updateBreadcrumb();
+    _scheduleSave();
+  } else {
+    // 非アクティブイベントのコースは DB を直接更新
+    const c = await getWsCourse(courseId);
+    if (c) await saveWsCourse({ ...c, name: trimmed });
   }
 }
 
