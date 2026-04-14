@@ -7992,3 +7992,78 @@ select,
   overflow-y: auto;
   overflow-x: hidden;
 }
+
+/* ================================================================
+   Phase 3 — エクスプローラー↔コースエディタースライド遷移
+   ================================================================ */
+
+/* #panel-layers はスライドコンテナとして機能する */
+#panel-layers {
+  position: relative;
+}
+
+/* 共通: 両ビューを絶対配置で重ねる */
+.panel-view {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.22s cubic-bezier(0.4,0,0.2,1);
+  will-change: transform;
+}
+
+/* デフォルト: エクスプローラー表示中 */
+#explorer-view {
+  transform: translateX(0);
+}
+#course-editor-view {
+  transform: translateX(100%);
+}
+
+/* コースエディター表示中（.ce-active を panel-layers に付与） */
+#panel-layers.ce-active #explorer-view {
+  transform: translateX(-30%);
+}
+#panel-layers.ce-active #course-editor-view {
+  transform: translateX(0);
+}
+
+/* コースエディターヘッダー（戻るボタン行） */
+.course-editor-header {
+  height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border-muted);
+  flex-shrink: 0;
+  padding: 0 8px 0 4px;
+}
+
+.course-back-btn {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  background: transparent;
+  border: none;
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: var(--font-bold);
+  cursor: pointer;
+  padding: 5px 8px 5px 4px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+.course-back-btn:hover {
+  background: var(--bg-subtle);
+}
+
+.course-editor-title {
+  flex: 1;
+  font-size: var(--font-md);
+  font-weight: var(--font-bold);
+  color: var(--primary);
+  letter-spacing: 0.02em;
+  text-align: right;
+  padding-right: 8px;
+}

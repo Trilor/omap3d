@@ -35,7 +35,7 @@
    ================================================================ */
 
 import { getDeclination, setDeclinationModel } from './magneticDeclination.js';
-import { initCoursePlanner, setMapLayersGetter } from './course.js';
+import { initCoursePlanner, setMapLayersGetter, setCourseMapVisible } from './course.js';
 import {
   saveMapLayer, getAllMapLayers, deleteMapLayer,
   updateMapLayerState, clearAllMapLayers, estimateStorageUsage,
@@ -7935,6 +7935,43 @@ document.addEventListener('keydown', e => {
 // ---- セクション折りたたみ状態 ----
 const _explorerCollapsed = { course: false, map: false, gpx: false };
 
+// ================================================================
+// Phase 3 — コースエディタービュー切り替え
+// ================================================================
+
+/**
+ * エクスプローラービューをコースエディタービューへスライドイン。
+ * エクスプローラーパネルが閉じていれば先に開く。
+ */
+function openCourseEditor() {
+  const layersPanel = document.getElementById('panel-layers');
+  // エクスプローラーパネルが非表示なら開く（toggle を避けて直接 active を付与）
+  if (!layersPanel?.classList.contains('active')) {
+    document.querySelectorAll('.sidebar-section').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('.sidebar-nav-btn').forEach(b => b.classList.remove('active'));
+    layersPanel?.classList.add('active');
+    const layersBtn = document.querySelector('.sidebar-nav-btn[data-panel="layers"]');
+    layersBtn?.classList.add('active');
+    _sidebarCurrentPanel = 'layers';
+    _sidebarOpen = true;
+    _openedByHover = false;
+    requestAnimationFrame(updateSidebarWidth);
+  }
+  layersPanel?.classList.add('ce-active');
+  setCourseMapVisible(true);
+}
+
+/**
+ * コースエディタービューからエクスプローラービューへ戻る。
+ */
+function closeCourseEditor() {
+  document.getElementById('panel-layers')?.classList.remove('ce-active');
+  setCourseMapVisible(false);
+}
+
+// 戻るボタンのイベント（DOM 構築後に一度だけ登録）
+document.getElementById('course-back-btn')?.addEventListener('click', closeCourseEditor);
+
 /** エクスプローラーを再描画する（外部モジュールからも呼び出し可能） */
 function renderExplorer() {
   const treeEl = document.getElementById('explorer-tree');
@@ -7944,23 +7981,16 @@ function renderExplorer() {
   // ── コースセクション ──────────────────────────────────
   const courseItems = [{ id: 'course-main', label: '現在のコース' }];
   treeEl.appendChild(_buildExplorerSection('コース', 'course', courseItems, {
-    addTitle: '新規コース',
-    addAction: () => {
-      // コースタブを開く（Phase 3 で右パネルに移行）
-      const btn = document.querySelector('.sidebar-nav-btn[data-panel="course"]');
-      if (btn) btn.click();
-    },
+    addTitle: 'コースを追加',
+    addAction: () => openCourseEditor(),
     onItemClick: (item) => {
       _explorerActiveId = item.id;
       renderExplorer();
-      // Phase 3: 右パネルにコースエディターを表示
+      openCourseEditor();
     },
     onItemCtx: (item, x, y) => {
       _showExplorerCtx(x, y, [
-        { label: 'コースタブで編集', action: () => {
-          const btn = document.querySelector('.sidebar-nav-btn[data-panel="course"]');
-          if (btn) btn.click();
-        }},
+        { label: 'コースを編集', action: () => openCourseEditor() },
         { separator: true },
         { label: 'JSON エクスポート', action: () => document.getElementById('course-export-btn')?.click() },
         { label: 'IOF XML エクスポート', action: () => document.getElementById('course-xml-btn')?.click() },

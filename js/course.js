@@ -870,6 +870,9 @@ function _initLayers() {
     filter: ['==', ['get', 'type'], 'route'],
     paint: { 'line-color': 'rgba(0,0,0,0)', 'line-width': 12 },
   });
+
+  // コースエディターが開くまで非表示
+  setCourseMapVisible(false);
 }
 
 // ================================================================
@@ -2933,9 +2936,9 @@ function _setupUI() {
     // テキスト入力中は除外
     const tag = document.activeElement?.tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA') return;
-    // コースパネルが表示されているか確認
-    const panel = document.getElementById('course-panel');
-    if (!panel || panel.style.display === 'none') return;
+    // コースエディタービューが表示中かどうかを確認
+    const panel = document.getElementById('panel-layers');
+    if (!panel?.classList.contains('ce-active')) return;
 
     const isZ = e.key === 'z' || e.key === 'Z';
     const isY = e.key === 'y' || e.key === 'Y';
@@ -2953,6 +2956,25 @@ function _setupUI() {
 // ================================================================
 // 公開 API — app.js の map.on('load') から呼び出す
 // ================================================================
+
+// コースマップレイヤーの ID 一覧
+const _COURSE_LAYERS = [
+  'course-legs', 'course-routes', 'course-ctrl-outer', 'course-finish-inner',
+  'course-start-icon', 'course-labels', 'course-vertex', 'course-midpoint',
+  'course-hit', 'course-route-hit',
+];
+
+/**
+ * コース関連の MapLibre レイヤーの表示/非表示を切り替える。
+ * エクスプローラーのコースアイテム選択時に true、閉じたときに false を渡す。
+ */
+export function setCourseMapVisible(visible) {
+  if (!_map) return;
+  const v = visible ? 'visible' : 'none';
+  for (const id of _COURSE_LAYERS) {
+    if (_map.getLayer(id)) _map.setLayoutProperty(id, 'visibility', v);
+  }
+}
 
 export function initCoursePlanner(map) {
   _map = map;
