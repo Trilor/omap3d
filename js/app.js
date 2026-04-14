@@ -7840,7 +7840,7 @@ document.getElementById('right-panel-close-btn')?.addEventListener('click', clos
   handle.addEventListener('mousedown', (e) => {
     e.preventDefault();
     handle.classList.add('dragging');
-    document.body.style.cursor = 'col-resize';
+    document.body.style.cursor = 'w-resize';
     document.body.style.userSelect = 'none';
 
     const onMove = (ev) => {

@@ -7970,14 +7970,9 @@ select,
   top: 0;
   width: 6px;
   height: 100%;
-  cursor: col-resize;
+  cursor: w-resize;
   z-index: 1;
   user-select: none;
-}
-#rp-resize-handle:hover,
-#rp-resize-handle.dragging {
-  background: var(--primary);
-  opacity: 0.25;
 }
 
 .right-panel-header {
