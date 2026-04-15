@@ -8074,10 +8074,7 @@ select,
   transition: background 0.1s;
 }
 .expl-event-hd:hover { background: var(--bg-subtle); }
-.expl-event-hd.is-active-event {
-  color: var(--primary);
-}
-.expl-event-hd.is-active-event .expl-event-label { color: var(--primary); }
+.expl-event-hd.is-active-event .expl-event-label { color: var(--text-main); }
 .expl-event-hd.is-active-event .expl-event-add-btn,
 .expl-event-hd.is-active-event .expl-event-del { opacity: 1; }
 
