@@ -41,11 +41,13 @@ async function _open() {
  * レイヤーを DB に保存し、割り当てられた id（number）を返す
  * @param {{ type: string, name: string, imageBlob: Blob,
  *           coordinates: number[][], opacity: number, visible: boolean,
- *           terrainId?: string|null, terrainName?: string|null }} data
+ *           terrainId?: string|null, terrainName?: string|null,
+ *           mapSheetId?: string|null }} data
  */
 export async function saveMapLayer({
   type, name, imageBlob, coordinates, opacity, visible,
   terrainId = null, terrainName = null,
+  mapSheetId = null,
 }) {
   const db = await _open();
   return new Promise((resolve, reject) => {
@@ -59,6 +61,7 @@ export async function saveMapLayer({
       visible:     visible  !== false,
       terrainId:   terrainId  ?? null,
       terrainName: terrainName ?? null,
+      mapSheetId:  mapSheetId  ?? null,
       savedAt:     Date.now(),
     });
     req.onsuccess = (e) => resolve(e.target.result); // auto-increment id

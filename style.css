@@ -8293,7 +8293,6 @@ select,
 }
 .expl-event-hd:hover { background: var(--bg-subtle); }
 .expl-event-hd.is-active-event .expl-event-label { color: var(--text-main); }
-.expl-event-hd.is-active-event .expl-event-add-btn,
 .expl-event-hd.is-active-event .expl-event-del { opacity: 1; }
 
 .expl-event-icon {
@@ -8332,8 +8331,7 @@ select,
 .expl-event-hd.is-active-event .expl-event-fly { opacity: 1; }
 .expl-event-fly:hover { background: var(--bg-subtle); color: var(--primary); }
 
-/* コース追加・削除ボタン */
-.expl-event-add-btn,
+/* 削除ボタン */
 .expl-event-del {
   display: inline-flex;
   align-items: center;
@@ -8348,15 +8346,135 @@ select,
   flex-shrink: 0;
   transition: opacity 0.1s, background 0.1s, color 0.1s;
 }
-.expl-event-hd:hover .expl-event-add-btn,
 .expl-event-hd:hover .expl-event-del { opacity: 1; }
-.expl-event-add-btn:hover { background: color-mix(in srgb, var(--primary) 12%, transparent); color: var(--primary); }
-.expl-event-del:hover    { background: rgba(192,57,43,0.1); color: #c0392b; }
+.expl-event-del:hover { background: rgba(192,57,43,0.1); color: #c0392b; }
 
-/* イベントボディ（コース一覧） */
+/* イベントボディ（コースグループ + コース枠フォルダを含む） */
 .expl-event-body {
   padding-left: 16px;
   padding-top: 0;
+  padding-bottom: 2px;
+}
+
+/* ================================================================
+   コースイベントフォルダ（大会フォルダ内のサブフォルダ）
+   ================================================================ */
+.expl-coursegroup-folder { margin: 2px 0; }
+.expl-coursegroup-folder.is-collapsed .expl-coursegroup-body { display: none; }
+.expl-coursegroup-folder.is-collapsed .expl-section-chevron { transform: rotate(-90deg); }
+
+.expl-coursegroup-hd {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 4px 3px 2px;
+  border-radius: 4px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.1s;
+}
+.expl-coursegroup-hd:hover { background: var(--bg-subtle); }
+
+.expl-coursegroup-icon {
+  color: var(--primary);
+  opacity: 0.7;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+.expl-coursegroup-label {
+  flex: 1;
+  font-size: 11px;
+  color: var(--text-sub);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.expl-coursegroup-add-btn {
+  opacity: 0;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 3px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--text-sub);
+  transition: opacity 0.1s, background 0.1s, color 0.1s;
+}
+.expl-coursegroup-hd:hover .expl-coursegroup-add-btn { opacity: 1; }
+.expl-coursegroup-add-btn:hover {
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+  color: var(--primary);
+}
+
+.expl-coursegroup-body {
+  padding-left: 14px;
+  padding-bottom: 2px;
+}
+
+/* ================================================================
+   コース枠フォルダ（大会フォルダ内 — 画像位置合わせ用フレーム）
+   ================================================================ */
+.expl-sheet-folder { margin: 2px 0; }
+.expl-sheet-folder.is-collapsed .expl-sheet-body { display: none; }
+.expl-sheet-folder.is-collapsed .expl-section-chevron { transform: rotate(-90deg); }
+
+.expl-sheet-hd {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 4px 3px 2px;
+  border-radius: 4px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.1s;
+}
+.expl-sheet-hd:hover { background: var(--bg-subtle); }
+
+.expl-sheet-icon {
+  color: var(--text-sub);
+  opacity: 0.7;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+.expl-sheet-label {
+  flex: 1;
+  font-size: 11px;
+  color: var(--text-sub);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.expl-sheet-fly,
+.expl-sheet-del {
+  opacity: 0;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 3px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--text-sub);
+  transition: opacity 0.1s, background 0.1s, color 0.1s;
+}
+.expl-sheet-hd:hover .expl-sheet-fly,
+.expl-sheet-hd:hover .expl-sheet-del { opacity: 1; }
+.expl-sheet-fly:hover { background: var(--bg-subtle); color: var(--primary); }
+.expl-sheet-del:hover  { background: rgba(192,57,43,0.1); color: #c0392b; }
+
+.expl-sheet-body {
+  padding-left: 14px;
   padding-bottom: 2px;
 }
 

@@ -77,6 +77,7 @@ import {
 import {
   getWsTerrains, getWsTerrain, saveWsTerrain, deleteWsTerrain, updateWsTerrainVisibility,
   getWsEvents, getCoursesByEvent,
+  saveWsMapSheet, getMapSheetsByEvent, getWsMapSheet, deleteWsMapSheet,
 } from './workspace-db.js';
 
 
@@ -1000,6 +1001,7 @@ function _addLocalMapLayerFromBlob(imageBlob, coordinates, name, {
   visible     = true,
   terrainId   = null,
   terrainName = null,
+  mapSheetId  = null,   // コース枠 ID（null = 未割り当て）
 } = {}) {
   const objectUrl = URL.createObjectURL(imageBlob);
   const id        = localMapCounter++;
@@ -1048,6 +1050,7 @@ function _addLocalMapLayerFromBlob(imageBlob, coordinates, name, {
     },
     terrainId,   // テレイン紐づけ（null = 未分類）
     terrainName, // 表示名キャッシュ
+    mapSheetId,  // コース枠 ID（null = 枠なし / 未割り当て）
     dbId: null,  // IndexedDB に保存後にセットされる
   };
   localMapLayers.push(entry);
@@ -1076,10 +1079,9 @@ async function restoreMapLayersFromDb() {
           visible:     rec.visible,
           terrainId:   rec.terrainId   ?? null,
           terrainName: rec.terrainName ?? null,
+          mapSheetId:  rec.mapSheetId  ?? null,
         }
       );
-      // DB 復元時: eventId があれば紐づける（将来の Supabase 連携用）
-      if (rec.eventId) entry.eventId = rec.eventId;
       entry.dbId = rec.id;
     } catch (err) {
       console.warn(`DB レコード id=${rec.id} の復元に失敗:`, err);
@@ -6898,35 +6900,43 @@ async function _renderExplorerOnce() {
   const focusId   = _focusTerrainId;
   _focusTerrainId = null;
 
-  /** イベントと配下コースをDBから取得してまとめる */
-  async function fetchEventsWithCourses(terrainId) {
+  /** 大会・配下コース・配下コース枠をDBから取得してまとめる */
+  async function fetchEventsWithSheetsAndCourses(terrainId) {
     let events = [];
     try { events = await getWsEvents(terrainId); } catch { /* ignore */ }
     return Promise.all(events.map(async ev => {
       let courses = [];
       try { courses = await getCoursesByEvent(ev.id); } catch { /* ignore */ }
-      return { event: ev, courses };
+      let sheets = [];
+      try { sheets = await getMapSheetsByEvent(ev.id); } catch { /* ignore */ }
+      // コース枠ごとに紐づく画像を localMapLayers から収集
+      const sheetsWithImages = sheets.map(sheet => ({
+        sheet,
+        images: localMapLayers.filter(e => e.mapSheetId === sheet.id),
+      }));
+      return { event: ev, courses, sheetsWithImages };
     }));
   }
 
   // ── テレインフォルダ（全データを並列取得）──
   const terrainData = await Promise.all(wsTerrains.map(async t => ({
-    terrain:           t,
-    maps:              localMapLayers.filter(e => e.terrainId === t.id),
-    gpx:               (gpxState.fileName && gpxState.terrainId === t.id) ? gpxState : null,
-    eventsWithCourses: await fetchEventsWithCourses(t.id),
+    terrain:        t,
+    // コース枠に紐づく画像はイベント側で管理するため、ここでは mapSheetId 未割り当てのみ表示
+    maps:           localMapLayers.filter(e => e.terrainId === t.id && !e.mapSheetId),
+    gpx:            (gpxState.fileName && gpxState.terrainId === t.id) ? gpxState : null,
+    eventsData:     await fetchEventsWithSheetsAndCourses(t.id),
   })));
 
   // ── 未分類 ──
-  const uncatMaps   = localMapLayers.filter(e => !e.terrainId);
+  const uncatMaps   = localMapLayers.filter(e => !e.terrainId && !e.mapSheetId);
   const uncatGpx    = (gpxState.fileName && !gpxState.terrainId) ? gpxState : null;
-  const uncatEvents = await fetchEventsWithCourses(null);
+  const uncatEvents = await fetchEventsWithSheetsAndCourses(null);
 
   // ── 全データ取得完了 → ここで初めて DOM を置換（ちらつきゼロ）──
   const frag = document.createDocumentFragment();
 
-  for (const { terrain, maps, gpx, eventsWithCourses } of terrainData) {
-    const folder = _buildTerrainFolder(terrain, maps, gpx, eventsWithCourses);
+  for (const { terrain, maps, gpx, eventsData } of terrainData) {
+    const folder = _buildTerrainFolder(terrain, maps, gpx, eventsData);
     if (focusId === terrain.id) {
       folder.classList.add('is-focused');
       requestAnimationFrame(() => folder.scrollIntoView({ behavior: 'smooth', block: 'nearest' }));
@@ -6973,11 +6983,11 @@ async function _renderExplorerOnce() {
 /**
  * テレインフォルダ DOM を構築して返す
  * @param {object}        terrain
- * @param {Array}         maps     — localMapLayers のうちこのテレインに属するもの
- * @param {object|null}   gpx      — gpxState（属する場合のみ）
- * @param {Array}         events   — [{ event, courses[] }] のうちこのテレインに属するもの
+ * @param {Array}         maps       — localMapLayers のうちこのテレインに属するもの（コース枠未割り当て）
+ * @param {object|null}   gpx        — gpxState（属する場合のみ）
+ * @param {Array}         eventsData — [{ event, courses[], sheetsWithImages[] }]
  */
-function _buildTerrainFolder(terrain, maps, gpx, events = []) {
+function _buildTerrainFolder(terrain, maps, gpx, eventsData = []) {
   const collapsed = _explorerCollapsed[terrain.id] ?? false;
 
   const folder = document.createElement('div');
@@ -7066,7 +7076,8 @@ function _buildTerrainFolder(terrain, maps, gpx, events = []) {
   // ── ボディ ──
   const body = document.createElement('div');
   body.className = 'expl-terrain-body';
-  events.forEach(({ event, courses }) => body.appendChild(_buildEventFolder(event, courses)));
+  eventsData.forEach(({ event, courses, sheetsWithImages }) =>
+    body.appendChild(_buildEventFolder(event, courses, sheetsWithImages)));
   maps.forEach(entry => body.appendChild(_buildMapItem(entry)));
   if (gpx) body.appendChild(_buildGpxItem());
   folder.appendChild(body);
@@ -7075,11 +7086,11 @@ function _buildTerrainFolder(terrain, maps, gpx, events = []) {
 
 /**
  * 未分類フォルダ DOM を構築して返す
- * @param {Array}       maps    — localMapLayers のうち terrainId=null のもの
- * @param {object|null} gpx     — gpxState（属する場合のみ）
- * @param {Array}       events  — [{ event, courses[] }] のうち terrain_id=null のもの
+ * @param {Array}       maps       — localMapLayers のうち terrainId=null のもの（コース枠未割り当て）
+ * @param {object|null} gpx        — gpxState（属する場合のみ）
+ * @param {Array}       eventsData — [{ event, courses[], sheetsWithImages[] }] のうち terrain_id=null のもの
  */
-function _buildUncategorizedFolder(maps, gpx, events = []) {
+function _buildUncategorizedFolder(maps, gpx, eventsData = []) {
   const collapsed = _explorerCollapsed['uncategorized'] ?? true;
 
   const folder = document.createElement('div');
@@ -7103,7 +7114,7 @@ function _buildUncategorizedFolder(maps, gpx, events = []) {
   lbl.className = 'expl-terrain-label expl-uncategorized-label';
   lbl.textContent = '未分類';
 
-  const totalItems = events.length + maps.length + (gpx ? 1 : 0);
+  const totalItems = eventsData.length + maps.length + (gpx ? 1 : 0);
   if (totalItems > 0) {
     const badge = document.createElement('span');
     badge.className = 'expl-terrain-badge';
@@ -7126,7 +7137,8 @@ function _buildUncategorizedFolder(maps, gpx, events = []) {
 
   const body = document.createElement('div');
   body.className = 'expl-terrain-body';
-  events.forEach(({ event, courses }) => body.appendChild(_buildEventFolder(event, courses)));
+  eventsData.forEach(({ event, courses, sheetsWithImages }) =>
+    body.appendChild(_buildEventFolder(event, courses, sheetsWithImages)));
   maps.forEach(entry => body.appendChild(_buildMapItem(entry)));
   if (gpx) body.appendChild(_buildGpxItem());
   folder.appendChild(body);
@@ -7342,11 +7354,12 @@ function _flyToEventControls(event) {
 }
 
 /**
- * イベントサブフォルダ DOM を構築して返す
- * @param {object} event   — IndexedDB の events レコード
- * @param {Array}  courses — getCoursesByEvent() の結果配列
+ * 大会フォルダ DOM を構築して返す
+ * @param {object} event          — IndexedDB の events レコード（大会）
+ * @param {Array}  courses        — getCoursesByEvent() の結果配列
+ * @param {Array}  sheetsWithImages — [{ sheet, images[] }] — getMapSheetsByEvent() + localMapLayers
  */
-function _buildEventFolder(event, courses) {
+function _buildEventFolder(event, courses, sheetsWithImages = []) {
   const key       = 'event-' + event.id;
   const collapsed = _explorerCollapsed[key] ?? false;
   const isActive  = getActiveEventId() === event.id;
@@ -7420,22 +7433,6 @@ function _buildEventFolder(event, courses) {
     });
   });
 
-  // コース追加ボタン（＋）
-  const addCourseBtn = document.createElement('button');
-  addCourseBtn.className = 'expl-event-add-btn';
-  addCourseBtn.title = 'コースを追加';
-  addCourseBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="6" y1="1" x2="6" y2="11"/><line x1="1" y1="6" x2="11" y2="6"/></svg>`;
-  addCourseBtn.addEventListener('click', async e => {
-    e.stopPropagation();
-    if (getActiveEventId() !== event.id) await loadEvent(event.id);
-    const newCourseId = addCourseToActiveEvent();
-    if (newCourseId) _explorerActiveId = 'course-' + newCourseId;
-    _explorerCollapsed[key] = false;
-    folder.classList.remove('is-collapsed');
-    await renderExplorer();
-    openCourseEditor();
-  });
-
   // イベント削除ボタン
   const delBtn = document.createElement('button');
   delBtn.className = 'expl-event-del';
@@ -7466,11 +7463,10 @@ function _buildEventFolder(event, courses) {
   hd.appendChild(evIcon);
   hd.appendChild(lbl);
   hd.appendChild(flyBtn);
-  hd.appendChild(addCourseBtn);
   hd.appendChild(delBtn);
   // ヘッダー本体クリック（ラベル・ボタン以外）→ 展開/折りたたみ
   hd.addEventListener('click', e => {
-    if (e.target.closest('.expl-event-add-btn, .expl-event-del, .expl-event-fly, .expl-event-label, .expl-section-chevron')) return;
+    if (e.target.closest('.expl-event-del, .expl-event-fly, .expl-event-label, .expl-section-chevron')) return;
     _explorerCollapsed[key] = !(_explorerCollapsed[key] ?? false);
     folder.classList.toggle('is-collapsed', !!_explorerCollapsed[key]);
   });
@@ -7499,24 +7495,223 @@ function _buildEventFolder(event, courses) {
   const body = document.createElement('div');
   body.className = 'expl-event-body';
 
-  // 全コントロールノード（常に先頭）
-  body.appendChild(_buildAllControlsItem(event.id));
-
-  // アクティブイベントのコース isActive 情報を付与
-  const summary = isActive ? getCoursesSummary() : [];
+  // ── コースイベントフォルダ（全コントロール + コース一覧）──
+  const summary    = isActive ? getCoursesSummary() : [];
   const summaryMap = new Map(summary.map(s => [s.id, s]));
-  courses.forEach(c => {
-    const courseInfo = {
-      id:       c.id,
-      name:     c.name,
-      isActive: summaryMap.get(c.id)?.isActive ?? false,
-      isEmpty:  summaryMap.get(c.id)?.isEmpty ?? (c.sequence?.length === 0),
-      eventId:  event.id,
-    };
-    body.appendChild(_buildCourseItem(courseInfo));
-  });
+  const courseInfos = courses.map(c => ({
+    id:       c.id,
+    name:     c.name,
+    isActive: summaryMap.get(c.id)?.isActive ?? false,
+    isEmpty:  summaryMap.get(c.id)?.isEmpty ?? (c.sequence?.length === 0),
+    eventId:  event.id,
+  }));
+  body.appendChild(_buildCourseGroupSection(event, courseInfos));
+
+  // ── コース枠フォルダ（画像位置合わせ用フレーム）──
+  sheetsWithImages.forEach(({ sheet, images }) =>
+    body.appendChild(_buildMapSheetFolder(sheet, images)));
 
   folder.appendChild(body);
+  return folder;
+}
+
+/**
+ * コースイベントフォルダ（全コントロール + コース一覧）を構築して返す
+ * 大会フォルダ内のサブフォルダとして、コースプランナー関連をまとめる。
+ * @param {object} event       — events レコード
+ * @param {Array}  courseInfos — courseInfo[] （id, name, isActive, isEmpty, eventId）
+ */
+function _buildCourseGroupSection(event, courseInfos) {
+  const key       = 'coursegroup-' + event.id;
+  const collapsed = _explorerCollapsed[key] ?? false;
+
+  const section = document.createElement('div');
+  section.className = 'expl-coursegroup-folder' + (collapsed ? ' is-collapsed' : '');
+
+  // ── ヘッダー ──
+  const hd = document.createElement('div');
+  hd.className = 'expl-coursegroup-hd';
+
+  const chevron = document.createElement('span');
+  chevron.className = 'expl-section-chevron';
+  chevron.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>`;
+  chevron.addEventListener('click', e => {
+    e.stopPropagation();
+    _explorerCollapsed[key] = !(_explorerCollapsed[key] ?? false);
+    section.classList.toggle('is-collapsed', !!_explorerCollapsed[key]);
+  });
+
+  const cgIcon = document.createElement('span');
+  cgIcon.className = 'expl-coursegroup-icon';
+  cgIcon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/></svg>`;
+
+  const lbl = document.createElement('span');
+  lbl.className = 'expl-coursegroup-label';
+  lbl.textContent = 'コース';
+
+  // コース追加ボタン
+  const addCourseBtn = document.createElement('button');
+  addCourseBtn.className = 'expl-coursegroup-add-btn';
+  addCourseBtn.title = 'コースを追加';
+  addCourseBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="6" y1="1" x2="6" y2="11"/><line x1="1" y1="6" x2="11" y2="6"/></svg>`;
+  addCourseBtn.addEventListener('click', async e => {
+    e.stopPropagation();
+    if (getActiveEventId() !== event.id) await loadEvent(event.id);
+    const newCourseId = addCourseToActiveEvent();
+    if (newCourseId) _explorerActiveId = 'course-' + newCourseId;
+    _explorerCollapsed[key] = false;
+    section.classList.remove('is-collapsed');
+    await renderExplorer();
+    openCourseEditor();
+  });
+
+  hd.appendChild(chevron);
+  hd.appendChild(cgIcon);
+  hd.appendChild(lbl);
+  hd.appendChild(addCourseBtn);
+  hd.addEventListener('click', e => {
+    if (e.target.closest('.expl-coursegroup-add-btn, .expl-section-chevron')) return;
+    _explorerCollapsed[key] = !(_explorerCollapsed[key] ?? false);
+    section.classList.toggle('is-collapsed', !!_explorerCollapsed[key]);
+  });
+  section.appendChild(hd);
+
+  // ── ボディ ──
+  const body = document.createElement('div');
+  body.className = 'expl-coursegroup-body';
+  body.appendChild(_buildAllControlsItem(event.id));
+  courseInfos.forEach(c => body.appendChild(_buildCourseItem(c)));
+  section.appendChild(body);
+
+  return section;
+}
+
+/**
+ * コース枠フォルダ（画像位置合わせ用フレーム）を構築して返す
+ * @param {object} sheet  — map_sheets レコード
+ * @param {Array}  images — このコース枠に紐づく localMapLayers エントリ
+ */
+function _buildMapSheetFolder(sheet, images = []) {
+  const key       = 'sheet-' + sheet.id;
+  const collapsed = _explorerCollapsed[key] ?? false;
+
+  const folder = document.createElement('div');
+  folder.className = 'expl-sheet-folder' + (collapsed ? ' is-collapsed' : '');
+  folder.dataset.sheetId = sheet.id;
+
+  // ── ヘッダー ──
+  const hd = document.createElement('div');
+  hd.className = 'expl-sheet-hd';
+
+  const chevron = document.createElement('span');
+  chevron.className = 'expl-section-chevron';
+  chevron.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>`;
+  chevron.addEventListener('click', e => {
+    e.stopPropagation();
+    _explorerCollapsed[key] = !(_explorerCollapsed[key] ?? false);
+    folder.classList.toggle('is-collapsed', !!_explorerCollapsed[key]);
+  });
+
+  const sheetIcon = document.createElement('span');
+  sheetIcon.className = 'expl-sheet-icon';
+  sheetIcon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="1"/></svg>`;
+
+  const lbl = document.createElement('span');
+  lbl.className = 'expl-sheet-label';
+  const scaleStr = sheet.scale      ? ` 1:${sheet.scale.toLocaleString()}` : '';
+  const sizeStr  = sheet.paper_size ? ` ${sheet.paper_size}` : '';
+  lbl.textContent = sheet.name + sizeStr + scaleStr;
+  lbl.title = 'ダブルクリックで名前を変更';
+
+  if (images.length > 0) {
+    const badge = document.createElement('span');
+    badge.className = 'expl-terrain-badge';
+    badge.textContent = images.length + ' 枚';
+    lbl.appendChild(badge);
+  }
+
+  // ダブルクリックでリネーム
+  lbl.addEventListener('dblclick', e => {
+    e.stopPropagation();
+    _startInlineRename(lbl, sheet.name, async newName => {
+      try {
+        await saveWsMapSheet({ ...sheet, name: newName });
+        await renderExplorer();
+      } catch (err) { console.warn('コース枠のリネームに失敗:', err); }
+    });
+  });
+
+  // この場所へ移動ボタン
+  const flyBtn = document.createElement('button');
+  flyBtn.className = 'expl-sheet-fly';
+  flyBtn.title = 'この枠の場所へ移動';
+  flyBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>`;
+  flyBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    if (!sheet.coordinates) return;
+    const lngs = sheet.coordinates.map(c => c[0]);
+    const lats  = sheet.coordinates.map(c => c[1]);
+    const panelWidth = document.getElementById('sidebar')?.offsetWidth ?? SIDEBAR_DEFAULT_WIDTH;
+    map.fitBounds(
+      [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
+      { padding: { top: FIT_BOUNDS_PAD, bottom: FIT_BOUNDS_PAD,
+                   left: panelWidth + FIT_BOUNDS_PAD_SIDEBAR, right: FIT_BOUNDS_PAD },
+        duration: EASE_DURATION }
+    );
+  });
+
+  // コース枠削除ボタン
+  const delBtn = document.createElement('button');
+  delBtn.className = 'expl-sheet-del';
+  delBtn.title = 'コース枠を削除（画像は残る）';
+  delBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="1" y1="1" x2="11" y2="11"/><line x1="11" y1="1" x2="1" y2="11"/></svg>`;
+  delBtn.addEventListener('click', async e => {
+    e.stopPropagation();
+    if (!confirm(`「${sheet.name}」を削除しますか？\n（紐づく画像の配置は残ります）`)) return;
+    // 紐づく画像の mapSheetId を解除（localMapLayers）
+    images.forEach(img => { img.mapSheetId = null; });
+    await deleteWsMapSheet(sheet.id);
+    await renderExplorer();
+  });
+
+  hd.appendChild(chevron);
+  hd.appendChild(sheetIcon);
+  hd.appendChild(lbl);
+  hd.appendChild(flyBtn);
+  hd.appendChild(delBtn);
+  hd.addEventListener('click', e => {
+    if (e.target.closest('.expl-sheet-fly, .expl-sheet-del, .expl-section-chevron')) return;
+    _explorerCollapsed[key] = !(_explorerCollapsed[key] ?? false);
+    folder.classList.toggle('is-collapsed', !!_explorerCollapsed[key]);
+  });
+  hd.addEventListener('contextmenu', e => {
+    e.preventDefault();
+    e.stopPropagation();
+    _showExplorerCtx(e.clientX, e.clientY, [
+      { label: '名前を変更', action: () =>
+          _startInlineRename(lbl, sheet.name, async n => {
+            await saveWsMapSheet({ ...sheet, name: n });
+            await renderExplorer();
+          })
+      },
+      { separator: true },
+      { label: 'コース枠を削除', danger: true, action: async () => {
+          if (!confirm(`「${sheet.name}」を削除しますか？`)) return;
+          images.forEach(img => { img.mapSheetId = null; });
+          await deleteWsMapSheet(sheet.id);
+          await renderExplorer();
+        }
+      },
+    ]);
+  });
+  folder.appendChild(hd);
+
+  // ── ボディ（画像アイテム）──
+  const body = document.createElement('div');
+  body.className = 'expl-sheet-body';
+  images.forEach(img => body.appendChild(_buildMapItem(img)));
+  folder.appendChild(body);
+
   return folder;
 }
 
@@ -9823,6 +10018,10 @@ const importState = {
   eventsAdded:       false,
   // 磁気偏角キャッシュ（ドラッグ中に毎回計算しないよう dragend で更新）
   cachedDecl:       0,
+  // コース枠スナップ / 確定時のコース枠 ID
+  // null → 確定時に新規コース枠を作成（アクティブイベントがあれば）
+  // 文字列 → 既存コース枠に画像を追加
+  activeMapSheetId: null,
 };
 
 function _ensureFixedPointOverlay() {
@@ -10632,21 +10831,31 @@ function _openImportOverlay(imgUrl, onLoad) {
 // ---- 画像ファイルから開く（用紙サイズ設定UI表示・A4デフォルト） ----
 /**
  * 位置合わせモーダルの「既存の枠に合わせる」リストを更新する。
- * localMapLayers の配置済み地図枠を一覧し、選択すると座標をスナップする。
+ * コース枠（MapSheet）と配置済み地図を一覧し、選択すると座標をスナップする。
+ * - アクティブイベントがある場合はそのコース枠を優先表示
+ * - フォールバック: mapSheetId 未割り当ての localMapLayers も表示
  * @param {string|null} filterTerrainId — null のときは全件表示
  */
-function _populateImportSnapList(filterTerrainId = null) {
+async function _populateImportSnapList(filterTerrainId = null) {
   const section = document.getElementById('import-snap-section');
   const listEl  = document.getElementById('import-snap-list');
   if (!section || !listEl) return;
 
-  // coordinates を持つエントリのみ対象（_addLocalMapLayerFromBlob で追加されたもの）
-  const candidates = localMapLayers.filter(e =>
+  // アクティブイベントのコース枠を取得
+  let mapSheets = [];
+  const activeEventId = getActiveEventId();
+  if (activeEventId) {
+    try { mapSheets = await getMapSheetsByEvent(activeEventId); } catch { /* ignore */ }
+  }
+
+  // コース枠未割り当ての既存配置済み地図（後方互換スナップ候補）
+  const legacyCandidates = localMapLayers.filter(e =>
     e.coordinates && e.coordinates.length === 4 &&
+    !e.mapSheetId &&
     (filterTerrainId == null || e.terrainId === filterTerrainId)
   );
 
-  if (candidates.length === 0) {
+  if (mapSheets.length === 0 && legacyCandidates.length === 0) {
     section.style.display = 'none';
     return;
   }
@@ -10654,49 +10863,63 @@ function _populateImportSnapList(filterTerrainId = null) {
   section.style.display = '';
   listEl.innerHTML = '';
 
-  candidates.forEach(e => {
+  /** 座標スナップ共通処理 */
+  function _applySnapCoords(coords) {
+    if (!importState.previewMap || !coords) return;
+    importState.coords          = coords.map(c => [...c]);
+    importState.baseCoords      = coords.map(c => [...c]);
+    importState.baseScaleCoords = coords.map(c => [...c]);
+    importState.scaleVal        = 100;
+    importState.history         = [];
+    importState.future          = [];
+    const rotEl = document.getElementById('import-rotation');
+    if (rotEl) { rotEl.value = '0'; document.getElementById('import-rotation-val').textContent = '0.00'; }
+    _syncScaleUI();
+    if (importState.scaleCornerMarkers.length === 4) {
+      importState.scaleCornerMarkers.forEach((m, i) => m.setLngLat(coords[i]));
+    }
+    const lngs = coords.map(c => c[0]);
+    const lats  = coords.map(c => c[1]);
+    importState.previewMap.fitBounds(
+      [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
+      { padding: 40, duration: 400 }
+    );
+    _replaceImageSource();
+    listEl.querySelectorAll('.import-snap-btn').forEach(b => b.classList.remove('active'));
+  }
+
+  // ① コース枠（MapSheet）ボタン
+  mapSheets.forEach(sheet => {
     const btn = document.createElement('button');
     btn.className = 'import-snap-btn';
-    const shortName = e.name.replace(/\.(jpg|jpeg|png|kmz)$/i, '');
-    btn.textContent = shortName;
-    btn.title = `この地図枠（${shortName}）に合わせる`;
-
+    const scaleStr = sheet.scale ? ` 1:${sheet.scale.toLocaleString()}` : '';
+    const sizeStr  = sheet.paper_size ? ` ${sheet.paper_size}` : '';
+    btn.textContent = `${sheet.name}${sizeStr}${scaleStr}`;
+    btn.title = `コース枠「${sheet.name}」に合わせる（確定時はこの枠に画像を追加）`;
     btn.addEventListener('click', () => {
-      if (!importState.previewMap || !e.coordinates) return;
-
-      // 座標をスナップ
-      importState.coords          = e.coordinates.map(c => [...c]);
-      importState.baseCoords      = e.coordinates.map(c => [...c]);
-      importState.baseScaleCoords = e.coordinates.map(c => [...c]);
-      importState.scaleVal        = 100;
-      importState.history         = [];
-      importState.future          = [];
-      importState.snapTerrainId   = e.terrainId ?? null;
-
-      // スケール補正・4隅マーカー・回転をリセット
-      const rotEl = document.getElementById('import-rotation');
-      if (rotEl) { rotEl.value = '0'; document.getElementById('import-rotation-val').textContent = '0.00'; }
-      _syncScaleUI();
-      if (importState.scaleCornerMarkers.length === 4) {
-        importState.scaleCornerMarkers.forEach((m, i) => m.setLngLat(e.coordinates[i]));
-      }
-
-      // プレビューマップを枠にフィット
-      const lngs = e.coordinates.map(c => c[0]);
-      const lats  = e.coordinates.map(c => c[1]);
-      importState.previewMap.fitBounds(
-        [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
-        { padding: 40, duration: 400 }
-      );
-
-      // 画像ソースを新座標で更新
-      _replaceImageSource();
-
-      // ボタンを選択状態に
-      listEl.querySelectorAll('.import-snap-btn').forEach(b => b.classList.remove('active'));
+      if (!sheet.coordinates) return;
+      _applySnapCoords(sheet.coordinates);
+      importState.snapTerrainId    = null;
+      importState.activeMapSheetId = sheet.id;   // ← 既存コース枠に追加
       btn.classList.add('active');
     });
+    listEl.appendChild(btn);
+  });
 
+  // ② 後方互換: コース枠未割り当ての配置済み地図
+  legacyCandidates.forEach(e => {
+    const btn = document.createElement('button');
+    btn.className = 'import-snap-btn import-snap-btn-legacy';
+    const shortName = e.name.replace(/\.(jpg|jpeg|png|kmz)$/i, '');
+    btn.textContent = shortName;
+    btn.title = `配置済み地図「${shortName}」の枠に合わせる（新規コース枠を作成）`;
+    btn.addEventListener('click', () => {
+      if (!e.coordinates) return;
+      _applySnapCoords(e.coordinates);
+      importState.snapTerrainId    = e.terrainId ?? null;
+      importState.activeMapSheetId = null;   // ← 新規コース枠を作成
+      btn.classList.add('active');
+    });
     listEl.appendChild(btn);
   });
 }
@@ -10712,22 +10935,23 @@ function openImportModal(imageFile) {
   document.getElementById('import-paper-size').value = 'A4';
   const imgUrl = URL.createObjectURL(imageFile);
   const tmp = new Image();
-  importState.imgLabel = imageFile.name;
-  importState.snapTerrainId = null;
+  importState.imgLabel        = imageFile.name;
+  importState.snapTerrainId   = null;
+  importState.activeMapSheetId = null;
   tmp.onload  = () => {
     importState.imgAspect = (tmp.width > 0 && tmp.height > 0) ? (tmp.width / tmp.height) : null;
     document.getElementById('import-orientation').value = tmp.width >= tmp.height ? 'landscape' : 'portrait';
-    _openImportOverlay(imgUrl, () => {
+    _openImportOverlay(imgUrl, async () => {
       _updateImportPreview();
-      _populateImportSnapList();
+      await _populateImportSnapList();
     });
   };
   tmp.onerror = () => {
     importState.imgAspect = null;
     document.getElementById('import-orientation').value = 'portrait';
-    _openImportOverlay(imgUrl, () => {
+    _openImportOverlay(imgUrl, async () => {
       _updateImportPreview();
-      _populateImportSnapList();
+      await _populateImportSnapList();
     });
   };
   tmp.src = imgUrl;
@@ -10768,10 +10992,11 @@ function _applyKmzTransform() {
 
 // ---- KMZ座標付きで開く（回転のみ表示、用紙サイズUI非表示） ----
 function openImportModalWithCoords(imgUrl, coords, label) {
-  importState.imgFile    = null;
-  importState.imgAspect  = null;
-  importState.imgLabel   = label ?? '手動配置地図';
-  importState.snapTerrainId = null;
+  importState.imgFile          = null;
+  importState.imgAspect        = null;
+  importState.imgLabel         = label ?? '手動配置地図';
+  importState.snapTerrainId    = null;
+  importState.activeMapSheetId = null;
   // KMZモード: コントロールパネルを表示し、用紙サイズ・縮尺部分は非表示
   document.getElementById('import-controls').style.display = '';
   document.getElementById('import-image-only-ctrl').style.display = 'none';
@@ -10800,7 +11025,7 @@ function openImportModalWithCoords(imgUrl, coords, label) {
     // 画像ソース + hitbox を一括初期化
     _replaceImageSource();
 
-    // 既存の枠スナップリストを表示
+    // 既存のコース枠スナップリストを表示
     _populateImportSnapList();
   });
 }
@@ -11127,23 +11352,61 @@ document.addEventListener('keydown', (e) => {
 document.getElementById('import-decide-btn').addEventListener('click', async () => {
   if (!importState.coords || !importState.imgUrl) return;
 
-  const name     = importState.imgFile?.name ?? importState.imgLabel ?? '手動配置地図';
-  const coords   = importState.coords.map(c => [...c]);
-  const blob     = importState.imgBlob ?? null;
-  const keepUrl  = importState.imgUrl;
+  const name      = importState.imgFile?.name ?? importState.imgLabel ?? '手動配置地図';
+  const coords    = importState.coords.map(c => [...c]);
+  const blob      = importState.imgBlob ?? null;
+  const keepUrl   = importState.imgUrl;
   const terrainId = importState.snapTerrainId ?? null;
+  let   mapSheetId = importState.activeMapSheetId ?? null;
 
   // closeImportModal での revoke を防ぐため先に null にする
-  importState.imgUrl  = null;
-  importState.imgBlob = null;
+  importState.imgUrl           = null;
+  importState.imgBlob          = null;
+  importState.activeMapSheetId = null;
 
-  // _addLocalMapLayerFromBlob 経由でレイヤー追加・localMapLayers 登録（terrainId も正しくセット）
+  // ── コース枠の決定 ──
+  // 既存コース枠が選択されていない場合、アクティブイベントに新規コース枠を作成する
+  if (!mapSheetId) {
+    const activeEventId = getActiveEventId();
+    if (activeEventId) {
+      // 用紙サイズ・縮尺を読み取る（KMZモードでは import-image-only-ctrl が非表示）
+      const isKmzMode = (importState.imgFile === null);
+      const paperSize = isKmzMode ? null : (document.getElementById('import-paper-size')?.value || 'A4');
+      const scaleEl   = document.getElementById('import-scale');
+      const scaleCustomEl = document.getElementById('import-scale-custom');
+      let scale = null;
+      if (!isKmzMode && scaleEl) {
+        const sv = scaleEl.value;
+        scale = sv === 'custom'
+          ? (parseInt(scaleCustomEl?.value) || null)
+          : parseInt(sv);
+      }
+      const sheetName = name.replace(/\.(jpe?g|png|kmz)$/i, '') || '地図枠';
+      try {
+        const newSheet = {
+          id:          'ms-' + Date.now() + '-' + Math.random().toString(36).slice(2, 5),
+          event_id:    activeEventId,
+          name:        sheetName,
+          coordinates: coords,
+          paper_size:  paperSize,
+          scale,
+        };
+        await saveWsMapSheet(newSheet);
+        mapSheetId = newSheet.id;
+      } catch (e) {
+        console.warn('import-decide-btn: コース枠の作成に失敗:', e);
+      }
+    }
+  }
+
+  // _addLocalMapLayerFromBlob 経由でレイヤー追加・localMapLayers 登録
   const entry = _addLocalMapLayerFromBlob(
-    blob ? blob : await (await fetch(keepUrl)).blob(),  // blob がなければ ObjectURL から再取得
+    blob ? blob : await (await fetch(keepUrl)).blob(),
     coords, name,
     {
-      terrainId:   terrainId,
+      terrainId,
       terrainName: terrainId ? (localMapLayers.find(e => e.terrainId === terrainId)?.terrainName ?? null) : null,
+      mapSheetId,
     }
   );
 
@@ -11162,6 +11425,7 @@ document.getElementById('import-decide-btn').addEventListener('click', async () 
         visible:     true,
         terrainId,
         terrainName: entry.terrainName,
+        mapSheetId,
       })
         .then(dbId => {
           entry.dbId = dbId;

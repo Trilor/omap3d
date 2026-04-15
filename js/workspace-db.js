@@ -1,10 +1,11 @@
 /**
  * workspace-db.js
- * IndexedDB v3 — ワークスペースの永続化
+ * IndexedDB v4 — ワークスペースの永続化
  *
  * v1: layers ストア（旧 map-images）
  * v2: + terrains ストア / events ストア（軽量メタデータ）
  * v3: events ストアに controlDefs を持たせる + courses ストアを新規追加
+ * v4: map_sheets ストアを新規追加（コース枠 — 画像位置合わせ用フレーム情報）
  *
  * events レコードスキーマ (v3):
  *   id, terrain_id, name, source, created_at, updated_at
@@ -16,10 +17,17 @@
  * courses レコードスキーマ (v3):
  *   id, event_id, name, sequence: string[], legRoutes: object,
  *   selectedRoutes: [string, string|null][], updated_at
+ *
+ * map_sheets レコードスキーマ (v4):
+ *   id, event_id, name,
+ *   coordinates: [[lng,lat]*4] (TL→TR→BR→BL の MapLibre 順),
+ *   paper_size: 'A4'|'A3'|'B4'|'B3'|null,
+ *   scale: number|null  (例: 10000 → 1:10,000),
+ *   created_at, updated_at
  */
 
 const WS_DB_NAME    = 'teledrop-map-images';
-const WS_DB_VERSION = 3;
+const WS_DB_VERSION = 4;
 
 let _wsDb = null;
 
@@ -53,6 +61,14 @@ function openWorkspaceDb() {
         if (!db.objectStoreNames.contains('courses')) {
           const cs = db.createObjectStore('courses', { keyPath: 'id' });
           cs.createIndex('event_id', 'event_id', { unique: false });
+        }
+      }
+
+      // v3 → v4: map_sheets ストアを追加（コース枠 — 画像位置合わせ用フレーム情報）
+      if (old < 4) {
+        if (!db.objectStoreNames.contains('map_sheets')) {
+          const ms = db.createObjectStore('map_sheets', { keyPath: 'id' });
+          ms.createIndex('event_id', 'event_id', { unique: false });
         }
       }
     };
@@ -191,26 +207,35 @@ export async function saveWsEvent(event) {
   });
 }
 
-/** イベントと配下の全コースを削除 */
+/** イベントと配下の全コース・全コース枠を削除 */
 export async function deleteWsEvent(id) {
   const db = await openWorkspaceDb();
-  const tx = db.transaction(['events', 'courses'], 'readwrite');
+  const tx = db.transaction(['events', 'courses', 'map_sheets'], 'readwrite');
 
   // イベント削除
-  const evStore = tx.objectStore('events');
-  evStore.delete(id);
+  tx.objectStore('events').delete(id);
 
   // 配下コース一括削除
-  const csStore = tx.objectStore('courses');
-  const idx     = csStore.index('event_id');
+  const csStore  = tx.objectStore('courses');
+  const csIdx    = csStore.index('event_id');
+
+  // 配下コース枠一括削除
+  const msStore  = tx.objectStore('map_sheets');
+  const msIdx    = msStore.index('event_id');
+
   return new Promise((resolve, reject) => {
-    const req = idx.getAllKeys(id);
-    req.onsuccess = () => {
-      req.result.forEach(key => csStore.delete(key));
-      tx.oncomplete = () => resolve();
-      tx.onerror    = () => reject(tx.error);
+    const csReq = csIdx.getAllKeys(id);
+    csReq.onsuccess = () => {
+      csReq.result.forEach(key => csStore.delete(key));
+      const msReq = msIdx.getAllKeys(id);
+      msReq.onsuccess = () => {
+        msReq.result.forEach(key => msStore.delete(key));
+        tx.oncomplete = () => resolve();
+        tx.onerror    = () => reject(tx.error);
+      };
+      msReq.onerror = () => reject(msReq.error);
     };
-    req.onerror = () => reject(req.error);
+    csReq.onerror = () => reject(csReq.error);
   });
 }
 
@@ -272,6 +297,81 @@ export async function deleteCoursesForEvent(eventId) {
   const db    = await openWorkspaceDb();
   const tx    = db.transaction('courses', 'readwrite');
   const store = tx.objectStore('courses');
+  const index = store.index('event_id');
+  return new Promise((resolve, reject) => {
+    const req = index.getAllKeys(eventId);
+    req.onsuccess = () => {
+      req.result.forEach(key => store.delete(key));
+      tx.oncomplete = () => resolve();
+      tx.onerror    = () => reject(tx.error);
+    };
+    req.onerror = () => reject(req.error);
+  });
+}
+
+// ================================================================
+// map_sheets ストア操作（コース枠 — 画像位置合わせ用フレーム情報）
+// ================================================================
+
+/** コース枠を保存（追加・更新） */
+export async function saveWsMapSheet(sheet) {
+  const db    = await openWorkspaceDb();
+  const tx    = db.transaction('map_sheets', 'readwrite');
+  const store = tx.objectStore('map_sheets');
+  return new Promise((resolve, reject) => {
+    const now = Date.now();
+    const req = store.put({
+      created_at: now,
+      ...sheet,
+      updated_at: now,
+    });
+    req.onsuccess = () => resolve(req.result);
+    req.onerror   = () => reject(req.error);
+  });
+}
+
+/** event_id に属するコース枠一覧を返す */
+export async function getMapSheetsByEvent(eventId) {
+  const db    = await openWorkspaceDb();
+  const tx    = db.transaction('map_sheets', 'readonly');
+  const store = tx.objectStore('map_sheets');
+  const index = store.index('event_id');
+  return new Promise((resolve, reject) => {
+    const req = index.getAll(eventId);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror   = () => reject(req.error);
+  });
+}
+
+/** ID でコース枠を取得 */
+export async function getWsMapSheet(id) {
+  const db    = await openWorkspaceDb();
+  const tx    = db.transaction('map_sheets', 'readonly');
+  const store = tx.objectStore('map_sheets');
+  return new Promise((resolve, reject) => {
+    const req = store.get(id);
+    req.onsuccess = () => resolve(req.result ?? null);
+    req.onerror   = () => reject(req.error);
+  });
+}
+
+/** コース枠を削除 */
+export async function deleteWsMapSheet(id) {
+  const db    = await openWorkspaceDb();
+  const tx    = db.transaction('map_sheets', 'readwrite');
+  const store = tx.objectStore('map_sheets');
+  return new Promise((resolve, reject) => {
+    const req = store.delete(id);
+    req.onsuccess = () => resolve();
+    req.onerror   = () => reject(req.error);
+  });
+}
+
+/** イベントに属する全コース枠を一括削除 */
+export async function deleteMapSheetsForEvent(eventId) {
+  const db    = await openWorkspaceDb();
+  const tx    = db.transaction('map_sheets', 'readwrite');
+  const store = tx.objectStore('map_sheets');
   const index = store.index('event_id');
   return new Promise((resolve, reject) => {
     const req = index.getAllKeys(eventId);
