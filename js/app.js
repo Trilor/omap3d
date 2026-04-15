@@ -6721,6 +6721,18 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && _explorerCtx) _closeExplorerCtx();
 }, true);
 
+// F2キー でアクティブなアイテムをリネーム開始
+/** リネームハンドラー登録マップ（_explorerActiveId → 実行関数） */
+const _explorerRenameHandlers = new Map();
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'F2' && _explorerActiveId) {
+    e.preventDefault();
+    const handler = _explorerRenameHandlers.get(_explorerActiveId);
+    if (handler) handler();
+  }
+}, true);
+
 // ---- セクション折りたたみ状態 ----
 // キー: 'course' | テレイン ID 文字列 | 'uncategorized'
 const _explorerCollapsed = { course: false };
@@ -7445,10 +7457,10 @@ function _buildEventFolder(event, courseSets = [], sheetsWithImages = []) {
   const lbl = document.createElement('span');
   lbl.className = 'expl-event-label';
   lbl.textContent = event.name;
-  lbl.title = 'ダブルクリック: 名前を変更';
+  lbl.title = 'F2: 名前を変更　右クリック: メニュー';
 
-  lbl.addEventListener('dblclick', e => {
-    e.stopPropagation();
+  const eventActiveId = 'event-' + event.id;
+  _explorerRenameHandlers.set(eventActiveId, () => {
     _startInlineRename(lbl, event.name, async n => {
       await renameEvent(event.id, n);
       await renderExplorer();
@@ -7469,56 +7481,61 @@ function _buildEventFolder(event, courseSets = [], sheetsWithImages = []) {
     openCourseEditor();
   });
 
-  // 削除ボタン
-  const delBtn = document.createElement('button');
-  delBtn.className = 'expl-event-del';
-  delBtn.title = '大会を削除';
-  delBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="1" y1="1" x2="11" y2="11"/><line x1="11" y1="1" x2="1" y2="11"/></svg>`;
-  delBtn.addEventListener('click', async e => {
+  // ケバブメニューボタン（削除・移動・名前変更を統合）
+  const eventMoreBtn = document.createElement('button');
+  eventMoreBtn.className = 'expl-item-more';
+  eventMoreBtn.title = 'オプション';
+  eventMoreBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>`;
+  eventMoreBtn.addEventListener('click', e => {
     e.stopPropagation();
-    if (!confirm(`「${event.name}」を削除しますか？\n全コースセット・コース・コース枠が削除されます。`)) return;
-    if (_explorerActiveId?.startsWith('courseSet-') || _explorerActiveId?.startsWith('course-')) {
-      _explorerActiveId = null;
-    }
-    await deleteEvent(event.id);
-    await renderExplorer();
-  });
-
-  // この場所へ移動ボタン
-  const flyBtn = document.createElement('button');
-  flyBtn.className = 'expl-event-fly';
-  flyBtn.title = 'この場所へ移動';
-  flyBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>`;
-  flyBtn.addEventListener('click', e => {
-    e.stopPropagation();
-    _flyToEventControls(event);
+    const r = eventMoreBtn.getBoundingClientRect();
+    _showExplorerCtx(r.right + 4, r.top, [
+      { label: '名前を変更', action: () => _explorerRenameHandlers.get('event-' + event.id)?.() },
+      { label: 'コースセットを追加', action: async () => {
+          _explorerCollapsed[key] = false;
+          folder.classList.remove('is-collapsed');
+          await createCourseSet(event.id, null, 'コースセット');
+          await renderExplorer();
+          openCourseEditor();
+        }
+      },
+      { label: 'この場所へ移動', action: () => _flyToEventControls(event) },
+      { separator: true },
+      { label: '大会を削除', danger: true, action: async () => {
+          if (!confirm(`「${event.name}」を削除しますか？\n全コースセット・コース・コース枠が削除されます。`)) return;
+          if (_explorerActiveId?.startsWith('courseSet-') || _explorerActiveId?.startsWith('course-')) _explorerActiveId = null;
+          await deleteEvent(event.id);
+          await renderExplorer();
+        }
+      },
+    ]);
   });
 
   hd.appendChild(chevron);
   hd.appendChild(evIcon);
   hd.appendChild(lbl);
   hd.appendChild(addCsBtn);
-  hd.appendChild(flyBtn);
-  hd.appendChild(delBtn);
+  hd.appendChild(eventMoreBtn);
   hd.addEventListener('click', e => {
-    if (e.target.closest('.expl-event-del, .expl-event-fly, .expl-event-add-cs-btn, .expl-event-label, .expl-section-chevron')) return;
+    if (e.target.closest('.expl-item-more, .expl-event-add-cs-btn, .expl-event-label, .expl-section-chevron')) return;
     _explorerCollapsed[key] = !(_explorerCollapsed[key] ?? false);
     folder.classList.toggle('is-collapsed', !!_explorerCollapsed[key]);
   });
   hd.addEventListener('contextmenu', e => {
     e.preventDefault();
     e.stopPropagation();
-    _showExplorerCtx(e.clientX, e.clientY, [
-      { label: '名前を変更', action: () => _startInlineRename(lbl, event.name, async n => {
-          await renameEvent(event.id, n);
-          await renderExplorer();
-        })
-      },
+    const bx = e.clientX, by = e.clientY;
+    _showExplorerCtx(bx, by, [
+      { label: '名前を変更', action: () => _explorerRenameHandlers.get('event-' + event.id)?.() },
       { label: 'コースセットを追加', action: async () => {
+          _explorerCollapsed[key] = false;
+          folder.classList.remove('is-collapsed');
           await createCourseSet(event.id, null, 'コースセット');
           await renderExplorer();
+          openCourseEditor();
         }
       },
+      { label: 'この場所へ移動', action: () => _flyToEventControls(event) },
       { separator: true },
       { label: '大会を削除', danger: true, action: async () => {
           if (!confirm(`「${event.name}」を削除しますか？\n全コースセット・コース・コース枠が削除されます。`)) return;
@@ -7585,43 +7602,28 @@ function _buildCourseSetFolder(courseSet, courses = []) {
   csIcon.className = 'expl-courseset-icon';
   csIcon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/></svg>`;
 
-  // ラベル（クリック→ロード+全コントロール / ダブルクリック→リネーム）
+  // ラベル（クリック→ロード+全コントロール）
   const lbl = document.createElement('span');
   lbl.className = 'expl-courseset-label';
   lbl.textContent = courseSet.name;
-  lbl.title = 'クリック: 全コントロールを表示　ダブルクリック: 名前を変更';
+  lbl.title = 'クリック: 開く/閉じる　F2: 名前を変更　右クリック: メニュー';
 
-  let _lblTimer = null;
-  lbl.addEventListener('click', e => {
+  lbl.addEventListener('click', async e => {
     e.stopPropagation();
-    if (_lblTimer) return;
     const wasCollapsed = _explorerCollapsed[key] ?? false;
     _explorerCollapsed[key] = !wasCollapsed;
     folder.classList.toggle('is-collapsed', !wasCollapsed);
     if (wasCollapsed) {
-      _lblTimer = setTimeout(async () => {
-        _lblTimer = null;
-        if (getActiveCourseSetId() !== courseSet.id) {
-          await loadCourseSet(courseSet.id);
-          showAllControlsTab();
-          openCourseEditor();
-        } else {
-          showAllControlsTab();
-        }
-        _explorerActiveId = 'courseSet-' + courseSet.id;
-        renderExplorer();
-      }, 250);
-    } else {
-      _lblTimer = null;
+      if (getActiveCourseSetId() !== courseSet.id) {
+        await loadCourseSet(courseSet.id);
+        showAllControlsTab();
+        openCourseEditor();
+      } else {
+        showAllControlsTab();
+      }
+      _explorerActiveId = 'courseSet-' + courseSet.id;
+      renderExplorer();
     }
-  });
-  lbl.addEventListener('dblclick', e => {
-    e.stopPropagation();
-    if (_lblTimer) { clearTimeout(_lblTimer); _lblTimer = null; }
-    _startInlineRename(lbl, courseSet.name, async n => {
-      await renameCourseSet(courseSet.id, n);
-      await renderExplorer();
-    });
   });
 
   // コース追加ボタン
@@ -7640,28 +7642,44 @@ function _buildCourseSetFolder(courseSet, courses = []) {
     openCourseEditor();
   });
 
-  // 削除ボタン
-  const delBtn = document.createElement('button');
-  delBtn.className = 'expl-courseset-del';
-  delBtn.title = 'コースセットを削除';
-  delBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="1" y1="1" x2="11" y2="11"/><line x1="11" y1="1" x2="1" y2="11"/></svg>`;
-  delBtn.addEventListener('click', async e => {
+  // F2ハンドラー登録
+  _explorerRenameHandlers.set('courseSet-' + courseSet.id, () =>
+    _startInlineRename(lbl, courseSet.name, async n => {
+      await renameCourseSet(courseSet.id, n);
+      await renderExplorer();
+    })
+  );
+
+  // ケバブメニューボタン（削除・名前変更を統合）
+  const csMoreBtn = document.createElement('button');
+  csMoreBtn.className = 'expl-item-more';
+  csMoreBtn.title = 'オプション';
+  csMoreBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>`;
+  csMoreBtn.addEventListener('click', e => {
     e.stopPropagation();
-    if (!confirm(`「${courseSet.name}」を削除しますか？\n全コースが削除されます。`)) return;
-    if (_explorerActiveId === 'courseSet-' + courseSet.id || _explorerActiveId?.startsWith('course-')) {
-      _explorerActiveId = null;
-    }
-    await deleteCourseSet(courseSet.id);
-    await renderExplorer();
+    const r = csMoreBtn.getBoundingClientRect();
+    _showExplorerCtx(r.right + 4, r.top, [
+      { label: '名前を変更', action: () => _explorerRenameHandlers.get('courseSet-' + courseSet.id)?.() },
+      { separator: true },
+      { label: 'コースセットを削除', danger: true, action: async () => {
+          if (!confirm(`「${courseSet.name}」を削除しますか？\n全コースが削除されます。`)) return;
+          if (_explorerActiveId === 'courseSet-' + courseSet.id || _explorerActiveId?.startsWith('course-')) {
+            _explorerActiveId = null;
+          }
+          await deleteCourseSet(courseSet.id);
+          await renderExplorer();
+        }
+      },
+    ]);
   });
 
   hd.appendChild(chevron);
   hd.appendChild(csIcon);
   hd.appendChild(lbl);
   hd.appendChild(addCourseBtn);
-  hd.appendChild(delBtn);
+  hd.appendChild(csMoreBtn);
   hd.addEventListener('click', e => {
-    if (e.target.closest('.expl-courseset-del, .expl-courseset-add-btn, .expl-courseset-label, .expl-section-chevron')) return;
+    if (e.target.closest('.expl-item-more, .expl-courseset-add-btn, .expl-courseset-label, .expl-section-chevron')) return;
     _explorerCollapsed[key] = !(_explorerCollapsed[key] ?? false);
     folder.classList.toggle('is-collapsed', !!_explorerCollapsed[key]);
   });
@@ -7669,14 +7687,10 @@ function _buildCourseSetFolder(courseSet, courses = []) {
     e.preventDefault();
     e.stopPropagation();
     _showExplorerCtx(e.clientX, e.clientY, [
-      { label: '名前を変更', action: () => _startInlineRename(lbl, courseSet.name, async n => {
-          await renameCourseSet(courseSet.id, n);
-          await renderExplorer();
-        })
-      },
+      { label: '名前を変更', action: () => _explorerRenameHandlers.get('courseSet-' + courseSet.id)?.() },
       { separator: true },
       { label: 'コースセットを削除', danger: true, action: async () => {
-          if (!confirm(`「${courseSet.name}」を削除しますか？`)) return;
+          if (!confirm(`「${courseSet.name}」を削除しますか？\n全コースが削除されます。`)) return;
           if (_explorerActiveId?.startsWith('courseSet-') || _explorerActiveId?.startsWith('course-')) _explorerActiveId = null;
           await deleteCourseSet(courseSet.id);
           await renderExplorer();
@@ -7743,7 +7757,7 @@ function _buildMapSheetFolder(sheet, images = []) {
   const scaleStr = sheet.scale      ? ` 1:${sheet.scale.toLocaleString()}` : '';
   const sizeStr  = sheet.paper_size ? ` ${sheet.paper_size}` : '';
   lbl.textContent = sheet.name + sizeStr + scaleStr;
-  lbl.title = 'ダブルクリックで名前を変更';
+  lbl.title = 'F2: 名前を変更　右クリック: メニュー';
 
   if (images.length > 0) {
     const badge = document.createElement('span');
@@ -7752,74 +7766,70 @@ function _buildMapSheetFolder(sheet, images = []) {
     lbl.appendChild(badge);
   }
 
-  // ダブルクリックでリネーム
-  lbl.addEventListener('dblclick', e => {
-    e.stopPropagation();
-    _startInlineRename(lbl, sheet.name, async newName => {
-      try {
-        await saveWsMapSheet({ ...sheet, name: newName });
-        await renderExplorer();
-      } catch (err) { console.warn('コース枠のリネームに失敗:', err); }
-    });
-  });
+  // F2ハンドラー登録
+  _explorerRenameHandlers.set('sheet-' + sheet.id, () =>
+    _startInlineRename(lbl, sheet.name, async n => {
+      await saveWsMapSheet({ ...sheet, name: n });
+      await renderExplorer();
+    })
+  );
 
-  // この場所へ移動ボタン
-  const flyBtn = document.createElement('button');
-  flyBtn.className = 'expl-sheet-fly';
-  flyBtn.title = 'この枠の場所へ移動';
-  flyBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>`;
-  flyBtn.addEventListener('click', e => {
+  // ケバブメニューボタン（移動・名前変更・削除を統合）
+  const sheetMoreBtn = document.createElement('button');
+  sheetMoreBtn.className = 'expl-item-more';
+  sheetMoreBtn.title = 'オプション';
+  sheetMoreBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>`;
+  sheetMoreBtn.addEventListener('click', e => {
     e.stopPropagation();
-    if (!sheet.coordinates) return;
-    const lngs = sheet.coordinates.map(c => c[0]);
-    const lats  = sheet.coordinates.map(c => c[1]);
-    const panelWidth = document.getElementById('sidebar')?.offsetWidth ?? SIDEBAR_DEFAULT_WIDTH;
-    map.fitBounds(
-      [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
-      { padding: { top: FIT_BOUNDS_PAD, bottom: FIT_BOUNDS_PAD,
-                   left: panelWidth + FIT_BOUNDS_PAD_SIDEBAR, right: FIT_BOUNDS_PAD },
-        duration: EASE_DURATION }
-    );
-  });
-
-  // コース枠削除ボタン
-  const delBtn = document.createElement('button');
-  delBtn.className = 'expl-sheet-del';
-  delBtn.title = 'コース枠を削除（画像は残る）';
-  delBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="1" y1="1" x2="11" y2="11"/><line x1="11" y1="1" x2="1" y2="11"/></svg>`;
-  delBtn.addEventListener('click', async e => {
-    e.stopPropagation();
-    if (!confirm(`「${sheet.name}」を削除しますか？\n（紐づく画像の配置は残ります）`)) return;
-    // 紐づく画像の mapSheetId を解除（localMapLayers）
-    images.forEach(img => { img.mapSheetId = null; });
-    await deleteWsMapSheet(sheet.id);
-    await renderExplorer();
+    const r = sheetMoreBtn.getBoundingClientRect();
+    _showExplorerCtx(r.right + 4, r.top, [
+      { label: '名前を変更', action: () => _explorerRenameHandlers.get('sheet-' + sheet.id)?.() },
+      { label: 'この枠の場所へ移動', action: () => {
+          if (!sheet.coordinates) return;
+          const lngs = sheet.coordinates.map(c => c[0]);
+          const lats  = sheet.coordinates.map(c => c[1]);
+          const panelWidth = document.getElementById('sidebar')?.offsetWidth ?? SIDEBAR_DEFAULT_WIDTH;
+          map.fitBounds(
+            [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
+            { padding: { top: FIT_BOUNDS_PAD, bottom: FIT_BOUNDS_PAD,
+                         left: panelWidth + FIT_BOUNDS_PAD_SIDEBAR, right: FIT_BOUNDS_PAD },
+              duration: EASE_DURATION }
+          );
+        }
+      },
+      { separator: true },
+      { label: 'コース枠を削除', danger: true, action: async () => {
+          if (!confirm(`「${sheet.name}」を削除しますか？\n（紐づく画像の配置は残ります）`)) return;
+          images.forEach(img => { img.mapSheetId = null; });
+          if (_explorerActiveId === 'sheet-' + sheet.id) _explorerActiveId = null;
+          await deleteWsMapSheet(sheet.id);
+          await renderExplorer();
+        }
+      },
+    ]);
   });
 
   hd.appendChild(chevron);
   hd.appendChild(sheetIcon);
   hd.appendChild(lbl);
-  hd.appendChild(flyBtn);
-  hd.appendChild(delBtn);
+  hd.appendChild(sheetMoreBtn);
   hd.addEventListener('click', e => {
-    if (e.target.closest('.expl-sheet-fly, .expl-sheet-del, .expl-section-chevron')) return;
+    if (e.target.closest('.expl-item-more, .expl-section-chevron')) return;
+    _explorerActiveId = 'sheet-' + sheet.id;
     _explorerCollapsed[key] = !(_explorerCollapsed[key] ?? false);
     folder.classList.toggle('is-collapsed', !!_explorerCollapsed[key]);
   });
   hd.addEventListener('contextmenu', e => {
     e.preventDefault();
     e.stopPropagation();
-    _showExplorerCtx(e.clientX, e.clientY, [
-      { label: '名前を変更', action: () =>
-          _startInlineRename(lbl, sheet.name, async n => {
-            await saveWsMapSheet({ ...sheet, name: n });
-            await renderExplorer();
-          })
-      },
+    const bx = e.clientX, by = e.clientY;
+    _showExplorerCtx(bx, by, [
+      { label: '名前を変更', action: () => _explorerRenameHandlers.get('sheet-' + sheet.id)?.() },
       { separator: true },
       { label: 'コース枠を削除', danger: true, action: async () => {
-          if (!confirm(`「${sheet.name}」を削除しますか？`)) return;
+          if (!confirm(`「${sheet.name}」を削除しますか？\n（紐づく画像の配置は残ります）`)) return;
           images.forEach(img => { img.mapSheetId = null; });
+          if (_explorerActiveId === 'sheet-' + sheet.id) _explorerActiveId = null;
           await deleteWsMapSheet(sheet.id);
           await renderExplorer();
         }
@@ -7880,16 +7890,7 @@ function _buildCourseItem(courseInfo) {
     await renameCourse(courseInfo.id, n);
     await renderExplorer();
   });
-
-  // dblclick時にclickのopenThisCourseをキャンセルするためのフラグ
-  let _courseRenaming = false;
-  lbl.addEventListener('dblclick', e => {
-    e.stopPropagation();
-    _courseRenaming = true;
-    renameThisCourse();
-    // 次のclickイベントが来た時にフラグをリセット
-    setTimeout(() => { _courseRenaming = false; }, 300);
-  });
+  _explorerRenameHandlers.set('course-' + courseInfo.id, renameThisCourse);
 
   const _courseCtxItems = () => [
     { label: 'コースを編集', action: openThisCourse },
@@ -7908,7 +7909,7 @@ function _buildCourseItem(courseInfo) {
     _showExplorerCtx(r.right + 4, r.top, _courseCtxItems());
   });
 
-  row.addEventListener('click', e => { if (!_courseRenaming) openThisCourse(); });
+  row.addEventListener('click', e => { openThisCourse(); });
   row.addEventListener('contextmenu', e => {
     e.preventDefault();
     _showExplorerCtx(e.clientX, e.clientY, _courseCtxItems());
@@ -7944,13 +7945,7 @@ function _buildMapItem(entry) {
     renderOtherMapsTree();
     await renderExplorer();
   });
-  let _mapRenaming = false;
-  lbl2.addEventListener('dblclick', e => {
-    e.stopPropagation();
-    _mapRenaming = true;
-    renameMapItem();
-    setTimeout(() => { _mapRenaming = false; }, 300);
-  });
+  _explorerRenameHandlers.set('map-' + entry.id, renameMapItem);
 
   const _mapCtxItems = () => [
     { label: '地図を中心に表示', action: () => {
@@ -7975,7 +7970,6 @@ function _buildMapItem(entry) {
     _showExplorerCtx(r.right + 4, r.top, _mapCtxItems());
   });
   row.addEventListener('click', () => {
-    if (_mapRenaming) return;
     _explorerActiveId = 'map-' + entry.id;
     renderExplorer();
     openRightPanel(entry.name.replace(/\.kmz$/i, ''), _buildMapLayerRightPanel(entry));
@@ -8013,13 +8007,7 @@ function _buildGpxItem() {
     gpxState.fileName = n;
     await renderExplorer();
   });
-  let _gpxRenaming = false;
-  lbl3.addEventListener('dblclick', e => {
-    e.stopPropagation();
-    _gpxRenaming = true;
-    renameGpx();
-    setTimeout(() => { _gpxRenaming = false; }, 300);
-  });
+  _explorerRenameHandlers.set('gpx-main', renameGpx);
 
   moreBtn.addEventListener('click', e => {
     e.stopPropagation();
@@ -8027,7 +8015,6 @@ function _buildGpxItem() {
     _showExplorerGpxCtx(r.right + 4, r.top, renameGpx);
   });
   row.addEventListener('click', () => {
-    if (_gpxRenaming) return;
     _explorerActiveId = 'gpx-main';
     renderExplorer();
     openRightPanel(gpxState.fileName ?? 'GPX', _buildGpxRightPanel());

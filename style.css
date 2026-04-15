@@ -7994,7 +7994,10 @@ select,
   flex-shrink: 0;
 }
 .expl-item:hover .expl-item-more,
-.expl-item.is-active .expl-item-more { opacity: 1; }
+.expl-item.is-active .expl-item-more,
+.expl-event-hd:hover .expl-item-more,
+.expl-courseset-hd:hover .expl-item-more,
+.expl-sheet-hd:hover .expl-item-more { opacity: 1; }
 .expl-item-more:hover { background: var(--bg-subtle); color: var(--text-main); }
 
 /* 空状態メッセージ */
@@ -8251,7 +8254,6 @@ select,
 }
 .expl-event-hd:hover { background: var(--bg-subtle); }
 .expl-event-hd.is-active-event .expl-event-label { color: var(--text-main); }
-.expl-event-hd.is-active-event .expl-event-del { opacity: 1; }
 
 .expl-event-icon {
   color: #b45309;
@@ -8272,41 +8274,6 @@ select,
   cursor: pointer;
 }
 .expl-event-label:hover { color: var(--primary); }
-
-/* この場所へ移動ボタン */
-.expl-event-fly {
-  width: 18px; height: 18px;
-  display: inline-flex; align-items: center; justify-content: center;
-  border: none;
-  background: transparent;
-  color: var(--text-muted);
-  cursor: pointer;
-  border-radius: 3px;
-  opacity: 0;
-  flex-shrink: 0;
-  transition: opacity 0.1s, background 0.1s, color 0.1s;
-}
-.expl-event-hd:hover .expl-event-fly { opacity: 1; }
-.expl-event-hd.is-active-event .expl-event-fly { opacity: 1; }
-.expl-event-fly:hover { background: var(--bg-subtle); color: var(--primary); }
-
-/* 削除ボタン */
-.expl-event-del {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px; height: 18px;
-  border: none;
-  background: transparent;
-  color: var(--text-muted);
-  cursor: pointer;
-  border-radius: 3px;
-  opacity: 0;
-  flex-shrink: 0;
-  transition: opacity 0.1s, background 0.1s, color 0.1s;
-}
-.expl-event-hd:hover .expl-event-del { opacity: 1; }
-.expl-event-del:hover { background: rgba(192,57,43,0.1); color: #c0392b; }
 
 /* イベントボディ（コースグループ + コース枠フォルダを含む） */
 .expl-event-body {
@@ -8408,25 +8375,6 @@ select,
   color: #dc2626;
 }
 
-/* コースセット削除ボタン */
-.expl-courseset-del {
-  opacity: 0;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  border-radius: 3px;
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  color: var(--text-sub);
-  transition: opacity 0.1s, background 0.1s, color 0.1s;
-}
-.expl-courseset-hd:hover .expl-courseset-del { opacity: 1; }
-.expl-courseset-del:hover { background: rgba(192,57,43,0.1); color: #c0392b; }
-
 .expl-courseset-body {
   padding-left: 14px;
   padding-bottom: 2px;
@@ -8472,27 +8420,6 @@ select,
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
-.expl-sheet-fly,
-.expl-sheet-del {
-  opacity: 0;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  border-radius: 3px;
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  color: var(--text-sub);
-  transition: opacity 0.1s, background 0.1s, color 0.1s;
-}
-.expl-sheet-hd:hover .expl-sheet-fly,
-.expl-sheet-hd:hover .expl-sheet-del { opacity: 1; }
-.expl-sheet-fly:hover { background: var(--bg-subtle); color: var(--primary); }
-.expl-sheet-del:hover  { background: rgba(192,57,43,0.1); color: #c0392b; }
 
 .expl-sheet-body {
   padding-left: 14px;
