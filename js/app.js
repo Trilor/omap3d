@@ -7199,9 +7199,9 @@ function _showAddPopover(anchorBtn, terrainId) {
   const items = [
     {
       icon: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>`,
-      label: 'イベントを新規作成',
+      label: '大会を新規作成',
       action: async () => {
-        await createEvent(terrainId, 'イベント');
+        await createEvent(terrainId, '大会');
         await renderExplorer();
         openCourseEditor();
       },
@@ -7459,11 +7459,11 @@ function _buildEventFolder(event, courses, sheetsWithImages = []) {
   // イベント削除ボタン
   const delBtn = document.createElement('button');
   delBtn.className = 'expl-event-del';
-  delBtn.title = 'イベントを削除';
+  delBtn.title = '大会を削除';
   delBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="1" y1="1" x2="11" y2="11"/><line x1="11" y1="1" x2="1" y2="11"/></svg>`;
   delBtn.addEventListener('click', async e => {
     e.stopPropagation();
-    if (!confirm(`「${event.name}」を削除しますか？\n全コントロールとコースが削除されます。`)) return;
+    if (!confirm(`「${event.name}」を削除しますか？\n全コントロール・コース・コース枠が削除されます。`)) return;
     if (_explorerActiveId?.startsWith('controls-' + event.id) ||
         _explorerActiveId?.startsWith('course-')) {
       _explorerActiveId = null;
@@ -7503,8 +7503,8 @@ function _buildEventFolder(event, courses, sheetsWithImages = []) {
         })
       },
       { separator: true },
-      { label: 'イベントを削除', danger: true, action: async () => {
-          if (!confirm(`「${event.name}」を削除しますか？\n全コントロールとコースが削除されます。`)) return;
+      { label: '大会を削除', danger: true, action: async () => {
+          if (!confirm(`「${event.name}」を削除しますか？\n全コントロール・コース・コース枠が削除されます。`)) return;
           if (_explorerActiveId?.startsWith('controls-' + event.id) || _explorerActiveId?.startsWith('course-')) _explorerActiveId = null;
           await deleteEvent(event.id);
           await renderExplorer();
