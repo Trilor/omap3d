@@ -2249,6 +2249,136 @@ label.setting-label {
   color: var(--text-muted);
 }
 
+/* ローカルテレイン追加ボタン行 */
+.local-terrain-create-row {
+  padding: 6px 8px 8px;
+  border-top: 1px solid var(--border-muted);
+}
+
+.local-terrain-create-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 10px;
+  font-size: var(--font-sm);
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px dashed var(--border-muted);
+  border-radius: 5px;
+  cursor: pointer;
+  transition: color 0.12s, border-color 0.12s, background 0.12s;
+  justify-content: center;
+}
+
+.local-terrain-create-btn:hover {
+  color: #16a34a;
+  border-color: #16a34a;
+  background: rgba(22,163,74,0.05);
+}
+
+.local-terrain-create-btn.active {
+  color: #16a34a;
+  border-color: #16a34a;
+  background: rgba(22,163,74,0.1);
+  border-style: solid;
+}
+
+/* ポリゴン描画中のヒントバー */
+.terrain-draw-hint {
+  position: absolute;
+  bottom: 36px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,0.72);
+  color: #fff;
+  font-size: 11px;
+  padding: 5px 14px;
+  border-radius: 20px;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 9100;
+  backdrop-filter: blur(4px);
+}
+
+/* ローカルテレイン作成ダイアログ */
+.local-terrain-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+  z-index: 10200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.local-terrain-dialog {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-input);
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  padding: 20px;
+  width: 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.local-terrain-dialog-title {
+  font-size: var(--font-md);
+  font-weight: var(--font-semi);
+  color: var(--text-main);
+}
+
+.local-terrain-dialog-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: var(--font-sm);
+  color: var(--text-muted);
+}
+
+.local-terrain-dialog-input {
+  background: var(--bg-input);
+  border: 1px solid var(--border-input);
+  border-radius: 4px;
+  padding: 5px 8px;
+  font-size: var(--font-sm);
+  color: var(--text-main);
+  outline: none;
+}
+
+.local-terrain-dialog-input:focus {
+  border-color: var(--primary);
+}
+
+.local-terrain-dialog-btns {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.local-terrain-dialog-btn {
+  padding: 5px 14px;
+  font-size: var(--font-sm);
+  border-radius: 4px;
+  cursor: pointer;
+  border: 1px solid var(--border-input);
+  background: transparent;
+  color: var(--text-muted);
+  transition: background 0.1s;
+}
+
+.local-terrain-dialog-btn.ok {
+  background: #16a34a;
+  color: #fff;
+  border-color: #16a34a;
+}
+
+.local-terrain-dialog-btn.ok:hover { background: #15803d; }
+.local-terrain-dialog-btn.cancel:hover { background: var(--bg-hover); }
+
 /* テレイン検索カード */
 .terrain-card {
   display: flex;
@@ -2358,6 +2488,44 @@ label.setting-label {
   border-color: var(--border-muted);
   cursor: default;
   background: none;
+}
+
+/* ローカルテレインの「→」ジャンプボタン */
+.terrain-goto-btn {
+  color: var(--text-muted);
+  border-color: var(--border-muted);
+}
+.terrain-goto-btn:hover {
+  background: var(--bg-subtle);
+  border-color: var(--border-input);
+  color: var(--text-main);
+}
+
+/* ソースバッジ（公式 / ローカル）*/
+.terrain-source-badge {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: var(--font-semi);
+  padding: 1px 4px;
+  border-radius: 3px;
+  vertical-align: middle;
+  margin-left: 4px;
+  line-height: 1.4;
+}
+
+.terrain-source-public {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.terrain-source-local {
+  background: #dcfce7;
+  color: #166534;
+}
+
+/* ローカルテレインカードの左枠アクセント */
+.terrain-card-local {
+  border-left: 2px solid #16a34a;
 }
 
 /* ===== ワークスペーステレイン一覧 ===== */
@@ -7919,6 +8087,20 @@ select,
   font-weight: 400;
   color: var(--text-muted);
   white-space: nowrap;
+}
+
+/* エクスプローラー: テレインフォルダの source バッジ（ローカルのみ） */
+.expl-terrain-source-badge {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: var(--font-semi);
+  padding: 1px 4px;
+  border-radius: 3px;
+  vertical-align: middle;
+  margin-left: 4px;
+  background: #dcfce7;
+  color: #166534;
+  line-height: 1.4;
 }
 
 /* ヘッダーアクションボタン（フライ・削除） */

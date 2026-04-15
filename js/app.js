@@ -3280,29 +3280,43 @@ async function renderTerrainSearchResults(terrains) {
     return;
   }
 
-  // ワークスペースに追加済みの ID セットを取得
+  // ワークスペースに追加済みの公式テレイン ID セットを取得
   const wsTerrains = await getWsTerrains();
-  const wsIds = new Set(wsTerrains.map(t => t.id));
+  const wsPublicIds = new Set(wsTerrains.filter(t => t.source === 'public').map(t => t.id));
 
   terrains.forEach(t => {
     const card = document.createElement('div');
-    card.className = 'terrain-card';
+    const isLocal = t.source === 'local';
+    card.className = 'terrain-card' + (isLocal ? ' terrain-card-local' : '');
 
-    const typeKey  = t.type ?? 'other';
+    const typeKey       = t.type ?? 'other';
     const typeLabelText = MAP_TYPE_JA_SEARCH[typeKey] ?? typeKey;
+    const prefText      = t.prefecture ? escHtml(t.prefecture) : '';
+
+    // ソースバッジ（公式 / ローカル）
+    const sourceBadgeHtml = isLocal
+      ? '<span class="terrain-source-badge terrain-source-local">ローカル</span>'
+      : '<span class="terrain-source-badge terrain-source-public">公式</span>';
+
+    // 追加ボタン: ローカルテレインは常に「ワークスペース表示」ボタン、公式は追加/追加済み
+    const alreadyAdded = !isLocal && wsPublicIds.has(t.id);
+    const actionHtml = isLocal
+      ? `<button class="terrain-add-btn terrain-goto-btn" title="エクスプローラーで開く">→</button>`
+      : `<button class="terrain-add-btn" ${alreadyAdded ? 'disabled title="追加済み"' : 'title="ワークスペースに追加"'}>${alreadyAdded ? '追加済' : '＋'}</button>`;
 
     card.innerHTML = `
       <div class="terrain-card-info">
-        <div class="terrain-card-name">${escHtml(t.name)}</div>
+        <div class="terrain-card-name">
+          ${escHtml(t.name)}
+          ${sourceBadgeHtml}
+        </div>
         <div class="terrain-card-meta">
-          <span class="terrain-card-pref">${escHtml(t.prefecture)}</span>
+          ${prefText ? `<span class="terrain-card-pref">${prefText}</span>` : ''}
           <span class="terrain-type-badge ${escHtml(typeKey)}">${escHtml(typeLabelText)}</span>
         </div>
       </div>
       <div class="terrain-card-actions">
-        <button class="terrain-add-btn" ${wsIds.has(t.id) ? 'disabled title="追加済み"' : 'title="ワークスペースに追加"'}>
-          ${wsIds.has(t.id) ? '追加済' : '＋'}
-        </button>
+        ${actionHtml}
       </div>
     `;
 
@@ -3318,20 +3332,30 @@ async function renderTerrainSearchResults(terrains) {
       }
     });
 
-    // ＋ボタン → ワークスペースに追加 → エクスプローラータブへ切替
-    const addBtn = card.querySelector('.terrain-add-btn');
-    addBtn?.addEventListener('click', async () => {
-      await saveWsTerrain({ ...t, visible: true });
-      addBtn.disabled = true;
-      addBtn.textContent = '追加済';
-      const wsAll = await getWsTerrains();
-      updateWorkspaceTerrainSource(map, wsAll);
-      // エクスプローラータブへ切替してフォルダを展開
-      _focusTerrainId = t.id;
-      _explorerCollapsed[t.id] = false;
-      _openSidebarPanel('layers');
-      await renderExplorer();
-    });
+    const actionBtn = card.querySelector('.terrain-add-btn');
+    if (isLocal) {
+      // ローカルテレイン → エクスプローラータブへジャンプ
+      actionBtn?.addEventListener('click', () => {
+        _focusTerrainId = t.id;
+        _explorerCollapsed[t.id] = false;
+        _openSidebarPanel('layers');
+        renderExplorer();
+      });
+    } else {
+      // 公式テレイン → ワークスペースに追加 → エクスプローラータブへ切替
+      actionBtn?.addEventListener('click', async () => {
+        if (actionBtn.disabled) return;
+        await saveWsTerrain({ ...t, source: 'public', visible: true });
+        actionBtn.disabled = true;
+        actionBtn.textContent = '追加済';
+        const wsAll = await getWsTerrains();
+        updateWorkspaceTerrainSource(map, wsAll);
+        _focusTerrainId = t.id;
+        _explorerCollapsed[t.id] = false;
+        _openSidebarPanel('layers');
+        await renderExplorer();
+      });
+    }
 
     res.appendChild(card);
   });
@@ -3442,6 +3466,303 @@ getWsTerrains().then(all => {
         .forEach(c => c.classList.toggle('active', c.dataset.type === _activeType));
       _runSearch();
     });
+  });
+})();
+
+// ================================================================
+// ローカルテレイン作成 — 地図上のポリゴン描画 + 名前入力
+//
+// テレインは複雑なポリゴン形状（矩形ではない）。
+// クリックで頂点を追加、最初の頂点付近をクリックまたはダブルクリックで閉じる。
+// Enter で確定。ESC / Backspace で操作。
+// ================================================================
+
+(function () {
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+
+  let _drawing      = false;
+  let _vertices     = [];   // [[lng, lat], ...]
+  let _svgEl        = null;
+  let _polyEl       = null; // 確定済みポリゴン面
+  let _previewEl    = null; // カーソル追従プレビュー線
+  let _snapCircle   = null; // 先頭頂点スナップ円
+  let _dotEls       = [];   // 各頂点の点
+  let _lastClickMs  = 0;    // ダブルクリック判定用
+
+  const mapCanvas = map.getCanvas();
+
+  /** ピクセル座標を取得（配列形式） */
+  function _getPx(e) {
+    const r = mapCanvas.getBoundingClientRect();
+    return [e.clientX - r.left, e.clientY - r.top];
+  }
+
+  /** 地理座標配列をピクセル配列に変換 */
+  function _lngLatsToPx(coords) {
+    return coords.map(([lng, lat]) => {
+      const p = map.project([lng, lat]);
+      return [p.x, p.y];
+    });
+  }
+
+  /** SVG points 属性文字列 */
+  function _ptsStr(pxArr) {
+    return pxArr.map(([x, y]) => `${x},${y}`).join(' ');
+  }
+
+  /** SVG を再描画する */
+  function _redrawSvg(cursorPx) {
+    if (!_svgEl) return;
+    const vPx = _lngLatsToPx(_vertices);
+
+    // ポリゴン面（頂点 3 以上で閉じる）
+    if (vPx.length >= 3) {
+      _polyEl.setAttribute('points', _ptsStr([...vPx, vPx[0]]));
+    } else if (vPx.length === 2) {
+      _polyEl.setAttribute('points', _ptsStr(vPx));
+    } else {
+      _polyEl.setAttribute('points', '');
+    }
+
+    // カーソル追従プレビュー線
+    if (cursorPx && vPx.length >= 1) {
+      const last = vPx[vPx.length - 1];
+      _previewEl.setAttribute('x1', last[0]); _previewEl.setAttribute('y1', last[1]);
+      _previewEl.setAttribute('x2', cursorPx[0]); _previewEl.setAttribute('y2', cursorPx[1]);
+    } else {
+      _previewEl.setAttribute('x1', 0); _previewEl.setAttribute('y1', 0);
+      _previewEl.setAttribute('x2', 0); _previewEl.setAttribute('y2', 0);
+    }
+
+    // 各頂点の点を再描画
+    _dotEls.forEach(d => d.remove());
+    _dotEls = [];
+    vPx.forEach(([x, y]) => {
+      const c = document.createElementNS(SVG_NS, 'circle');
+      c.setAttribute('cx', x); c.setAttribute('cy', y); c.setAttribute('r', 4);
+      c.setAttribute('fill', '#16a34a');
+      c.setAttribute('stroke', '#fff'); c.setAttribute('stroke-width', '1.5');
+      _svgEl.appendChild(c);
+      _dotEls.push(c);
+    });
+
+    // 先頭頂点スナップ円（頂点 3 以上のとき表示）
+    if (vPx.length >= 3) {
+      _snapCircle.setAttribute('cx', vPx[0][0]); _snapCircle.setAttribute('cy', vPx[0][1]);
+      _snapCircle.setAttribute('display', 'block');
+    } else {
+      _snapCircle.setAttribute('display', 'none');
+    }
+  }
+
+  /** ドローモードを開始する */
+  function _startDrawMode() {
+    _drawing  = true;
+    _vertices = [];
+    document.getElementById('add-local-terrain-btn')?.classList.add('active');
+    mapCanvas.style.cursor = 'crosshair';
+    map.dragPan.disable();
+    map.scrollZoom.disable();
+    map.boxZoom.disable();
+
+    const container = map.getContainer();
+    _svgEl = document.createElementNS(SVG_NS, 'svg');
+    _svgEl.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:9000;';
+
+    _polyEl = document.createElementNS(SVG_NS, 'polygon');
+    _polyEl.setAttribute('fill', 'rgba(22,163,74,0.15)');
+    _polyEl.setAttribute('stroke', '#16a34a');
+    _polyEl.setAttribute('stroke-width', '2');
+    _polyEl.setAttribute('stroke-dasharray', '6,3');
+    _svgEl.appendChild(_polyEl);
+
+    _previewEl = document.createElementNS(SVG_NS, 'line');
+    _previewEl.setAttribute('stroke', '#16a34a');
+    _previewEl.setAttribute('stroke-width', '1.5');
+    _previewEl.setAttribute('stroke-dasharray', '4,4');
+    _svgEl.appendChild(_previewEl);
+
+    _snapCircle = document.createElementNS(SVG_NS, 'circle');
+    _snapCircle.setAttribute('r', 10);
+    _snapCircle.setAttribute('fill', 'rgba(22,163,74,0.2)');
+    _snapCircle.setAttribute('stroke', '#16a34a');
+    _snapCircle.setAttribute('stroke-width', '2');
+    _snapCircle.setAttribute('display', 'none');
+    _svgEl.appendChild(_snapCircle);
+
+    container.appendChild(_svgEl);
+    _showDrawHint('クリックで頂点を追加 / 最初の点に戻るかダブルクリックで完成 / Enter で確定 / ESC でキャンセル');
+  }
+
+  /** ドローモードを終了してリソースを解放する */
+  function _endDrawMode() {
+    _drawing  = false;
+    _vertices = [];
+    _dotEls   = [];
+    mapCanvas.style.cursor = '';
+    document.getElementById('add-local-terrain-btn')?.classList.remove('active');
+    map.dragPan.enable();
+    map.scrollZoom.enable();
+    map.boxZoom.enable();
+    _svgEl?.remove();
+    _svgEl = null; _polyEl = null; _previewEl = null; _snapCircle = null;
+    _hideDrawHint();
+  }
+
+  /** 描画ヒントバーを表示 */
+  function _showDrawHint(msg) {
+    let hint = document.getElementById('terrain-draw-hint');
+    if (!hint) {
+      hint = document.createElement('div');
+      hint.id = 'terrain-draw-hint';
+      hint.className = 'terrain-draw-hint';
+      map.getContainer().appendChild(hint);
+    }
+    hint.textContent = msg;
+  }
+
+  /** 描画ヒントバーを非表示 */
+  function _hideDrawHint() { document.getElementById('terrain-draw-hint')?.remove(); }
+
+  /** 先頭頂点に近いか（12px 以内でスナップ）*/
+  function _nearFirst(px) {
+    if (_vertices.length < 3) return false;
+    const fp = map.project(_vertices[0]);
+    return Math.hypot(px[0] - fp.x, px[1] - fp.y) < 12;
+  }
+
+  /** ポリゴンを確定してダイアログへ */
+  async function _finishPolygon() {
+    if (_vertices.length < 3) { _endDrawMode(); return; }
+    const coords = [..._vertices];
+    _endDrawMode();
+    await _showNameDialog(coords);
+  }
+
+  /** ローカルテレイン名入力ダイアログ */
+  function _showNameDialog(polygonCoords) {
+    return new Promise(resolve => {
+      const overlay = document.createElement('div');
+      overlay.className = 'local-terrain-dialog-overlay';
+      overlay.innerHTML = `
+        <div class="local-terrain-dialog">
+          <div class="local-terrain-dialog-title">ローカルテレインを作成</div>
+          <label class="local-terrain-dialog-label">テレイン名
+            <input id="ltd-name" type="text" class="local-terrain-dialog-input" placeholder="例: 地元の森" maxlength="60" />
+          </label>
+          <label class="local-terrain-dialog-label">都道府県（任意）
+            <input id="ltd-pref" type="text" class="local-terrain-dialog-input" placeholder="例: 東京都" maxlength="20" />
+          </label>
+          <div class="local-terrain-dialog-btns">
+            <button id="ltd-cancel" class="local-terrain-dialog-btn cancel">キャンセル</button>
+            <button id="ltd-ok"     class="local-terrain-dialog-btn ok">作成</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(overlay);
+      const nameInput = overlay.querySelector('#ltd-name');
+      const prefInput = overlay.querySelector('#ltd-pref');
+      requestAnimationFrame(() => nameInput?.focus());
+
+      async function _confirm() {
+        const name = nameInput.value.trim();
+        if (!name) { nameInput.focus(); return; }
+
+        // 重心を計算
+        const sumLng = polygonCoords.reduce((s, [lng]) => s + lng, 0);
+        const sumLat = polygonCoords.reduce((s, [, lat]) => s + lat, 0);
+        const center = [sumLng / polygonCoords.length, sumLat / polygonCoords.length];
+
+        // Bounding Box
+        const lngs = polygonCoords.map(([lng]) => lng);
+        const lats  = polygonCoords.map(([, lat]) => lat);
+        const bbox  = [Math.min(...lngs), Math.min(...lats), Math.max(...lngs), Math.max(...lats)];
+
+        // GeoJSON Polygon（閉じた ring）
+        const boundary = {
+          type: 'Polygon',
+          coordinates: [[...polygonCoords, polygonCoords[0]]],
+        };
+
+        const id = 'local-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7);
+        await saveWsTerrain({
+          id, name,
+          source:     'local',
+          prefecture: prefInput.value.trim() || null,
+          region:     null,
+          type:       'other',
+          tags:       [],
+          center, bbox, boundary,
+          visible:    true,
+        });
+
+        const wsAll = await getWsTerrains();
+        updateWorkspaceTerrainSource(map, wsAll);
+        _focusTerrainId = id;
+        _explorerCollapsed[id] = false;
+        _openSidebarPanel('layers');
+        await renderExplorer();
+
+        overlay.remove();
+        resolve(true);
+      }
+
+      overlay.querySelector('#ltd-ok').addEventListener('click', _confirm);
+      nameInput.addEventListener('keydown', e => { if (e.key === 'Enter') _confirm(); });
+      overlay.querySelector('#ltd-cancel').addEventListener('click', () => { overlay.remove(); resolve(false); });
+      overlay.addEventListener('click', e => { if (e.target === overlay) { overlay.remove(); resolve(false); } });
+    });
+  }
+
+  // ── イベントリスナー ──
+
+  document.getElementById('add-local-terrain-btn')?.addEventListener('click', () => {
+    if (_drawing) { _endDrawMode(); return; }
+    _startDrawMode();
+  });
+
+  mapCanvas.addEventListener('click', async e => {
+    if (!_drawing) return;
+    e.stopPropagation();
+
+    const now = Date.now();
+    const isDouble = (now - _lastClickMs) < 350;
+    _lastClickMs = now;
+
+    const px = _getPx(e);
+
+    if (isDouble) {
+      // ダブルクリック: 直前に追加した仮頂点を1つ除去して確定
+      if (_vertices.length > 0) _vertices.pop();
+      await _finishPolygon();
+      return;
+    }
+
+    // 先頭頂点スナップ → 閉じる
+    if (_nearFirst(px)) {
+      await _finishPolygon();
+      return;
+    }
+
+    // 頂点を追加
+    const ll = map.unproject(px);
+    _vertices.push([ll.lng, ll.lat]);
+    _redrawSvg(px);
+  });
+
+  mapCanvas.addEventListener('mousemove', e => {
+    if (!_drawing || _vertices.length === 0) return;
+    _redrawSvg(_getPx(e));
+  });
+
+  document.addEventListener('keydown', async e => {
+    if (!_drawing) return;
+    if (e.key === 'Escape')    { _endDrawMode(); return; }
+    if (e.key === 'Enter' && _vertices.length >= 3) { await _finishPolygon(); return; }
+    if (e.key === 'Backspace' && _vertices.length > 0) {
+      _vertices.pop();
+      _redrawSvg(null);
+    }
   });
 })();
 
@@ -6678,6 +6999,14 @@ function _buildTerrainFolder(terrain, maps, gpx, events = []) {
   const lbl = document.createElement('span');
   lbl.className = 'expl-terrain-label';
   lbl.textContent = terrain.name;
+
+  // source バッジ（ローカルテレインのみ表示）
+  if (terrain.source === 'local') {
+    const srcBadge = document.createElement('span');
+    srcBadge.className = 'expl-terrain-source-badge';
+    srcBadge.textContent = 'ローカル';
+    lbl.appendChild(srcBadge);
+  }
 
   const totalItems = events.length + maps.length + (gpx ? 1 : 0);
   if (totalItems > 0) {

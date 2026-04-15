@@ -1,10 +1,17 @@
 /**
  * terrain-search.js
- * テレイン検索 — ダミーデータ + MapLibre レイヤー管理
+ * テレイン検索 — フェデレーション検索（公式ダミー + IndexedDB ローカル）+ MapLibre レイヤー管理
  *
  * Phase 1: ダミー GeoJSON データで UI を全動作確認。
- * Phase 2: searchTerrainsApi() を Cloudflare Workers エンドポイントに切り替える。
+ * Phase 2: searchTerrainsApi() の公式側を Cloudflare Workers エンドポイントに切り替える。
+ *
+ * フェデレーション検索:
+ *   公式テレイン（DUMMY_TERRAINS / 将来は Supabase）と
+ *   IndexedDB に保存されたローカルテレイン（source:'local'）を並列検索し、
+ *   結果をマージして返す。
  */
+
+import { getWsTerrains } from './workspace-db.js';
 
 // ================================================================
 // ダミーテレインデータ（Phase 1 専用）
@@ -98,23 +105,20 @@ const DUMMY_TERRAINS = [
 // 検索 API（Phase 1: ダミー / Phase 2: Cloudflare Workers に差し替え）
 // ================================================================
 
-/**
- * テレインを検索して返す
- * @param {string} q — キーワード（空文字で全件）
- * @param {{ types?: string[], region?: string, prefecture?: string }} filters
- * @returns {Promise<Array>}
- */
-export async function searchTerrainsApi(q, filters = {}) {
-  // Phase 1: ローカルフィルタリング
-  let results = DUMMY_TERRAINS.slice();
+// ================================================================
+// 内部ヘルパー: キーワード + フィルタで配列を絞り込む
+// ================================================================
+
+function _filterTerrains(list, q, filters) {
+  let results = list.slice();
 
   if (q && q.trim()) {
     const kw = q.trim().toLowerCase();
     results = results.filter(t =>
       t.name.toLowerCase().includes(kw) ||
       (t.name_kana && t.name_kana.includes(kw)) ||
-      t.prefecture.includes(kw) ||
-      t.region.includes(kw) ||
+      (t.prefecture && t.prefecture.includes(kw)) ||
+      (t.region && t.region.includes(kw)) ||
       (t.tags && t.tags.some(tag => tag.includes(kw)))
     );
   }
@@ -131,19 +135,62 @@ export async function searchTerrainsApi(q, filters = {}) {
     results = results.filter(t => t.prefecture === filters.prefecture);
   }
 
-  // ネットワーク遅延をシミュレート（Phase 1 のみ）
-  await new Promise(r => setTimeout(r, 80));
-
   return results;
 }
 
 /**
- * ID でテレインを取得
+ * フェデレーション検索: 公式テレイン（Phase1=ダミー）と
+ * IndexedDB のローカルテレイン（source:'local'）を並列検索してマージ。
+ *
+ * 戻り値のテレインオブジェクトには必ず `source` プロパティが含まれる:
+ *   'public' — 公式（将来: Supabase）
+ *   'local'  — ユーザーが IndexedDB に作成したプライベートテレイン
+ *
+ * @param {string} q — キーワード（空文字で全件）
+ * @param {{ types?: string[], region?: string, prefecture?: string }} filters
+ * @returns {Promise<Array>}
+ */
+export async function searchTerrainsApi(q, filters = {}) {
+  // Phase 1: 公式はダミーデータをローカルフィルタリング
+  // Phase 2 移行時はここを Fetch API（Cloudflare Workers）に差し替える
+  const publicSearchPromise = (async () => {
+    await new Promise(r => setTimeout(r, 80)); // ネットワーク遅延シミュレート
+    return _filterTerrains(DUMMY_TERRAINS, q, filters);
+  })();
+
+  // IndexedDB からローカルテレインを検索
+  const localSearchPromise = (async () => {
+    let allLocal = [];
+    try {
+      const ws = await getWsTerrains();
+      allLocal = ws.filter(t => t.source === 'local');
+    } catch { /* IndexedDB 未初期化時は空 */ }
+    return _filterTerrains(allLocal, q, filters);
+  })();
+
+  const [publicResults, localResults] = await Promise.all([publicSearchPromise, localSearchPromise]);
+
+  // ローカルを先頭に表示（ユーザー自身のデータが優先）、次いで公式
+  return [...localResults, ...publicResults];
+}
+
+/**
+ * ID でテレインを取得（公式ダミー + IndexedDB ローカルを横断）
  * @param {string} id
  * @returns {Promise<object|null>}
  */
 export async function getTerrainById(id) {
-  return DUMMY_TERRAINS.find(t => t.id === id) ?? null;
+  // まず公式ダミーから検索
+  const found = DUMMY_TERRAINS.find(t => t.id === id);
+  if (found) return found;
+
+  // 次に IndexedDB のローカルから検索
+  try {
+    const ws = await getWsTerrains();
+    return ws.find(t => t.id === id) ?? null;
+  } catch {
+    return null;
+  }
 }
 
 // ================================================================
