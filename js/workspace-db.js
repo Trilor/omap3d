@@ -189,8 +189,9 @@ export async function getWsEvents(terrainId) {
       req.onsuccess = () => resolve(req.result);
       req.onerror   = () => reject(req.error);
     } else {
+      // terrain_id が null のイベントのみ返す（全件取得してフィルタ）
       const req = store.getAll();
-      req.onsuccess = () => resolve(req.result);
+      req.onsuccess = () => resolve((req.result ?? []).filter(e => e.terrain_id == null));
       req.onerror   = () => reject(req.error);
     }
   });

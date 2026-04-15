@@ -8097,9 +8097,8 @@ select,
   line-height: 1.4;
 }
 
-/* ヘッダーアクションボタン（フライ・削除） */
-.expl-terrain-fly,
-.expl-terrain-del {
+/* ヘッダーアクションボタン（⋮ ハンバーガー） */
+.expl-terrain-more {
   width: 20px; height: 20px;
   display: flex; align-items: center; justify-content: center;
   border: none;
@@ -8108,13 +8107,11 @@ select,
   cursor: pointer;
   border-radius: 3px;
   opacity: 0;
-  transition: opacity 0.1s, background 0.1s;
+  transition: opacity 0.1s, background 0.1s, color 0.1s;
   flex-shrink: 0;
 }
-.expl-terrain-hd:hover .expl-terrain-fly,
-.expl-terrain-hd:hover .expl-terrain-del { opacity: 1; }
-.expl-terrain-fly:hover { background: var(--bg-subtle); color: var(--primary); }
-.expl-terrain-del:hover { background: rgba(192,57,43,0.08); color: #c0392b; }
+.expl-terrain-hd:hover .expl-terrain-more { opacity: 1; }
+.expl-terrain-more:hover { background: var(--bg-subtle); color: var(--text-main); }
 
 /* フォルダボディ */
 .expl-terrain-body {
@@ -8158,27 +8155,26 @@ select,
   animation: expl-folder-highlight 1.2s ease-out forwards;
 }
 
-/* ＋▾ ポップオーバーボタン */
+/* ＋ 追加ボタン（シンプルアイコン、枠なし） */
 .expl-add-pop-btn {
   display: inline-flex;
   align-items: center;
-  gap: 1px;
-  padding: 2px 5px;
-  border: 1px solid var(--border-input);
-  background: var(--bg-surface);
-  color: var(--text-sub);
+  justify-content: center;
+  width: 20px; height: 20px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
   cursor: pointer;
-  border-radius: 4px;
+  border-radius: 3px;
   opacity: 0;
-  font-size: 11px;
   transition: opacity 0.1s, background 0.1s, color 0.1s;
   flex-shrink: 0;
 }
 .expl-terrain-hd:hover .expl-add-pop-btn { opacity: 1; }
 .expl-add-pop-btn:hover {
-  background: var(--primary);
-  border-color: var(--primary);
-  color: #fff;
+  background: var(--bg-subtle);
+  color: var(--primary);
 }
 
 /* ポップオーバーメニュー本体 */
@@ -8271,8 +8267,6 @@ select,
   white-space: nowrap;
   cursor: pointer;
 }
-.expl-event-label:hover { color: var(--primary); }
-
 /* この場所へ移動ボタン */
 .expl-event-fly {
   width: 18px; height: 18px;
@@ -8322,13 +8316,6 @@ select,
 .expl-courseset-folder.is-collapsed .expl-courseset-body { display: none; }
 .expl-courseset-folder.is-collapsed .expl-section-chevron { transform: rotate(-90deg); }
 
-/* アクティブなコースセット — 左ボーダーでハイライト */
-.expl-courseset-folder.is-active-courseset > .expl-courseset-hd {
-  background: color-mix(in srgb, #7c3aed 8%, transparent);
-  border-left: 2px solid #7c3aed;
-  padding-left: 0;
-}
-
 .expl-courseset-hd {
   display: flex;
   align-items: center;
@@ -8338,7 +8325,6 @@ select,
   cursor: pointer;
   user-select: none;
   transition: background 0.1s;
-  border-left: 2px solid transparent;
 }
 .expl-courseset-hd:hover { background: var(--bg-subtle); }
 
@@ -8349,7 +8335,6 @@ select,
   align-items: center;
   flex-shrink: 0;
 }
-.expl-courseset-folder.is-active-courseset .expl-courseset-icon { opacity: 1; }
 
 .expl-courseset-label {
   flex: 1;
@@ -8359,9 +8344,6 @@ select,
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-.expl-courseset-folder.is-active-courseset .expl-courseset-label {
-  color: var(--text-main);
 }
 
 /* コースセット追加ボタン（イベントヘッダー内） */

@@ -2796,6 +2796,12 @@ function _scheduleSave() {
   _saveTimer = setTimeout(_saveToDb, 300);
 }
 
+/** 保存タイマーをキャンセルして即時 IndexedDB に保存する（エクスプローラー更新前に呼ぶ） */
+export async function flushSave() {
+  if (_saveTimer) { clearTimeout(_saveTimer); _saveTimer = null; }
+  await _saveToDb();
+}
+
 /**
  * IndexedDB からコースセットとコースを読み込んでメモリに展開する
  * @param {string} courseSetId
