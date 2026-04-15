@@ -956,6 +956,8 @@ map.on('load', async () => {
 
   // ⑤ テレイン検索レイヤーを初期化する（Phase 1: ダミーデータ）
   initTerrainLayers(map);
+  // マップロード前に検索が完了していた場合、キャッシュ結果をレイヤーに反映する
+  if (_lastTerrainResults) updateSearchTerrainSource(map, _lastTerrainResults);
 
   // UI状態全体をlocalStorageから復元（リロード時維持）
   restoreUiState();
@@ -973,8 +975,6 @@ map.on('load', async () => {
   map.once('idle', () => {
     updateShareableUrl();
     renderExplorer();
-    // テレインタブがアクティブなら初回検索を実行（リロード時の空白対策）
-    if (_sidebarCurrentPanel === 'terrain') _runTerrainSearch?.();
   });
 
   console.log('3D OMap Viewer 初期化完了（OriLibreベースマップ）');
@@ -3445,8 +3445,10 @@ getWsTerrains().then(all => {
 
 // ---- 地図カタログ: GeoJSON 読み込み ----
 // ---- テレイン検索: 検索バー・チップフィルター ----
-/** テレイン検索を外部から起動できるよう公開（タブ切り替え・ページロード用） */
-let _runTerrainSearch = null;
+/** テレイン検索を外部から起動できるよう公開（タブ切り替え用） */
+let _runTerrainSearch    = null;
+/** 最後の検索結果キャッシュ — マップロード後にレイヤーへ反映するために保持 */
+let _lastTerrainResults  = null;
 
 (function () {
   let _searchTimer = null;
@@ -3461,7 +3463,12 @@ let _runTerrainSearch = null;
     res.innerHTML = '<div class="terrain-search-loading">検索中…</div>';
 
     const results = await searchTerrainsApi(q, { types: _activeType ? [_activeType] : [] });
-    updateSearchTerrainSource(map, results);
+
+    // マップがロード済みならレイヤーも更新、まだなら結果だけキャッシュ
+    // （updateSearchTerrainSource は initTerrainLayers 後にしか呼べない）
+    _lastTerrainResults = results;
+    if (map.loaded()) updateSearchTerrainSource(map, results);
+
     renderTerrainSearchResults(results);
   }
 
@@ -3481,8 +3488,11 @@ let _runTerrainSearch = null;
     });
   });
 
-  // タブ切り替え・ページロード時に外部から呼び出せるよう公開
+  // タブ切り替え用に外部公開
   _runTerrainSearch = _runSearch;
+
+  // マップロードを待たず即時に初回検索を実行（UIカードはすぐ表示）
+  _runSearch();
 })();
 
 // ================================================================
