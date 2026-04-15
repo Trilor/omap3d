@@ -8100,7 +8100,8 @@ select,
 .expl-terrain-icon {
   width: 14px; height: 14px;
   display: flex; align-items: center; justify-content: center;
-  color: var(--primary);
+  color: #059669;
+  opacity: 0.85;
   flex-shrink: 0;
 }
 .expl-uncategorized .expl-terrain-icon { color: var(--text-muted); }
@@ -8296,7 +8297,8 @@ select,
 .expl-event-hd.is-active-event .expl-event-del { opacity: 1; }
 
 .expl-event-icon {
-  color: var(--primary);
+  color: #b45309;
+  opacity: 0.85;
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -8357,13 +8359,20 @@ select,
 }
 
 /* ================================================================
-   コースイベントフォルダ（大会フォルダ内のサブフォルダ）
+   コースセットフォルダ（大会フォルダ内 — controlDefs の単位）
    ================================================================ */
-.expl-coursegroup-folder { margin: 2px 0; }
-.expl-coursegroup-folder.is-collapsed .expl-coursegroup-body { display: none; }
-.expl-coursegroup-folder.is-collapsed .expl-section-chevron { transform: rotate(-90deg); }
+.expl-courseset-folder { margin: 2px 0; }
+.expl-courseset-folder.is-collapsed .expl-courseset-body { display: none; }
+.expl-courseset-folder.is-collapsed .expl-section-chevron { transform: rotate(-90deg); }
 
-.expl-coursegroup-hd {
+/* アクティブなコースセット — 左ボーダーでハイライト */
+.expl-courseset-folder.is-active-courseset > .expl-courseset-hd {
+  background: color-mix(in srgb, #7c3aed 8%, transparent);
+  border-left: 2px solid #7c3aed;
+  padding-left: 0;
+}
+
+.expl-courseset-hd {
   display: flex;
   align-items: center;
   gap: 4px;
@@ -8372,17 +8381,20 @@ select,
   cursor: pointer;
   user-select: none;
   transition: background 0.1s;
+  border-left: 2px solid transparent;
 }
-.expl-coursegroup-hd:hover { background: var(--bg-subtle); }
+.expl-courseset-hd:hover { background: var(--bg-subtle); }
 
-.expl-coursegroup-icon {
-  color: var(--primary);
-  opacity: 0.7;
+.expl-courseset-icon {
+  color: #7c3aed;
+  opacity: 0.85;
   display: flex;
   align-items: center;
   flex-shrink: 0;
 }
-.expl-coursegroup-label {
+.expl-courseset-folder.is-active-courseset .expl-courseset-icon { opacity: 1; }
+
+.expl-courseset-label {
   flex: 1;
   font-size: 11px;
   color: var(--text-sub);
@@ -8391,7 +8403,12 @@ select,
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.expl-coursegroup-add-btn {
+.expl-courseset-folder.is-active-courseset .expl-courseset-label {
+  color: var(--text-main);
+}
+
+/* コースセット追加ボタン（イベントヘッダー内） */
+.expl-event-add-cs-btn {
   opacity: 0;
   flex-shrink: 0;
   display: flex;
@@ -8406,15 +8423,62 @@ select,
   color: var(--text-sub);
   transition: opacity 0.1s, background 0.1s, color 0.1s;
 }
-.expl-coursegroup-hd:hover .expl-coursegroup-add-btn { opacity: 1; }
-.expl-coursegroup-add-btn:hover {
-  background: color-mix(in srgb, var(--primary) 12%, transparent);
-  color: var(--primary);
+.expl-event-hd:hover .expl-event-add-cs-btn { opacity: 1; }
+.expl-event-add-cs-btn:hover {
+  background: color-mix(in srgb, #7c3aed 12%, transparent);
+  color: #7c3aed;
 }
 
-.expl-coursegroup-body {
+/* コースセット — コース追加ボタン */
+.expl-courseset-add-btn {
+  opacity: 0;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 3px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--text-sub);
+  transition: opacity 0.1s, background 0.1s, color 0.1s;
+}
+.expl-courseset-hd:hover .expl-courseset-add-btn { opacity: 1; }
+.expl-courseset-add-btn:hover {
+  background: color-mix(in srgb, #dc2626 10%, transparent);
+  color: #dc2626;
+}
+
+/* コースセット削除ボタン */
+.expl-courseset-del {
+  opacity: 0;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 3px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--text-sub);
+  transition: opacity 0.1s, background 0.1s, color 0.1s;
+}
+.expl-courseset-hd:hover .expl-courseset-del { opacity: 1; }
+.expl-courseset-del:hover { background: rgba(192,57,43,0.1); color: #c0392b; }
+
+.expl-courseset-body {
   padding-left: 14px;
   padding-bottom: 2px;
+}
+
+/* DnD ドラッグ中 */
+.expl-courseset-folder.drag-over > .expl-courseset-hd {
+  outline: 1px dashed #7c3aed;
+  border-radius: 4px;
 }
 
 /* ================================================================
@@ -8437,8 +8501,8 @@ select,
 .expl-sheet-hd:hover { background: var(--bg-subtle); }
 
 .expl-sheet-icon {
-  color: var(--text-sub);
-  opacity: 0.7;
+  color: #2563eb;
+  opacity: 0.75;
   display: flex;
   align-items: center;
   flex-shrink: 0;
@@ -8478,7 +8542,7 @@ select,
   padding-bottom: 2px;
 }
 
-/* 全コントロールノード */
+/* 全コントロールノード（後方互換 — course_set フォルダに吸収されたが残留スタイルとして保持） */
 .expl-all-controls-item {
   border-left: 2px solid transparent;
 }
@@ -8492,6 +8556,25 @@ select,
   align-items: center;
 }
 .expl-all-controls-item.is-active .expl-ctrl-icon { opacity: 1; }
+
+/* コースアイテム — フラグアイコン（赤） */
+.expl-course-flag-icon {
+  color: #dc2626;
+  opacity: 0.8;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+.expl-course-item.is-active .expl-course-flag-icon { opacity: 1; }
+
+/* GPX — 緑アイコン */
+.expl-gpx-icon {
+  color: #16a34a;
+  opacity: 0.8;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
 
 /* インラインリネーム入力 */
 .expl-inline-rename {

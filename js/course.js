@@ -1,15 +1,17 @@
 /* ================================================================
-   course.js — コースプランナーモジュール（v4）
+   course.js — コースプランナーモジュール（v5）
    Purple Pen 互換リレーショナル構造 + IndexedDB 永続化
 
    データモデル:
-   · _controlDefs (Map) — アクティブイベントのコントロールマスター
-   · _courses[]         — アクティブイベントのコース一覧
-   · _activeEventId     — 現在ロード中のイベント ID（null = なし）
+   · _controlDefs (Map)  — アクティブコースセットのコントロールマスター
+   · _courses[]          — アクティブコースセットのコース一覧
+   · _activeEventId      — 現在ロード中のイベント ID（mapSheet作成等で使用）
+   · _activeCourseSetId  — 現在ロード中のコースセット ID
 
-   永続化: IndexedDB workspace-db.js（v3）
-   · events ストア: イベントメタデータ + controlDefs
-   · courses ストア: 各コース（sequence は defId 参照のみ）
+   永続化: IndexedDB workspace-db.js（v5）
+   · events ストア      : イベントメタデータのみ（controlDefs は course_sets へ移動）
+   · course_sets ストア : コースセット + controlDefs + nextDefId 等
+   · courses ストア     : 各コース（course_set_id 参照）
 
    ================================================================ */
 
@@ -20,10 +22,16 @@ import {
   saveWsEvent,
   deleteWsEvent,
   getCoursesByEvent,
+  getCoursesBySet,
   getWsCourse,
   saveWsCourse,
   deleteWsCourse,
-  deleteCoursesForEvent,
+  deleteCoursesBySet,
+  saveWsCourseSet,
+  getWsCourseSet,
+  getCourseSetsForEvent,
+  getAllWsCourseSets,
+  deleteWsCourseSet,
 } from './workspace-db.js';
 
 // ================================================================
@@ -68,9 +76,11 @@ const _courses = [{ id: 'course0', name: 'コース1', sequence: [], legRoutes: 
 let _activeCourseIdx = 0;   // アクティブコースの index
 let _nextDefId       = 0;   // defId 生成カウンタ
 let _nextRouteId     = 0;   // ルート ID 生成カウンタ
-let _activeEventId        = null; // 現在ロード中のイベント ID
+let _activeEventId        = null; // 現在ロード中のイベント ID（mapSheet作成等で使用）
 let _activeEventName      = '';   // 現在ロード中のイベント名（パンくず用）
 let _activeEventTerrainId = null; // 現在ロード中のイベントの terrain_id
+let _activeCourseSetId    = null; // 現在ロード中のコースセット ID
+let _activeCourseSetName  = '';   // 現在ロード中のコースセット名（パンくず用）
 let _drawMode        = false;
 let _calcTimer       = null;
 let _legStats        = [];  // [{distKm, climb, descent}] レグ統計キャッシュ
@@ -1381,12 +1391,13 @@ function _addCourse() {
   const idx   = _courses.length;
   const newId = 'course-' + Date.now();
   _courses.push({
-    id:        newId,
-    event_id:  _activeEventId,
-    name:      `コース${idx + 1}`,
-    sequence:  [],
-    legRoutes: {},
-    terrainId: null,
+    id:            newId,
+    event_id:      _activeEventId      ?? null,
+    course_set_id: _activeCourseSetId  ?? null,
+    name:          `コース${idx + 1}`,
+    sequence:      [],
+    legRoutes:     {},
+    terrainId:     null,
   });
   _activeCourseIdx = _courses.length - 1;
   _activeTab = 'course';
@@ -2727,21 +2738,24 @@ const LS_KEY = 'teledrop_course_v2'; // 移行元キー（移行後は削除）
 
 /**
  * 現在のアクティブイベント状態を IndexedDB に保存する（非同期・fire-and-forget）
- * イベントレコードに controlDefs を含め、コースレコードを courses ストアに upsert する。
+ * コースセットレコードに controlDefs を含め、コースレコードを courses ストアに upsert する。
  */
 async function _saveToDb() {
-  if (!_activeEventId) return;
+  if (!_activeCourseSetId) return;
   try {
-    // ── イベントレコードを更新 ──
+    // ── コースセットレコードを更新 ──
     const controlDefsObj = {};
     _controlDefs.forEach((def, id) => {
       controlDefsObj[id] = { code: def.code, lng: def.lng, lat: def.lat };
     });
-    await saveWsEvent({
-      id:            _activeEventId,
-      name:          _activeEventName,
-      terrain_id:    _activeEventTerrainId,
-      source:        'local',
+    // 既存レコードを取得してフィールドを保持（event_id / terrain_id 等）
+    const existing = await getWsCourseSet(_activeCourseSetId);
+    await saveWsCourseSet({
+      ...(existing ?? {}),
+      id:            _activeCourseSetId,
+      name:          _activeCourseSetName,
+      event_id:      existing?.event_id   ?? _activeEventId ?? null,
+      terrain_id:    existing?.terrain_id ?? _activeEventTerrainId ?? null,
       controlDefs:   controlDefsObj,
       nextDefId:     _nextDefId,
       nextRouteId:   _nextRouteId,
@@ -2749,11 +2763,12 @@ async function _saveToDb() {
     });
 
     // ── 既存コースを全削除して upsert ──（シンプルな全置換）
-    await deleteCoursesForEvent(_activeEventId);
+    await deleteCoursesBySet(_activeCourseSetId);
     for (const c of _courses) {
       await saveWsCourse({
         id:             c.id,
-        event_id:       _activeEventId,
+        event_id:       _activeEventId ?? null,
+        course_set_id:  _activeCourseSetId,
         name:           c.name,
         sequence:       [...c.sequence],
         selectedRoutes: [..._selectedRoutes.entries()].filter(([k]) => {
@@ -2782,29 +2797,40 @@ function _scheduleSave() {
 }
 
 /**
- * IndexedDB からイベントとコースを読み込んでメモリに展開する
- * @param {string} eventId
+ * IndexedDB からコースセットとコースを読み込んでメモリに展開する
+ * @param {string} courseSetId
  * @returns {Promise<boolean>} 成功 true
  */
-async function _loadEventFromDb(eventId) {
+async function _loadCourseSetFromDb(courseSetId) {
   try {
-    const event = await getWsEvent(eventId);
-    if (!event) return false;
+    const courseSet = await getWsCourseSet(courseSetId);
+    if (!courseSet) return false;
 
-    _activeEventId       = event.id;
-    _activeEventName     = event.name;
-    _activeEventTerrainId = event.terrain_id ?? null;
-    _nextDefId           = event.nextDefId   ?? 0;
-    _nextRouteId         = event.nextRouteId ?? 0;
+    _activeCourseSetId   = courseSet.id;
+    _activeCourseSetName = courseSet.name ?? '';
+    _nextDefId           = courseSet.nextDefId  ?? 0;
+    _nextRouteId         = courseSet.nextRouteId ?? 0;
+
+    // コースセットが属するイベント情報を復元（mapSheet作成等で使用）
+    if (courseSet.event_id) {
+      const event = await getWsEvent(courseSet.event_id);
+      _activeEventId        = event?.id        ?? null;
+      _activeEventName      = event?.name      ?? '';
+      _activeEventTerrainId = event?.terrain_id ?? null;
+    } else {
+      _activeEventId        = null;
+      _activeEventName      = '';
+      _activeEventTerrainId = courseSet.terrain_id ?? null;
+    }
 
     // controlDefs 復元
     _controlDefs.clear();
-    Object.entries(event.controlDefs ?? {}).forEach(([id, def]) => {
+    Object.entries(courseSet.controlDefs ?? {}).forEach(([id, def]) => {
       _controlDefs.set(id, { defId: id, code: def.code ?? '', lng: def.lng, lat: def.lat });
     });
 
-    // courses 復元
-    const dbCourses = await getCoursesByEvent(eventId);
+    // courses 復元（course_set_id でフィルタ）
+    const dbCourses = await getCoursesBySet(courseSetId);
     _courses.length = 0;
     _selectedRoutes.clear();
     dbCourses.forEach(c => {
@@ -2819,9 +2845,8 @@ async function _loadEventFromDb(eventId) {
         name: c.name,
         sequence: [...(c.sequence ?? [])],
         legRoutes,
-        terrainId: null, // コースはイベントに属するため terrain_id は不要
+        terrainId: null,
       });
-      // selectedRoutes をマージ
       (c.selectedRoutes ?? []).forEach(([k, v]) => _selectedRoutes.set(k, v));
     });
 
@@ -2830,13 +2855,13 @@ async function _loadEventFromDb(eventId) {
     }
 
     // activeCourseIdx を復元
-    const savedActiveId = event.activeCourseId;
+    const savedActiveId = courseSet.activeCourseId;
     const idx = savedActiveId ? _courses.findIndex(c => c.id === savedActiveId) : -1;
     _activeCourseIdx = idx >= 0 ? idx : 0;
 
     return true;
   } catch (e) {
-    console.warn('course load failed:', e);
+    console.warn('courseSet load failed:', e);
     return false;
   }
 }
@@ -2856,14 +2881,21 @@ async function _migrateFromLocalStorage() {
       return null;
     }
 
-    const eventId   = 'event-migrated-' + Date.now();
-    const eventName = '移行済みコース';
+    const eventId     = 'event-migrated-' + Date.now();
+    const courseSetId = 'cs-auto-' + eventId;
+    const eventName   = '移行済みコース';
 
     await saveWsEvent({
-      id:            eventId,
-      name:          eventName,
+      id:         eventId,
+      name:       eventName,
+      terrain_id: null,
+      source:     'local',
+    });
+    await saveWsCourseSet({
+      id:            courseSetId,
+      event_id:      eventId,
       terrain_id:    null,
-      source:        'local',
+      name:          eventName,
       controlDefs:   data.controlDefs ?? {},
       nextDefId:     data.nextDefId   ?? 0,
       nextRouteId:   data.nextRouteId ?? 0,
@@ -2877,10 +2909,11 @@ async function _migrateFromLocalStorage() {
         legRoutes[key] = routes.map(r => ({ id: r.id, colorIdx: r.colorIdx ?? 0, coords: r.coords ?? [] }));
       });
       await saveWsCourse({
-        id:        c.id,
-        event_id:  eventId,
-        name:      c.name,
-        sequence:  [...(c.sequence ?? [])],
+        id:            c.id,
+        event_id:      eventId,
+        course_set_id: courseSetId,
+        name:          c.name,
+        sequence:      [...(c.sequence ?? [])],
         legRoutes,
         selectedRoutes: data.selectedRoutes ?? [],
       });
@@ -3095,65 +3128,90 @@ export function setCourseMapVisible(visible) {
 // 公開 API — イベント・コース管理
 // ================================================================
 
-/** アクティブイベントの ID を返す */
+/** アクティブイベントの ID を返す（mapSheet作成等で使用） */
 export function getActiveEventId() { return _activeEventId; }
 /** アクティブイベントの名前を返す */
 export function getActiveEventName() { return _activeEventName; }
+/** アクティブコースセットの ID を返す */
+export function getActiveCourseSetId() { return _activeCourseSetId; }
+/** アクティブコースセットの名前を返す */
+export function getActiveCourseSetName() { return _activeCourseSetName; }
 
 /**
  * パンくずデータを返す（右パネル表示用）
  */
 export function getActiveBreadcrumb() {
   return {
-    eventName: _activeEventName,
-    itemName:  _activeTab === 'controls' ? '全コントロール' : (_activeCourse()?.name ?? ''),
-    itemType:  _activeTab, // 'course' | 'controls'
+    eventName:     _activeEventName,
+    courseSetName: _activeCourseSetName,
+    itemName:      _activeTab === 'controls' ? _activeCourseSetName : (_activeCourse()?.name ?? ''),
+    itemType:      _activeTab, // 'course' | 'controls'
   };
 }
 
 /**
- * 新しいイベントを作成して IndexedDB に保存し、ロードする
+ * 新しいイベントを作成して IndexedDB に保存する（コースセットは別途作成）
  * @param {string|null} terrainId
  * @param {string}      name
  * @returns {Promise<string>} イベント ID
  */
 export async function createEvent(terrainId, name) {
-  const id              = 'event-' + Date.now();
-  const defaultCourseId = 'course-' + Date.now();
+  const id = 'event-' + Date.now();
   await saveWsEvent({
     id,
-    name:           name || 'イベント',
-    terrain_id:     terrainId ?? null,
-    source:         'local',
-    controlDefs:    {},
-    nextDefId:      0,
-    nextRouteId:    0,
-    activeCourseId: defaultCourseId,
+    name:       name || '大会',
+    terrain_id: terrainId ?? null,
+    source:     'local',
   });
-  // デフォルトコースを DB に保存（renderExplorer が getCoursesByEvent で取得できるようにする）
-  await saveWsCourse({
-    id:             defaultCourseId,
-    event_id:       id,
-    name:           'コース1',
-    sequence:       [],
-    legRoutes:      {},
-    selectedRoutes: [],
-  });
-  await loadEvent(id);
+  // デフォルトのコースセットを作成してロード
+  await createCourseSet(id, null, name || '大会');
   return id;
 }
 
 /**
- * 指定イベントをメモリにロードする（アクティブイベント切替）
- * @param {string} eventId
+ * 新しいコースセットを作成して IndexedDB に保存し、ロードする
+ * @param {string|null} eventId    — 大会 ID（null の場合は terrain_id を使用）
+ * @param {string|null} terrainId  — テレイン ID（eventId=null 時に使用）
+ * @param {string}      name       — コースセット名
+ * @returns {Promise<string>} コースセット ID
+ */
+export async function createCourseSet(eventId, terrainId, name) {
+  const courseSetId     = 'cs-' + Date.now();
+  const defaultCourseId = 'course-' + Date.now();
+  await saveWsCourseSet({
+    id:            courseSetId,
+    event_id:      eventId   ?? null,
+    terrain_id:    terrainId ?? null,
+    name:          name || 'コースセット',
+    controlDefs:   {},
+    nextDefId:     0,
+    nextRouteId:   0,
+    activeCourseId: defaultCourseId,
+  });
+  await saveWsCourse({
+    id:            defaultCourseId,
+    event_id:      eventId ?? null,
+    course_set_id: courseSetId,
+    name:          'コース1',
+    sequence:      [],
+    legRoutes:     {},
+    selectedRoutes: [],
+  });
+  await loadCourseSet(courseSetId);
+  return courseSetId;
+}
+
+/**
+ * 指定コースセットをメモリにロードする（アクティブ切替）
+ * @param {string} courseSetId
  * @returns {Promise<boolean>}
  */
-export async function loadEvent(eventId) {
-  // 現在のイベントを保存してから切り替え
-  if (_activeEventId && _activeEventId !== eventId) {
+export async function loadCourseSet(courseSetId) {
+  // 現在のコースセットを保存してから切り替え
+  if (_activeCourseSetId && _activeCourseSetId !== courseSetId) {
     await _saveToDb();
   }
-  const ok = await _loadEventFromDb(eventId);
+  const ok = await _loadCourseSetFromDb(courseSetId);
   if (ok) {
     _undoStack.length = 0;
     _redoStack.length = 0;
@@ -3169,7 +3227,38 @@ export async function loadEvent(eventId) {
 }
 
 /**
- * アクティブイベントを削除する（呼び出し後は loadEvent で別イベントを選ぶこと）
+ * 後方互換: イベントの最初のコースセットをロードする
+ * app.js 内で loadEvent(eventId) を呼ぶ箇所を段階的に移行するための橋渡し
+ * @param {string} eventId
+ * @returns {Promise<boolean>}
+ */
+export async function loadEvent(eventId) {
+  const courseSets = await getCourseSetsForEvent(eventId);
+  if (courseSets.length > 0) {
+    return loadCourseSet(courseSets[0].id);
+  }
+  // コースセットが存在しない（未移行データ等）→ イベントIDで暫定ロードを試みる
+  // _activeEventId だけセットしてパネルをリフレッシュ
+  const event = await getWsEvent(eventId);
+  if (!event) return false;
+  _activeEventId        = event.id;
+  _activeEventName      = event.name;
+  _activeEventTerrainId = event.terrain_id ?? null;
+  _activeCourseSetId    = null;
+  _activeCourseSetName  = '';
+  _controlDefs.clear();
+  _courses.length = 0;
+  _courses.push({ id: 'course0', name: 'コース1', sequence: [], legRoutes: {}, terrainId: null });
+  _activeCourseIdx = 0;
+  _undoStack.length = 0;
+  _redoStack.length = 0;
+  _refreshSource();
+  _renderPanel();
+  return true;
+}
+
+/**
+ * アクティブイベントを削除する
  * @param {string} eventId
  */
 export async function deleteEvent(eventId) {
@@ -3178,6 +3267,8 @@ export async function deleteEvent(eventId) {
     _activeEventId        = null;
     _activeEventName      = '';
     _activeEventTerrainId = null;
+    _activeCourseSetId    = null;
+    _activeCourseSetName  = '';
     _controlDefs.clear();
     _courses.length = 0;
     _courses.push({ id: 'course0', name: 'コース1', sequence: [], legRoutes: {}, terrainId: null });
@@ -3190,8 +3281,52 @@ export async function deleteEvent(eventId) {
 }
 
 /**
+ * コースセットを削除する（配下コースも削除）
+ * @param {string} courseSetId
+ */
+export async function deleteCourseSet(courseSetId) {
+  await deleteCoursesBySet(courseSetId);
+  await deleteWsCourseSet(courseSetId);
+  if (_activeCourseSetId === courseSetId) {
+    _activeCourseSetId   = null;
+    _activeCourseSetName = '';
+    _activeEventId       = null;
+    _activeEventName     = '';
+    _controlDefs.clear();
+    _courses.length = 0;
+    _courses.push({ id: 'course0', name: 'コース1', sequence: [], legRoutes: {}, terrainId: null });
+    _activeCourseIdx = 0;
+    _undoStack.length = 0;
+    _redoStack.length = 0;
+    _refreshSource();
+    _renderPanel();
+  }
+}
+
+/**
+ * コースセットを別のイベント/テレインへ移動する（DnD用）
+ * @param {string} courseSetId
+ * @param {{ eventId: string|null, terrainId: string|null }} target
+ */
+export async function moveCourseSet(courseSetId, { eventId, terrainId }) {
+  const cs = await getWsCourseSet(courseSetId);
+  if (!cs) return;
+  // 配下コースの event_id も更新
+  const courses = await getCoursesBySet(courseSetId);
+  for (const c of courses) {
+    await saveWsCourse({ ...c, event_id: eventId ?? null });
+  }
+  await saveWsCourseSet({ ...cs, event_id: eventId ?? null, terrain_id: terrainId ?? null });
+  // アクティブなら内部状態も更新
+  if (_activeCourseSetId === courseSetId) {
+    _activeEventId        = eventId ?? null;
+    _activeEventTerrainId = terrainId ?? null;
+  }
+}
+
+/**
  * 全コースのサマリー一覧を返す（renderExplorer 用）
- * アクティブイベントのコースのみ返す。
+ * アクティブコースセットのコースのみ返す。
  */
 export function getCoursesSummary() {
   return _courses.map(c => ({
@@ -3216,19 +3351,24 @@ export function setActiveCourse(courseId) {
   _renderPanel();
 }
 
-/** 全コントロールタブを表示する（ツリーの「全コントロール」ノードから呼び出す） */
+/** 全コントロールタブを表示する（コースセットフォルダクリック時に呼び出す） */
 export function showAllControlsTab() {
   _activeTab = 'controls';
   _renderPanel();
 }
 
 /**
- * アクティブイベントにコースを追加する（app.js のツリー UI から呼び出す）
- * @returns {string|null} 追加したコースの ID（イベント未ロード時は null）
+ * アクティブコースセットにコースを追加する（app.js のツリー UI から呼び出す）
+ * @returns {string|null} 追加したコースの ID（コースセット未ロード時は null）
  */
 export function addCourseToActiveEvent() {
-  if (!_activeEventId) return null;
+  if (!_activeCourseSetId) return null;
   return _addCourse();
+}
+
+/** addCourseToActiveEvent の別名（新命名） */
+export function addCourseToActiveCourseSet() {
+  return addCourseToActiveEvent();
 }
 
 /**
@@ -3249,6 +3389,23 @@ export async function renameEvent(eventId, name) {
 }
 
 /**
+ * コースセット名を変更して IndexedDB に保存する
+ * @param {string} courseSetId
+ * @param {string} name
+ */
+export async function renameCourseSet(courseSetId, name) {
+  const trimmed = name?.trim();
+  if (!trimmed) return;
+  const cs = await getWsCourseSet(courseSetId);
+  if (!cs) return;
+  await saveWsCourseSet({ ...cs, name: trimmed });
+  if (_activeCourseSetId === courseSetId) {
+    _activeCourseSetName = trimmed;
+    _updateBreadcrumb();
+  }
+}
+
+/**
  * コース名を変更する
  * @param {string} courseId
  * @param {string} newName
@@ -3256,26 +3413,105 @@ export async function renameEvent(eventId, name) {
 export async function renameCourse(courseId, newName) {
   const trimmed = newName?.trim();
   if (!trimmed) return;
-  // アクティブイベント内のコースはメモリを直接更新して保存
+  // アクティブコースセット内のコースはメモリを直接更新して保存
   const course = _courses.find(c => c.id === courseId);
   if (course) {
     course.name = trimmed;
     _updateBreadcrumb();
     _scheduleSave();
   } else {
-    // 非アクティブイベントのコースは DB を直接更新
+    // 非アクティブのコースは DB を直接更新
     const c = await getWsCourse(courseId);
     if (c) await saveWsCourse({ ...c, name: trimmed });
   }
 }
 
-/** 後方互換 (DnD で course の terrain を移動していたが今はイベント単位) — no-op */
+/** 後方互換 — no-op */
 export function setCourseTerrainId(_courseId, _terrainId) {}
 
 /** 後方互換: 旧 createCourseForTerrain は createEvent に統合 */
 export async function createCourseForTerrain(terrainId) {
-  const id = await createEvent(terrainId, 'イベント');
-  return id;
+  return createEvent(terrainId, '大会');
+}
+
+/**
+ * 既存 DB の events レコードに残った controlDefs を course_sets へ移行する。
+ * v5 アップグレード後の初回起動時に一度だけ実行する。
+ * 移行済みイベント（controlDefs が空）はスキップする。
+ */
+export async function migrateCourseSets() {
+  try {
+    const events      = await getAllWsEvents();
+    const existingSets = await getAllWsCourseSets();
+    const existingSetIds = new Set(existingSets.map(cs => cs.id));
+
+    for (const event of events) {
+      // controlDefs がなければスキップ
+      if (!event.controlDefs || Object.keys(event.controlDefs).length === 0) {
+        // コースセットが存在しない大会にはデフォルトのコースセットを作成
+        const sets = existingSets.filter(cs => cs.event_id === event.id);
+        if (sets.length === 0) {
+          const courseSetId = 'cs-auto-' + event.id;
+          if (!existingSetIds.has(courseSetId)) {
+            await saveWsCourseSet({
+              id:             courseSetId,
+              event_id:       event.id,
+              terrain_id:     null,
+              name:           event.name,
+              controlDefs:    {},
+              nextDefId:      0,
+              nextRouteId:    0,
+              activeCourseId: null,
+            });
+            existingSetIds.add(courseSetId);
+            // 既存コースに course_set_id を付与
+            const courses = await getCoursesByEvent(event.id);
+            for (const c of courses) {
+              if (!c.course_set_id) {
+                await saveWsCourse({ ...c, course_set_id: courseSetId });
+              }
+            }
+          }
+        }
+        continue;
+      }
+
+      const courseSetId = 'cs-auto-' + event.id;
+      if (existingSetIds.has(courseSetId)) continue; // 移行済み
+
+      // controlDefs を course_set に移動
+      await saveWsCourseSet({
+        id:             courseSetId,
+        event_id:       event.id,
+        terrain_id:     event.terrain_id ?? null,
+        name:           event.name,
+        controlDefs:    event.controlDefs,
+        nextDefId:      event.nextDefId   ?? 0,
+        nextRouteId:    event.nextRouteId ?? 0,
+        activeCourseId: event.activeCourseId ?? null,
+      });
+      existingSetIds.add(courseSetId);
+
+      // event から controlDefs 等を削除（軽量化）
+      const cleanEvent = { ...event };
+      delete cleanEvent.controlDefs;
+      delete cleanEvent.nextDefId;
+      delete cleanEvent.nextRouteId;
+      delete cleanEvent.activeCourseId;
+      await saveWsEvent(cleanEvent);
+
+      // 既存コースに course_set_id を付与
+      const courses = await getCoursesByEvent(event.id);
+      for (const c of courses) {
+        if (!c.course_set_id) {
+          await saveWsCourse({ ...c, course_set_id: courseSetId });
+        }
+      }
+      console.info('[course] migrateCourseSets: event', event.id, '→ courseSet', courseSetId);
+    }
+  } catch (e) {
+    console.warn('[course] migrateCourseSets failed:', e);
+  }
 }
 
 export async function initCoursePlanner(map) {

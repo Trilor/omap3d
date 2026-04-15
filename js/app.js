@@ -35,7 +35,7 @@
    ================================================================ */
 
 import { getDeclination, setDeclinationModel } from './magneticDeclination.js';
-import { initCoursePlanner, setMapLayersGetter, setCourseMapVisible, getCoursesSummary, createCourseForTerrain, setActiveCourse, setCourseTerrainId, createEvent, loadEvent, getActiveEventId, showAllControlsTab, deleteEvent, getActiveEventName, addCourseToActiveEvent, deleteCourseById, renameEvent, renameCourse } from './course.js';
+import { initCoursePlanner, setMapLayersGetter, setCourseMapVisible, getCoursesSummary, createCourseForTerrain, setActiveCourse, setCourseTerrainId, createEvent, loadEvent, loadCourseSet, getActiveEventId, getActiveCourseSetId, showAllControlsTab, deleteEvent, deleteCourseSet, createCourseSet, moveCourseSet, getActiveEventName, addCourseToActiveEvent, deleteCourseById, renameEvent, renameCourseSet, renameCourse, migrateCourseSets } from './course.js';
 import {
   saveMapLayer, getAllMapLayers, deleteMapLayer,
   updateMapLayerState, clearAllMapLayers, estimateStorageUsage,
@@ -78,6 +78,8 @@ import {
   getWsTerrains, getWsTerrain, saveWsTerrain, deleteWsTerrain, updateWsTerrainVisibility,
   getWsEvents, getCoursesByEvent,
   saveWsMapSheet, getMapSheetsByEvent, getWsMapSheet, deleteWsMapSheet,
+  getCourseSetsForEvent, getWsCourseSet, saveWsCourseSet,
+  getCoursesBySet,
 } from './workspace-db.js';
 
 
@@ -964,6 +966,9 @@ map.on('load', async () => {
 
   // IndexedDB に保存された地図を復元する（非同期・失敗しても継続）
   restoreMapLayersFromDb();
+
+  // コースセットへの DB 移行（v4→v5: controlDefs を course_sets ストアへ）
+  migrateCourseSets().catch(e => console.warn('migrateCourseSets:', e));
 
   // コースプランナー初期化（localMapLayers の参照を渡す）
   setMapLayersGetter(() => localMapLayers);
@@ -6923,37 +6928,45 @@ async function _renderExplorerOnce() {
   const focusId   = _focusTerrainId;
   _focusTerrainId = null;
 
-  /** 大会・配下コース・配下コース枠をDBから取得してまとめる */
-  async function fetchEventsWithSheetsAndCourses(terrainId) {
+  /** 大会・配下コースセット（+コース）・配下コース枠をDBから取得してまとめる */
+  async function fetchEventsWithSheetsAndCourseSets(terrainId) {
     let events = [];
     try { events = await getWsEvents(terrainId); } catch { /* ignore */ }
     return Promise.all(events.map(async ev => {
-      let courses = [];
-      try { courses = await getCoursesByEvent(ev.id); } catch { /* ignore */ }
+      // コースセット一覧（各セットは配下コース付き）
+      let courseSets = [];
+      try {
+        const sets = await getCourseSetsForEvent(ev.id);
+        courseSets = await Promise.all(sets.map(async cs => {
+          let courses = [];
+          try { courses = await getCoursesBySet(cs.id); } catch { /* ignore */ }
+          return { courseSet: cs, courses };
+        }));
+      } catch { /* ignore */ }
+
+      // コース枠一覧（各枠は紐づく画像付き）
       let sheets = [];
       try { sheets = await getMapSheetsByEvent(ev.id); } catch { /* ignore */ }
-      // コース枠ごとに紐づく画像を localMapLayers から収集
       const sheetsWithImages = sheets.map(sheet => ({
         sheet,
         images: localMapLayers.filter(e => e.mapSheetId === sheet.id),
       }));
-      return { event: ev, courses, sheetsWithImages };
+      return { event: ev, courseSets, sheetsWithImages };
     }));
   }
 
   // ── テレインフォルダ（全データを並列取得）──
   const terrainData = await Promise.all(wsTerrains.map(async t => ({
-    terrain:        t,
-    // コース枠に紐づく画像はイベント側で管理するため、ここでは mapSheetId 未割り当てのみ表示
-    maps:           localMapLayers.filter(e => e.terrainId === t.id && !e.mapSheetId),
-    gpx:            (gpxState.fileName && gpxState.terrainId === t.id) ? gpxState : null,
-    eventsData:     await fetchEventsWithSheetsAndCourses(t.id),
+    terrain:    t,
+    maps:       localMapLayers.filter(e => e.terrainId === t.id && !e.mapSheetId),
+    gpx:        (gpxState.fileName && gpxState.terrainId === t.id) ? gpxState : null,
+    eventsData: await fetchEventsWithSheetsAndCourseSets(t.id),
   })));
 
   // ── 未分類 ──
   const uncatMaps   = localMapLayers.filter(e => !e.terrainId && !e.mapSheetId);
   const uncatGpx    = (gpxState.fileName && !gpxState.terrainId) ? gpxState : null;
-  const uncatEvents = await fetchEventsWithSheetsAndCourses(null);
+  const uncatEvents = await fetchEventsWithSheetsAndCourseSets(null);
 
   // ── 全データ取得完了 → ここで初めて DOM を置換（ちらつきゼロ）──
   const frag = document.createDocumentFragment();
@@ -7030,7 +7043,8 @@ function _buildTerrainFolder(terrain, maps, gpx, eventsData = []) {
 
   const tfIcon = document.createElement('span');
   tfIcon.className = 'expl-terrain-icon';
-  tfIcon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>`;
+  // 山型アイコン（テレイン = 土地・地形）
+  tfIcon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 20l4-8 4 8"/><path d="M2 20l6-12 3 6"/></svg>`;
 
   const lbl = document.createElement('span');
   lbl.className = 'expl-terrain-label';
@@ -7099,8 +7113,8 @@ function _buildTerrainFolder(terrain, maps, gpx, eventsData = []) {
   // ── ボディ ──
   const body = document.createElement('div');
   body.className = 'expl-terrain-body';
-  eventsData.forEach(({ event, courses, sheetsWithImages }) =>
-    body.appendChild(_buildEventFolder(event, courses, sheetsWithImages)));
+  eventsData.forEach(({ event, courseSets, sheetsWithImages }) =>
+    body.appendChild(_buildEventFolder(event, courseSets, sheetsWithImages)));
   maps.forEach(entry => body.appendChild(_buildMapItem(entry)));
   if (gpx) body.appendChild(_buildGpxItem());
   folder.appendChild(body);
@@ -7111,7 +7125,7 @@ function _buildTerrainFolder(terrain, maps, gpx, eventsData = []) {
  * 未分類フォルダ DOM を構築して返す
  * @param {Array}       maps       — localMapLayers のうち terrainId=null のもの（コース枠未割り当て）
  * @param {object|null} gpx        — gpxState（属する場合のみ）
- * @param {Array}       eventsData — [{ event, courses[], sheetsWithImages[] }] のうち terrain_id=null のもの
+ * @param {Array}       eventsData — [{ event, courseSets[], sheetsWithImages[] }] のうち terrain_id=null のもの
  */
 function _buildUncategorizedFolder(maps, gpx, eventsData = []) {
   const collapsed = _explorerCollapsed['uncategorized'] ?? true;
@@ -7160,8 +7174,8 @@ function _buildUncategorizedFolder(maps, gpx, eventsData = []) {
 
   const body = document.createElement('div');
   body.className = 'expl-terrain-body';
-  eventsData.forEach(({ event, courses, sheetsWithImages }) =>
-    body.appendChild(_buildEventFolder(event, courses, sheetsWithImages)));
+  eventsData.forEach(({ event, courseSets, sheetsWithImages }) =>
+    body.appendChild(_buildEventFolder(event, courseSets, sheetsWithImages)));
   maps.forEach(entry => body.appendChild(_buildMapItem(entry)));
   if (gpx) body.appendChild(_buildGpxItem());
   folder.appendChild(body);
@@ -7292,8 +7306,10 @@ function _setupFolderDropTarget(folder, terrainId) {
       if (entry) entry.terrainId = terrainId;
     } else if (type === 'gpx') {
       gpxState.terrainId = terrainId;
+    } else if (type === 'courseSet') {
+      // コースセットをテレインフォルダ（または未分類）にドロップ → event_id=null, terrain_id=terrainId
+      await moveCourseSet(id, { eventId: null, terrainId: terrainId ?? null });
     }
-    // コース（course type）はイベント単位で管理するため DnD 対象外
     await renderExplorer();
   });
 }
@@ -7378,94 +7394,92 @@ function _flyToEventControls(event) {
 
 /**
  * 大会フォルダ DOM を構築して返す
- * @param {object} event          — IndexedDB の events レコード（大会）
- * @param {Array}  courses        — getCoursesByEvent() の結果配列
- * @param {Array}  sheetsWithImages — [{ sheet, images[] }] — getMapSheetsByEvent() + localMapLayers
+ * @param {object} event            — IndexedDB の events レコード（大会）
+ * @param {Array}  courseSets       — [{ courseSet, courses[] }]
+ * @param {Array}  sheetsWithImages — [{ sheet, images[] }]
  */
-function _buildEventFolder(event, courses, sheetsWithImages = []) {
+function _buildEventFolder(event, courseSets = [], sheetsWithImages = []) {
   const key       = 'event-' + event.id;
   const collapsed = _explorerCollapsed[key] ?? false;
-  const isActive  = getActiveEventId() === event.id;
 
   const folder = document.createElement('div');
   folder.className = 'expl-event-folder' + (collapsed ? ' is-collapsed' : '');
   folder.dataset.eventId = event.id;
 
+  // コースセット DnD ドロップターゲット（event フォルダへのドロップ）
+  folder.addEventListener('dragover', e => {
+    if (!_dndItem || _dndItem.type !== 'courseSet') return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    folder.classList.add('dnd-over');
+  });
+  folder.addEventListener('dragleave', e => {
+    if (!folder.contains(e.relatedTarget)) folder.classList.remove('dnd-over');
+  });
+  folder.addEventListener('drop', async e => {
+    e.preventDefault();
+    folder.classList.remove('dnd-over');
+    if (!_dndItem || _dndItem.type !== 'courseSet') return;
+    const { id } = _dndItem;
+    _dndItem = null;
+    await moveCourseSet(id, { eventId: event.id, terrainId: null });
+    await renderExplorer();
+  });
+
   // ── ヘッダー ──
   const hd = document.createElement('div');
-  hd.className = 'expl-event-hd' + (isActive ? ' is-active-event' : '');
+  hd.className = 'expl-event-hd';
 
   const chevron = document.createElement('span');
   chevron.className = 'expl-section-chevron';
   chevron.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>`;
-
-  // シェブロンクリック → 展開/折りたたみのみ
   chevron.addEventListener('click', e => {
     e.stopPropagation();
     _explorerCollapsed[key] = !(_explorerCollapsed[key] ?? false);
     folder.classList.toggle('is-collapsed', !!_explorerCollapsed[key]);
   });
 
+  // トロフィーアイコン（大会）
   const evIcon = document.createElement('span');
   evIcon.className = 'expl-event-icon';
-  evIcon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>`;
+  evIcon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4a2 2 0 01-2-2V5h4"/><path d="M18 9h2a2 2 0 002-2V5h-4"/><path d="M6 9a6 6 0 0012 0"/><path d="M12 15v4"/><path d="M8 19h8"/></svg>`;
 
-  // イベントラベル（クリック → イベントロード + 全コントロール表示 / ダブルクリック → リネーム）
   const lbl = document.createElement('span');
   lbl.className = 'expl-event-label';
   lbl.textContent = event.name;
-  lbl.title = 'クリック: コース編集を開く　ダブルクリック: 名前を変更';
-
-  // クリック/ダブルクリック区別用タイマー（dblclick時にclickの処理をキャンセル）
-  let _lblClickTimer = null;
-
-  lbl.addEventListener('click', e => {
-    e.stopPropagation();
-    if (_lblClickTimer) return; // dblclick判定待ち中は無視
-    // 折りたたみ状態は即時トグル（遅延なし）
-    const wasCollapsed = _explorerCollapsed[key] ?? false;
-    _explorerCollapsed[key] = !wasCollapsed;
-    folder.classList.toggle('is-collapsed', !wasCollapsed);
-
-    if (wasCollapsed) {
-      // 展開した場合のみ: 250ms 後にイベントロード・エディタを開く
-      _lblClickTimer = setTimeout(async () => {
-        _lblClickTimer = null;
-        // 別イベントをロードした時だけ全コントロールに切り替え
-        // （同じイベント内でコース選択中の場合はそのまま保持）
-        if (getActiveEventId() !== event.id) {
-          await loadEvent(event.id);
-          _explorerActiveId = 'controls-' + event.id;
-          showAllControlsTab();
-          openCourseEditor();
-        }
-        renderExplorer();
-      }, 250);
-    } else {
-      _lblClickTimer = null;
-    }
-  });
+  lbl.title = 'ダブルクリック: 名前を変更';
 
   lbl.addEventListener('dblclick', e => {
     e.stopPropagation();
-    // clickのタイマーをキャンセルして renderExplorer を抑制
-    if (_lblClickTimer) { clearTimeout(_lblClickTimer); _lblClickTimer = null; }
     _startInlineRename(lbl, event.name, async n => {
       await renameEvent(event.id, n);
       await renderExplorer();
     });
   });
 
-  // イベント削除ボタン
+  // ＋コースセット追加ボタン
+  const addCsBtn = document.createElement('button');
+  addCsBtn.className = 'expl-event-add-cs-btn';
+  addCsBtn.title = 'コースセットを追加';
+  addCsBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="6" y1="1" x2="6" y2="11"/><line x1="1" y1="6" x2="11" y2="6"/></svg>`;
+  addCsBtn.addEventListener('click', async e => {
+    e.stopPropagation();
+    _explorerCollapsed[key] = false;
+    folder.classList.remove('is-collapsed');
+    await createCourseSet(event.id, null, 'コースセット');
+    await renderExplorer();
+    openCourseEditor();
+  });
+
+  // 削除ボタン
   const delBtn = document.createElement('button');
   delBtn.className = 'expl-event-del';
   delBtn.title = '大会を削除';
   delBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="1" y1="1" x2="11" y2="11"/><line x1="11" y1="1" x2="1" y2="11"/></svg>`;
   delBtn.addEventListener('click', async e => {
     e.stopPropagation();
-    if (!confirm(`「${event.name}」を削除しますか？\n全コントロール・コース・コース枠が削除されます。`)) return;
-    if (_explorerActiveId?.startsWith('controls-' + event.id) ||
-        _explorerActiveId?.startsWith('course-')) {
+    if (!confirm(`「${event.name}」を削除しますか？\n全コースセット・コース・コース枠が削除されます。`)) return;
+    if (_explorerActiveId?.startsWith('courseSet-') || _explorerActiveId?.startsWith('course-')) {
       _explorerActiveId = null;
     }
     await deleteEvent(event.id);
@@ -7485,11 +7499,11 @@ function _buildEventFolder(event, courses, sheetsWithImages = []) {
   hd.appendChild(chevron);
   hd.appendChild(evIcon);
   hd.appendChild(lbl);
+  hd.appendChild(addCsBtn);
   hd.appendChild(flyBtn);
   hd.appendChild(delBtn);
-  // ヘッダー本体クリック（ラベル・ボタン以外）→ 展開/折りたたみ
   hd.addEventListener('click', e => {
-    if (e.target.closest('.expl-event-del, .expl-event-fly, .expl-event-label, .expl-section-chevron')) return;
+    if (e.target.closest('.expl-event-del, .expl-event-fly, .expl-event-add-cs-btn, .expl-event-label, .expl-section-chevron')) return;
     _explorerCollapsed[key] = !(_explorerCollapsed[key] ?? false);
     folder.classList.toggle('is-collapsed', !!_explorerCollapsed[key]);
   });
@@ -7502,10 +7516,15 @@ function _buildEventFolder(event, courses, sheetsWithImages = []) {
           await renderExplorer();
         })
       },
+      { label: 'コースセットを追加', action: async () => {
+          await createCourseSet(event.id, null, 'コースセット');
+          await renderExplorer();
+        }
+      },
       { separator: true },
       { label: '大会を削除', danger: true, action: async () => {
-          if (!confirm(`「${event.name}」を削除しますか？\n全コントロール・コース・コース枠が削除されます。`)) return;
-          if (_explorerActiveId?.startsWith('controls-' + event.id) || _explorerActiveId?.startsWith('course-')) _explorerActiveId = null;
+          if (!confirm(`「${event.name}」を削除しますか？\n全コースセット・コース・コース枠が削除されます。`)) return;
+          if (_explorerActiveId?.startsWith('courseSet-') || _explorerActiveId?.startsWith('course-')) _explorerActiveId = null;
           await deleteEvent(event.id);
           await renderExplorer();
         }
@@ -7518,19 +7537,11 @@ function _buildEventFolder(event, courses, sheetsWithImages = []) {
   const body = document.createElement('div');
   body.className = 'expl-event-body';
 
-  // ── コースイベントフォルダ（全コントロール + コース一覧）──
-  const summary    = isActive ? getCoursesSummary() : [];
-  const summaryMap = new Map(summary.map(s => [s.id, s]));
-  const courseInfos = courses.map(c => ({
-    id:       c.id,
-    name:     c.name,
-    isActive: summaryMap.get(c.id)?.isActive ?? false,
-    isEmpty:  summaryMap.get(c.id)?.isEmpty ?? (c.sequence?.length === 0),
-    eventId:  event.id,
-  }));
-  body.appendChild(_buildCourseGroupSection(event, courseInfos));
+  // コースセット（フラット配置）
+  courseSets.forEach(({ courseSet, courses }) =>
+    body.appendChild(_buildCourseSetFolder(courseSet, courses)));
 
-  // ── コース枠フォルダ（画像位置合わせ用フレーム）──
+  // コース枠キャンバス
   sheetsWithImages.forEach(({ sheet, images }) =>
     body.appendChild(_buildMapSheetFolder(sheet, images)));
 
@@ -7539,21 +7550,28 @@ function _buildEventFolder(event, courses, sheetsWithImages = []) {
 }
 
 /**
- * コースイベントフォルダ（全コントロール + コース一覧）を構築して返す
- * 大会フォルダ内のサブフォルダとして、コースプランナー関連をまとめる。
- * @param {object} event       — events レコード
- * @param {Array}  courseInfos — courseInfo[] （id, name, isActive, isEmpty, eventId）
+ * コースセットフォルダを構築して返す。
+ * クリックで展開/折りたたみ + アクティブコースセットのロード（全コントロール表示）。
+ * ドラッグで大会/テレインフォルダへ移動可能（DnD type='courseSet'）。
+ *
+ * @param {object} courseSet — course_sets レコード
+ * @param {Array}  courses   — getCoursesBySet() の結果配列
  */
-function _buildCourseGroupSection(event, courseInfos) {
-  const key       = 'coursegroup-' + event.id;
+function _buildCourseSetFolder(courseSet, courses = []) {
+  const key       = 'courseSet-' + courseSet.id;
   const collapsed = _explorerCollapsed[key] ?? false;
+  const isActive  = getActiveCourseSetId() === courseSet.id;
 
-  const section = document.createElement('div');
-  section.className = 'expl-coursegroup-folder' + (collapsed ? ' is-collapsed' : '');
+  const folder = document.createElement('div');
+  folder.className = 'expl-courseset-folder' + (collapsed ? ' is-collapsed' : '') + (isActive ? ' is-active-courseset' : '');
+  folder.dataset.courseSetId = courseSet.id;
+
+  // ── DnD 設定（このフォルダ自体をドラッグ可能）──
+  _makeDraggable(folder, { type: 'courseSet', id: courseSet.id });
 
   // ── ヘッダー ──
   const hd = document.createElement('div');
-  hd.className = 'expl-coursegroup-hd';
+  hd.className = 'expl-courseset-hd';
 
   const chevron = document.createElement('span');
   chevron.className = 'expl-section-chevron';
@@ -7561,52 +7579,135 @@ function _buildCourseGroupSection(event, courseInfos) {
   chevron.addEventListener('click', e => {
     e.stopPropagation();
     _explorerCollapsed[key] = !(_explorerCollapsed[key] ?? false);
-    section.classList.toggle('is-collapsed', !!_explorerCollapsed[key]);
+    folder.classList.toggle('is-collapsed', !!_explorerCollapsed[key]);
   });
 
-  const cgIcon = document.createElement('span');
-  cgIcon.className = 'expl-coursegroup-icon';
-  cgIcon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/></svg>`;
+  // Oコントロール二重円アイコン（紫色）
+  const csIcon = document.createElement('span');
+  csIcon.className = 'expl-courseset-icon';
+  csIcon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/></svg>`;
 
+  // ラベル（クリック→ロード+全コントロール / ダブルクリック→リネーム）
   const lbl = document.createElement('span');
-  lbl.className = 'expl-coursegroup-label';
-  lbl.textContent = 'コース';
+  lbl.className = 'expl-courseset-label';
+  lbl.textContent = courseSet.name;
+  lbl.title = 'クリック: 全コントロールを表示　ダブルクリック: 名前を変更';
+
+  let _lblTimer = null;
+  lbl.addEventListener('click', e => {
+    e.stopPropagation();
+    if (_lblTimer) return;
+    const wasCollapsed = _explorerCollapsed[key] ?? false;
+    _explorerCollapsed[key] = !wasCollapsed;
+    folder.classList.toggle('is-collapsed', !wasCollapsed);
+    if (wasCollapsed) {
+      _lblTimer = setTimeout(async () => {
+        _lblTimer = null;
+        if (getActiveCourseSetId() !== courseSet.id) {
+          await loadCourseSet(courseSet.id);
+          showAllControlsTab();
+          openCourseEditor();
+        } else {
+          showAllControlsTab();
+        }
+        _explorerActiveId = 'courseSet-' + courseSet.id;
+        renderExplorer();
+      }, 250);
+    } else {
+      _lblTimer = null;
+    }
+  });
+  lbl.addEventListener('dblclick', e => {
+    e.stopPropagation();
+    if (_lblTimer) { clearTimeout(_lblTimer); _lblTimer = null; }
+    _startInlineRename(lbl, courseSet.name, async n => {
+      await renameCourseSet(courseSet.id, n);
+      await renderExplorer();
+    });
+  });
 
   // コース追加ボタン
   const addCourseBtn = document.createElement('button');
-  addCourseBtn.className = 'expl-coursegroup-add-btn';
+  addCourseBtn.className = 'expl-courseset-add-btn';
   addCourseBtn.title = 'コースを追加';
   addCourseBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="6" y1="1" x2="6" y2="11"/><line x1="1" y1="6" x2="11" y2="6"/></svg>`;
   addCourseBtn.addEventListener('click', async e => {
     e.stopPropagation();
-    if (getActiveEventId() !== event.id) await loadEvent(event.id);
+    if (getActiveCourseSetId() !== courseSet.id) await loadCourseSet(courseSet.id);
     const newCourseId = addCourseToActiveEvent();
     if (newCourseId) _explorerActiveId = 'course-' + newCourseId;
     _explorerCollapsed[key] = false;
-    section.classList.remove('is-collapsed');
+    folder.classList.remove('is-collapsed');
     await renderExplorer();
     openCourseEditor();
   });
 
+  // 削除ボタン
+  const delBtn = document.createElement('button');
+  delBtn.className = 'expl-courseset-del';
+  delBtn.title = 'コースセットを削除';
+  delBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="1" y1="1" x2="11" y2="11"/><line x1="11" y1="1" x2="1" y2="11"/></svg>`;
+  delBtn.addEventListener('click', async e => {
+    e.stopPropagation();
+    if (!confirm(`「${courseSet.name}」を削除しますか？\n全コースが削除されます。`)) return;
+    if (_explorerActiveId === 'courseSet-' + courseSet.id || _explorerActiveId?.startsWith('course-')) {
+      _explorerActiveId = null;
+    }
+    await deleteCourseSet(courseSet.id);
+    await renderExplorer();
+  });
+
   hd.appendChild(chevron);
-  hd.appendChild(cgIcon);
+  hd.appendChild(csIcon);
   hd.appendChild(lbl);
   hd.appendChild(addCourseBtn);
+  hd.appendChild(delBtn);
   hd.addEventListener('click', e => {
-    if (e.target.closest('.expl-coursegroup-add-btn, .expl-section-chevron')) return;
+    if (e.target.closest('.expl-courseset-del, .expl-courseset-add-btn, .expl-courseset-label, .expl-section-chevron')) return;
     _explorerCollapsed[key] = !(_explorerCollapsed[key] ?? false);
-    section.classList.toggle('is-collapsed', !!_explorerCollapsed[key]);
+    folder.classList.toggle('is-collapsed', !!_explorerCollapsed[key]);
   });
-  section.appendChild(hd);
+  hd.addEventListener('contextmenu', e => {
+    e.preventDefault();
+    e.stopPropagation();
+    _showExplorerCtx(e.clientX, e.clientY, [
+      { label: '名前を変更', action: () => _startInlineRename(lbl, courseSet.name, async n => {
+          await renameCourseSet(courseSet.id, n);
+          await renderExplorer();
+        })
+      },
+      { separator: true },
+      { label: 'コースセットを削除', danger: true, action: async () => {
+          if (!confirm(`「${courseSet.name}」を削除しますか？`)) return;
+          if (_explorerActiveId?.startsWith('courseSet-') || _explorerActiveId?.startsWith('course-')) _explorerActiveId = null;
+          await deleteCourseSet(courseSet.id);
+          await renderExplorer();
+        }
+      },
+    ]);
+  });
+  folder.appendChild(hd);
 
-  // ── ボディ ──
+  // ── ボディ（コースアイテム）──
   const body = document.createElement('div');
-  body.className = 'expl-coursegroup-body';
-  body.appendChild(_buildAllControlsItem(event.id));
-  courseInfos.forEach(c => body.appendChild(_buildCourseItem(c)));
-  section.appendChild(body);
+  body.className = 'expl-courseset-body';
 
-  return section;
+  const activeSummary = isActive ? getCoursesSummary() : [];
+  const summaryMap    = new Map(activeSummary.map(s => [s.id, s]));
+  courses.forEach(c => {
+    const info = {
+      id:          c.id,
+      name:        c.name,
+      courseSetId: courseSet.id,
+      eventId:     courseSet.event_id ?? null,
+      isActive:    summaryMap.get(c.id)?.isActive ?? false,
+      isEmpty:     summaryMap.get(c.id)?.isEmpty  ?? (c.sequence?.length === 0),
+    };
+    body.appendChild(_buildCourseItem(info));
+  });
+  folder.appendChild(body);
+
+  return folder;
 }
 
 /**
@@ -7738,49 +7839,15 @@ function _buildMapSheetFolder(sheet, images = []) {
   return folder;
 }
 
-/**
- * 「全コントロール」ノードを構築して返す
- * @param {string} eventId
- */
-function _buildAllControlsItem(eventId) {
-  const isActive = getActiveEventId() === eventId && _explorerActiveId === ('controls-' + eventId);
-
-  const row = document.createElement('div');
-  row.className = 'expl-item expl-all-controls-item' + (isActive ? ' is-active' : '');
-
-  const icon = document.createElement('span');
-  icon.className = 'expl-item-icon expl-ctrl-icon';
-  icon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/></svg>`;
-
-  const lbl = document.createElement('span');
-  lbl.className = 'expl-item-label';
-  lbl.textContent = '全コントロール';
-
-  row.appendChild(icon);
-  row.appendChild(lbl);
-
-  row.addEventListener('click', async () => {
-    // 即時: 選択スタイルを先に反映（再描画待ち不要）
-    document.querySelectorAll('.expl-item.is-active').forEach(el => el.classList.remove('is-active'));
-    row.classList.add('is-active');
-    _explorerActiveId = 'controls-' + eventId;
-    if (getActiveEventId() !== eventId) await loadEvent(eventId);
-    showAllControlsTab();
-    renderExplorer();
-    openCourseEditor();
-  });
-
-  return row;
-}
-
 /** コースアイテムを構築して返す */
 function _buildCourseItem(courseInfo) {
   const row = document.createElement('div');
   row.className = 'expl-item' + (('course-' + courseInfo.id) === _explorerActiveId ? ' is-active' : '');
 
+  // 三角旗アイコン（赤色）
   const icon = document.createElement('span');
-  icon.className = 'expl-item-icon';
-  icon.innerHTML = _svgCourseIcon();
+  icon.className = 'expl-item-icon expl-course-flag-icon';
+  icon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>`;
 
   const lbl = document.createElement('span');
   lbl.className = 'expl-item-label';
@@ -7791,12 +7858,11 @@ function _buildCourseItem(courseInfo) {
   moreBtn.title = 'オプション';
   moreBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>`;
   const openThisCourse = async () => {
-    // 即時: 選択スタイルを先に反映（再描画待ち不要）
     document.querySelectorAll('.expl-item.is-active').forEach(el => el.classList.remove('is-active'));
     row.classList.add('is-active');
     _explorerActiveId = 'course-' + courseInfo.id;
-    if (courseInfo.eventId && getActiveEventId() !== courseInfo.eventId) {
-      await loadEvent(courseInfo.eventId);
+    if (courseInfo.courseSetId && getActiveCourseSetId() !== courseInfo.courseSetId) {
+      await loadCourseSet(courseInfo.courseSetId);
     }
     setActiveCourse(courseInfo.id);
     renderExplorer();
@@ -7804,8 +7870,8 @@ function _buildCourseItem(courseInfo) {
   };
 
   const deleteThisCourse = async () => {
-    if (courseInfo.eventId && getActiveEventId() !== courseInfo.eventId) {
-      await loadEvent(courseInfo.eventId);
+    if (courseInfo.courseSetId && getActiveCourseSetId() !== courseInfo.courseSetId) {
+      await loadCourseSet(courseInfo.courseSetId);
     }
     deleteCourseById(courseInfo.id);
     if (_explorerActiveId === 'course-' + courseInfo.id) _explorerActiveId = null;
@@ -8111,12 +8177,16 @@ function _buildExplorerSection(label, key, items, opts = {}) {
 }
 
 // ── アイコン SVG ──
+/** コースアイテム: スタート三角旗（赤） */
 function _svgCourseIcon() {
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>`;
+  // 旗形SVG（_buildCourseItem では直接インラインするためこの関数は後方互換用）
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>`;
 }
+/** 地図画像レイヤー: 絵フレーム */
 function _svgMapIcon() {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>`;
 }
+/** GPX: ルートライン（緑） */
 function _svgGpxIcon() {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>`;
 }
