@@ -6097,12 +6097,10 @@ selMagneticCombined?.addEventListener('change', () => {
 function handleMagneticColorChange() {
   applyMagneticLineColor();
   applyMagneticLineColor(pcSimState.readMap);
-  applyMagneticLineColor(importState.previewMap, 'prev-magnetic-north-layer');
   updateMagneticNorth();
   requestAnimationFrame(() => {
     applyMagneticLineColor();
     applyMagneticLineColor(pcSimState.readMap);
-    applyMagneticLineColor(importState.previewMap, 'prev-magnetic-north-layer');
   });
   saveUiState();
 }
@@ -10072,8 +10070,7 @@ async function openImportModalFromKmz(file) {
 }
 
 const importState = {
-  // プレビューマップ・画像情報
-  previewMap:       null,   // プレビュー用 MapLibre インスタンス
+  // 画像情報
   imgFile:          null,   // インポート中の画像 File（画像直接読み込み時のみ）
   imgBlob:          null,   // 画像 Blob（IndexedDB 保存用。KMZ由来でも保持）
   imgUrl:           null,   // 対応する ObjectURL
@@ -10082,7 +10079,7 @@ const importState = {
   center:           null,   // 中心マーカー位置 {lng, lat}
   baseCoords:       null,   // KMZモード：ドラッグ前の基準4隅座標（回転前）
   scaleCornerMarkers: [],   // 拡大縮小モードの4隅マーカー
-  oriLibreLayers:   [],     // OriLibre 初期化時のレイヤー一覧 ({id, vis} 形式)
+  _handlers:        null,   // イベントハンドラ参照（closeAlignEditor でのクリーンアップ用）
   // Undo/Redo
   history:          [],     // undo スタック
   future:           [],     // redo スタック
@@ -10118,8 +10115,7 @@ const importState = {
 };
 
 function _ensureFixedPointOverlay() {
-  if (!importState.previewMap) return;
-  const container = importState.previewMap.getContainer();
+  const container = map.getContainer();
   if (!importState.fixedPointOverlay || !importState.fixedPointOverlay.isConnected) {
     const el = document.createElement('div');
     el.id = '_import-fixed-point-overlay';
@@ -10130,18 +10126,18 @@ function _ensureFixedPointOverlay() {
   if (!importState.fixedPointOverlayEventsAdded) {
     importState.fixedPointOverlayEventsAdded = true;
     const onReproject = () => _positionFixedPointDom();
-    importState.previewMap.on('move', onReproject);
-    importState.previewMap.on('resize', onReproject);
+    map.on('move', onReproject);
+    map.on('resize', onReproject);
   }
 }
 
 function _positionFixedPointDom() {
-  if (!importState.previewMap || !importState.fixedPointOverlay) return;
+  if (!importState.fixedPointOverlay) return;
   importState.fixedPointMarkers.forEach((el) => {
     const lng = parseFloat(el.dataset.lng || 'NaN');
     const lat = parseFloat(el.dataset.lat || 'NaN');
     if (!Number.isFinite(lng) || !Number.isFinite(lat)) return;
-    const p = importState.previewMap.project([lng, lat]);
+    const p = map.project([lng, lat]);
     el.style.left = `${p.x}px`;
     el.style.top = `${p.y}px`;
   });
@@ -10151,7 +10147,7 @@ function _renderFixedPointMarkers() {
   _ensureFixedPointOverlay();
   importState.fixedPointMarkers.forEach(m => m.remove());
   importState.fixedPointMarkers = [];
-  if (!importState.previewMap || !importState.fixedPointOverlay) return;
+  if (!importState.fixedPointOverlay) return;
   importState.fixedPoints.forEach((pt, i) => {
     const el = document.createElement('div');
     // pointer-events:auto でホバー・ドラッグを有効化
@@ -10176,9 +10172,8 @@ function _renderFixedPointMarkers() {
       el.style.cursor = 'grabbing';
       const idx = i; // クロージャで添字を保持
       const onMove = (e) => {
-        if (!importState.previewMap) return;
-        const rect   = importState.previewMap.getContainer().getBoundingClientRect();
-        const lngLat = importState.previewMap.unproject([e.clientX - rect.left, e.clientY - rect.top]);
+        const rect   = map.getContainer().getBoundingClientRect();
+        const lngLat = map.unproject([e.clientX - rect.left, e.clientY - rect.top]);
         importState.fixedPoints[idx] = { lng: lngLat.lng, lat: lngLat.lat };
         el.dataset.lng = String(lngLat.lng);
         el.dataset.lat = String(lngLat.lat);
@@ -10241,9 +10236,7 @@ function _setFixedPointSettingMode(on) {
   importState.isSettingFixedPoint = !!on && importState.fixedPoints.length < 2;
   if (!importState.isSettingFixedPoint) importState.isPlacingFixedPoint = false;
   _renderFixedPointMarkers();
-  if (importState.previewMap) {
-    importState.previewMap.getCanvas().style.cursor = importState.isSettingFixedPoint ? 'crosshair' : '';
-  }
+  map.getCanvas().style.cursor = importState.isSettingFixedPoint ? 'crosshair' : '';
   _updateFixedPointStatus();
 }
 
@@ -10424,8 +10417,8 @@ function _importCalcCorners(lng, lat, widthM, heightM, decl) {
 // 既存ソースがある場合は updateImage + triggerRepaint でドラッグ中のリアルタイム表示を実現。
 // 初回のみ addSource + addLayer で生成する。
 function _replaceImageSource() {
-  if (!importState.previewMap || !importState.imgUrl || !importState.coords) return;
-  const src = importState.previewMap.getSource('_import-img');
+  if (!importState.imgUrl || !importState.coords) return;
+  const src = map.getSource('_import-img');
   if (src) {
     // ドラッグ中の高速パス:
     // 画像URL再設定を伴う updateImage は高コストになりやすいため、
@@ -10435,12 +10428,12 @@ function _replaceImageSource() {
     } else {
       src.updateImage({ url: importState.imgUrl, coordinates: importState.coords });
     }
-    importState.previewMap.triggerRepaint();
+    map.triggerRepaint();
   } else {
     // 初回: ソース・レイヤーを追加（透明度スライダーの現在値を反映）
     const initOpacity = (parseInt(document.getElementById('import-opacity')?.value ?? '70', 10)) / 100;
-    importState.previewMap.addSource('_import-img', { type: 'image', url: importState.imgUrl, coordinates: importState.coords });
-    importState.previewMap.addLayer({ id: '_import-layer', type: 'raster', source: '_import-img', paint: { 'raster-opacity': initOpacity } });
+    map.addSource('_import-img', { type: 'image', url: importState.imgUrl, coordinates: importState.coords });
+    map.addLayer({ id: '_import-layer', type: 'raster', source: '_import-img', paint: { 'raster-opacity': initOpacity } });
   }
   // ヒットボックスの初期化 & 更新（ドラッグ中はスキップして軽量化）
   _initImgInteraction();
@@ -10520,15 +10513,15 @@ function _updateImportScale() {
 
 // ---- ヒットボックスポリゴンソースを最新座標で更新 ----
 function _updateHitbox() {
-  if (!importState.previewMap || !importState.coords) return;
-  const src = importState.previewMap.getSource('_import-hitbox');
+  if (!importState.coords) return;
+  const src = map.getSource('_import-hitbox');
   if (src) src.setData(_importCoordsToPolygon());
 }
 
 
 // ---- 画像モード専用：キャッシュした偏角で回転のみ再計算し現在スケールを適用 ----
 function _updateImportRotation() {
-  if (!importState.center || !importState.imgUrl || !importState.previewMap) return;
+  if (!importState.center || !importState.imgUrl) return;
   const [wM, hM] = _importCalcSizeM();
   const rotOffset = parseFloat(document.getElementById('import-rotation')?.value ?? '0');
   // 回転0°（磁北補正のみ）のベースから、指定の回転補正を適用
@@ -10545,12 +10538,12 @@ function _updateImportRotation() {
 
 // ---- ヒットボックス + ドラッグ平行移動 を初期化（冪等） ----
 function _initImgInteraction() {
-  if (!importState.previewMap || !importState.coords) return;
+  if (!importState.coords) return;
 
   // --- ヒットボックスのソース・レイヤー（なければ追加） ---
-  if (!importState.previewMap.getSource('_import-hitbox')) {
-    importState.previewMap.addSource('_import-hitbox', { type: 'geojson', data: _importCoordsToPolygon() });
-    importState.previewMap.addLayer({
+  if (!map.getSource('_import-hitbox')) {
+    map.addSource('_import-hitbox', { type: 'geojson', data: _importCoordsToPolygon() });
+    map.addLayer({
       id: '_import-hitbox-layer', type: 'fill', source: '_import-hitbox',
       // fill-opacity: 0 だとクリックを拾えない場合があるため極小値を使用
       paint: { 'fill-color': '#000000', 'fill-opacity': 0.001 }
@@ -10558,22 +10551,23 @@ function _initImgInteraction() {
     importState.interactionInited = true;
   }
 
-  // --- イベントリスナーは一度だけ追加 ---
+  // --- イベントリスナーは一度だけ追加（_handlers に保存してクリーンアップ可能にする） ---
   if (!importState.eventsAdded) {
     importState.eventsAdded = true;
 
-    // カーソル制御
-    importState.previewMap.on('mouseenter', '_import-hitbox-layer', () => {
+    // カーソル制御（レイヤーイベントはレイヤー削除時に自動無効化される）
+    map.on('mouseenter', '_import-hitbox-layer', () => {
       if (!importState.isDragging) {
-        importState.previewMap.getCanvas().style.cursor = (importState.isSettingFixedPoint || importState.isPlacingFixedPoint) ? 'crosshair' : 'move';
+        map.getCanvas().style.cursor = (importState.isSettingFixedPoint || importState.isPlacingFixedPoint) ? 'crosshair' : 'move';
       }
     });
-    importState.previewMap.on('mouseleave', '_import-hitbox-layer', () => {
-      if (!importState.isDragging) importState.previewMap.getCanvas().style.cursor = '';
+    map.on('mouseleave', '_import-hitbox-layer', () => {
+      if (!importState.isDragging) map.getCanvas().style.cursor = '';
     });
 
     // mousedown → ドラッグ開始（hitboxレイヤー上）
-    importState.previewMap.on('mousedown', '_import-hitbox-layer', (e) => {
+    map.on('mousedown', '_import-hitbox-layer', (e) => {
+      if (!importState.coords) return;
       // 固定点追加モード中は、クリック保持ですぐドラッグ位置合わせに入る
       if (importState.isSettingFixedPoint && importState.fixedPoints.length < 2) {
         e.preventDefault();
@@ -10586,11 +10580,11 @@ function _initImgInteraction() {
         importState.dragStartBaseScaleCoords = importState.baseScaleCoords ? importState.baseScaleCoords.map(c => [...c]) : null;
         importState.dragStartFixedPoints = importState.fixedPoints.map(pt => ({ ...pt }));
         importState.dragStartPendingFixedPoint = importState.pendingFixedPoint ? { ...importState.pendingFixedPoint } : null;
-        importState.previewMap.dragPan.disable();
-        importState.previewMap.getCanvas().style.cursor = 'crosshair';
+        map.dragPan.disable();
+        map.getCanvas().style.cursor = 'crosshair';
         return;
       }
-      if (((importState.fixedPoints.length > 0) || importState.isSettingFixedPoint) && !importState.isPlacingFixedPoint) return; // 固定点設定済み時は通常移動を無効化
+      if (((importState.fixedPoints.length > 0) || importState.isSettingFixedPoint) && !importState.isPlacingFixedPoint) return;
       e.preventDefault();
       _importSaveState();
       importState.isDragging = true;
@@ -10600,12 +10594,12 @@ function _initImgInteraction() {
       importState.dragStartBaseScaleCoords = importState.baseScaleCoords ? importState.baseScaleCoords.map(c => [...c]) : null;
       importState.dragStartFixedPoints = importState.fixedPoints.map(pt => ({ ...pt }));
       importState.dragStartPendingFixedPoint = importState.pendingFixedPoint ? { ...importState.pendingFixedPoint } : null;
-      importState.previewMap.dragPan.disable();
-      importState.previewMap.getCanvas().style.cursor = importState.isPlacingFixedPoint ? 'crosshair' : 'grabbing';
+      map.dragPan.disable();
+      map.getCanvas().style.cursor = importState.isPlacingFixedPoint ? 'crosshair' : 'grabbing';
     });
 
     // mousemove → ドラッグ中に座標をリアルタイム更新
-    importState.previewMap.on('mousemove', (e) => {
+    const onMouseMove = (e) => {
       if (!importState.isDragging) return;
       const dx = e.lngLat.lng - importState.dragStartLngLat.lng;
       const dy = e.lngLat.lat - importState.dragStartLngLat.lat;
@@ -10613,11 +10607,8 @@ function _initImgInteraction() {
         ? { lng: importState.dragStartCenter.lng + dx, lat: importState.dragStartCenter.lat + dy }
         : null;
       if (importState.baseCoords) {
-        // KMZモード: importState.center を更新して _applyKmzTransform（RAF）
         if (importState.isPlacingFixedPoint) {
           _applyPendingFixedPointPlacement(e.lngLat);
-        }
-        if (importState.isPlacingFixedPoint) {
           _replaceImageSourceRaf();
         } else {
           if (importState.dragRafId) cancelAnimationFrame(importState.dragRafId);
@@ -10627,7 +10618,6 @@ function _initImgInteraction() {
           });
         }
       } else {
-        // 画像モード: 全隅・ベース座標を直接平行移動 → RAFで再描画
         if (importState.isPlacingFixedPoint) {
           _applyPendingFixedPointPlacement(e.lngLat);
         } else {
@@ -10637,35 +10627,39 @@ function _initImgInteraction() {
         }
         _replaceImageSourceRaf();
       }
-    });
+    };
 
     // mouseup → ドラッグ終了
-    importState.previewMap.on('mouseup', () => {
+    const onMouseUp = () => {
       if (!importState.isDragging) return;
       importState.isDragging = false;
-      importState.previewMap.dragPan.enable();
-      importState.previewMap.getCanvas().style.cursor = '';
-      // ドラッグ終了後: ヒットボックスを正確な位置に更新
+      map.dragPan.enable();
+      map.getCanvas().style.cursor = '';
       _updateHitbox();
-      // ドラッグ終了後に磁気偏角キャッシュを更新
       if (importState.center) {
         try { importState.cachedDecl = getDeclination(importState.center.lat, importState.center.lng) ?? 0; } catch (e) {}
       }
       if (importState.isPlacingFixedPoint && importState.pendingFixedPoint) {
         _commitPendingFixedPoint();
       }
-    });
+    };
 
     // 固定点設定モード: 次のクリック位置を仮固定点にする
-    importState.previewMap.on('click', (e) => {
+    const onMapClick = (e) => {
       if (!importState.isSettingFixedPoint) return;
       if (importState.fixedPoints.length >= 2) return;
       _importSaveState();
       _setPendingFixedPoint(e.lngLat.lng, e.lngLat.lat);
       _updateFixedPointStatus();
       _replaceImageSource();
-    });
+    };
 
+    map.on('mousemove', onMouseMove);
+    map.on('mouseup', onMouseUp);
+    map.on('click', onMapClick);
+
+    // クリーンアップ用に保存
+    importState._handlers = { mousemove: onMouseMove, mouseup: onMouseUp, click: onMapClick };
   }
 }
 
@@ -10756,11 +10750,11 @@ function _importRestoreState(state) {
 
 // ---- プレビューマップ上のソース/マーカーを最新設定に更新（画像モード用） ----
 function _updateImportPreview() {
-  if (!importState.previewMap || !importState.imgUrl) return;
+  if (!importState.imgUrl) return;
 
-  // 中心位置：マーカーがなければマップ中心で初期化
+  // 中心位置：マーカーがなければメインマップ中心で初期化
   if (!importState.center) {
-    const mc = importState.previewMap.getCenter();
+    const mc = map.getCenter();
     importState.center = { lng: mc.lng, lat: mc.lat };
   }
   const c = importState.center;
@@ -10769,8 +10763,7 @@ function _updateImportPreview() {
   const rotOffset = parseFloat(document.getElementById('import-rotation')?.value ?? '0');
   let decl = 0;
   try { decl = getDeclination(c.lat, c.lng) ?? 0; } catch (e) {}
-  importState.cachedDecl = decl; // ドラッグ用キャッシュを更新
-  // 用紙サイズ・縮尺変更時はスケールをリセットしてベース座標を再構築
+  importState.cachedDecl = decl;
   importState.scaleVal        = 100;
   const origin = _getImportTransformOrigin() ?? [c.lng, c.lat];
   const baseNoRot = _importCalcCorners(c.lng, c.lat, wM, hM, decl);
@@ -10780,12 +10773,12 @@ function _updateImportPreview() {
   importState.coords = importState.baseScaleCoords.map(p => [...p]);
   _syncScaleUI();
 
-  // 初回のみ: 画像全体にフィット
-  if (!importState.previewMap.getSource('_import-img')) {
+  // 初回のみ: メインマップを画像位置にフィット
+  if (!map.getSource('_import-img')) {
     const lngs = importState.coords.map(p => p[0]), lats = importState.coords.map(p => p[1]);
-    importState.previewMap.fitBounds(
+    map.fitBounds(
       [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
-      { padding: FIT_BOUNDS_PAD, duration: 0 }
+      { padding: FIT_BOUNDS_PAD, duration: 400 }
     );
   }
 
@@ -10793,131 +10786,430 @@ function _updateImportPreview() {
   _replaceImageSource();
 }
 
-// ---- ラスター背景スタイル定義（OSM/GSI 共通ベース） ----
-const _PREVIEW_RASTER_STYLE = {
-  version: 8,
-  sources: {
-    'bg-osm':       { type: 'raster', tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],                                    tileSize: Math.round(256 / (window.devicePixelRatio || 1)), attribution: '© OpenStreetMap contributors' },
-    'bg-gsi-std':   { type: 'raster', tiles: ['https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png'],                          tileSize: Math.round(256 / (window.devicePixelRatio || 1)), attribution: '国土地理院' },
-    'bg-gsi-pale':  { type: 'raster', tiles: ['https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png'],                         tileSize: Math.round(256 / (window.devicePixelRatio || 1)), attribution: '国土地理院' },
-    'bg-gsi-photo': { type: 'raster', tiles: ['https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg'],                tileSize: Math.round(256 / (window.devicePixelRatio || 1)), attribution: '国土地理院' },
-  },
-  layers: [
-    { id: 'bg-osm-layer',       type: 'raster', source: 'bg-osm',       layout: { visibility: 'visible' } },
-    { id: 'bg-gsi-std-layer',   type: 'raster', source: 'bg-gsi-std',   layout: { visibility: 'none' } },
-    { id: 'bg-gsi-pale-layer',  type: 'raster', source: 'bg-gsi-pale',  layout: { visibility: 'none' } },
-    { id: 'bg-gsi-photo-layer', type: 'raster', source: 'bg-gsi-photo', layout: { visibility: 'none' } },
-  ],
-};
+/* =========================================================================
+   地図画像 位置合わせ — 右パネル UI
+   ========================================================================= */
 
-// ---- ラスター背景のプレビューマップに等高線・磁北線を追加 ----
-// OriLibre の場合は oriLibreCachedStyle に既に含まれているため不要。
-function _addPreviewContourAndNorth(m) {
-  // 等高線
-  if (contourCard.classList.contains('active') && contourState.q1mSource) {
-    const iv  = getEffectiveContourInterval();
-    const url = contourState.demMode === 'dem5a' ? buildSeamlessContourTileUrl(iv)
-              : contourState.demMode === 'dem1a' ? buildDem1aContourTileUrl(iv)
-              : buildContourTileUrl(iv);
-    if (url) {
-      m.addSource('prev-contour', { type: 'vector', tiles: [url], maxzoom: 14, attribution: '' });
-      m.addLayer({ id: 'prev-contour-regular', type: 'line', source: 'prev-contour', 'source-layer': 'contours',
-        filter: ['!=', ['get', 'level'], 1],
-        paint: { 'line-color': '#c86400', 'line-width': 1.0, 'line-opacity': 0.85 } });
-      m.addLayer({ id: 'prev-contour-index', type: 'line', source: 'prev-contour', 'source-layer': 'contours',
-        filter: ['==', ['get', 'level'], 1],
-        paint: { 'line-color': '#c86400', 'line-width': 1.79, 'line-opacity': 1.0 } });
+/**
+ * 位置合わせエディター用の右パネルを構築してイベントリスナーを接続する。
+ * @param {boolean} showStep1 - true=画像モード（用紙サイズUI表示）, false=KMZモード
+ * @returns {HTMLElement} 右パネルに渡すコンテナ要素
+ */
+function _buildAlignEditorPanel(showStep1 = true) {
+  const wrap = document.createElement('div');
+  wrap.id = 'align-editor-panel';
+  wrap.className = 'import-controls-wrap';
+
+  wrap.innerHTML = `
+    <!-- Undo/Redo -->
+    <div id="import-undo-redo-group" class="align-undo-redo">
+      <button class="import-undo-redo-btn" id="import-undo-btn" title="元に戻す (Ctrl+Z)">↩</button>
+      <button class="import-undo-redo-btn" id="import-redo-btn" title="やり直し (Ctrl+Y)">↪</button>
+    </div>
+
+    <!-- 既存の枠に合わせる（ショートカット）-->
+    <div class="import-ctrl-section" id="import-snap-section" style="display:none">
+      <div class="import-ctrl-section-title">既存の枠に合わせる（ショートカット）</div>
+      <div class="import-ctrl-hint">すでに配置済みの地図枠を選ぶと、手動位置合わせをスキップできます。</div>
+      <div id="import-snap-list" class="import-snap-list"></div>
+    </div>
+
+    <!-- ステップ1：サイズを指定（画像モードのみ） -->
+    <div class="import-ctrl-section" id="import-step1-section" style="${showStep1 ? '' : 'display:none'}">
+      <div class="import-ctrl-section-title">Step 1 ― サイズを指定</div>
+      <div id="import-image-only-ctrl">
+        <div class="import-ctrl-group">
+          <div class="import-ctrl-label">用紙サイズ</div>
+          <select id="import-paper-size" class="import-ctrl-select">
+            <option value="A4">A4（210×297 mm）</option>
+            <option value="A3">A3（297×420 mm）</option>
+            <option value="B4">B4-JIS（257×364 mm）</option>
+            <option value="B3">B3-JIS（364×515 mm）</option>
+          </select>
+        </div>
+        <div class="import-ctrl-group">
+          <div class="import-ctrl-label">向き</div>
+          <select id="import-orientation" class="import-ctrl-select">
+            <option value="portrait">縦（Portrait）</option>
+            <option value="landscape">横（Landscape）</option>
+          </select>
+        </div>
+        <div class="import-ctrl-group">
+          <div class="import-ctrl-label">縮尺</div>
+          <select id="import-scale" class="import-ctrl-select">
+            <option value="3000">1:3,000</option>
+            <option value="4000">1:4,000</option>
+            <option value="5000" selected>1:5,000</option>
+            <option value="7500">1:7,500</option>
+            <option value="10000">1:10,000</option>
+            <option value="15000">1:15,000</option>
+            <option value="custom">手入力...</option>
+          </select>
+          <input type="number" id="import-scale-custom" class="import-ctrl-input"
+            placeholder="例: 10000" min="500" max="200000" style="display:none;margin-top:4px;" />
+        </div>
+      </div>
+    </div>
+
+    <!-- ステップ2：位置と角度を合わせる -->
+    <div class="import-ctrl-section">
+      <div class="import-ctrl-section-title">Step ${showStep1 ? '2' : '1'} ― 位置と角度を合わせる</div>
+      <div class="import-ctrl-hint">※画像を直接ドラッグして移動できます。</div>
+      <div class="import-ctrl-hint">※4隅の青マーカーをドラッグして拡大縮小できます。</div>
+      <div class="import-ctrl-group">
+        <div class="import-ctrl-label import-label-with-reset">
+          <span>回転補正&emsp;<span id="import-rotation-val">0.00</span>°</span>
+          <button id="import-rotation-reset" class="import-reset-btn" type="button" title="回転補正を初期値に戻す">↺</button>
+        </div>
+        <div class="import-slider-line">
+          <span class="import-slider-side left">-2.0</span>
+          <div class="import-slider-wrap" style="--init-pct:50%">
+            <input type="range" id="import-rotation" class="ui-slider import-ctrl-slider"
+              min="-2" max="2" value="0" step="0.05" />
+          </div>
+          <span class="import-slider-side right">2.0</span>
+        </div>
+        <div class="import-rotation-adj-row">
+          <button class="import-rotation-adj-btn" id="import-rotation-minus">−0.05°</button>
+          <button class="import-rotation-adj-btn" id="import-rotation-plus">+0.05°</button>
+        </div>
+      </div>
+      <div class="import-ctrl-group">
+        <div class="import-ctrl-label import-label-with-reset">
+          <span>スケール補正&emsp;<span id="import-scale-adj-val">100.0%</span></span>
+          <button id="import-scale-adj-reset" class="import-reset-btn" type="button" title="スケール補正を初期値に戻す">↺</button>
+        </div>
+        <div class="import-slider-line">
+          <span class="import-slider-side left">90</span>
+          <div class="import-slider-wrap" style="--init-pct:50%">
+            <input type="range" id="import-scale-adj" class="ui-slider import-ctrl-slider"
+              min="90" max="110" value="100" step="0.1" />
+          </div>
+          <span class="import-slider-side right">110</span>
+        </div>
+        <div class="import-rotation-adj-row">
+          <button class="import-rotation-adj-btn" id="import-scale-adj-minus">−0.1%</button>
+          <button class="import-rotation-adj-btn" id="import-scale-adj-plus">+0.1%</button>
+        </div>
+      </div>
+      <div class="import-ctrl-group">
+        <div class="import-ctrl-label">固定点（最大2点）&emsp;<span id="import-fixed-point-count">0 / 2</span></div>
+        <div class="import-ctrl-hint">手順: 1) 点を選ぶ → 2) 画像をドラッグで合わせる → 3) 固定点を確定</div>
+        <div class="import-rotation-adj-row">
+          <button class="import-rotation-adj-btn" id="import-fixed-point-set" type="button">① 点を選ぶ</button>
+          <button class="import-rotation-adj-btn" id="import-fixed-point-commit" type="button">固定点を確定</button>
+        </div>
+        <div class="import-rotation-adj-row">
+          <button class="import-rotation-adj-btn" id="import-fixed-point-clear" type="button">全解除</button>
+        </div>
+        <div class="import-ctrl-hint" id="import-fixed-point-status">待機中</div>
+      </div>
+    </div>
+
+    <!-- 表示設定 -->
+    <div class="import-ctrl-section">
+      <div class="import-ctrl-section-title">表示設定</div>
+      <div class="import-ctrl-group">
+        <div class="import-ctrl-label">画像の透明度&emsp;<span id="import-opacity-val">70</span>%</div>
+        <input type="range" id="import-opacity" class="ui-slider import-ctrl-slider"
+          min="0" max="100" value="70" step="1" />
+      </div>
+    </div>
+
+    <!-- フッターボタン -->
+    <div class="align-editor-footer">
+      <button id="import-cancel-btn" class="align-cancel-btn">キャンセル</button>
+      <button id="import-decide-btn" class="align-decide-btn">この位置で決定</button>
+    </div>
+  `;
+
+  // --- スライダーグラデーション初期化 ---
+  const rotEl   = wrap.querySelector('#import-rotation');
+  const scaleEl = wrap.querySelector('#import-scale-adj');
+  const opEl    = wrap.querySelector('#import-opacity');
+  if (rotEl)   updateSliderGradient(rotEl,   '#2563eb');
+  if (scaleEl) updateSliderGradient(scaleEl, '#2563eb');
+  if (opEl)    updateSliderGradient(opEl,    '#2563eb');
+
+  // --- イベントリスナー ---
+
+  // キャンセル
+  wrap.querySelector('#import-cancel-btn').addEventListener('click', () => closeAlignEditor());
+
+  // 縮尺「手入力」切り替え
+  wrap.querySelector('#import-scale')?.addEventListener('change', (e) => {
+    wrap.querySelector('#import-scale-custom').style.display = e.target.value === 'custom' ? 'block' : 'none';
+    _importSaveState();
+    _updateImportPreview();
+  });
+
+  // 設定変更 → プレビュー再計算（画像モード）
+  ['import-paper-size', 'import-orientation'].forEach(id => {
+    wrap.querySelector(`#${id}`)?.addEventListener('change', () => { _importSaveState(); _updateImportPreview(); });
+  });
+  wrap.querySelector('#import-scale-custom')?.addEventListener('input', _updateImportPreview);
+
+  // 回転スライダー
+  rotEl?.addEventListener('input', (e) => {
+    wrap.querySelector('#import-rotation-val').textContent = parseFloat(e.target.value).toFixed(2);
+    updateSliderGradient(e.target, '#2563eb');
+    if (importState.baseCoords) { _applyKmzTransform(); } else { _updateImportRotation(); }
+  });
+
+  // 回転微調整ボタン
+  const _applyRotationAdj = (delta) => {
+    if (!rotEl) return;
+    _importSaveState();
+    const newVal = Math.min(2, Math.max(-2, parseFloat(rotEl.value) + delta));
+    rotEl.value = newVal;
+    wrap.querySelector('#import-rotation-val').textContent = newVal.toFixed(2);
+    updateSliderGradient(rotEl, '#2563eb');
+    if (importState.baseCoords) { _applyKmzTransform(); } else { _updateImportRotation(); }
+  };
+  wrap.querySelector('#import-rotation-minus').addEventListener('click', () => _applyRotationAdj(-0.05));
+  wrap.querySelector('#import-rotation-plus') .addEventListener('click', () => _applyRotationAdj( 0.05));
+  wrap.querySelector('#import-rotation-reset').addEventListener('click', () => {
+    if (!rotEl) return;
+    _importSaveState();
+    rotEl.value = '0';
+    wrap.querySelector('#import-rotation-val').textContent = '0.00';
+    updateSliderGradient(rotEl, '#2563eb');
+    if (importState.baseCoords) { _applyKmzTransform(); } else { _updateImportRotation(); }
+  });
+
+  // スケール補正スライダー
+  scaleEl?.addEventListener('input', (e) => {
+    importState.scaleVal = parseFloat(e.target.value);
+    _syncScaleUI();
+    _updateImportScale();
+  });
+  const _applyScaleAdj = (delta) => {
+    if (!scaleEl) return;
+    _importSaveState();
+    const newVal = Math.min(110, Math.max(90, parseFloat(scaleEl.value) + delta));
+    importState.scaleVal = newVal;
+    _syncScaleUI();
+    _updateImportScale();
+  };
+  wrap.querySelector('#import-scale-adj-minus').addEventListener('click', () => _applyScaleAdj(-0.1));
+  wrap.querySelector('#import-scale-adj-plus') .addEventListener('click', () => _applyScaleAdj( 0.1));
+  wrap.querySelector('#import-scale-adj-reset').addEventListener('click', () => {
+    _importSaveState();
+    importState.scaleVal = 100;
+    _syncScaleUI();
+    _updateImportScale();
+  });
+
+  // 固定点
+  wrap.querySelector('#import-fixed-point-set').addEventListener('click', () => {
+    if (!importState.coords) return;
+    if (importState.fixedPoints.length >= 2) return;
+    _setFixedPointSettingMode(true);
+    importState.pendingFixedPoint = null;
+    _renderFixedPointMarkers();
+  });
+  wrap.querySelector('#import-fixed-point-commit').addEventListener('click', () => {
+    if (!importState.pendingFixedPoint) return;
+    _importSaveState();
+    _commitPendingFixedPoint();
+    _updateBaseScaleCoords();
+    _replaceImageSource();
+  });
+  wrap.querySelector('#import-fixed-point-clear').addEventListener('click', () => {
+    if (importState.fixedPoints.length === 0 && !importState.pendingFixedPoint) return;
+    _importSaveState();
+    _clearImportFixedPoints();
+    _updateBaseScaleCoords();
+    _replaceImageSource();
+  });
+
+  // 透明度スライダー
+  opEl?.addEventListener('input', (e) => {
+    const opacity = parseInt(e.target.value, 10) / 100;
+    wrap.querySelector('#import-opacity-val').textContent = e.target.value;
+    updateSliderGradient(e.target, '#2563eb');
+    if (map.getLayer('_import-layer')) {
+      map.setPaintProperty('_import-layer', 'raster-opacity', opacity);
     }
-  }
-  // 磁北線
-  if (magneticCard.classList.contains('active') && _lastMagneticNorthData.features.length > 0) {
-    m.addSource('prev-magnetic-north', { type: 'geojson', data: _lastMagneticNorthData });
-    m.addLayer({ id: 'prev-magnetic-north-layer', type: 'line', source: 'prev-magnetic-north',
-      paint: { 'line-color': getMagneticLineColor(), 'line-width': 0.8, 'line-opacity': 1.0 } });
-  }
+  });
+
+  // Undo/Redo ボタン
+  wrap.querySelector('#import-undo-btn').addEventListener('click', _importUndo);
+  wrap.querySelector('#import-redo-btn').addEventListener('click', _importRedo);
+
+  // range 操作の開始時に一度だけ状態保存（_bindRangePreSave の動的版）
+  [rotEl, scaleEl].forEach(el => {
+    if (!el) return;
+    let armed = false;
+    const arm = () => { if (armed) return; _importSaveState(); armed = true; };
+    el.addEventListener('pointerdown', arm);
+    el.addEventListener('keydown', (e) => {
+      if (e.key.startsWith('Arrow') || e.key === 'PageUp' || e.key === 'PageDown' || e.key === 'Home' || e.key === 'End') arm();
+    });
+    el.addEventListener('change', () => { armed = false; });
+  });
+
+  // 決定ボタン
+  wrap.querySelector('#import-decide-btn').addEventListener('click', async () => {
+    if (!importState.coords || !importState.imgUrl) return;
+
+    const name       = importState.imgFile?.name ?? importState.imgLabel ?? '手動配置地図';
+    const coords     = importState.coords.map(c => [...c]);
+    const blob       = importState.imgBlob ?? null;
+    const keepUrl    = importState.imgUrl;
+    const terrainId  = importState.snapTerrainId ?? null;
+    let   mapSheetId = importState.activeMapSheetId ?? null;
+
+    // closeAlignEditor での revoke を防ぐため先に null にする
+    importState.imgUrl           = null;
+    importState.imgBlob          = null;
+    importState.activeMapSheetId = null;
+
+    // コース枠の決定
+    if (!mapSheetId) {
+      const activeEventId = getActiveEventId();
+      if (activeEventId) {
+        const isKmzMode  = (importState.imgFile === null);
+        const paperSize  = isKmzMode ? null : (document.getElementById('import-paper-size')?.value || 'A4');
+        const scaleSelEl = document.getElementById('import-scale');
+        const scaleCustomEl = document.getElementById('import-scale-custom');
+        let scale = null;
+        if (!isKmzMode && scaleSelEl) {
+          const sv = scaleSelEl.value;
+          scale = sv === 'custom' ? (parseInt(scaleCustomEl?.value) || null) : parseInt(sv);
+        }
+        const sheetName = name.replace(/\.(jpe?g|png|kmz)$/i, '') || '地図枠';
+        try {
+          const newSheet = {
+            id:          'ms-' + Date.now() + '-' + Math.random().toString(36).slice(2, 5),
+            event_id:    activeEventId,
+            name:        sheetName,
+            coordinates: coords,
+            paper_size:  paperSize,
+            scale,
+          };
+          await saveWsMapSheet(newSheet);
+          mapSheetId = newSheet.id;
+        } catch (e) {
+          console.warn('import-decide: コース枠の作成に失敗:', e);
+        }
+      }
+    }
+
+    // メインマップにレイヤー追加・localMapLayers 登録
+    const entry = _addLocalMapLayerFromBlob(
+      blob ? blob : await (await fetch(keepUrl)).blob(),
+      coords, name,
+      {
+        terrainId,
+        terrainName: terrainId ? (localMapLayers.find(e => e.terrainId === terrainId)?.terrainName ?? null) : null,
+        mapSheetId,
+      }
+    );
+
+    // IndexedDB 永続化
+    if (blob || keepUrl) {
+      const saveBlob = blob ?? await (async () => {
+        try { return await (await fetch(keepUrl)).blob(); } catch { return null; }
+      })();
+      if (saveBlob) {
+        saveMapLayer({
+          type:        'image-import',
+          name,
+          imageBlob:   saveBlob,
+          coordinates: coords,
+          opacity:     entry.opacity,
+          visible:     true,
+          terrainId,
+          terrainName: entry.terrainName,
+          mapSheetId,
+        })
+          .then(dbId => { entry.dbId = dbId; renderOtherMapsTree(); renderExplorer(); })
+          .catch(e => console.warn('import-decide: DB 保存に失敗:', e));
+      }
+    }
+
+    // 地図範囲をフィット
+    const b = entry.bbox;
+    const panelWidth = document.getElementById('sidebar')?.offsetWidth ?? SIDEBAR_DEFAULT_WIDTH;
+    map.fitBounds(
+      [[b.west, b.south], [b.east, b.north]],
+      { padding: { top: FIT_BOUNDS_PAD, bottom: FIT_BOUNDS_PAD,
+                   left: panelWidth + FIT_BOUNDS_PAD_SIDEBAR, right: FIT_BOUNDS_PAD },
+        pitch: INITIAL_PITCH, duration: EASE_DURATION, maxZoom: 19 }
+    );
+
+    renderLocalMapList();
+    closeAlignEditor(false);
+  });
+
+  return wrap;
 }
 
-// ---- モーダル共通初期化（previewMap生成） ----
-// onLoad: マップ読み込み完了後に呼ぶコールバック
-function _openImportOverlay(imgUrl, onLoad) {
+/** メインマップの位置合わせ用ソース/レイヤーを削除する */
+function _cleanupAlignMapLayers() {
+  if (map.getLayer('_import-hitbox-layer')) map.removeLayer('_import-hitbox-layer');
+  if (map.getSource('_import-hitbox'))      map.removeSource('_import-hitbox');
+  if (map.getLayer('_import-layer'))        map.removeLayer('_import-layer');
+  if (map.getSource('_import-img'))         map.removeSource('_import-img');
+}
+
+/**
+ * 位置合わせエディターを開く（右パネルを使用、プレビューマップなし）
+ * @param {string} imgUrl ObjectURL
+ * @param {Function} onReady マップ準備完了後のコールバック
+ * @param {boolean} showStep1 true=画像モード, false=KMZモード
+ */
+function openAlignEditor(imgUrl, onReady, showStep1 = true) {
+  // 既存の位置合わせ用レイヤーをクリーンアップ
+  _cleanupAlignMapLayers();
+
+  // 既存マーカーをクリーンアップ
+  exitScaleMode();
+  importState.fixedPointMarkers.forEach(m => m.remove());
+  importState.fixedPointMarkers = [];
+  if (importState.fixedPointOverlay?.isConnected) importState.fixedPointOverlay.remove();
+  importState.fixedPointOverlay = null;
+  importState.fixedPointOverlayEventsAdded = false;
+
+  // 既存ハンドラをクリーンアップ（前回のエディターセッションの残留防止）
+  if (importState._handlers) {
+    const h = importState._handlers;
+    map.off('mousemove', h.mousemove);
+    map.off('mouseup',   h.mouseup);
+    map.off('click',     h.click);
+    importState._handlers = null;
+  }
+
+  // 状態リセット
   importState.imgUrl           = imgUrl;
   importState.coords           = null;
-  importState.oriLibreLayers  = [];
-  importState.center         = null;
-  importState.baseCoords     = null;
-  importState.history        = [];
-  importState.future         = [];
-  importState.cachedDecl     = 0;
-  importState.scaleVal       = 100;
-  importState.baseScaleCoords = null;
+  importState.center           = null;
+  importState.baseCoords       = null;
+  importState.history          = [];
+  importState.future           = [];
+  importState.cachedDecl       = 0;
+  importState.scaleVal         = 100;
+  importState.baseScaleCoords  = null;
   _clearImportFixedPoints();
-  importState.isDragging      = false;
+  importState.isDragging       = false;
   importState.interactionInited = false;
-  importState.eventsAdded       = false;
-  // 4隅マーカーを作り直す
-  importState.scaleCornerMarkers.forEach(m => m.remove());
-  importState.scaleCornerMarkers = [];
-  // 透明度スライダーを初期値に
-  const opEl = document.getElementById('import-opacity');
-  if (opEl) { opEl.value = '70'; document.getElementById('import-opacity-val').textContent = '70'; }
-  const rotEl = document.getElementById('import-rotation');
-  if (rotEl) { rotEl.value = '0'; document.getElementById('import-rotation-val').textContent = '0.00'; }
+  importState.eventsAdded      = false;
+
+  // 右パネルにコントロールを構築
+  const panel = _buildAlignEditorPanel(showStep1);
+  openRightPanel('地図画像の位置合わせ', panel);
+
+  // スライダー UI を初期値に同期
   _syncScaleUI();
   _updateFixedPointStatus();
-  if (opEl) updateSliderGradient(opEl, '#2563eb');
-  if (rotEl) updateSliderGradient(rotEl, '#2563eb');
-  document.getElementById('import-overlay').classList.add('visible');
 
-  if (importState.previewMap) { importState.previewMap.remove(); importState.previewMap = null; }
-
-  // 初期背景: OriLibreが利用可能なら優先（地理院タイルより高品質）
-  const bgSel = document.getElementById('import-bg-select');
-  const initBg = oriLibreCachedStyle ? 'orilibre' : 'osm';
-  if (bgSel) bgSel.value = initBg;
-
-  const initStyle = (initBg === 'orilibre') ? oriLibreCachedStyle : _PREVIEW_RASTER_STYLE;
-
-  importState.previewMap = new maplibregl.Map({
-    container: 'import-preview-map',
-    style: initStyle,
-    center: map.getCenter(),
-    zoom: Math.max(map.getZoom(), 12),
-    pitch: 0, bearing: 0,
-    pitchWithRotate: false,  // 右クリックドラッグによるピッチ変更を禁止
-    attributionControl: false,
-  });
-  // 回転・ピッチ操作を完全に無効化（常に真上から北向き固定）
-  importState.previewMap.dragRotate.disable();
-  importState.previewMap.touchZoomRotate.disableRotation();
-  importState.previewMap.touchPitch.disable();
-
-  importState.previewMap.on('load', () => {
-    if (importState.previewMap.getTerrain()) importState.previewMap.setTerrain(null);
-
-    if (initBg === 'orilibre') {
-      // OriLibre 初期化時: 全レイヤーIDと初期 visibility を記録
-      importState.oriLibreLayers = importState.previewMap.getStyle().layers.map(l => ({
-        id: l.id,
-        vis: l.layout?.visibility ?? 'visible',
-      }));
-      // ラスター背景ソース/レイヤーを事前追加（初期非表示）
-      // これにより以降の背景切替は setStyle なし visibility 操作のみで済む
-      const rs = _PREVIEW_RASTER_STYLE;
-      Object.entries(rs.sources).forEach(([id, src]) => {
-        if (!importState.previewMap.getSource(id)) importState.previewMap.addSource(id, src);
-      });
-      rs.layers.forEach(l => {
-        if (!importState.previewMap.getLayer(l.id)) {
-          importState.previewMap.addLayer({ ...l, layout: { ...(l.layout || {}), visibility: 'none' } });
-        }
-      });
-    } else {
-      // ラスター初期化時: 等高線・磁北線を追加
-      _addPreviewContourAndNorth(importState.previewMap);
-    }
-
-    onLoad();
-  });
+  // マップがロード済みであればすぐにコールバックを実行
+  if (map.loaded()) {
+    onReady();
+  } else {
+    map.once('load', onReady);
+  }
 }
 
 // ---- 画像縦横比から最適な用紙サイズ・向きを自動推定してUIに反映 ----
@@ -10958,7 +11250,7 @@ async function _populateImportSnapList(filterTerrainId = null) {
 
   /** 座標スナップ共通処理 */
   function _applySnapCoords(coords) {
-    if (!importState.previewMap || !coords) return;
+    if (!coords) return;
     importState.coords          = coords.map(c => [...c]);
     importState.baseCoords      = coords.map(c => [...c]);
     importState.baseScaleCoords = coords.map(c => [...c]);
@@ -10973,7 +11265,7 @@ async function _populateImportSnapList(filterTerrainId = null) {
     }
     const lngs = coords.map(c => c[0]);
     const lats  = coords.map(c => c[1]);
-    importState.previewMap.fitBounds(
+    map.fitBounds(
       [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
       { padding: 40, duration: 400 }
     );
@@ -11018,41 +11310,43 @@ async function _populateImportSnapList(filterTerrainId = null) {
 }
 
 function openImportModal(imageFile) {
-  importState.imgFile = imageFile;
-  importState.imgBlob = imageFile;   // File は Blob のサブクラス。IndexedDB 保存用に保持
-  importState.imgAspect = null;
-  // 画像モード: コントロールパネル全体を表示（用紙サイズ含む）
-  document.getElementById('import-controls').style.display = '';
-  document.getElementById('import-image-only-ctrl').style.display = '';
-  // 用紙サイズはA4固定、向きは画像の縦横比から自動判断
-  document.getElementById('import-paper-size').value = 'A4';
-  const imgUrl = URL.createObjectURL(imageFile);
-  const tmp = new Image();
-  importState.imgLabel        = imageFile.name;
-  importState.snapTerrainId   = null;
+  importState.imgFile          = imageFile;
+  importState.imgBlob          = imageFile;  // File は Blob のサブクラス。IndexedDB 保存用に保持
+  importState.imgAspect        = null;
+  importState.imgLabel         = imageFile.name;
+  importState.snapTerrainId    = null;
   importState.activeMapSheetId = null;
-  tmp.onload  = () => {
+
+  const imgUrl = URL.createObjectURL(imageFile);
+  const tmp    = new Image();
+  tmp.onload = () => {
     importState.imgAspect = (tmp.width > 0 && tmp.height > 0) ? (tmp.width / tmp.height) : null;
-    document.getElementById('import-orientation').value = tmp.width >= tmp.height ? 'landscape' : 'portrait';
-    _openImportOverlay(imgUrl, async () => {
+    const isLandscape = tmp.width >= tmp.height;
+    openAlignEditor(imgUrl, async () => {
+      // 用紙サイズ・向きをパネル構築後に設定
+      const pSize = document.getElementById('import-paper-size');
+      const pOri  = document.getElementById('import-orientation');
+      if (pSize) pSize.value = 'A4';
+      if (pOri)  pOri.value  = isLandscape ? 'landscape' : 'portrait';
       _updateImportPreview();
       await _populateImportSnapList();
-    });
+    }, true);
   };
   tmp.onerror = () => {
     importState.imgAspect = null;
-    document.getElementById('import-orientation').value = 'portrait';
-    _openImportOverlay(imgUrl, async () => {
+    openAlignEditor(imgUrl, async () => {
+      const pOri = document.getElementById('import-orientation');
+      if (pOri) pOri.value = 'portrait';
       _updateImportPreview();
       await _populateImportSnapList();
-    });
+    }, true);
   };
   tmp.src = imgUrl;
 }
 
 // ---- KMZ: 現在の importState.center + 回転スライダーで座標を再計算 ----
 function _applyKmzTransform() {
-  if (!importState.previewMap || !importState.baseCoords || !importState.center) return;
+  if (!importState.baseCoords || !importState.center) return;
   const { lng: cLng, lat: cLat } = importState.center;
   const rotDeg = parseFloat(document.getElementById('import-rotation')?.value ?? '0');
 
@@ -11090,29 +11384,25 @@ function openImportModalWithCoords(imgUrl, coords, label) {
   importState.imgLabel         = label ?? '手動配置地図';
   importState.snapTerrainId    = null;
   importState.activeMapSheetId = null;
-  // KMZモード: コントロールパネルを表示し、用紙サイズ・縮尺部分は非表示
-  document.getElementById('import-controls').style.display = '';
-  document.getElementById('import-image-only-ctrl').style.display = 'none';
 
-  // 中心座標をローカル変数で先に計算（クロージャで参照）
   const lats = coords.map(c => c[1]), lngs = coords.map(c => c[0]);
   const centerLat = (Math.min(...lats) + Math.max(...lats)) / 2;
   const centerLng = (Math.min(...lngs) + Math.max(...lngs)) / 2;
 
-  // _openImportOverlay がリセットするため、状態変数は onLoad コールバック内で初期化する
-  _openImportOverlay(imgUrl, () => {
-    // ここで初期化（_openImportOverlay によるリセット後に設定）
-    importState.baseCoords = coords.map(c => [...c]); // 回転前の基準座標
-    importState.coords     = coords.map(c => [...c]);
-    importState.scaleVal   = 100;
+  // showStep1=false でKMZモード（用紙サイズUI非表示）
+  openAlignEditor(imgUrl, () => {
+    // openAlignEditor によるリセット後に KMZ 座標を設定
+    importState.baseCoords      = coords.map(c => [...c]);
+    importState.coords          = coords.map(c => [...c]);
+    importState.scaleVal        = 100;
     importState.baseScaleCoords = coords.map(c => [...c]);
     _syncScaleUI();
-    importState.center     = { lng: centerLng, lat: centerLat };
+    importState.center = { lng: centerLng, lat: centerLat };
 
-    // KMZ画像全体が収まるようfitBounds（即時・アニメーションなし）
-    importState.previewMap.fitBounds(
+    // KMZ画像全体が収まるようフィット（短いアニメーション）
+    map.fitBounds(
       [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
-      { padding: FIT_BOUNDS_PAD, duration: 0 }
+      { padding: FIT_BOUNDS_PAD, duration: 400 }
     );
 
     // 画像ソース + hitbox を一括初期化
@@ -11120,7 +11410,7 @@ function openImportModalWithCoords(imgUrl, coords, label) {
 
     // 既存のコース枠スナップリストを表示
     _populateImportSnapList();
-  });
+  }, false);
 }
 
 /* ---- 微調整モード（廃止：拡大縮小モードに統合）----
@@ -11153,7 +11443,7 @@ function exitFineTuneMode() {
 
 // ---- 4隅マーカーを常時表示（固定点があれば固定点中心、なければ対角固定で相似拡大縮小） ----
 function enterScaleMode() {
-  if (!importState.previewMap || !importState.coords) return;
+  if (!importState.coords) return;
   if (importState.scaleCornerMarkers.length === 4) {
     importState.scaleCornerMarkers.forEach((m, i) => m.setLngLat(importState.coords[i]));
     return;
@@ -11168,7 +11458,7 @@ function enterScaleMode() {
     el.title = ['左上', '右上', '右下', '左下'][i] + '（ドラッグで拡大縮小）';
     const marker = new maplibregl.Marker({ element: el, draggable: true })
       .setLngLat(coord)
-      .addTo(importState.previewMap);
+      .addTo(map);
 
     // dragstart/drag 用クロージャ変数
     let fixedCoord    = null; // 固定する座標（固定点 or 対角コーナー）
@@ -11229,318 +11519,59 @@ function exitScaleMode() {
   importState.scaleCornerMarkers = [];
 }
 
-// ---- モーダルを閉じる（revokeUrl=false のとき ObjectURL を解放しない） ----
-function closeImportModal(revokeUrl = true) {
-  importState.scaleCornerMarkers.forEach(m => m.remove());
-  importState.scaleCornerMarkers = [];
+// ---- 位置合わせエディターを閉じる（revokeUrl=false のとき ObjectURL を解放しない） ----
+function closeAlignEditor(revokeUrl = true) {
+  // マーカークリーンアップ
+  exitScaleMode();
   importState.fixedPointMarkers.forEach(m => m.remove());
   importState.fixedPointMarkers = [];
-  if (importState.fixedPointOverlay && importState.fixedPointOverlay.isConnected) {
-    importState.fixedPointOverlay.remove();
-  }
+  if (importState.fixedPointOverlay?.isConnected) importState.fixedPointOverlay.remove();
   importState.fixedPointOverlay = null;
   importState.fixedPointOverlayEventsAdded = false;
   _clearImportFixedPoints();
-  // _importCornerMarkers.forEach(m => m.remove()); _importCornerMarkers = []; // 旧・微調整モード（廃止）
-  // _fineTuneActive = false; // 廃止
-  importState.isDragging        = false;
-  importState.interactionInited   = false;
-  importState.eventsAdded         = false;
-  document.getElementById('import-overlay').classList.remove('visible');
-  if (importState.previewMap)         { importState.previewMap.remove(); importState.previewMap = null; }
+
+  // 状態フラグリセット
+  importState.isDragging         = false;
+  importState.interactionInited  = false;
+  importState.eventsAdded        = false;
+  if (importState.isDragging) map.dragPan.enable();
+
+  // メインマップからレイヤー/ソースを削除
+  _cleanupAlignMapLayers();
+
+  // イベントハンドラのクリーンアップ
+  if (importState._handlers) {
+    const h = importState._handlers;
+    map.off('mousemove', h.mousemove);
+    map.off('mouseup',   h.mouseup);
+    map.off('click',     h.click);
+    importState._handlers = null;
+  }
+
   if (revokeUrl && importState.imgUrl) { URL.revokeObjectURL(importState.imgUrl); }
   importState.imgUrl  = null;
   importState.imgFile = null;
   importState.coords  = null;
+
+  // 右パネルを閉じる
+  closeRightPanel();
 }
 
-// ---- イベントリスナー ----
+// 後方互換エイリアス（旧コードが参照している場合に備えて）
+const closeImportModal = closeAlignEditor;
 
-
-// 閉じる・キャンセル
-document.getElementById('import-overlay-close-btn').addEventListener('click', () => closeImportModal());
-document.getElementById('import-cancel-btn').addEventListener('click', () => closeImportModal());
-
-// 縮尺「手入力」切り替え
-document.getElementById('import-scale').addEventListener('change', (e) => {
-  document.getElementById('import-scale-custom').style.display =
-    e.target.value === 'custom' ? 'block' : 'none';
-  _importSaveState();
-  _updateImportPreview();
-});
-
-// 設定変更 → プレビュー再計算（画像モード）・状態保存
-['import-paper-size', 'import-orientation'].forEach(id => {
-  document.getElementById(id).addEventListener('change', () => { _importSaveState(); _updateImportPreview(); });
-});
-document.getElementById('import-scale-custom').addEventListener('input', _updateImportPreview);
-
-// 背景地図切り替え（setStyle を使わず visibility 操作のみ、画像レイヤーに触れない）
-document.getElementById('import-bg-select').addEventListener('change', (e) => {
-  if (!importState.previewMap) return;
-  const val = e.target.value;
-  const toOriLibre = (val === 'orilibre');
-  const rasterLayerMap = {
-    'osm':       'bg-osm-layer',
-    'gsi-std':   'bg-gsi-std-layer',
-    'gsi-pale':  'bg-gsi-pale-layer',
-    'gsi-photo': 'bg-gsi-photo-layer',
-  };
-
-  // OriLibreレイヤー: 初期化時に記録した ID リストで表示/非表示を一括切り替え
-  importState.oriLibreLayers.forEach(({ id, vis }) => {
-    if (importState.previewMap.getLayer(id))
-      importState.previewMap.setLayoutProperty(id, 'visibility', toOriLibre ? vis : 'none');
-  });
-
-  // ラスターレイヤー: 選択したものだけ表示
-  Object.entries(rasterLayerMap).forEach(([key, layerId]) => {
-    if (importState.previewMap.getLayer(layerId))
-      importState.previewMap.setLayoutProperty(layerId, 'visibility', !toOriLibre && key === val ? 'visible' : 'none');
-  });
-
-  // 画像ソース/レイヤーには一切触れないので、読み込んだ地図画像はそのまま表示され続ける
-});
-
-// 回転スライダー → プレビュー再計算
-document.getElementById('import-rotation').addEventListener('input', (e) => {
-  document.getElementById('import-rotation-val').textContent = parseFloat(e.target.value).toFixed(2);
-  updateSliderGradient(e.target, '#2563eb');
-  // KMZモードと画像モードで処理を分岐
-  if (importState.baseCoords) {
-    _applyKmzTransform();
-  } else {
-    _updateImportRotation();
-  }
-});
-
-// range操作の開始時に一度だけ状態保存（Undoを1ステップに保つ）
-function _bindRangePreSave(id) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  let armed = false;
-  const arm = () => {
-    if (armed) return;
-    _importSaveState();
-    armed = true;
-  };
-  el.addEventListener('pointerdown', arm);
-  el.addEventListener('keydown', (e) => {
-    if (e.key.startsWith('Arrow') || e.key === 'PageUp' || e.key === 'PageDown' || e.key === 'Home' || e.key === 'End') {
-      arm();
-    }
-  });
-  el.addEventListener('change', () => { armed = false; });
-}
-
-// ±0.05° 微調整ボタン
-function _applyRotationAdj(delta) {
-  const rotEl = document.getElementById('import-rotation');
-  if (!rotEl) return;
-  _importSaveState(); // 変更前にundo用保存
-  const newVal = Math.min(2, Math.max(-2, parseFloat(rotEl.value) + delta));
-  rotEl.value = newVal;
-  document.getElementById('import-rotation-val').textContent = newVal.toFixed(2);
-  updateSliderGradient(rotEl, '#2563eb');
-  if (importState.baseCoords) { _applyKmzTransform(); } else { _updateImportRotation(); }
-}
-document.getElementById('import-rotation-minus').addEventListener('click', () => _applyRotationAdj(-0.05));
-document.getElementById('import-rotation-plus') .addEventListener('click', () => _applyRotationAdj( 0.05));
-document.getElementById('import-rotation-reset').addEventListener('click', () => {
-  const rotEl = document.getElementById('import-rotation');
-  if (!rotEl) return;
-  _importSaveState();
-  rotEl.value = '0';
-  document.getElementById('import-rotation-val').textContent = '0.00';
-  updateSliderGradient(rotEl, '#2563eb');
-  if (importState.baseCoords) { _applyKmzTransform(); } else { _updateImportRotation(); }
-});
-
-// 固定点の追加/解除
-document.getElementById('import-fixed-point-set').addEventListener('click', () => {
-  if (!importState.previewMap || !importState.coords) return;
-  if (importState.fixedPoints.length >= 2) return;
-  _setFixedPointSettingMode(true);
-  importState.pendingFixedPoint = null;
-  _renderFixedPointMarkers();
-});
-document.getElementById('import-fixed-point-commit').addEventListener('click', () => {
-  if (!importState.pendingFixedPoint) return;
-  _importSaveState();
-  _commitPendingFixedPoint();
-  _updateBaseScaleCoords();
-  _replaceImageSource();
-});
-document.getElementById('import-fixed-point-clear').addEventListener('click', () => {
-  if (importState.fixedPoints.length === 0 && !importState.pendingFixedPoint) return;
-  _importSaveState();
-  _clearImportFixedPoints();
-  _updateBaseScaleCoords();
-  _replaceImageSource();
-});
-
-// スケール補正スライダー/微調整ボタン
-document.getElementById('import-scale-adj').addEventListener('input', (e) => {
-  importState.scaleVal = parseFloat(e.target.value);
-  _syncScaleUI();
-  _updateImportScale();
-});
-function _applyScaleAdj(delta) {
-  const scaleEl = document.getElementById('import-scale-adj');
-  if (!scaleEl) return;
-  _importSaveState(); // 変更前にundo用保存
-  const cur = parseFloat(scaleEl.value);
-  const newVal = Math.min(110, Math.max(90, cur + delta));
-  importState.scaleVal = newVal;
-  _syncScaleUI();
-  _updateImportScale();
-}
-document.getElementById('import-scale-adj-minus').addEventListener('click', () => _applyScaleAdj(-0.1));
-document.getElementById('import-scale-adj-plus') .addEventListener('click', () => _applyScaleAdj( 0.1));
-document.getElementById('import-scale-adj-reset').addEventListener('click', () => {
-  _importSaveState();
-  importState.scaleVal = 100;
-  _syncScaleUI();
-  _updateImportScale();
-});
-_bindRangePreSave('import-rotation');
-_bindRangePreSave('import-scale-adj');
-
-document.getElementById('import-undo-btn').addEventListener('click', _importUndo);
-document.getElementById('import-redo-btn').addEventListener('click', _importRedo);
-
-// 透明度スライダー → プレビューマップのraster-opacity をリアルタイム変更
-document.getElementById('import-opacity').addEventListener('input', (e) => {
-  const opacity = parseInt(e.target.value, 10) / 100;
-  document.getElementById('import-opacity-val').textContent = e.target.value;
-  updateSliderGradient(e.target, '#2563eb');
-  if (importState.previewMap && importState.previewMap.getLayer('_import-layer')) {
-    importState.previewMap.setPaintProperty('_import-layer', 'raster-opacity', opacity);
-  }
-});
-
-// Undo/Redo キーボードショートカット（モーダルが開いているときのみ有効）
+// Undo/Redo キーボードショートカット（エディターが開いているときのみ有効）
 document.addEventListener('keydown', (e) => {
-  if (!document.getElementById('import-overlay').classList.contains('visible')) return;
+  if (!importState.coords) return; // エディター未開
   const ctrl = e.ctrlKey || e.metaKey;
   if (!ctrl) return;
   if (e.key === 'z' || e.key === 'Z') {
-    if (e.shiftKey) {
-      // Ctrl+Shift+Z → Redo
-      e.preventDefault();
-      _importRedo();
-    } else {
-      // Ctrl+Z → Undo
-      e.preventDefault();
-      _importUndo();
-    }
+    e.preventDefault();
+    if (e.shiftKey) { _importRedo(); } else { _importUndo(); }
   } else if (e.key === 'y' || e.key === 'Y') {
-    // Ctrl+Y → Redo
     e.preventDefault();
     _importRedo();
   }
-});
-
-// 決定ボタン → メインマップにレイヤーを追加・IndexedDB に保存・モーダルを閉じる
-document.getElementById('import-decide-btn').addEventListener('click', async () => {
-  if (!importState.coords || !importState.imgUrl) return;
-
-  const name      = importState.imgFile?.name ?? importState.imgLabel ?? '手動配置地図';
-  const coords    = importState.coords.map(c => [...c]);
-  const blob      = importState.imgBlob ?? null;
-  const keepUrl   = importState.imgUrl;
-  const terrainId = importState.snapTerrainId ?? null;
-  let   mapSheetId = importState.activeMapSheetId ?? null;
-
-  // closeImportModal での revoke を防ぐため先に null にする
-  importState.imgUrl           = null;
-  importState.imgBlob          = null;
-  importState.activeMapSheetId = null;
-
-  // ── コース枠の決定 ──
-  // 既存コース枠が選択されていない場合、アクティブイベントに新規コース枠を作成する
-  if (!mapSheetId) {
-    const activeEventId = getActiveEventId();
-    if (activeEventId) {
-      // 用紙サイズ・縮尺を読み取る（KMZモードでは import-image-only-ctrl が非表示）
-      const isKmzMode = (importState.imgFile === null);
-      const paperSize = isKmzMode ? null : (document.getElementById('import-paper-size')?.value || 'A4');
-      const scaleEl   = document.getElementById('import-scale');
-      const scaleCustomEl = document.getElementById('import-scale-custom');
-      let scale = null;
-      if (!isKmzMode && scaleEl) {
-        const sv = scaleEl.value;
-        scale = sv === 'custom'
-          ? (parseInt(scaleCustomEl?.value) || null)
-          : parseInt(sv);
-      }
-      const sheetName = name.replace(/\.(jpe?g|png|kmz)$/i, '') || '地図枠';
-      try {
-        const newSheet = {
-          id:          'ms-' + Date.now() + '-' + Math.random().toString(36).slice(2, 5),
-          event_id:    activeEventId,
-          name:        sheetName,
-          coordinates: coords,
-          paper_size:  paperSize,
-          scale,
-        };
-        await saveWsMapSheet(newSheet);
-        mapSheetId = newSheet.id;
-      } catch (e) {
-        console.warn('import-decide-btn: コース枠の作成に失敗:', e);
-      }
-    }
-  }
-
-  // _addLocalMapLayerFromBlob 経由でレイヤー追加・localMapLayers 登録
-  const entry = _addLocalMapLayerFromBlob(
-    blob ? blob : await (await fetch(keepUrl)).blob(),
-    coords, name,
-    {
-      terrainId,
-      terrainName: terrainId ? (localMapLayers.find(e => e.terrainId === terrainId)?.terrainName ?? null) : null,
-      mapSheetId,
-    }
-  );
-
-  // IndexedDB に永続化（ブラウザを閉じても復元可能にする）
-  if (blob || keepUrl) {
-    const saveBlob = blob ?? await (async () => {
-      try { return await (await fetch(keepUrl)).blob(); } catch { return null; }
-    })();
-    if (saveBlob) {
-      saveMapLayer({
-        type:        'image-import',
-        name,
-        imageBlob:   saveBlob,
-        coordinates: coords,
-        opacity:     entry.opacity,
-        visible:     true,
-        terrainId,
-        terrainName: entry.terrainName,
-        mapSheetId,
-      })
-        .then(dbId => {
-          entry.dbId = dbId;
-          renderOtherMapsTree();
-          renderExplorer();
-        })
-        .catch(e => console.warn('import-decide-btn: DB 保存に失敗:', e));
-    }
-  }
-
-  // 地図範囲をフィット
-  const b = entry.bbox;
-  const panelWidth = document.getElementById('sidebar')?.offsetWidth ?? SIDEBAR_DEFAULT_WIDTH;
-  map.fitBounds(
-    [[b.west, b.south], [b.east, b.north]],
-    { padding: { top: FIT_BOUNDS_PAD, bottom: FIT_BOUNDS_PAD,
-                 left: panelWidth + FIT_BOUNDS_PAD_SIDEBAR, right: FIT_BOUNDS_PAD },
-      pitch: INITIAL_PITCH, duration: EASE_DURATION, maxZoom: 19 }
-  );
-
-  renderLocalMapList();
-  closeImportModal(false);
 });
 
 // ============================================================

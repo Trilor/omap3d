@@ -4211,35 +4211,7 @@ body.rp-open .maplibregl-ctrl-bottom-right {
    =================================================================== */
 
 /* 全画面暗転オーバーレイ（PC readmap と同系） */
-#import-overlay {
-  display: none;
-  position: fixed;
-  inset: 0;
-  z-index: 50;
-  background: var(--overlay-mid);
-  align-items: center;
-  justify-content: center;
-}
-
-#import-overlay.visible {
-  display: flex;
-}
-
-/* モーダル本体: サイズのみ個別定義（装飾は .modal-wrapper で共通管理） */
-#import-modal-wrapper {
-  width: min(92vw, 1040px);
-  height: min(88vh, 720px);
-}
-
-/* モードタブ：1タブ + Undo/Redo */
-#import-mode-tabs {
-  display: flex;
-  gap: 0;
-  align-items: center;
-  flex-shrink: 0;
-  background: var(--bg-select);
-  border-bottom: 1px solid var(--border-muted);
-}
+/* 旧 #import-overlay モーダル廃止 — 右パネルで表示 */
 
 .import-tab {
   padding: 6px 18px;
@@ -4266,34 +4238,15 @@ body.rp-open .maplibregl-ctrl-bottom-right {
   box-shadow: inset 0 -2px 0 var(--primary);
 }
 
-/* ボディ：プレビューマップ + コントロール */
-#import-modal-body {
-  flex: 1;
-  display: flex;
-  overflow: hidden;
-  min-height: 0;
-}
-
-/* プレビュー用 MapLibre */
-#import-preview-map {
-  flex: 1;
-  min-width: 0;
-  position: relative;
-}
-
-/* 右側コントロールパネル */
-#import-controls {
-  width: 200px;
-  flex-shrink: 0;
-  background: var(--bg-subtle);
-  color: var(--text-main);
-  padding: 14px 12px;
-  overflow-y: auto;
+/* 右パネル 位置合わせコントロールラッパー */
+.import-controls-wrap {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 0;
+  padding: 10px 12px 4px;
+  overflow-y: auto;
+  height: 100%;
   font-size: var(--font-base);
-  border-left: 1px solid var(--border-muted);
 }
 
 .import-ctrl-group {
@@ -4441,24 +4394,24 @@ body.rp-open .maplibregl-ctrl-bottom-right {
   gap: 10px;
 }
 
-/* フッター */
-#import-modal-footer {
+/* 右パネル 位置合わせフッター（決定・キャンセルボタン） */
+.align-editor-footer {
   display: flex;
   justify-content: flex-end;
   align-items: center;
   gap: 8px;
-  padding: 8px 12px;
-  background: var(--bg-select);
+  padding: 10px 0 6px;
   flex-shrink: 0;
   border-top: 1px solid var(--border-muted);
+  margin-top: 12px;
 }
 
-#import-decide-btn {
+.align-decide-btn {
   background: var(--primary);
   color: var(--on-primary);
   border: none;
   border-radius: 3px;
-  padding: 6px 20px;
+  padding: 6px 16px;
   font-size: var(--font-base);
   font-weight: var(--font-bold);
   font-family: inherit;
@@ -4466,25 +4419,30 @@ body.rp-open .maplibregl-ctrl-bottom-right {
   transition: background var(--transition);
 }
 
-#import-decide-btn:hover {
-  background: var(--primary-hover);
-}
+.align-decide-btn:hover { background: var(--primary-hover); }
 
-#import-cancel-btn {
+.align-cancel-btn {
   background: var(--bg-surface);
   color: var(--text-sub);
   border: 1px solid var(--border-input);
   border-radius: 3px;
-  padding: 6px 14px;
+  padding: 6px 12px;
   font-size: var(--font-base);
   font-family: inherit;
   cursor: pointer;
   transition: background var(--transition);
 }
 
-#import-cancel-btn:hover {
-  background: var(--bg-select);
-  color: var(--text-main);
+.align-cancel-btn:hover { background: var(--bg-select); color: var(--text-main); }
+
+/* 右パネル Undo/Redo グループ */
+.align-undo-redo {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border-muted);
+  margin-bottom: 4px;
 }
 
 /* Undo/Redo ボタン（モードタブ行の右端） */
@@ -4509,12 +4467,11 @@ body.rp-open .maplibregl-ctrl-bottom-right {
   background: var(--slider-track);
 }
 
+/* 旧モーダル用 Undo/Redo グループ（.align-undo-redo に統合） */
 #import-undo-redo-group {
   display: flex;
   align-items: center;
   gap: 0;
-  margin-left: auto;
-  padding-right: 6px;
 }
 
 /* コントロールパネル：ステップセクション */
