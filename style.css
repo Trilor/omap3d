@@ -4539,6 +4539,42 @@ body.rp-open .maplibregl-ctrl-bottom-right {
   text-transform: uppercase;
 }
 
+/* 既存の枠スナップリスト */
+.import-snap-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.import-snap-btn {
+  background: var(--bg-select);
+  border: 1px solid var(--border-input);
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-size: var(--font-xs);
+  color: var(--text-main);
+  cursor: pointer;
+  transition: background 0.1s, border-color 0.1s;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.import-snap-btn:hover {
+  background: var(--primary-light);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.import-snap-btn.active {
+  background: var(--primary-light);
+  border-color: var(--primary);
+  color: var(--primary);
+  font-weight: var(--font-semi);
+}
+
 /* 回転補正 ±0.5° ボタン */
 .import-rotation-adj-row {
   display: flex;

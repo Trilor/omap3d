@@ -1041,6 +1041,7 @@ function _addLocalMapLayerFromBlob(imageBlob, coordinates, name, {
   const entry = {
     id, name, sourceId, layerId, objectUrl,
     visible, opacity,
+    coordinates: coordinates.map(c => [...c]),  // 4隅座標（TL→TR→BR→BL）。枠スナップ・DB保存に使用
     bbox: {
       west:  Math.min(...lngs), east:  Math.max(...lngs),
       south: Math.min(...lats), north: Math.max(...lats),
@@ -1077,6 +1078,8 @@ async function restoreMapLayersFromDb() {
           terrainName: rec.terrainName ?? null,
         }
       );
+      // DB 復元時: eventId があれば紐づける（将来の Supabase 連携用）
+      if (rec.eventId) entry.eventId = rec.eventId;
       entry.dbId = rec.id;
     } catch (err) {
       console.warn(`DB レコード id=${rec.id} の復元に失敗:`, err);
@@ -9765,7 +9768,12 @@ async function openImportModalFromKmz(file) {
     const imgEntry = zip.files[iconHref] ?? zip.files[fileNames.find(n => n.endsWith('/' + iconHref) || n === iconHref)];
     if (!imgEntry) { alert(`KMZ内に画像 "${iconHref}" が見つかりません。`); return; }
 
-    const imgUrl = URL.createObjectURL(await imgEntry.async('blob'));
+    // Blob を importState.imgBlob に保存しておく（IndexedDB 保存に使用）
+    const imgBlob = await imgEntry.async('blob');
+    importState.imgBlob = imgBlob;
+    importState.imgFile = null;
+
+    const imgUrl = URL.createObjectURL(imgBlob);
 
     // モーダルをKMZ座標で開く（用紙サイズ設定UIは不要なので非表示）
     openImportModalWithCoords(imgUrl, kmzCoords, file.name);
@@ -9778,7 +9786,8 @@ async function openImportModalFromKmz(file) {
 const importState = {
   // プレビューマップ・画像情報
   previewMap:       null,   // プレビュー用 MapLibre インスタンス
-  imgFile:          null,   // インポート中の画像 File
+  imgFile:          null,   // インポート中の画像 File（画像直接読み込み時のみ）
+  imgBlob:          null,   // 画像 Blob（IndexedDB 保存用。KMZ由来でも保持）
   imgUrl:           null,   // 対応する ObjectURL
   imgAspect:        null,   // 元画像の縦横比（width / height）
   coords:           null,   // 現在の4隅座標 [[lng,lat]*4] TL→TR→BR→BL
@@ -10621,8 +10630,80 @@ function _openImportOverlay(imgUrl, onLoad) {
 
 // ---- 画像縦横比から最適な用紙サイズ・向きを自動推定してUIに反映 ----
 // ---- 画像ファイルから開く（用紙サイズ設定UI表示・A4デフォルト） ----
+/**
+ * 位置合わせモーダルの「既存の枠に合わせる」リストを更新する。
+ * localMapLayers の配置済み地図枠を一覧し、選択すると座標をスナップする。
+ * @param {string|null} filterTerrainId — null のときは全件表示
+ */
+function _populateImportSnapList(filterTerrainId = null) {
+  const section = document.getElementById('import-snap-section');
+  const listEl  = document.getElementById('import-snap-list');
+  if (!section || !listEl) return;
+
+  // coordinates を持つエントリのみ対象（_addLocalMapLayerFromBlob で追加されたもの）
+  const candidates = localMapLayers.filter(e =>
+    e.coordinates && e.coordinates.length === 4 &&
+    (filterTerrainId == null || e.terrainId === filterTerrainId)
+  );
+
+  if (candidates.length === 0) {
+    section.style.display = 'none';
+    return;
+  }
+
+  section.style.display = '';
+  listEl.innerHTML = '';
+
+  candidates.forEach(e => {
+    const btn = document.createElement('button');
+    btn.className = 'import-snap-btn';
+    const shortName = e.name.replace(/\.(jpg|jpeg|png|kmz)$/i, '');
+    btn.textContent = shortName;
+    btn.title = `この地図枠（${shortName}）に合わせる`;
+
+    btn.addEventListener('click', () => {
+      if (!importState.previewMap || !e.coordinates) return;
+
+      // 座標をスナップ
+      importState.coords          = e.coordinates.map(c => [...c]);
+      importState.baseCoords      = e.coordinates.map(c => [...c]);
+      importState.baseScaleCoords = e.coordinates.map(c => [...c]);
+      importState.scaleVal        = 100;
+      importState.history         = [];
+      importState.future          = [];
+      importState.snapTerrainId   = e.terrainId ?? null;
+
+      // スケール補正・4隅マーカー・回転をリセット
+      const rotEl = document.getElementById('import-rotation');
+      if (rotEl) { rotEl.value = '0'; document.getElementById('import-rotation-val').textContent = '0.00'; }
+      _syncScaleUI();
+      if (importState.scaleCornerMarkers.length === 4) {
+        importState.scaleCornerMarkers.forEach((m, i) => m.setLngLat(e.coordinates[i]));
+      }
+
+      // プレビューマップを枠にフィット
+      const lngs = e.coordinates.map(c => c[0]);
+      const lats  = e.coordinates.map(c => c[1]);
+      importState.previewMap.fitBounds(
+        [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
+        { padding: 40, duration: 400 }
+      );
+
+      // 画像ソースを新座標で更新
+      _replaceImageSource();
+
+      // ボタンを選択状態に
+      listEl.querySelectorAll('.import-snap-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    });
+
+    listEl.appendChild(btn);
+  });
+}
+
 function openImportModal(imageFile) {
   importState.imgFile = imageFile;
+  importState.imgBlob = imageFile;   // File は Blob のサブクラス。IndexedDB 保存用に保持
   importState.imgAspect = null;
   // 画像モード: コントロールパネル全体を表示（用紙サイズ含む）
   document.getElementById('import-controls').style.display = '';
@@ -10631,15 +10712,23 @@ function openImportModal(imageFile) {
   document.getElementById('import-paper-size').value = 'A4';
   const imgUrl = URL.createObjectURL(imageFile);
   const tmp = new Image();
+  importState.imgLabel = imageFile.name;
+  importState.snapTerrainId = null;
   tmp.onload  = () => {
     importState.imgAspect = (tmp.width > 0 && tmp.height > 0) ? (tmp.width / tmp.height) : null;
     document.getElementById('import-orientation').value = tmp.width >= tmp.height ? 'landscape' : 'portrait';
-    _openImportOverlay(imgUrl, _updateImportPreview);
+    _openImportOverlay(imgUrl, () => {
+      _updateImportPreview();
+      _populateImportSnapList();
+    });
   };
   tmp.onerror = () => {
     importState.imgAspect = null;
     document.getElementById('import-orientation').value = 'portrait';
-    _openImportOverlay(imgUrl, _updateImportPreview);
+    _openImportOverlay(imgUrl, () => {
+      _updateImportPreview();
+      _populateImportSnapList();
+    });
   };
   tmp.src = imgUrl;
 }
@@ -10679,8 +10768,10 @@ function _applyKmzTransform() {
 
 // ---- KMZ座標付きで開く（回転のみ表示、用紙サイズUI非表示） ----
 function openImportModalWithCoords(imgUrl, coords, label) {
-  importState.imgFile = null;
-  importState.imgAspect = null;
+  importState.imgFile    = null;
+  importState.imgAspect  = null;
+  importState.imgLabel   = label ?? '手動配置地図';
+  importState.snapTerrainId = null;
   // KMZモード: コントロールパネルを表示し、用紙サイズ・縮尺部分は非表示
   document.getElementById('import-controls').style.display = '';
   document.getElementById('import-image-only-ctrl').style.display = 'none';
@@ -10708,6 +10799,9 @@ function openImportModalWithCoords(imgUrl, coords, label) {
 
     // 画像ソース + hitbox を一括初期化
     _replaceImageSource();
+
+    // 既存の枠スナップリストを表示
+    _populateImportSnapList();
   });
 }
 
@@ -11029,28 +11123,65 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
-// 決定ボタン → メインマップにレイヤーを追加・枠を作成してモーダルを閉じる
-document.getElementById('import-decide-btn').addEventListener('click', () => {
+// 決定ボタン → メインマップにレイヤーを追加・IndexedDB に保存・モーダルを閉じる
+document.getElementById('import-decide-btn').addEventListener('click', async () => {
   if (!importState.coords || !importState.imgUrl) return;
-  const uid     = `img-import-${Date.now()}`;
-  const name    = importState.imgFile?.name ?? '手動配置地図';
-  const keepUrl = importState.imgUrl;
-  importState.imgUrl = null; // closeImportModal での revoke を防ぐ
 
-  // 画像をメインマップに追加（表示）
-  addImageLayerToMap(uid + '-src', uid + '-layer', keepUrl, importState.coords, OMAP_INITIAL_OPACITY);
+  const name     = importState.imgFile?.name ?? importState.imgLabel ?? '手動配置地図';
+  const coords   = importState.coords.map(c => [...c]);
+  const blob     = importState.imgBlob ?? null;
+  const keepUrl  = importState.imgUrl;
+  const terrainId = importState.snapTerrainId ?? null;
 
-  // kmzList UI に登録
-  const lngs = importState.coords.map(c => c[0]);
-  const lats  = importState.coords.map(c => c[1]);
-  localMapLayers.push({
-    id: localMapCounter++, name,
-    sourceId: uid + '-src', layerId: uid + '-layer',
-    objectUrl: keepUrl,
-    visible: true, opacity: OMAP_INITIAL_OPACITY,
-    bbox: { west: Math.min(...lngs), east: Math.max(...lngs),
-            south: Math.min(...lats), north: Math.max(...lats) },
-  });
+  // closeImportModal での revoke を防ぐため先に null にする
+  importState.imgUrl  = null;
+  importState.imgBlob = null;
+
+  // _addLocalMapLayerFromBlob 経由でレイヤー追加・localMapLayers 登録（terrainId も正しくセット）
+  const entry = _addLocalMapLayerFromBlob(
+    blob ? blob : await (await fetch(keepUrl)).blob(),  // blob がなければ ObjectURL から再取得
+    coords, name,
+    {
+      terrainId:   terrainId,
+      terrainName: terrainId ? (localMapLayers.find(e => e.terrainId === terrainId)?.terrainName ?? null) : null,
+    }
+  );
+
+  // IndexedDB に永続化（ブラウザを閉じても復元可能にする）
+  if (blob || keepUrl) {
+    const saveBlob = blob ?? await (async () => {
+      try { return await (await fetch(keepUrl)).blob(); } catch { return null; }
+    })();
+    if (saveBlob) {
+      saveMapLayer({
+        type:        'image-import',
+        name,
+        imageBlob:   saveBlob,
+        coordinates: coords,
+        opacity:     entry.opacity,
+        visible:     true,
+        terrainId,
+        terrainName: entry.terrainName,
+      })
+        .then(dbId => {
+          entry.dbId = dbId;
+          renderOtherMapsTree();
+          renderExplorer();
+        })
+        .catch(e => console.warn('import-decide-btn: DB 保存に失敗:', e));
+    }
+  }
+
+  // 地図範囲をフィット
+  const b = entry.bbox;
+  const panelWidth = document.getElementById('sidebar')?.offsetWidth ?? SIDEBAR_DEFAULT_WIDTH;
+  map.fitBounds(
+    [[b.west, b.south], [b.east, b.north]],
+    { padding: { top: FIT_BOUNDS_PAD, bottom: FIT_BOUNDS_PAD,
+                 left: panelWidth + FIT_BOUNDS_PAD_SIDEBAR, right: FIT_BOUNDS_PAD },
+      pitch: INITIAL_PITCH, duration: EASE_DURATION, maxZoom: 19 }
+  );
+
   renderLocalMapList();
   closeImportModal(false);
 });
