@@ -7021,12 +7021,12 @@ function _buildTerrainFolder(terrain, maps, gpx, eventsData = []) {
     lbl.appendChild(srcBadge);
   }
 
-  const totalItems = events.length + maps.length + (gpx ? 1 : 0);
+  const totalItems = eventsData.length + maps.length + (gpx ? 1 : 0);
   if (totalItems > 0) {
     const badge = document.createElement('span');
     badge.className = 'expl-terrain-badge';
     const parts = [];
-    if (events.length > 0) parts.push(`イベント ${events.length}`);
+    if (eventsData.length > 0) parts.push(`大会 ${eventsData.length}`);
     if (maps.length > 0) parts.push(`地図 ${maps.length}`);
     if (gpx) parts.push('GPX');
     badge.textContent = parts.join(' | ');
