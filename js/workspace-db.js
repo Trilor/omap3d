@@ -1,25 +1,25 @@
 /**
  * workspace-db.js
- * IndexedDB v2 — ワークスペースの永続化
+ * IndexedDB v3 — ワークスペースの永続化
  *
- * 既存の teledrop-map-images DB (v1) を v2 に拡張する。
- *   layers   ストア: 変更なし（後方互換）
- *   terrains ストア: 新規追加（クラウドテレインのキャッシュ）
- *   events   ストア: 新規追加（テレインに紐づくイベント）
+ * v1: layers ストア（旧 map-images）
+ * v2: + terrains ストア / events ストア（軽量メタデータ）
+ * v3: events ストアに controlDefs を持たせる + courses ストアを新規追加
  *
- * terrains レコードスキーマ:
- *   id, name, name_kana, region, prefecture, type, tags[],
- *   base_scale, contour_interval, center[lng,lat], bbox[minX,minY,maxX,maxY],
- *   boundary (GeoJSON Polygon), external_url,
- *   source: 'public'|'local', visible: boolean, cached_at
+ * events レコードスキーマ (v3):
+ *   id, terrain_id, name, source, created_at, updated_at
+ *   controlDefs: { [defId]: { code, lng, lat } }  ← マスターコントロールプール
+ *   nextDefId: number
+ *   nextRouteId: number
+ *   activeCourseId: string | null
  *
- * events レコードスキーマ:
- *   id, terrain_id, name, date, event_type,
- *   source: 'public'|'local', created_at
+ * courses レコードスキーマ (v3):
+ *   id, event_id, name, sequence: string[], legRoutes: object,
+ *   selectedRoutes: [string, string|null][], updated_at
  */
 
 const WS_DB_NAME    = 'teledrop-map-images';
-const WS_DB_VERSION = 2;
+const WS_DB_VERSION = 3;
 
 let _wsDb = null;
 
@@ -29,22 +29,31 @@ function openWorkspaceDb() {
     const req = indexedDB.open(WS_DB_NAME, WS_DB_VERSION);
 
     req.onupgradeneeded = (e) => {
-      const db = e.target.result;
+      const db  = e.target.result;
+      const old = e.oldVersion;
 
-      // terrains ストアを追加（v1 → v2）
-      if (!db.objectStoreNames.contains('terrains')) {
-        const ts = db.createObjectStore('terrains', { keyPath: 'id' });
-        ts.createIndex('source',     'source',     { unique: false });
-        ts.createIndex('region',     'region',     { unique: false });
-        ts.createIndex('prefecture', 'prefecture', { unique: false });
-        ts.createIndex('name',       'name',       { unique: false });
+      // v1 → v2: terrains + events ストア
+      if (old < 2) {
+        if (!db.objectStoreNames.contains('terrains')) {
+          const ts = db.createObjectStore('terrains', { keyPath: 'id' });
+          ts.createIndex('source',     'source',     { unique: false });
+          ts.createIndex('region',     'region',     { unique: false });
+          ts.createIndex('prefecture', 'prefecture', { unique: false });
+          ts.createIndex('name',       'name',       { unique: false });
+        }
+        if (!db.objectStoreNames.contains('events')) {
+          const es = db.createObjectStore('events', { keyPath: 'id' });
+          es.createIndex('terrain_id', 'terrain_id', { unique: false });
+          es.createIndex('source',     'source',     { unique: false });
+        }
       }
 
-      // events ストアを追加（v1 → v2）
-      if (!db.objectStoreNames.contains('events')) {
-        const es = db.createObjectStore('events', { keyPath: 'id' });
-        es.createIndex('terrain_id', 'terrain_id', { unique: false });
-        es.createIndex('source',     'source',     { unique: false });
+      // v2 → v3: courses ストアを追加
+      if (old < 3) {
+        if (!db.objectStoreNames.contains('courses')) {
+          const cs = db.createObjectStore('courses', { keyPath: 'id' });
+          cs.createIndex('event_id', 'event_id', { unique: false });
+        }
       }
     };
 
@@ -122,12 +131,25 @@ export async function updateWsTerrainVisibility(id, visible) {
 // events ストア操作
 // ================================================================
 
+/** 全イベントを返す */
+export async function getAllWsEvents() {
+  const db    = await openWorkspaceDb();
+  const tx    = db.transaction('events', 'readonly');
+  const store = tx.objectStore('events');
+  return new Promise((resolve, reject) => {
+    const req = store.getAll();
+    req.onsuccess = () => resolve(req.result);
+    req.onerror   = () => reject(req.error);
+  });
+}
+
+/** terrain_id でフィルタして返す（terrain_id = null の場合は全件） */
 export async function getWsEvents(terrainId) {
   const db    = await openWorkspaceDb();
   const tx    = db.transaction('events', 'readonly');
   const store = tx.objectStore('events');
   return new Promise((resolve, reject) => {
-    if (terrainId) {
+    if (terrainId != null) {
       const index = store.index('terrain_id');
       const req   = index.getAll(terrainId);
       req.onsuccess = () => resolve(req.result);
@@ -140,24 +162,124 @@ export async function getWsEvents(terrainId) {
   });
 }
 
+/** ID でイベントを取得 */
+export async function getWsEvent(id) {
+  const db    = await openWorkspaceDb();
+  const tx    = db.transaction('events', 'readonly');
+  const store = tx.objectStore('events');
+  return new Promise((resolve, reject) => {
+    const req = store.get(id);
+    req.onsuccess = () => resolve(req.result ?? null);
+    req.onerror   = () => reject(req.error);
+  });
+}
+
+/** イベントを保存（controlDefs などフルデータを含む） */
 export async function saveWsEvent(event) {
   const db    = await openWorkspaceDb();
   const tx    = db.transaction('events', 'readwrite');
   const store = tx.objectStore('events');
   return new Promise((resolve, reject) => {
-    const req = store.put({ ...event, created_at: event.created_at ?? Date.now() });
+    const now = Date.now();
+    const req = store.put({
+      created_at: now,
+      ...event,
+      updated_at: now,
+    });
     req.onsuccess = () => resolve(req.result);
     req.onerror   = () => reject(req.error);
   });
 }
 
+/** イベントと配下の全コースを削除 */
 export async function deleteWsEvent(id) {
+  const db = await openWorkspaceDb();
+  const tx = db.transaction(['events', 'courses'], 'readwrite');
+
+  // イベント削除
+  const evStore = tx.objectStore('events');
+  evStore.delete(id);
+
+  // 配下コース一括削除
+  const csStore = tx.objectStore('courses');
+  const idx     = csStore.index('event_id');
+  return new Promise((resolve, reject) => {
+    const req = idx.getAllKeys(id);
+    req.onsuccess = () => {
+      req.result.forEach(key => csStore.delete(key));
+      tx.oncomplete = () => resolve();
+      tx.onerror    = () => reject(tx.error);
+    };
+    req.onerror = () => reject(req.error);
+  });
+}
+
+// ================================================================
+// courses ストア操作
+// ================================================================
+
+/** event_id に属するコース一覧を返す */
+export async function getCoursesByEvent(eventId) {
   const db    = await openWorkspaceDb();
-  const tx    = db.transaction('events', 'readwrite');
-  const store = tx.objectStore('events');
+  const tx    = db.transaction('courses', 'readonly');
+  const store = tx.objectStore('courses');
+  const index = store.index('event_id');
+  return new Promise((resolve, reject) => {
+    const req = index.getAll(eventId);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror   = () => reject(req.error);
+  });
+}
+
+/** ID でコースを取得 */
+export async function getWsCourse(id) {
+  const db    = await openWorkspaceDb();
+  const tx    = db.transaction('courses', 'readonly');
+  const store = tx.objectStore('courses');
+  return new Promise((resolve, reject) => {
+    const req = store.get(id);
+    req.onsuccess = () => resolve(req.result ?? null);
+    req.onerror   = () => reject(req.error);
+  });
+}
+
+/** コースを保存（追加・更新） */
+export async function saveWsCourse(course) {
+  const db    = await openWorkspaceDb();
+  const tx    = db.transaction('courses', 'readwrite');
+  const store = tx.objectStore('courses');
+  return new Promise((resolve, reject) => {
+    const req = store.put({ ...course, updated_at: Date.now() });
+    req.onsuccess = () => resolve(req.result);
+    req.onerror   = () => reject(req.error);
+  });
+}
+
+/** コースを削除 */
+export async function deleteWsCourse(id) {
+  const db    = await openWorkspaceDb();
+  const tx    = db.transaction('courses', 'readwrite');
+  const store = tx.objectStore('courses');
   return new Promise((resolve, reject) => {
     const req = store.delete(id);
     req.onsuccess = () => resolve();
     req.onerror   = () => reject(req.error);
+  });
+}
+
+/** イベントに属する全コースのキーを取得して一括削除 */
+export async function deleteCoursesForEvent(eventId) {
+  const db    = await openWorkspaceDb();
+  const tx    = db.transaction('courses', 'readwrite');
+  const store = tx.objectStore('courses');
+  const index = store.index('event_id');
+  return new Promise((resolve, reject) => {
+    const req = index.getAllKeys(eventId);
+    req.onsuccess = () => {
+      req.result.forEach(key => store.delete(key));
+      tx.oncomplete = () => resolve();
+      tx.onerror    = () => reject(tx.error);
+    };
+    req.onerror = () => reject(req.error);
   });
 }
