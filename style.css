@@ -8163,15 +8163,20 @@ select,
 /* インラインリネーム入力 */
 .expl-inline-rename {
   flex: 1;
-  font-size: 12px;
+  /* ラベルと同じフォントサイズを継承して高さが変わらないようにする */
+  font-size: inherit;
   font-weight: 500;
-  padding: 1px 4px;
+  /* borderとpaddingを高さに含めて行の高さを変えない */
+  box-sizing: border-box;
+  height: 1.6em;
+  padding: 0 3px;
   border: 1px solid var(--primary);
   border-radius: 3px;
   background: var(--bg-surface);
   color: var(--text-main);
   outline: none;
   min-width: 0;
+  line-height: normal;
 }
 
 /* ワークスペース空状態ヒント */

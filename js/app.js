@@ -6968,14 +6968,17 @@ function _startInlineRename(lbl, current, onCommit) {
   lbl.replaceWith(input);
   input.focus();
   input.select();
+  let _committed = false;
   const commit = async () => {
+    if (_committed) return;
+    _committed = true;
     const newName = input.value.trim() || current;
     await onCommit(newName);
   };
   input.addEventListener('blur', commit);
   input.addEventListener('keydown', e => {
-    if (e.key === 'Enter')  { input.blur(); }
-    if (e.key === 'Escape') { input.value = current; input.blur(); }
+    if (e.key === 'Enter')  { e.preventDefault(); input.blur(); }
+    if (e.key === 'Escape') { _committed = true; input.value = current; input.blur(); }
   });
 }
 
@@ -7079,24 +7082,9 @@ function _buildEventFolder(event, courses) {
     e.stopPropagation();
     // clickのタイマーをキャンセルして renderExplorer を抑制
     if (_lblClickTimer) { clearTimeout(_lblClickTimer); _lblClickTimer = null; }
-    // インライン入力に置き換え
-    const input = document.createElement('input');
-    input.type      = 'text';
-    input.value     = event.name;
-    input.className = 'expl-inline-rename';
-    input.maxLength = 60;
-    lbl.replaceWith(input);
-    input.focus();
-    input.select();
-    const commit = async () => {
-      const newName = input.value.trim() || event.name;
-      await renameEvent(event.id, newName);
+    _startInlineRename(lbl, event.name, async n => {
+      await renameEvent(event.id, n);
       await renderExplorer();
-    };
-    input.addEventListener('blur', commit);
-    input.addEventListener('keydown', e2 => {
-      if (e2.key === 'Enter')  { input.blur(); }
-      if (e2.key === 'Escape') { input.value = event.name; input.blur(); }
     });
   });
 
@@ -7279,7 +7267,15 @@ function _buildCourseItem(courseInfo) {
     await renderExplorer();
   });
 
-  lbl.addEventListener('dblclick', e => { e.stopPropagation(); renameThisCourse(); });
+  // dblclick時にclickのopenThisCourseをキャンセルするためのフラグ
+  let _courseRenaming = false;
+  lbl.addEventListener('dblclick', e => {
+    e.stopPropagation();
+    _courseRenaming = true;
+    renameThisCourse();
+    // 次のclickイベントが来た時にフラグをリセット
+    setTimeout(() => { _courseRenaming = false; }, 300);
+  });
 
   const _courseCtxItems = () => [
     { label: 'コースを編集', action: openThisCourse },
@@ -7298,7 +7294,7 @@ function _buildCourseItem(courseInfo) {
     _showExplorerCtx(r.right + 4, r.top, _courseCtxItems());
   });
 
-  row.addEventListener('click', openThisCourse);
+  row.addEventListener('click', e => { if (!_courseRenaming) openThisCourse(); });
   row.addEventListener('contextmenu', e => {
     e.preventDefault();
     _showExplorerCtx(e.clientX, e.clientY, _courseCtxItems());
@@ -7334,7 +7330,13 @@ function _buildMapItem(entry) {
     renderOtherMapsTree();
     await renderExplorer();
   });
-  lbl2.addEventListener('dblclick', e => { e.stopPropagation(); renameMapItem(); });
+  let _mapRenaming = false;
+  lbl2.addEventListener('dblclick', e => {
+    e.stopPropagation();
+    _mapRenaming = true;
+    renameMapItem();
+    setTimeout(() => { _mapRenaming = false; }, 300);
+  });
 
   const _mapCtxItems = () => [
     { label: '地図を中心に表示', action: () => {
@@ -7359,6 +7361,7 @@ function _buildMapItem(entry) {
     _showExplorerCtx(r.right + 4, r.top, _mapCtxItems());
   });
   row.addEventListener('click', () => {
+    if (_mapRenaming) return;
     _explorerActiveId = 'map-' + entry.id;
     renderExplorer();
     openRightPanel(entry.name.replace(/\.kmz$/i, ''), _buildMapLayerRightPanel(entry));
@@ -7396,7 +7399,13 @@ function _buildGpxItem() {
     gpxState.fileName = n;
     await renderExplorer();
   });
-  lbl3.addEventListener('dblclick', e => { e.stopPropagation(); renameGpx(); });
+  let _gpxRenaming = false;
+  lbl3.addEventListener('dblclick', e => {
+    e.stopPropagation();
+    _gpxRenaming = true;
+    renameGpx();
+    setTimeout(() => { _gpxRenaming = false; }, 300);
+  });
 
   moreBtn.addEventListener('click', e => {
     e.stopPropagation();
@@ -7404,6 +7413,7 @@ function _buildGpxItem() {
     _showExplorerGpxCtx(r.right + 4, r.top, renameGpx);
   });
   row.addEventListener('click', () => {
+    if (_gpxRenaming) return;
     _explorerActiveId = 'gpx-main';
     renderExplorer();
     openRightPanel(gpxState.fileName ?? 'GPX', _buildGpxRightPanel());
