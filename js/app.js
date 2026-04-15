@@ -970,7 +970,12 @@ map.on('load', async () => {
   // 地図が安定表示されたらURLをフル状態に更新（Google Maps方式）
   // hash:true がハッシュを確定した後に updateShareableUrl を呼ぶことで
   // https://teledrop.pages.dev/ → https://teledrop.pages.dev/?overlay=cs#15/35.02/135.78 に自動遷移する
-  map.once('idle', () => { updateShareableUrl(); renderExplorer(); });
+  map.once('idle', () => {
+    updateShareableUrl();
+    renderExplorer();
+    // テレインタブがアクティブなら初回検索を実行（リロード時の空白対策）
+    if (_sidebarCurrentPanel === 'terrain') _runTerrainSearch?.();
+  });
 
   console.log('3D OMap Viewer 初期化完了（OriLibreベースマップ）');
 });
@@ -3440,6 +3445,9 @@ getWsTerrains().then(all => {
 
 // ---- 地図カタログ: GeoJSON 読み込み ----
 // ---- テレイン検索: 検索バー・チップフィルター ----
+/** テレイン検索を外部から起動できるよう公開（タブ切り替え・ページロード用） */
+let _runTerrainSearch = null;
+
 (function () {
   let _searchTimer = null;
   let _activeType  = '';
@@ -3472,6 +3480,9 @@ getWsTerrains().then(all => {
       _runSearch();
     });
   });
+
+  // タブ切り替え・ページロード時に外部から呼び出せるよう公開
+  _runTerrainSearch = _runSearch;
 })();
 
 // ================================================================
@@ -6490,6 +6501,8 @@ document.querySelectorAll('.sidebar-nav-btn').forEach(btn => {
       document.getElementById('panel-' + panel).classList.add('active');
       _sidebarCurrentPanel = panel;
       _sidebarOpen = true;
+      // テレインタブを開いたとき、まだ一度も検索していなければ初回検索を実行
+      if (panel === 'terrain') _runTerrainSearch?.();
     }
     // CSSアニメーション完了後に幅を反映
     // display:none は即時反映されるため rAF 1フレームで幅を取得可能
