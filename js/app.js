@@ -6548,17 +6548,36 @@ document.getElementById('terrain-back-btn')?.addEventListener('click', () => {
   _backToTerrainGrid();
 });
 
-// テレイン削除確認モーダル
-function _hideTerrainDeleteModal() {
-  const modal = document.getElementById('terrain-delete-modal');
+// ---- 削除確認モーダル管理 ----
+
+function _hideDeleteModal(modalId) {
+  const modal = document.getElementById(modalId);
   if (modal) modal.style.display = 'none';
 }
 
+function _showDeleteModal(modalId, config) {
+  const modal = document.getElementById(modalId);
+  if (!modal) return;
+
+  // config に従ってモーダル内容を更新
+  Object.entries(config).forEach(([key, value]) => {
+    const el = document.getElementById(key);
+    if (el) el.textContent = value;
+  });
+
+  // データを保存
+  Object.entries(config.data || {}).forEach(([key, value]) => {
+    modal.dataset[key] = value;
+  });
+
+  modal.style.display = 'flex';
+}
+
+// テレイン削除モーダル
 function _showTerrainDeleteModal(terrainId) {
   const terrain = wsData.terrains.find(t => t.id === terrainId);
   if (!terrain) return;
 
-  // カウント計算
   const eventCount = terrain.events ? terrain.events.length : 0;
   let courseCount = 0;
   (terrain.events || []).forEach(e => {
@@ -6567,39 +6586,123 @@ function _showTerrainDeleteModal(terrainId) {
     });
   });
 
-  // モーダルのカウント更新
-  document.getElementById('delete-modal-event-count').textContent = eventCount;
-  document.getElementById('delete-modal-course-count').textContent = courseCount;
-
-  // データ属性に terrainId を保存
-  const modal = document.getElementById('terrain-delete-modal');
-  if (modal) {
-    modal.dataset.terrainId = terrainId;
-    modal.style.display = 'flex';
-  }
+  _showDeleteModal('terrain-delete-modal', {
+    'delete-modal-event-count': eventCount,
+    'delete-modal-course-count': courseCount,
+    data: { terrainId }
+  });
 }
 
-// モーダルクローズボタン・キャンセル
-document.getElementById('terrain-delete-modal-close')?.addEventListener('click', _hideTerrainDeleteModal);
-document.getElementById('terrain-delete-modal-cancel')?.addEventListener('click', _hideTerrainDeleteModal);
+// 大会削除モーダル
+function _showEventDeleteModal(eventId) {
+  const event = wsData.terrains.flatMap(t => t.events || []).find(e => e.id === eventId);
+  if (!event) return;
+
+  const terrain = wsData.terrains.find(t => (t.events || []).some(e => e.id === eventId));
+  const courseSets = terrain?.events?.find(e => e.id === eventId)?.courseSets || [];
+  let courseCount = 0;
+  courseSets.forEach(cs => {
+    courseCount += (cs.courses || []).length;
+  });
+
+  _showDeleteModal('event-delete-modal', {
+    'event-delete-modal-name': event.name,
+    'event-delete-modal-course-count': courseCount,
+    data: { eventId }
+  });
+}
+
+// コースセット削除モーダル
+function _showCourseSetDeleteModal(courseSetId) {
+  let courseSet = null;
+  let courseCount = 0;
+
+  wsData.terrains.forEach(t => {
+    t.events?.forEach(e => {
+      e.courseSets?.forEach(cs => {
+        if (cs.id === courseSetId) {
+          courseSet = cs;
+          courseCount = (cs.courses || []).length;
+        }
+      });
+    });
+  });
+
+  if (!courseSet) return;
+
+  _showDeleteModal('courseset-delete-modal', {
+    'courseset-delete-modal-name': courseSet.name,
+    'courseset-delete-modal-course-count': courseCount,
+    data: { courseSetId }
+  });
+}
+
+// コース削除モーダル
+function _showCourseDeleteModal(courseId, courseName = 'コース') {
+  _showDeleteModal('course-delete-modal', {
+    'course-delete-modal-name': courseName,
+    data: { courseId }
+  });
+}
 
 // モーダル背景クリックで閉じる
-document.getElementById('terrain-delete-modal')?.addEventListener('click', (e) => {
-  if (e.target.id === 'terrain-delete-modal') {
-    _hideTerrainDeleteModal();
-  }
+['terrain-delete-modal', 'event-delete-modal', 'courseset-delete-modal', 'course-delete-modal'].forEach(modalId => {
+  document.getElementById(modalId)?.addEventListener('click', (e) => {
+    if (e.target.id === modalId) {
+      _hideDeleteModal(modalId);
+    }
+  });
+
+  // クローズボタン
+  const closeBtn = document.getElementById(modalId + '-close');
+  closeBtn?.addEventListener('click', () => _hideDeleteModal(modalId));
+
+  // キャンセルボタン
+  const cancelBtn = document.getElementById(modalId + '-cancel');
+  cancelBtn?.addEventListener('click', () => _hideDeleteModal(modalId));
 });
 
-// 削除確定ボタン
+// 削除確定処理
 document.getElementById('terrain-delete-modal-confirm')?.addEventListener('click', () => {
   const modal = document.getElementById('terrain-delete-modal');
   const terrainId = modal?.dataset.terrainId;
   if (!terrainId) return;
-
-  // 削除処理
   deleteWsTerrain(terrainId);
-  _hideTerrainDeleteModal();
-  _renderTerrainGridView(); // グリッド再描画
+  _hideDeleteModal('terrain-delete-modal');
+  _renderTerrainGridView();
+});
+
+document.getElementById('event-delete-modal-confirm')?.addEventListener('click', async () => {
+  const modal = document.getElementById('event-delete-modal');
+  const eventId = modal?.dataset.eventId;
+  if (!eventId) return;
+  if (_explorerActiveId?.startsWith('courseSet-') || _explorerActiveId?.startsWith('course-')) _explorerActiveId = null;
+  await deleteEvent(eventId);
+  await renderExplorer();
+  _hideDeleteModal('event-delete-modal');
+});
+
+document.getElementById('courseset-delete-modal-confirm')?.addEventListener('click', async () => {
+  const modal = document.getElementById('courseset-delete-modal');
+  const courseSetId = modal?.dataset.courseSetId;
+  if (!courseSetId) return;
+  if (_explorerActiveId?.startsWith('course-')) _explorerActiveId = null;
+  await deleteCourseSet(courseSetId);
+  await renderExplorer();
+  _hideDeleteModal('courseset-delete-modal');
+});
+
+document.getElementById('course-delete-modal-confirm')?.addEventListener('click', async () => {
+  const modal = document.getElementById('course-delete-modal');
+  const courseId = modal?.dataset.courseId;
+  if (!courseId) return;
+
+  // course.js の削除関数を呼ぶ
+  deleteCourseById(courseId);
+  if (_explorerActiveId === 'course-' + courseId) _explorerActiveId = null;
+  await flushSave();
+  await renderExplorer();
+  _hideDeleteModal('course-delete-modal');
 });
 
 // テレインカード三点メニュー（委譲）
@@ -7773,11 +7876,8 @@ function _buildEventFolder(event, courseSets = [], sheetsWithImages = []) {
       },
       { label: 'この場所へ移動', action: () => _flyToEventControls(event) },
       { separator: true },
-      { label: '大会を削除', danger: true, action: async () => {
-          if (!confirm(`「${event.name}」を削除しますか？\n全コースセット・コース・コース枠が削除されます。`)) return;
-          if (_explorerActiveId?.startsWith('courseSet-') || _explorerActiveId?.startsWith('course-')) _explorerActiveId = null;
-          await deleteEvent(event.id);
-          await renderExplorer();
+      { label: '大会を削除', danger: true, action: () => {
+          _showEventDeleteModal(event.id);
         }
       },
     ]);
@@ -7809,11 +7909,8 @@ function _buildEventFolder(event, courseSets = [], sheetsWithImages = []) {
       },
       { label: 'この場所へ移動', action: () => _flyToEventControls(event) },
       { separator: true },
-      { label: '大会を削除', danger: true, action: async () => {
-          if (!confirm(`「${event.name}」を削除しますか？\n全コースセット・コース・コース枠が削除されます。`)) return;
-          if (_explorerActiveId?.startsWith('courseSet-') || _explorerActiveId?.startsWith('course-')) _explorerActiveId = null;
-          await deleteEvent(event.id);
-          await renderExplorer();
+      { label: '大会を削除', danger: true, action: () => {
+          _showEventDeleteModal(event.id);
         }
       },
     ]);
@@ -7929,13 +8026,8 @@ function _buildCourseSetFolder(courseSet, courses = []) {
     _showExplorerCtx(r.right + 4, r.top, [
       { label: '名前を変更', action: () => _explorerRenameHandlers.get('courseSet-' + courseSet.id)?.() },
       { separator: true },
-      { label: 'コースセットを削除', danger: true, action: async () => {
-          if (!confirm(`「${courseSet.name}」を削除しますか？\n全コースが削除されます。`)) return;
-          if (_explorerActiveId === 'courseSet-' + courseSet.id || _explorerActiveId?.startsWith('course-')) {
-            _explorerActiveId = null;
-          }
-          await deleteCourseSet(courseSet.id);
-          await renderExplorer();
+      { label: 'コースセットを削除', danger: true, action: () => {
+          _showCourseSetDeleteModal(courseSet.id);
         }
       },
     ]);
@@ -7957,11 +8049,8 @@ function _buildCourseSetFolder(courseSet, courses = []) {
     _showExplorerCtx(e.clientX, e.clientY, [
       { label: '名前を変更', action: () => _explorerRenameHandlers.get('courseSet-' + courseSet.id)?.() },
       { separator: true },
-      { label: 'コースセットを削除', danger: true, action: async () => {
-          if (!confirm(`「${courseSet.name}」を削除しますか？\n全コースが削除されます。`)) return;
-          if (_explorerActiveId?.startsWith('courseSet-') || _explorerActiveId?.startsWith('course-')) _explorerActiveId = null;
-          await deleteCourseSet(courseSet.id);
-          await renderExplorer();
+      { label: 'コースセットを削除', danger: true, action: () => {
+          _showCourseSetDeleteModal(courseSet.id);
         }
       },
     ]);
@@ -8146,6 +8235,10 @@ function _buildCourseItem(courseInfo) {
   };
 
   const deleteThisCourse = async () => {
+    _showCourseDeleteModal(courseInfo.id, courseInfo.name);
+  };
+
+  const _confirmDeleteThisCourse = async () => {
     if (courseInfo.courseSetId && getActiveCourseSetId() !== courseInfo.courseSetId) {
       await loadCourseSet(courseInfo.courseSetId);
     }
@@ -8154,6 +8247,9 @@ function _buildCourseItem(courseInfo) {
     await flushSave(); // 削除直後にDBへ即時反映
     await renderExplorer();
   };
+
+  // 削除確認済みの処理を登録（後で呼び出し可能に）
+  // TODO: モーダル確定後に呼び出せるようにする仕組みが必要
 
   const renameThisCourse = () => _startInlineRename(lbl, courseInfo.name, async n => {
     await renameCourse(courseInfo.id, n);
