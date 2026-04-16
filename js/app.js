@@ -6764,6 +6764,21 @@ function _showTerrainGridContextMenu(x, y) {
   _showExplorerCtx(x, y, items);
 }
 
+// ツリービュー空白右クリック → 追加メニュー
+document.getElementById('explorer-tree')?.addEventListener('contextmenu', e => {
+  const onItem = e.target.closest('.expl-event-hd, .expl-courseset-hd, .expl-terrain-hd, .expl-item, .expl-sheet-hd');
+  if (onItem) return; // アイテム上はアイテム側のハンドラに任せる
+  e.preventDefault();
+  e.stopPropagation();
+  _showAddPopoverAt(e.clientX, e.clientY, _selectedTerrainInGrid);
+});
+
+// ツリービュー下部「追加・作成」ボタン
+document.getElementById('terrain-tree-add-btn')?.addEventListener('click', e => {
+  e.stopPropagation();
+  _showAddPopoverAt(e.currentTarget.getBoundingClientRect().left, e.currentTarget.getBoundingClientRect().top, _selectedTerrainInGrid);
+});
+
 // ページロード時の初期化
 document.addEventListener('DOMContentLoaded', () => {
   // レイヤーズパネルをアクティブにしてテレイングリッドを初期化
@@ -7277,6 +7292,8 @@ async function renderExplorer() {
   _explorerRendering = true;
   try {
     await _renderExplorerOnce();
+    // グリッドビューも更新（テレインカード一覧は独立した描画）
+    if (_terrainViewMode === 'grid') _renderTerrainGridView();
   } finally {
     _explorerRendering = false;
     if (_explorerRenderPending) {
@@ -7361,12 +7378,6 @@ async function _renderExplorerOnce() {
     const selected = terrainData.find(d => d.terrain.id === _selectedTerrainInGrid);
     if (selected) {
       const { eventsData, standaloneSets, maps, gpx } = selected;
-
-      // 追加ポップオーバーボタン（ツリートップ）
-      const addBar = document.createElement('div');
-      addBar.className = 'terrain-tree-add-bar';
-      addBar.appendChild(_buildAddPopoverBtn(_selectedTerrainInGrid));
-      frag.appendChild(addBar);
 
       eventsData.forEach(({ event, courseSets, sheetsWithImages }) => {
         frag.appendChild(_buildEventFolder(event, courseSets, sheetsWithImages));
@@ -7486,9 +7497,6 @@ function _buildTerrainFolder(terrain, maps, gpx, eventsData = [], standaloneSets
     lbl.appendChild(badge);
   }
 
-  // ＋ 追加ボタン
-  const addPopBtn = _buildAddPopoverBtn(terrain.id);
-
   // ⋮ ハンバーガーメニューボタン（この場所へ移動 / 削除）
   const moreBtn = document.createElement('button');
   moreBtn.className = 'expl-terrain-more';
@@ -7513,10 +7521,9 @@ function _buildTerrainFolder(terrain, maps, gpx, eventsData = [], standaloneSets
   hd.appendChild(chevron);
   hd.appendChild(tfIcon);
   hd.appendChild(lbl);
-  hd.appendChild(addPopBtn);
   hd.appendChild(moreBtn);
   hd.addEventListener('click', e => {
-    if (e.target.closest('.expl-terrain-more, .expl-add-pop-btn')) return;
+    if (e.target.closest('.expl-terrain-more')) return;
     _explorerCollapsed[terrain.id] = !(_explorerCollapsed[terrain.id] ?? false);
     folder.classList.toggle('is-collapsed', !!_explorerCollapsed[terrain.id]);
   });
@@ -7573,14 +7580,10 @@ function _buildUncategorizedFolder(maps, gpx, eventsData = []) {
     lbl.appendChild(badge);
   }
 
-  const addPopBtnUc = _buildAddPopoverBtn(null);
-
   hd.appendChild(chevron);
   hd.appendChild(ucIcon);
   hd.appendChild(lbl);
-  hd.appendChild(addPopBtnUc);
-  hd.addEventListener('click', e => {
-    if (e.target.closest('.expl-add-pop-btn')) return;
+  hd.addEventListener('click', () => {
     _explorerCollapsed['uncategorized'] = !(_explorerCollapsed['uncategorized'] ?? true);
     folder.classList.toggle('is-collapsed', !!_explorerCollapsed['uncategorized']);
   });
@@ -7614,16 +7617,14 @@ function _buildAddPopoverBtn(terrainId) {
   return btn;
 }
 
-/** ＋ ポップオーバーメニューを表示する */
+/** ＋ ポップオーバーメニューを構築して返す */
 let _openAddPopover = null;
-function _showAddPopover(anchorBtn, terrainId) {
-  _openAddPopover?.remove();
-  _openAddPopover = null;
 
+function _buildAddPopoverMenu(terrainId) {
   const menu = document.createElement('div');
   menu.className = 'expl-add-popover';
 
-  // SVG アイコン定数（既存コードと同一パス）
+  // SVG アイコン定数
   const SVG_EVENT     = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4a2 2 0 01-2-2V5h4"/><path d="M18 9h2a2 2 0 002-2V5h-4"/><path d="M6 9a6 6 0 0012 0"/><path d="M12 15v4"/><path d="M8 19h8"/></svg>`;
   const SVG_COURSESET = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/></svg>`;
   const SVG_MAP       = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>`;
@@ -7701,14 +7702,34 @@ function _showAddPopover(anchorBtn, terrainId) {
     document.getElementById('explorer-json-input')?.click();
   });
 
+  return menu;
+}
+
+/** ＋ ポップオーバーをアンカーボタン直下に表示する */
+function _showAddPopover(anchorBtn, terrainId) {
+  _openAddPopover?.remove();
+  _openAddPopover = null;
+  const menu = _buildAddPopoverMenu(terrainId);
   document.body.appendChild(menu);
   _openAddPopover = menu;
-
-  // アンカーボタン直下に配置（右端揃え）
   const r = anchorBtn.getBoundingClientRect();
   menu.style.top  = (r.bottom + 4) + 'px';
   menu.style.left = Math.max(4, r.right - menu.offsetWidth) + 'px';
+  setTimeout(() => {
+    document.addEventListener('mousedown', _closeAddPopover, { once: true });
+  }, 0);
+}
 
+/** ＋ ポップオーバーを座標指定で表示する（右クリック・ボトムボタン用） */
+function _showAddPopoverAt(x, y, terrainId) {
+  _openAddPopover?.remove();
+  _openAddPopover = null;
+  const menu = _buildAddPopoverMenu(terrainId);
+  document.body.appendChild(menu);
+  _openAddPopover = menu;
+  const vw = window.innerWidth, vh = window.innerHeight;
+  menu.style.left = Math.min(x, vw - menu.offsetWidth - 4) + 'px';
+  menu.style.top  = Math.min(y, vh - menu.offsetHeight - 4) + 'px';
   setTimeout(() => {
     document.addEventListener('mousedown', _closeAddPopover, { once: true });
   }, 0);
@@ -7898,20 +7919,6 @@ function _buildEventFolder(event, courseSets = [], sheetsWithImages = []) {
     });
   });
 
-  // ＋コースセット追加ボタン
-  const addCsBtn = document.createElement('button');
-  addCsBtn.className = 'expl-event-add-cs-btn';
-  addCsBtn.title = 'コースセットを追加';
-  addCsBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="6" y1="1" x2="6" y2="11"/><line x1="1" y1="6" x2="11" y2="6"/></svg>`;
-  addCsBtn.addEventListener('click', async e => {
-    e.stopPropagation();
-    _explorerCollapsed[key] = false;
-    folder.classList.remove('is-collapsed');
-    await createCourseSet(event.id, null, 'コースセット');
-    await renderExplorer();
-    openCourseEditor();
-  });
-
   // ケバブメニューボタン（削除・移動・名前変更を統合）
   const eventMoreBtn = document.createElement('button');
   eventMoreBtn.className = 'expl-item-more';
@@ -7942,10 +7949,9 @@ function _buildEventFolder(event, courseSets = [], sheetsWithImages = []) {
   hd.appendChild(chevron);
   hd.appendChild(evIcon);
   hd.appendChild(lbl);
-  hd.appendChild(addCsBtn);
   hd.appendChild(eventMoreBtn);
   hd.addEventListener('click', e => {
-    if (e.target.closest('.expl-item-more, .expl-event-add-cs-btn, .expl-event-label, .expl-section-chevron')) return;
+    if (e.target.closest('.expl-item-more')) return;
     _explorerCollapsed[key] = !(_explorerCollapsed[key] ?? false);
     folder.classList.toggle('is-collapsed', !!_explorerCollapsed[key]);
   });
@@ -8046,23 +8052,6 @@ function _buildCourseSetFolder(courseSet, courses = []) {
     }
   });
 
-  // コース追加ボタン
-  const addCourseBtn = document.createElement('button');
-  addCourseBtn.className = 'expl-courseset-add-btn';
-  addCourseBtn.title = 'コースを追加';
-  addCourseBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="6" y1="1" x2="6" y2="11"/><line x1="1" y1="6" x2="11" y2="6"/></svg>`;
-  addCourseBtn.addEventListener('click', async e => {
-    e.stopPropagation();
-    if (getActiveCourseSetId() !== courseSet.id) await loadCourseSet(courseSet.id);
-    const newCourseId = addCourseToActiveEvent();
-    if (newCourseId) _explorerActiveId = 'course-' + newCourseId;
-    _explorerCollapsed[key] = false;
-    folder.classList.remove('is-collapsed');
-    await flushSave(); // 追加直後にDBへ即時反映
-    await renderExplorer();
-    openCourseEditor();
-  });
-
   // F2ハンドラー登録
   _explorerRenameHandlers.set('courseSet-' + courseSet.id, () =>
     _startInlineRename(lbl, courseSet.name, async n => {
@@ -8080,6 +8069,17 @@ function _buildCourseSetFolder(courseSet, courses = []) {
     e.stopPropagation();
     const r = csMoreBtn.getBoundingClientRect();
     _showExplorerCtx(r.right + 4, r.top, [
+      { label: 'コースを追加', action: async () => {
+          if (getActiveCourseSetId() !== courseSet.id) await loadCourseSet(courseSet.id);
+          const newCourseId = addCourseToActiveEvent();
+          if (newCourseId) _explorerActiveId = 'course-' + newCourseId;
+          _explorerCollapsed[key] = false;
+          folder.classList.remove('is-collapsed');
+          await flushSave();
+          await renderExplorer();
+          openCourseEditor();
+        }
+      },
       { label: '名前を変更', action: () => _explorerRenameHandlers.get('courseSet-' + courseSet.id)?.() },
       { separator: true },
       { label: 'コースセットを削除', danger: true, action: () => {
@@ -8092,10 +8092,9 @@ function _buildCourseSetFolder(courseSet, courses = []) {
   hd.appendChild(chevron);
   hd.appendChild(csIcon);
   hd.appendChild(lbl);
-  hd.appendChild(addCourseBtn);
   hd.appendChild(csMoreBtn);
   hd.addEventListener('click', e => {
-    if (e.target.closest('.expl-item-more, .expl-courseset-add-btn, .expl-courseset-label, .expl-section-chevron')) return;
+    if (e.target.closest('.expl-item-more, .expl-courseset-label')) return;
     _explorerCollapsed[key] = !(_explorerCollapsed[key] ?? false);
     folder.classList.toggle('is-collapsed', !!_explorerCollapsed[key]);
   });
@@ -8103,6 +8102,17 @@ function _buildCourseSetFolder(courseSet, courses = []) {
     e.preventDefault();
     e.stopPropagation();
     _showExplorerCtx(e.clientX, e.clientY, [
+      { label: 'コースを追加', action: async () => {
+          if (getActiveCourseSetId() !== courseSet.id) await loadCourseSet(courseSet.id);
+          const newCourseId = addCourseToActiveEvent();
+          if (newCourseId) _explorerActiveId = 'course-' + newCourseId;
+          _explorerCollapsed[key] = false;
+          folder.classList.remove('is-collapsed');
+          await flushSave();
+          await renderExplorer();
+          openCourseEditor();
+        }
+      },
       { label: '名前を変更', action: () => _explorerRenameHandlers.get('courseSet-' + courseSet.id)?.() },
       { separator: true },
       { label: 'コースセットを削除', danger: true, action: () => {

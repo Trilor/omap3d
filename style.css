@@ -9025,6 +9025,37 @@ body.rp-open #rp-resize-handle {
   background: #b91c1c;
 }
 
+/* ====== ツリービュー下部ボタン ====== */
+
+.terrain-tree-bottom-bar {
+  flex-shrink: 0;
+  padding: 8px 10px;
+  border-top: 1px solid var(--border-light);
+  background: var(--bg-panel);
+}
+
+.terrain-tree-add-all-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  width: 100%;
+  padding: 6px 12px;
+  border-radius: 5px;
+  border: 1px dashed var(--border-light);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 11px;
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition), border-color var(--transition);
+}
+
+.terrain-tree-add-all-btn:hover {
+  background: var(--primary-light);
+  color: var(--primary);
+  border-color: var(--primary);
+}
+
 /* ====== ドリルダウンモード: ツリー視認性向上 ====== */
 
 /* 大会ヘッダー: padding 増やしてフルwidthホバー */
