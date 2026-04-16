@@ -2560,10 +2560,14 @@ async function _importPPen(xmlText) {
     const parser = new DOMParser();
     const doc    = parser.parseFromString(xmlText, 'text/xml');
 
+    // イベント名（コースセット名）取得
+    const title = doc.querySelector('event > title')?.textContent?.trim()
+               || doc.querySelector('title')?.textContent?.trim()
+               || 'インポート';
+
     // マップ情報取得
     const mapEl      = doc.querySelector('map');
     const mapKind    = mapEl?.getAttribute('kind') ?? 'bitmap';
-    const scale      = parseFloat(mapEl?.getAttribute('scale')  || '10000');
     const dpi        = parseFloat(mapEl?.getAttribute('dpi')    || '96');
     const mapFilename = (mapEl?.textContent ?? '').trim();
 
@@ -2608,7 +2612,14 @@ async function _importPPen(xmlText) {
       ];
     };
 
-    _clearCourse();
+    // 新コースセットを作成してロード（既存コースセットとは別に）
+    await createCourseSet(_activeEventId, _activeEventTerrainId, title);
+
+    // createCourseSet が作ったデフォルトコースを破棄してインポートデータで上書き
+    _controlDefs.clear();
+    _courses.length = 0;
+    _nextDefId   = 0;
+    _nextRouteId = 0;
 
     // コントロール定義の読み込み
     // Purple Pen control id → TeleDrop defId
@@ -2658,16 +2669,16 @@ async function _importPPen(xmlText) {
 
     if (courseEls.length === 0) { alert('.ppen にコースが見つかりませんでした'); return; }
 
-    while (_courses.length < courseEls.length)
-      _courses.push({ id: 'course' + _courses.length, name: `コース${_courses.length + 1}`, sequence: [], legRoutes: {} });
-
     const courseIdToIdx = new Map();
     for (let i = 0; i < courseEls.length; i++) {
       const el = courseEls[i];
       courseIdToIdx.set(el.getAttribute('id'), i);
-      _courses[i].name     = el.querySelector('name')?.textContent?.trim() || `コース${i + 1}`;
-      _courses[i].sequence = buildSeq(el.querySelector('first')?.getAttribute('course-control'));
-      _courses[i].legRoutes = {};
+      _courses.push({
+        id:        'course-' + (Date.now() + i),
+        name:      el.querySelector('name')?.textContent?.trim() || `コース${i + 1}`,
+        sequence:  buildSeq(el.querySelector('first')?.getAttribute('course-control')),
+        legRoutes: {},
+      });
     }
 
     // ルートチョイス（special-object kind="line"）
@@ -2712,6 +2723,7 @@ async function _importPPen(xmlText) {
     }
 
     _activeCourseIdx = 0;
+    await _saveToDb();
     _refreshSource();
     _scheduleCalc();
     _renderPanel();
@@ -2727,6 +2739,105 @@ async function _importPPen(xmlText) {
   } catch (e) {
     console.error('.ppen import error:', e);
     alert('.ppen の読み込みに失敗しました: ' + e.message);
+  }
+}
+
+/**
+ * IOF XML 3.0 テキストをパースして新しいコースセットを作成する。
+ * 緯度経度は <Position lng lat> から直接取得するため地図画像不要。
+ */
+async function _importIOFXML(xmlText) {
+  try {
+    const parser = new DOMParser();
+    const doc    = parser.parseFromString(xmlText, 'text/xml');
+
+    if (doc.getElementsByTagName('parsererror').length > 0) {
+      alert('XML のパースに失敗しました。');
+      return;
+    }
+
+    // localName ベースの要素取得ヘルパー（namespace 非依存）
+    const childrenByLocal = (el, localName) =>
+      [...(el?.children ?? [])].filter(e => e.localName === localName);
+    const firstChildByLocal = (el, localName) => childrenByLocal(el, localName)[0];
+
+    // <Event><Name>
+    const eventEl  = [...doc.getElementsByTagName('*')].find(e => e.localName === 'Event');
+    const eventName = firstChildByLocal(eventEl, 'Name')?.textContent?.trim() || 'インポート';
+
+    // 新コースセットを作成してロード（既存コースセットとは別に）
+    await createCourseSet(_activeEventId, _activeEventTerrainId, eventName);
+
+    // createCourseSet が作ったデフォルトコースを破棄してインポートデータで上書き
+    _controlDefs.clear();
+    _courses.length = 0;
+    _nextDefId   = 0;
+    _nextRouteId = 0;
+
+    // <RaceCourseData> 直下の <Control> 要素からコントロール定義を構築
+    const raceCourseDataEl = [...doc.getElementsByTagName('*')].find(e => e.localName === 'RaceCourseData');
+    const ctrlIdMap = new Map(); // IOF Id → defId
+
+    for (const ctrlEl of childrenByLocal(raceCourseDataEl, 'Control')) {
+      const iofId = firstChildByLocal(ctrlEl, 'Id')?.textContent?.trim();
+      if (!iofId) continue;
+
+      const posEl = firstChildByLocal(ctrlEl, 'Position');
+      if (!posEl) continue;
+
+      const lng  = parseFloat(posEl.getAttribute('lng') || '0');
+      const lat  = parseFloat(posEl.getAttribute('lat') || '0');
+      const type = ctrlEl.getAttribute('type') || 'Control';
+      // スタート・フィニッシュはコード非表示（TeleDrop は位置で種別を判定）
+      const code = (type === 'Control') ? iofId : '';
+
+      const defId = 'd' + (_nextDefId++);
+      _controlDefs.set(defId, { defId, code, lng, lat });
+      ctrlIdMap.set(iofId, defId);
+    }
+
+    // <Course> 要素からコースを構築
+    const courseEls = childrenByLocal(raceCourseDataEl, 'Course');
+    if (courseEls.length === 0) { alert('IOF XML にコースが見つかりませんでした'); return; }
+
+    for (let i = 0; i < courseEls.length; i++) {
+      const courseEl = courseEls[i];
+      const name     = firstChildByLocal(courseEl, 'Name')?.textContent?.trim() || `コース${i + 1}`;
+
+      const sequence = [];
+      for (const ccEl of childrenByLocal(courseEl, 'CourseControl')) {
+        // <Control> はテキスト参照（コントロール ID）
+        const ctrlId = firstChildByLocal(ccEl, 'Control')?.textContent?.trim();
+        if (!ctrlId) continue;
+        const defId = ctrlIdMap.get(ctrlId);
+        if (defId) sequence.push(defId);
+      }
+
+      _courses.push({
+        id:        'course-' + (Date.now() + i),
+        name,
+        sequence,
+        legRoutes: {},
+      });
+    }
+
+    _activeCourseIdx = 0;
+    await _saveToDb();
+    _refreshSource();
+    _scheduleCalc();
+    _renderPanel();
+
+    // 地図をコントロール範囲にフィット
+    const allDefs = [..._controlDefs.values()];
+    if (allDefs.length > 0) {
+      _map.fitBounds([
+        [Math.min(...allDefs.map(d => d.lng)), Math.min(...allDefs.map(d => d.lat))],
+        [Math.max(...allDefs.map(d => d.lng)), Math.max(...allDefs.map(d => d.lat))],
+      ], { padding: 100, duration: 600 });
+    }
+  } catch (e) {
+    console.error('IOF XML import error:', e);
+    alert('IOF XML の読み込みに失敗しました: ' + e.message);
   }
 }
 
@@ -3063,11 +3174,14 @@ function _setupUI() {
   document.getElementById('course-import-btn')?.addEventListener('click', () => importFileEl?.click());
   importFileEl?.addEventListener('change', () => {
     const f = importFileEl.files[0]; if (!f) return;
-    const isPPen = f.name.toLowerCase().endsWith('.ppen');
+    const lname = f.name.toLowerCase();
+    const isPPen = lname.endsWith('.ppen');
+    const isXml  = lname.endsWith('.xml');
     const reader = new FileReader();
     reader.onload = e => {
-      if (isPPen) _importPPen(e.target.result);
-      else        _importJSON(e.target.result);
+      if (isPPen)      _importPPen(e.target.result);
+      else if (isXml)  _importIOFXML(e.target.result);
+      else             _importJSON(e.target.result);
     };
     reader.readAsText(f, 'utf-8');
     importFileEl.value = '';
