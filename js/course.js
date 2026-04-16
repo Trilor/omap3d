@@ -100,6 +100,10 @@ let _previewSnapping = false;    // 前フレームのスナップ状態（setPa
 let _getMapLayers = () => [];
 export function setMapLayersGetter(fn) { _getMapLayers = fn; }
 
+/** .ppen / IOF XML インポート完了後に app.js が renderExplorer 等を実行するためのコールバック */
+let _onImportDone = null;
+export function setImportDoneCallback(fn) { _onImportDone = fn; }
+
 // ================================================================
 // 履歴（Undo / Redo）
 // ================================================================
@@ -2736,6 +2740,7 @@ async function _importPPen(xmlText) {
         [Math.max(...allDefs.map(d => d.lng)), Math.max(...allDefs.map(d => d.lat))],
       ], { padding: 100, duration: 600 });
     }
+    _onImportDone?.();
   } catch (e) {
     console.error('.ppen import error:', e);
     alert('.ppen の読み込みに失敗しました: ' + e.message);
@@ -2835,6 +2840,7 @@ async function _importIOFXML(xmlText) {
         [Math.max(...allDefs.map(d => d.lng)), Math.max(...allDefs.map(d => d.lat))],
       ], { padding: 100, duration: 600 });
     }
+    _onImportDone?.();
   } catch (e) {
     console.error('IOF XML import error:', e);
     alert('IOF XML の読み込みに失敗しました: ' + e.message);
