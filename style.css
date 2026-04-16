@@ -8759,3 +8759,245 @@ body.rp-open #rp-resize-handle {
   margin: 0 -14px;
   padding: 0 14px;
 }
+
+/* ====== テレインドリルダウンUI ====== */
+
+/* テレインカードグリッド */
+.terrain-grid-view {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.terrain-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.terrain-card {
+  position: relative;
+  border-radius: 8px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-light);
+  padding: 12px;
+  cursor: pointer;
+  transition: box-shadow var(--transition);
+}
+
+.terrain-card:hover {
+  box-shadow: 0 4px 12px rgba(42, 157, 143, 0.15);
+}
+
+.terrain-card-header {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 8px;
+}
+
+.terrain-card-menu-btn {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: 4px;
+  background: transparent;
+  border: none;
+  color: var(--primary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  opacity: 0;
+  transition: opacity var(--transition), background var(--transition);
+}
+
+.terrain-card:hover .terrain-card-menu-btn {
+  opacity: 1;
+}
+
+.terrain-card-menu-btn:hover {
+  background: var(--primary-light);
+}
+
+.terrain-card-thumbnail {
+  width: 100%;
+  height: 100px;
+  background: #e8e8e8;
+  border-radius: 4px;
+  margin-bottom: 8px;
+}
+
+.terrain-card-name {
+  font-size: 12px;
+  font-weight: var(--font-bold);
+  color: var(--text-main);
+  margin-bottom: 8px;
+  word-break: break-word;
+}
+
+.terrain-card-meta {
+  font-size: 10px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+/* テレインツリービュー */
+.terrain-tree-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.terrain-tree-header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-light);
+  padding: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.terrain-back-btn {
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border-light);
+  background: transparent;
+  color: var(--text-main);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  transition: background var(--transition);
+  white-space: nowrap;
+}
+
+.terrain-back-btn:hover {
+  background: var(--primary-light);
+  color: var(--primary);
+}
+
+.terrain-current-name {
+  flex: 1;
+  font-weight: var(--font-bold);
+  color: var(--text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12px;
+}
+
+#explorer-tree-container {
+  flex: 1;
+  overflow-y: auto;
+}
+
+/* コース空状態CTA */
+.course-empty-cta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.empty-state-icon {
+  font-size: 64px;
+  margin-bottom: 16px;
+}
+
+.course-empty-cta h3 {
+  font-size: 18px;
+  font-weight: var(--font-bold);
+  color: var(--text-main);
+  margin-bottom: 8px;
+}
+
+.course-empty-cta p {
+  font-size: 13px;
+  line-height: 1.5;
+  margin-bottom: 24px;
+}
+
+.btn-cta {
+  padding: 10px 16px;
+  border-radius: 6px;
+  background: var(--primary);
+  color: white;
+  font-weight: var(--font-bold);
+  border: none;
+  cursor: pointer;
+  transition: background var(--transition);
+  font-size: 12px;
+}
+
+.btn-cta:hover {
+  background: var(--primary-dark);
+}
+
+/* 削除確認モーダル */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+}
+
+.modal-body {
+  padding: 16px;
+  color: var(--text-main);
+  line-height: 1.6;
+}
+
+.delete-warning-text {
+  margin-bottom: 20px;
+  font-size: 13px;
+}
+
+.modal-footer {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.btn-cancel {
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: 1px solid var(--border-light);
+  background: transparent;
+  color: var(--text-main);
+  cursor: pointer;
+  transition: background var(--transition);
+  font-size: 12px;
+}
+
+.btn-cancel:hover {
+  background: var(--bg-panel);
+}
+
+.btn-delete-danger {
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: none;
+  background: #dc2626;
+  color: white;
+  font-weight: var(--font-bold);
+  cursor: pointer;
+  transition: background var(--transition);
+  font-size: 12px;
+}
+
+.btn-delete-danger:hover {
+  background: #b91c1c;
+}

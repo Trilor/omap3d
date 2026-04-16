@@ -3141,6 +3141,11 @@ function _setupUI() {
     _setDrawMode(!_drawMode);
   });
 
+  // コース空状態CTA ボタン
+  document.getElementById('course-start-draw-btn')?.addEventListener('click', () => {
+    _setDrawMode(true);
+  });
+
   // 書き出しトリガー（改善4: ポップアップメニュー）
   const exportTrigger = document.getElementById('course-export-trigger');
   const exportMenu    = document.getElementById('course-export-menu');

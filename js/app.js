@@ -6283,6 +6283,10 @@ function downloadDataUrl(dataUrl, filename) {
 let _sidebarCurrentPanel = 'sim';
 let _sidebarOpen = true;
 
+// ---- テレインドリルダウンUI ----
+let _terrainViewMode = 'grid'; // 'grid' | 'tree'
+let _selectedTerrainInGrid = null; // テレイン選択時のテレインID
+
 // サイドバー幅をCSS変数に反映（検索ボックス・縮尺の左位置が連動する）
 function updateSidebarWidth() {
   const mobile = window.matchMedia('(max-width: 768px)').matches;
@@ -6517,6 +6521,8 @@ document.querySelectorAll('.sidebar-nav-btn').forEach(btn => {
       _sidebarOpen = true;
       // テレインタブを開いたとき、まだ一度も検索していなければ初回検索を実行
       if (panel === 'terrain') _runTerrainSearch?.();
+      // レイヤーズタブを開いたときはテレインドリルダウンUIを初期化
+      if (panel === 'layers') _renderTerrainPanelView();
     }
     // CSSアニメーション完了後に幅を反映
     // display:none は即時反映されるため rAF 1フレームで幅を取得可能
@@ -6535,6 +6541,108 @@ document.querySelectorAll('.sidebar-close-btn').forEach(btn => {
     _sidebarOpen = false;
     requestAnimationFrame(updateSidebarWidth);
   });
+});
+
+// テレイン戻るボタン
+document.getElementById('terrain-back-btn')?.addEventListener('click', () => {
+  _backToTerrainGrid();
+});
+
+// テレイン削除確認モーダル
+function _hideTerrainDeleteModal() {
+  const modal = document.getElementById('terrain-delete-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+function _showTerrainDeleteModal(terrainId) {
+  const terrain = wsData.terrains.find(t => t.id === terrainId);
+  if (!terrain) return;
+
+  // カウント計算
+  const eventCount = terrain.events ? terrain.events.length : 0;
+  let courseCount = 0;
+  (terrain.events || []).forEach(e => {
+    (e.courseSets || []).forEach(cs => {
+      courseCount += (cs.courses || []).length;
+    });
+  });
+
+  // モーダルのカウント更新
+  document.getElementById('delete-modal-event-count').textContent = eventCount;
+  document.getElementById('delete-modal-course-count').textContent = courseCount;
+
+  // データ属性に terrainId を保存
+  const modal = document.getElementById('terrain-delete-modal');
+  if (modal) {
+    modal.dataset.terrainId = terrainId;
+    modal.style.display = 'flex';
+  }
+}
+
+// モーダルクローズボタン・キャンセル
+document.getElementById('terrain-delete-modal-close')?.addEventListener('click', _hideTerrainDeleteModal);
+document.getElementById('terrain-delete-modal-cancel')?.addEventListener('click', _hideTerrainDeleteModal);
+
+// モーダル背景クリックで閉じる
+document.getElementById('terrain-delete-modal')?.addEventListener('click', (e) => {
+  if (e.target.id === 'terrain-delete-modal') {
+    _hideTerrainDeleteModal();
+  }
+});
+
+// 削除確定ボタン
+document.getElementById('terrain-delete-modal-confirm')?.addEventListener('click', () => {
+  const modal = document.getElementById('terrain-delete-modal');
+  const terrainId = modal?.dataset.terrainId;
+  if (!terrainId) return;
+
+  // 削除処理
+  deleteWsTerrain(terrainId);
+  _hideTerrainDeleteModal();
+  _renderTerrainGridView(); // グリッド再描画
+});
+
+// テレインカード三点メニュー（委譲）
+document.getElementById('terrain-grid-container')?.addEventListener('click', (e) => {
+  const menuBtn = e.target.closest('.terrain-card-menu-btn');
+  if (!menuBtn) return;
+  e.stopPropagation();
+
+  const terrainId = menuBtn.dataset.terrainId;
+  if (!terrainId) return;
+
+  _showTerrainDeleteModal(terrainId);
+});
+
+// テレイングリッド右クリックメニュー
+document.getElementById('panel-terrain-view-grid')?.addEventListener('contextmenu', (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+
+  _showTerrainGridContextMenu(e.clientX, e.clientY);
+});
+
+function _showTerrainGridContextMenu(x, y) {
+  const items = [
+    {
+      label: '+ ローカルテレインを追加',
+      action: () => {
+        document.getElementById('add-local-terrain-btn')?.click();
+      }
+    }
+  ];
+
+  _showExplorerCtx(x, y, items);
+}
+
+// ページロード時の初期化
+document.addEventListener('DOMContentLoaded', () => {
+  // レイヤーズパネルをアクティブにしてテレイングリッドを初期化
+  // ユーザーが先にテレイン検索パネルを使う場合に備えて条件付き
+  if (!_sidebarOpen) {
+    // sidebar が非表示なら、layers パネルを初期化するだけ
+    _renderTerrainPanelView();
+  }
 });
 
 // ================================================================
@@ -6906,6 +7014,122 @@ function openCourseEditor() {
   panel.classList.add('rp-open');
   document.body.classList.add('rp-open');
   setCourseMapVisible(true);
+}
+
+// ---- テレインドリルダウンUI 関数 ----
+
+/** テレインビューモード切り替え */
+function _switchTerrainViewMode(mode, terrainId = null) {
+  _terrainViewMode = mode;
+  if (mode === 'tree' && terrainId) {
+    _selectedTerrainInGrid = terrainId;
+  }
+  _renderTerrainPanelView();
+}
+
+/** テレイン一覧に戻る */
+function _backToTerrainGrid() {
+  _terrainViewMode = 'grid';
+  _selectedTerrainInGrid = null;
+  _renderTerrainPanelView();
+}
+
+/** テレインパネルビュー切り替え */
+function _renderTerrainPanelView() {
+  const gridView = document.getElementById('panel-terrain-view-grid');
+  const treeView = document.getElementById('panel-terrain-view-tree');
+
+  if (_terrainViewMode === 'grid') {
+    gridView.style.display = '';
+    treeView.style.display = 'none';
+    _renderTerrainGridView();
+  } else if (_terrainViewMode === 'tree') {
+    gridView.style.display = 'none';
+    treeView.style.display = 'flex';
+    if (_selectedTerrainInGrid) {
+      const terrain = wsData.terrains.find(t => t.id === _selectedTerrainInGrid);
+      if (terrain) {
+        document.querySelector('.terrain-current-name').textContent = terrain.name;
+      }
+    }
+    _renderTerrainTreeView();
+  }
+}
+
+/** テレインカード一覧グリッド描画 */
+function _renderTerrainGridView() {
+  const container = document.getElementById('terrain-grid-container');
+  if (!container) return;
+
+  container.innerHTML = '';
+
+  // ワークスペース内のテレイン一覧をカード形式で描画
+  const terrains = wsData.terrains || [];
+
+  if (terrains.length === 0) {
+    container.innerHTML = '<div style="grid-column:1/-1;padding:20px;text-align:center;color:var(--text-muted);">テレインを追加すると表示されます</div>';
+    return;
+  }
+
+  terrains.forEach(terrain => {
+    const card = document.createElement('div');
+    card.className = 'terrain-card';
+
+    // カード内容
+    const eventCount = terrain.events ? terrain.events.length : 0;
+    let courseCount = 0;
+    (terrain.events || []).forEach(e => {
+      (e.courseSets || []).forEach(cs => {
+        courseCount += (cs.courses || []).length;
+      });
+    });
+
+    const lastUpdated = new Date().toLocaleDateString('ja-JP'); // TODO: actual date
+
+    card.innerHTML = `
+      <div class="terrain-card-header">
+        <div class="terrain-card-menu-btn" data-terrain-id="${terrain.id}" title="メニュー">⋮</div>
+      </div>
+      <div class="terrain-card-thumbnail"></div>
+      <div class="terrain-card-name">${terrain.name}</div>
+      <div class="terrain-card-meta">
+        <div>最終更新: ${lastUpdated}</div>
+        <div>${eventCount} 大会 / ${courseCount} コース</div>
+      </div>
+    `;
+
+    card.addEventListener('click', () => {
+      _switchTerrainViewMode('tree', terrain.id);
+    });
+
+    container.appendChild(card);
+  });
+}
+
+/** テレインツリービュー描画 */
+function _renderTerrainTreeView() {
+  const container = document.getElementById('explorer-tree-container');
+  if (!container) return;
+
+  // 既存の renderExplorer() をここで呼ぶ（後で統合）
+  // 取り急ぎ、現在のロジックをそのまま使用
+  _renderExplorerForSelectedTerrain();
+}
+
+/** 選択テレイン用エクスプローラー描画 */
+async function _renderExplorerForSelectedTerrain() {
+  if (!_selectedTerrainInGrid) return;
+
+  const container = document.getElementById('explorer-tree-container');
+  if (!container) return;
+
+  // 既存の renderExplorer() と同様のロジック
+  // テレイン内容のみを表示
+  const terrain = wsData.terrains.find(t => t.id === _selectedTerrainInGrid);
+  if (!terrain) return;
+
+  // TODO: テレイン固有のツリーを描画（現在は全体を描画するため、後で統合）
+  await renderExplorer();
 }
 
 /** エクスプローラーを再描画する（外部モジュールからも呼び出し可能） */

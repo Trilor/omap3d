@@ -24,7 +24,16 @@
       "WebFetch(domain:app.unpkg.com)",
       "WebFetch(domain:unpkg.com)",
       "Bash(curl -s \"https://unpkg.com/@watergis/maplibre-gl-export/dist/maplibre-gl-export.umd.js\")",
-      "Bash(curl -s \"https://unpkg.com/@watergis/maplibre-gl-export@4.1.1/dist/maplibre-gl-export.umd.js\")"
+      "Bash(curl -s \"https://unpkg.com/@watergis/maplibre-gl-export@4.1.1/dist/maplibre-gl-export.umd.js\")",
+      "Bash(node:*)",
+      "Bash(grep -n \"^\\\\..*{$\\\\|^#.*{$\\\\|^body\\\\.\" \"C:\\\\Users\\\\kurag\\\\Documents\\\\GitHub\\\\TeleDrop\\\\style.css\")",
+      "Bash(awk -F: '$1>=6100 && $1<=6360')",
+      "Bash(grep -E \"\\(js|html\\)$\")",
+      "Bash(wc:*)",
+      "Bash(python3:*)",
+      "Read(//d C:/Users/kurag/Documents/GitHub/**)",
+      "Bash(npx serve:*)",
+      "Bash(curl:*)"
     ]
   }
 }
