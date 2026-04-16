@@ -75,7 +75,7 @@ import {
 } from './terrain-search.js';
 
 import {
-  getWsTerrains, getWsTerrain, saveWsTerrain, deleteWsTerrain, updateWsTerrainVisibility,
+  getWsTerrains, getWsTerrain, saveWsTerrain, deleteWsTerrain, renameWsTerrain, updateWsTerrainVisibility,
   getWsEvents, getCoursesByEvent,
   saveWsMapSheet, getMapSheetsByEvent, getWsMapSheet, deleteWsMapSheet,
   getCourseSetsForEvent, getCourseSetsForTerrain, getWsCourseSet, saveWsCourseSet,
@@ -6543,10 +6543,73 @@ document.querySelectorAll('.sidebar-close-btn').forEach(btn => {
   });
 });
 
-// テレイン戻るボタン
-document.getElementById('terrain-back-btn')?.addEventListener('click', () => {
+// ワークスペースヘッダー — 戻るボタン
+document.getElementById('ws-header-back-btn')?.addEventListener('click', () => {
   _backToTerrainGrid();
 });
+
+// ワークスペースヘッダー — 追加ボタン
+document.getElementById('ws-header-add-btn')?.addEventListener('click', e => {
+  e.stopPropagation();
+  const r = e.currentTarget.getBoundingClientRect();
+  _showAddPopoverAt(r.left, r.bottom + 4, _selectedTerrainInGrid);
+});
+
+// ワークスペースヘッダー — ⋮ オプションボタン
+document.getElementById('ws-header-more-btn')?.addEventListener('click', async e => {
+  e.stopPropagation();
+  if (!_selectedTerrainInGrid) return;
+  let terrain = null;
+  try {
+    const terrains = await getWsTerrains();
+    terrain = terrains.find(t => t.id === _selectedTerrainInGrid);
+  } catch { /* ignore */ }
+  const isSystem = terrain && terrain.source !== 'local';
+  const r = e.currentTarget.getBoundingClientRect();
+  _showExplorerCtx(r.right + 4, r.top, [
+    { label: 'この場所へ移動', action: () => {
+        if (terrain?.center) map.easeTo({ center: terrain.center, zoom: Math.max(map.getZoom(), 12), duration: EASE_DURATION });
+      }
+    },
+    { label: '名前を変更', disabled: isSystem, action: () => {
+        const titleEl = document.getElementById('ws-header-title');
+        if (!titleEl || !terrain) return;
+        const prev = terrain.name;
+        titleEl.contentEditable = 'true';
+        titleEl.focus();
+        const range = document.createRange();
+        range.selectNodeContents(titleEl);
+        window.getSelection().removeAllRanges();
+        window.getSelection().addRange(range);
+        const finish = async () => {
+          titleEl.contentEditable = 'false';
+          const newName = titleEl.textContent.trim();
+          if (newName && newName !== prev) {
+            try {
+              await renameWsTerrain(_selectedTerrainInGrid, newName);
+              await renderExplorer();
+            } catch { titleEl.textContent = prev; }
+          } else {
+            titleEl.textContent = prev;
+          }
+        };
+        titleEl.addEventListener('blur', finish, { once: true });
+        titleEl.addEventListener('keydown', ke => {
+          if (ke.key === 'Enter') { ke.preventDefault(); titleEl.blur(); }
+          if (ke.key === 'Escape') { titleEl.textContent = prev; titleEl.blur(); }
+        }, { once: true });
+      }
+    },
+    { separator: true },
+    { label: 'ワークスペースから削除', danger: !isSystem, disabled: isSystem, action: () => {
+        _showTerrainDeleteModal(_selectedTerrainInGrid);
+      }
+    },
+  ]);
+});
+
+// ws-header-close-btn は sidebar-close-btn クラスを持つため
+// 既存のグローバルリスナー（querySelectorAll('.sidebar-close-btn')）で処理される
 
 // ---- 削除確認モーダル管理 ----
 
@@ -6773,11 +6836,41 @@ document.getElementById('explorer-tree')?.addEventListener('contextmenu', e => {
   _showAddPopoverAt(e.clientX, e.clientY, _selectedTerrainInGrid);
 });
 
-// ツリービュー下部「追加・作成」ボタン
-document.getElementById('terrain-tree-add-btn')?.addEventListener('click', e => {
-  e.stopPropagation();
-  _showAddPopoverAt(e.currentTarget.getBoundingClientRect().left, e.currentTarget.getBoundingClientRect().top, _selectedTerrainInGrid);
-});
+/** ワークスペースパネルヘッダーをモードに合わせて更新する */
+async function _updateWsHeader() {
+  const backBtn  = document.getElementById('ws-header-back-btn');
+  const titleEl  = document.getElementById('ws-header-title');
+  const addBtn   = document.getElementById('ws-header-add-btn');
+  const moreBtn  = document.getElementById('ws-header-more-btn');
+  if (!titleEl) return;
+
+  if (_terrainViewMode === 'grid' || !_selectedTerrainInGrid) {
+    // グリッドビュー：タイトル固定、詳細ボタン非表示
+    titleEl.textContent = 'テレイン一覧';
+    titleEl.removeAttribute('data-system');
+    if (backBtn) backBtn.style.display = 'none';
+    if (addBtn)  addBtn.style.display  = 'none';
+    if (moreBtn) moreBtn.style.display = 'none';
+  } else {
+    // ツリービュー：テレイン名を表示、詳細ボタン表示
+    let terrainName = _selectedTerrainInGrid;
+    let isSystem = false;
+    try {
+      const terrains = await getWsTerrains();
+      const terrain  = terrains.find(t => t.id === _selectedTerrainInGrid);
+      if (terrain) {
+        terrainName = terrain.name;
+        isSystem = terrain.source !== 'local';
+      }
+    } catch { /* ignore */ }
+
+    titleEl.textContent = terrainName;
+    titleEl.dataset.system = isSystem ? '1' : '0';
+    if (backBtn) backBtn.style.display = '';
+    if (addBtn)  addBtn.style.display  = '';
+    if (moreBtn) moreBtn.style.display = '';
+  }
+}
 
 // ページロード時の初期化
 document.addEventListener('DOMContentLoaded', () => {
@@ -6823,7 +6916,9 @@ function _refreshPinBtnIcon() {
 }
 
 // 各セクションヘッダーにピンボタンを注入（閉じるボタンの直前）
-document.querySelectorAll('.sidebar-section-header').forEach(hd => {
+// #ws-panel-header は sidebar-section-header クラスがないため別途追加
+[...document.querySelectorAll('.sidebar-section-header'), document.getElementById('ws-panel-header')].forEach(hd => {
+  if (!hd) return;
   const btn = document.createElement('button');
   btn.className = 'sidebar-pin-btn' + (_sidebarPinned ? ' is-pinned' : '');
   btn.title     = _sidebarPinned ? 'フローティング表示に切り替え' : 'パネルを固定する';
@@ -6950,9 +7045,13 @@ function _showExplorerCtx(x, y, items) {
       return;
     }
     const btn = document.createElement('button');
-    btn.className = 'ctx-menu-item' + (item.danger ? ' ctx-menu-danger' : '');
+    btn.className = 'ctx-menu-item' + (item.danger ? ' ctx-menu-danger' : '') + (item.disabled ? ' ctx-menu-disabled' : '');
     btn.textContent = item.label;
-    btn.addEventListener('click', () => { _closeExplorerCtx(); item.action(); });
+    if (item.disabled) {
+      btn.disabled = true;
+    } else {
+      btn.addEventListener('click', () => { _closeExplorerCtx(); item.action(); });
+    }
     menu.appendChild(btn);
   });
 
@@ -7190,22 +7289,10 @@ function _renderTerrainPanelView() {
   } else if (_terrainViewMode === 'tree') {
     gridView.style.display = 'none';
     treeView.style.display = 'flex';
-    // テレイン名はIDからDBを引かずに別途セットする
-    _updateTerrainCurrentName();
     _renderTerrainTreeView();
   }
-}
-
-/** 選択テレインの名前をヘッダーに反映 */
-async function _updateTerrainCurrentName() {
-  if (!_selectedTerrainInGrid) return;
-  const nameEl = document.querySelector('.terrain-current-name');
-  if (!nameEl) return;
-  try {
-    const terrains = await getWsTerrains();
-    const terrain = terrains.find(t => t.id === _selectedTerrainInGrid);
-    if (terrain) nameEl.textContent = terrain.name;
-  } catch { /* ignore */ }
+  // ヘッダーを非同期で更新（DBアクセスが必要なため）
+  _updateWsHeader();
 }
 
 /** テレインカード一覧グリッド描画 */

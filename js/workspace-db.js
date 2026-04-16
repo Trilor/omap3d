@@ -133,6 +133,12 @@ export async function saveWsTerrain(terrain) {
   });
 }
 
+export async function renameWsTerrain(id, newName) {
+  const terrain = await getWsTerrain(id);
+  if (!terrain) return;
+  return saveWsTerrain({ ...terrain, name: newName });
+}
+
 export async function deleteWsTerrain(id) {
   const db    = await openWorkspaceDb();
   const tx    = db.transaction('terrains', 'readwrite');

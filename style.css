@@ -8759,6 +8759,73 @@ body.rp-open #rp-resize-handle {
   padding: 0 14px;
 }
 
+/* ====== ワークスペースパネル動的ヘッダー ====== */
+
+#ws-panel-header {
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border-light);
+  padding: 0 8px 0 10px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 2px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+/* タイトル（テレイン一覧 or テレイン名） */
+.ws-header-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 2px;
+  outline: none;
+}
+
+/* contentEditable 中 */
+.ws-header-title[contenteditable="true"] {
+  background: var(--bg-subtle);
+  border-radius: 3px;
+  padding: 1px 4px;
+  box-shadow: inset 0 0 0 1px var(--primary);
+}
+
+/* ヘッダー内の小さいアイコンボタン（戻る / ＋ / ⋮） */
+.ws-header-icon-btn {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 5px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background var(--transition), color var(--transition);
+}
+
+.ws-header-icon-btn:hover {
+  background: var(--primary-light);
+  color: var(--primary);
+}
+
+/* コンテキストメニュー — disabled アイテム */
+.ctx-menu-disabled {
+  opacity: 0.4;
+  cursor: default;
+  pointer-events: none;
+}
+
 /* ====== テレインドリルダウンUI ====== */
 
 /* テレインカードグリッド */
@@ -8866,58 +8933,9 @@ body.rp-open #rp-resize-handle {
   overflow: hidden;
 }
 
-/* パンくずヘッダー（2行） */
-.terrain-tree-header {
-  flex-shrink: 0;
-  background: var(--bg-panel);
-  border-bottom: 1px solid var(--border-light);
-  padding: 10px 12px 10px;
-}
-
-/* 行1: ← テレイン一覧 */
-.terrain-back-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 4px 2px 2px;
-  border-radius: 4px;
-  border: none;
-  background: transparent;
-  color: var(--text-muted);
-  font-size: 10.5px;
-  cursor: pointer;
-  transition: color var(--transition), background var(--transition);
-  margin-bottom: 6px;
-}
-
-.terrain-back-btn:hover {
-  background: var(--primary-light);
-  color: var(--primary);
-}
-
-/* 行2: 現在のテレイン名 */
-.terrain-current-name {
-  display: block;
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--text-main);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  line-height: 1.3;
-  padding-left: 2px;
-}
-
 #explorer-tree {
   flex: 1;
   overflow-y: auto;
-}
-
-/* ツリー上部の追加バー */
-.terrain-tree-add-bar {
-  padding: 6px 8px 2px;
-  display: flex;
-  align-items: center;
 }
 
 /* コース空状態CTA */
@@ -9023,37 +9041,6 @@ body.rp-open #rp-resize-handle {
 
 .btn-delete-danger:hover {
   background: #b91c1c;
-}
-
-/* ====== ツリービュー下部ボタン ====== */
-
-.terrain-tree-bottom-bar {
-  flex-shrink: 0;
-  padding: 8px 10px;
-  border-top: 1px solid var(--border-light);
-  background: var(--bg-panel);
-}
-
-.terrain-tree-add-all-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  width: 100%;
-  padding: 6px 12px;
-  border-radius: 5px;
-  border: 1px dashed var(--border-light);
-  background: transparent;
-  color: var(--text-muted);
-  font-size: 11px;
-  cursor: pointer;
-  transition: background var(--transition), color var(--transition), border-color var(--transition);
-}
-
-.terrain-tree-add-all-btn:hover {
-  background: var(--primary-light);
-  color: var(--primary);
-  border-color: var(--primary);
 }
 
 /* ====== ドリルダウンモード: ツリー視認性向上 ====== */
