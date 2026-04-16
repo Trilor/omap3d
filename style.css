@@ -8309,7 +8309,6 @@ select,
   white-space: nowrap;
   cursor: pointer;
 }
-.expl-event-label:hover { color: var(--primary); }
 
 /* イベントボディ（コースグループ + コース枠フォルダを含む） */
 .expl-event-body {
