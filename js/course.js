@@ -3700,7 +3700,7 @@ export async function initCoursePlanner(map) {
     (allEvents.length > 0 ? allEvents[0].id : null);
 
   if (targetEventId) {
-    const ok = await _loadEventFromDb(targetEventId);
+    const ok = await loadEvent(targetEventId);
     if (ok) {
       _refreshSource();
       _scheduleCalc();

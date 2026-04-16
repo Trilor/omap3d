@@ -6574,17 +6574,25 @@ function _showDeleteModal(modalId, config) {
 }
 
 // テレイン削除モーダル
-function _showTerrainDeleteModal(terrainId) {
-  const terrain = wsData.terrains.find(t => t.id === terrainId);
+async function _showTerrainDeleteModal(terrainId) {
+  let terrains = [];
+  try { terrains = await getWsTerrains(); } catch { /* ignore */ }
+  const terrain = terrains.find(t => t.id === terrainId);
   if (!terrain) return;
 
-  const eventCount = terrain.events ? terrain.events.length : 0;
+  let eventCount = 0;
   let courseCount = 0;
-  (terrain.events || []).forEach(e => {
-    (e.courseSets || []).forEach(cs => {
-      courseCount += (cs.courses || []).length;
-    });
-  });
+  try {
+    const events = await getWsEvents(terrainId);
+    eventCount = events.length;
+    for (const ev of events) {
+      const sets = await getCourseSetsForEvent(ev.id);
+      for (const cs of sets) {
+        const courses = await getCoursesBySet(cs.id);
+        courseCount += courses.length;
+      }
+    }
+  } catch { /* ignore */ }
 
   _showDeleteModal('terrain-delete-modal', {
     'delete-modal-event-count': eventCount,
@@ -6594,44 +6602,49 @@ function _showTerrainDeleteModal(terrainId) {
 }
 
 // 大会削除モーダル
-function _showEventDeleteModal(eventId) {
-  const event = wsData.terrains.flatMap(t => t.events || []).find(e => e.id === eventId);
-  if (!event) return;
-
-  const terrain = wsData.terrains.find(t => (t.events || []).some(e => e.id === eventId));
-  const courseSets = terrain?.events?.find(e => e.id === eventId)?.courseSets || [];
+async function _showEventDeleteModal(eventId) {
+  let eventName = '大会';
   let courseCount = 0;
-  courseSets.forEach(cs => {
-    courseCount += (cs.courses || []).length;
-  });
+  try {
+    // イベント名はイベントIDからDB引き
+    const terrains = await getWsTerrains();
+    for (const t of terrains) {
+      const events = await getWsEvents(t.id);
+      const ev = events.find(e => e.id === eventId);
+      if (ev) {
+        eventName = ev.name;
+        const sets = await getCourseSetsForEvent(ev.id);
+        for (const cs of sets) {
+          const courses = await getCoursesBySet(cs.id);
+          courseCount += courses.length;
+        }
+        break;
+      }
+    }
+  } catch { /* ignore */ }
 
   _showDeleteModal('event-delete-modal', {
-    'event-delete-modal-name': event.name,
+    'event-delete-modal-name': eventName,
     'event-delete-modal-course-count': courseCount,
     data: { eventId }
   });
 }
 
 // コースセット削除モーダル
-function _showCourseSetDeleteModal(courseSetId) {
-  let courseSet = null;
+async function _showCourseSetDeleteModal(courseSetId) {
+  let csName = 'コースセット';
   let courseCount = 0;
-
-  wsData.terrains.forEach(t => {
-    t.events?.forEach(e => {
-      e.courseSets?.forEach(cs => {
-        if (cs.id === courseSetId) {
-          courseSet = cs;
-          courseCount = (cs.courses || []).length;
-        }
-      });
-    });
-  });
-
-  if (!courseSet) return;
+  try {
+    const cs = await getWsCourseSet(courseSetId);
+    if (cs) {
+      csName = cs.name;
+      const courses = await getCoursesBySet(courseSetId);
+      courseCount = courses.length;
+    }
+  } catch { /* ignore */ }
 
   _showDeleteModal('courseset-delete-modal', {
-    'courseset-delete-modal-name': courseSet.name,
+    'courseset-delete-modal-name': csName,
     'courseset-delete-modal-course-count': courseCount,
     data: { courseSetId }
   });
@@ -7149,59 +7162,68 @@ function _renderTerrainPanelView() {
   } else if (_terrainViewMode === 'tree') {
     gridView.style.display = 'none';
     treeView.style.display = 'flex';
-    if (_selectedTerrainInGrid) {
-      const terrain = wsData.terrains.find(t => t.id === _selectedTerrainInGrid);
-      if (terrain) {
-        document.querySelector('.terrain-current-name').textContent = terrain.name;
-      }
-    }
+    // テレイン名はIDからDBを引かずに別途セットする
+    _updateTerrainCurrentName();
     _renderTerrainTreeView();
   }
 }
 
+/** 選択テレインの名前をヘッダーに反映 */
+async function _updateTerrainCurrentName() {
+  if (!_selectedTerrainInGrid) return;
+  const nameEl = document.querySelector('.terrain-current-name');
+  if (!nameEl) return;
+  try {
+    const terrains = await getWsTerrains();
+    const terrain = terrains.find(t => t.id === _selectedTerrainInGrid);
+    if (terrain) nameEl.textContent = terrain.name;
+  } catch { /* ignore */ }
+}
+
 /** テレインカード一覧グリッド描画 */
-function _renderTerrainGridView() {
+async function _renderTerrainGridView() {
   const container = document.getElementById('terrain-grid-container');
   if (!container) return;
 
-  container.innerHTML = '';
+  container.innerHTML = '<div style="grid-column:1/-1;padding:20px;text-align:center;color:var(--text-muted);font-size:11px;">読み込み中…</div>';
 
-  // ワークスペース内のテレイン一覧をカード形式で描画
-  const terrains = wsData.terrains || [];
+  let terrains = [];
+  try { terrains = await getWsTerrains(); } catch { /* ignore */ }
+
+  container.innerHTML = '';
 
   if (terrains.length === 0) {
     container.innerHTML = '<div style="grid-column:1/-1;padding:20px;text-align:center;color:var(--text-muted);">テレインを追加すると表示されます</div>';
     return;
   }
 
-  terrains.forEach(terrain => {
+  // 各テレインの大会数を並列取得
+  const terrainDataList = await Promise.all(terrains.map(async terrain => {
+    let eventCount = 0;
+    try {
+      const events = await getWsEvents(terrain.id);
+      eventCount = events.length;
+    } catch { /* ignore */ }
+    return { terrain, eventCount };
+  }));
+
+  terrainDataList.forEach(({ terrain, eventCount }) => {
     const card = document.createElement('div');
     card.className = 'terrain-card';
 
-    // カード内容
-    const eventCount = terrain.events ? terrain.events.length : 0;
-    let courseCount = 0;
-    (terrain.events || []).forEach(e => {
-      (e.courseSets || []).forEach(cs => {
-        courseCount += (cs.courses || []).length;
-      });
-    });
-
-    const lastUpdated = new Date().toLocaleDateString('ja-JP'); // TODO: actual date
-
     card.innerHTML = `
       <div class="terrain-card-header">
-        <div class="terrain-card-menu-btn" data-terrain-id="${terrain.id}" title="メニュー">⋮</div>
+        <button class="terrain-card-menu-btn" data-terrain-id="${terrain.id}" title="オプション">⋮</button>
       </div>
       <div class="terrain-card-thumbnail"></div>
       <div class="terrain-card-name">${terrain.name}</div>
       <div class="terrain-card-meta">
-        <div>最終更新: ${lastUpdated}</div>
-        <div>${eventCount} 大会 / ${courseCount} コース</div>
+        <div>${eventCount} 大会</div>
       </div>
     `;
 
-    card.addEventListener('click', () => {
+    card.addEventListener('click', (e) => {
+      if (e.target.closest('.terrain-card-menu-btn')) return;
       _switchTerrainViewMode('tree', terrain.id);
     });
 
@@ -7211,28 +7233,7 @@ function _renderTerrainGridView() {
 
 /** テレインツリービュー描画 */
 function _renderTerrainTreeView() {
-  const container = document.getElementById('explorer-tree-container');
-  if (!container) return;
-
-  // 既存の renderExplorer() をここで呼ぶ（後で統合）
-  // 取り急ぎ、現在のロジックをそのまま使用
-  _renderExplorerForSelectedTerrain();
-}
-
-/** 選択テレイン用エクスプローラー描画 */
-async function _renderExplorerForSelectedTerrain() {
-  if (!_selectedTerrainInGrid) return;
-
-  const container = document.getElementById('explorer-tree-container');
-  if (!container) return;
-
-  // 既存の renderExplorer() と同様のロジック
-  // テレイン内容のみを表示
-  const terrain = wsData.terrains.find(t => t.id === _selectedTerrainInGrid);
-  if (!terrain) return;
-
-  // TODO: テレイン固有のツリーを描画（現在は全体を描画するため、後で統合）
-  await renderExplorer();
+  renderExplorer();
 }
 
 /** エクスプローラーを再描画する（外部モジュールからも呼び出し可能） */
