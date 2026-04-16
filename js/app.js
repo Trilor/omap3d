@@ -78,7 +78,7 @@ import {
   getWsTerrains, getWsTerrain, saveWsTerrain, deleteWsTerrain, updateWsTerrainVisibility,
   getWsEvents, getCoursesByEvent,
   saveWsMapSheet, getMapSheetsByEvent, getWsMapSheet, deleteWsMapSheet,
-  getCourseSetsForEvent, getWsCourseSet, saveWsCourseSet,
+  getCourseSetsForEvent, getCourseSetsForTerrain, getWsCourseSet, saveWsCourseSet,
   getCoursesBySet,
 } from './workspace-db.js';
 
@@ -6926,12 +6926,12 @@ async function _renderExplorerOnce() {
   const focusId   = _focusTerrainId;
   _focusTerrainId = null;
 
-  /** 大会・配下コースセット（+コース）・配下コース枠をDBから取得してまとめる */
+  /** 大会・コースセット（+コース）・コース枠をDBから取得してまとめる */
   async function fetchEventsWithSheetsAndCourseSets(terrainId) {
+    // ── 大会配下のコースセット ──
     let events = [];
     try { events = await getWsEvents(terrainId); } catch { /* ignore */ }
-    return Promise.all(events.map(async ev => {
-      // コースセット一覧（各セットは配下コース付き）
+    const eventsData = await Promise.all(events.map(async ev => {
       let courseSets = [];
       try {
         const sets = await getCourseSetsForEvent(ev.id);
@@ -6941,8 +6941,6 @@ async function _renderExplorerOnce() {
           return { courseSet: cs, courses };
         }));
       } catch { /* ignore */ }
-
-      // コース枠一覧（各枠は紐づく画像付き）
       let sheets = [];
       try { sheets = await getMapSheetsByEvent(ev.id); } catch { /* ignore */ }
       const sheetsWithImages = sheets.map(sheet => ({
@@ -6951,26 +6949,44 @@ async function _renderExplorerOnce() {
       }));
       return { event: ev, courseSets, sheetsWithImages };
     }));
+
+    // ── 大会に属さないスタンドアロンコースセット（terrain直属）──
+    let standaloneSets = [];
+    if (terrainId != null) { // null テレインは IDB null インデックス問題を回避
+      try {
+        const sets = await getCourseSetsForTerrain(terrainId);
+        standaloneSets = await Promise.all(sets.map(async cs => {
+          let courses = [];
+          try { courses = await getCoursesBySet(cs.id); } catch { /* ignore */ }
+          return { courseSet: cs, courses };
+        }));
+      } catch { /* ignore */ }
+    }
+    return { eventsData, standaloneSets };
   }
 
   // ── テレインフォルダ（全データを並列取得）──
-  const terrainData = await Promise.all(wsTerrains.map(async t => ({
-    terrain:    t,
-    maps:       localMapLayers.filter(e => e.terrainId === t.id && !e.mapSheetId),
-    gpx:        (gpxState.fileName && gpxState.terrainId === t.id) ? gpxState : null,
-    eventsData: await fetchEventsWithSheetsAndCourseSets(t.id),
-  })));
+  const terrainData = await Promise.all(wsTerrains.map(async t => {
+    const { eventsData, standaloneSets } = await fetchEventsWithSheetsAndCourseSets(t.id);
+    return {
+      terrain: t,
+      maps:    localMapLayers.filter(e => e.terrainId === t.id && !e.mapSheetId),
+      gpx:     (gpxState.fileName && gpxState.terrainId === t.id) ? gpxState : null,
+      eventsData,
+      standaloneSets,
+    };
+  }));
 
   // ── 未分類 ──
   const uncatMaps   = localMapLayers.filter(e => !e.terrainId && !e.mapSheetId);
   const uncatGpx    = (gpxState.fileName && !gpxState.terrainId) ? gpxState : null;
-  const uncatEvents = await fetchEventsWithSheetsAndCourseSets(null);
+  const { eventsData: uncatEvents } = await fetchEventsWithSheetsAndCourseSets(null);
 
   // ── 全データ取得完了 → ここで初めて DOM を置換（ちらつきゼロ）──
   const frag = document.createDocumentFragment();
 
-  for (const { terrain, maps, gpx, eventsData } of terrainData) {
-    const folder = _buildTerrainFolder(terrain, maps, gpx, eventsData);
+  for (const { terrain, maps, gpx, eventsData, standaloneSets } of terrainData) {
+    const folder = _buildTerrainFolder(terrain, maps, gpx, eventsData, standaloneSets);
     if (focusId === terrain.id) {
       folder.classList.add('is-focused');
       requestAnimationFrame(() => folder.scrollIntoView({ behavior: 'smooth', block: 'nearest' }));
@@ -7021,7 +7037,7 @@ async function _renderExplorerOnce() {
  * @param {object|null}   gpx        — gpxState（属する場合のみ）
  * @param {Array}         eventsData — [{ event, courses[], sheetsWithImages[] }]
  */
-function _buildTerrainFolder(terrain, maps, gpx, eventsData = []) {
+function _buildTerrainFolder(terrain, maps, gpx, eventsData = [], standaloneSets = []) {
   const collapsed = _explorerCollapsed[terrain.id] ?? false;
 
   const folder = document.createElement('div');
@@ -7115,6 +7131,8 @@ function _buildTerrainFolder(terrain, maps, gpx, eventsData = []) {
   body.className = 'expl-terrain-body';
   eventsData.forEach(({ event, courseSets, sheetsWithImages }) =>
     body.appendChild(_buildEventFolder(event, courseSets, sheetsWithImages)));
+  standaloneSets.forEach(({ courseSet, courses }) =>
+    body.appendChild(_buildCourseSetFolder(courseSet, courses)));
   maps.forEach(entry => body.appendChild(_buildMapItem(entry)));
   if (gpx) body.appendChild(_buildGpxItem());
   folder.appendChild(body);
@@ -7200,69 +7218,94 @@ function _buildAddPopoverBtn(terrainId) {
   return btn;
 }
 
-/** ＋▾ ポップオーバーメニューを表示する */
+/** ＋ ポップオーバーメニューを表示する */
 let _openAddPopover = null;
 function _showAddPopover(anchorBtn, terrainId) {
-  // 既存のポップオーバーを閉じる
   _openAddPopover?.remove();
   _openAddPopover = null;
 
   const menu = document.createElement('div');
   menu.className = 'expl-add-popover';
 
-  const items = [
-    {
-      icon: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>`,
-      label: '大会を新規作成',
-      action: async () => {
-        await createEvent(terrainId, '大会');
-        await renderExplorer();
-        openCourseEditor();
-      },
-    },
-    {
-      icon: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>`,
-      label: '地図を追加',
-      action: () => {
-        _pendingImportTerrainId = terrainId;
-        document.getElementById('explorer-map-input')?.click();
-      },
-    },
-    {
-      icon: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>`,
-      label: 'GPX を追加',
-      action: () => {
-        _pendingGpxTerrainId = terrainId;
-        document.getElementById('explorer-gpx-input')?.click();
-      },
-    },
-  ];
-
-  items.forEach(item => {
-    const row = document.createElement('button');
-    row.className = 'expl-add-popover-item';
-    row.innerHTML = `<span class="expl-add-popover-icon">${item.icon}</span><span>${item.label}</span>`;
-    // mousedown を止めないと document の mousedown リスナーがポップオーバーを削除し
-    // click イベントが発火しなくなる
-    row.addEventListener('mousedown', e => e.stopPropagation());
-    row.addEventListener('click', e => {
+  // ── ヘルパー ──
+  const addSection = label => {
+    const el = document.createElement('div');
+    el.className = 'expl-add-popover-section';
+    el.textContent = label;
+    menu.appendChild(el);
+  };
+  const addSep = () => {
+    const el = document.createElement('div');
+    el.className = 'expl-add-popover-sep';
+    menu.appendChild(el);
+  };
+  const addItem = (emoji, label, sub, action) => {
+    const btn = document.createElement('button');
+    btn.className = 'expl-add-popover-item';
+    const emojiEl = document.createElement('span');
+    emojiEl.className = 'expl-add-popover-emoji';
+    emojiEl.textContent = emoji;
+    const wrap = document.createElement('span');
+    wrap.className = 'expl-add-popover-text';
+    const labelEl = document.createElement('span');
+    labelEl.className = 'expl-add-popover-label';
+    labelEl.textContent = label;
+    wrap.appendChild(labelEl);
+    if (sub) {
+      const subEl = document.createElement('span');
+      subEl.className = 'expl-add-popover-sub';
+      subEl.textContent = sub;
+      wrap.appendChild(subEl);
+    }
+    btn.appendChild(emojiEl);
+    btn.appendChild(wrap);
+    // mousedown を止めないと閉じるリスナーが先に発火してclickが届かない
+    btn.addEventListener('mousedown', e => e.stopPropagation());
+    btn.addEventListener('click', e => {
       e.stopPropagation();
       _closeAddPopover();
-      item.action();
+      action();
     });
-    menu.appendChild(row);
+    menu.appendChild(btn);
+  };
+
+  // ── 新規作成 ──
+  addSection('新規作成');
+  addItem('🚩', '大会', null, async () => {
+    await createEvent(terrainId, '大会');
+    await renderExplorer();
+    openCourseEditor();
+  });
+  addItem('📦', 'コースセット', null, async () => {
+    await createCourseSet(null, terrainId, 'コースセット');
+    await renderExplorer();
+    openCourseEditor();
+  });
+
+  addSep();
+
+  // ── ファイルを読み込み ──
+  addSection('ファイルを読み込み');
+  addItem('🖼️', '地図画像', 'png / jpg / kmz', () => {
+    _pendingImportTerrainId = terrainId;
+    document.getElementById('explorer-map-input')?.click();
+  });
+  addItem('👟', 'GPSログ', 'gpx', () => {
+    _pendingGpxTerrainId = terrainId;
+    document.getElementById('explorer-gpx-input')?.click();
+  });
+  addItem('📦', 'コースデータ', 'ppen / IOF XML', () => {
+    document.getElementById('explorer-json-input')?.click();
   });
 
   document.body.appendChild(menu);
   _openAddPopover = menu;
 
-  // アンカーボタン直下に配置
+  // アンカーボタン直下に配置（右端揃え）
   const r = anchorBtn.getBoundingClientRect();
-  menu.style.position = 'fixed';
   menu.style.top  = (r.bottom + 4) + 'px';
   menu.style.left = Math.max(4, r.right - menu.offsetWidth) + 'px';
 
-  // クリックアウトで閉じる
   setTimeout(() => {
     document.addEventListener('mousedown', _closeAddPopover, { once: true });
   }, 0);
