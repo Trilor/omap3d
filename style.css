@@ -8762,52 +8762,88 @@ body.rp-open #rp-resize-handle {
 /* ====== テレインドリルダウンUI ====== */
 
 /* テレインカードグリッド */
+/* ====== テレインカード一覧グリッド ====== */
+
 .terrain-grid-view {
-  padding: 12px;
+  padding: 8px;
   display: flex;
   flex-direction: column;
-  height: 100%;
+  gap: 4px;
 }
 
+/* カードは縦リスト（横幅フル） */
 .terrain-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .terrain-card {
   position: relative;
-  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 64px;
+  border-radius: 6px;
   background: var(--bg-surface);
   border: 1px solid var(--border-light);
-  padding: 12px;
+  padding: 0 8px 0 8px;
   cursor: pointer;
-  transition: box-shadow var(--transition);
+  transition: background var(--transition), box-shadow var(--transition);
+  overflow: hidden;
 }
 
 .terrain-card:hover {
-  box-shadow: 0 4px 12px rgba(42, 157, 143, 0.15);
+  background: var(--bg-subtle);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
 }
 
-.terrain-card-header {
+/* 左: サムネイル正方形 */
+.terrain-card-thumb {
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  border-radius: 5px;
+  background: #e2ede9;
+}
+
+/* 中央: テキスト */
+.terrain-card-info {
+  flex: 1;
+  min-width: 0;
   display: flex;
-  justify-content: flex-end;
-  margin-bottom: 8px;
+  flex-direction: column;
+  gap: 3px;
 }
 
+.terrain-card-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.terrain-card-meta {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+/* 右上: 三点メニューボタン */
 .terrain-card-menu-btn {
+  flex-shrink: 0;
   width: 24px;
   height: 24px;
   padding: 0;
   border-radius: 4px;
   background: transparent;
   border: none;
-  color: var(--primary);
+  color: var(--text-muted);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: bold;
   opacity: 0;
   transition: opacity var(--transition), background var(--transition);
 }
@@ -8817,63 +8853,41 @@ body.rp-open #rp-resize-handle {
 }
 
 .terrain-card-menu-btn:hover {
-  background: var(--primary-light);
-}
-
-.terrain-card-thumbnail {
-  width: 100%;
-  height: 100px;
-  background: #e8e8e8;
-  border-radius: 4px;
-  margin-bottom: 8px;
-}
-
-.terrain-card-name {
-  font-size: 12px;
-  font-weight: var(--font-bold);
+  background: rgba(0,0,0,0.06);
   color: var(--text-main);
-  margin-bottom: 8px;
-  word-break: break-word;
 }
 
-.terrain-card-meta {
-  font-size: 10px;
-  color: var(--text-muted);
-  line-height: 1.4;
-}
+/* ====== テレインツリービュー ====== */
 
-/* テレインツリービュー */
 .terrain-tree-view {
   display: flex;
   flex-direction: column;
   height: 100%;
+  overflow: hidden;
 }
 
+/* パンくずヘッダー（2行） */
 .terrain-tree-header {
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  background: var(--bg-surface);
+  flex-shrink: 0;
+  background: var(--bg-panel);
   border-bottom: 1px solid var(--border-light);
-  padding: 12px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
+  padding: 10px 12px 10px;
 }
 
+/* 行1: ← テレイン一覧 */
 .terrain-back-btn {
-  padding: 4px 8px;
-  border-radius: 4px;
-  border: 1px solid var(--border-light);
-  background: transparent;
-  color: var(--text-main);
-  cursor: pointer;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 12px;
-  transition: background var(--transition);
-  white-space: nowrap;
+  padding: 2px 4px 2px 2px;
+  border-radius: 4px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 10.5px;
+  cursor: pointer;
+  transition: color var(--transition), background var(--transition);
+  margin-bottom: 6px;
 }
 
 .terrain-back-btn:hover {
@@ -8881,19 +8895,29 @@ body.rp-open #rp-resize-handle {
   color: var(--primary);
 }
 
+/* 行2: 現在のテレイン名 */
 .terrain-current-name {
-  flex: 1;
-  font-weight: var(--font-bold);
+  display: block;
+  font-size: 14px;
+  font-weight: 700;
   color: var(--text-main);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-size: 12px;
+  line-height: 1.3;
+  padding-left: 2px;
 }
 
-#explorer-tree-container {
+#explorer-tree {
   flex: 1;
   overflow-y: auto;
+}
+
+/* ツリー上部の追加バー */
+.terrain-tree-add-bar {
+  padding: 6px 8px 2px;
+  display: flex;
+  align-items: center;
 }
 
 /* コース空状態CTA */
@@ -8999,4 +9023,34 @@ body.rp-open #rp-resize-handle {
 
 .btn-delete-danger:hover {
   background: #b91c1c;
+}
+
+/* ====== ドリルダウンモード: ツリー視認性向上 ====== */
+
+/* 大会ヘッダー: padding 増やしてフルwidthホバー */
+.terrain-tree-view .expl-event-hd {
+  padding: 5px 6px 5px 4px;
+  border-radius: 5px;
+  margin: 1px 0;
+}
+
+/* コースセットヘッダー */
+.terrain-tree-view .expl-courseset-hd {
+  padding: 4px 6px 4px 2px;
+  margin: 1px 0;
+}
+
+/* 大会ボディ: インデント幅拡大 */
+.terrain-tree-view .expl-event-body {
+  padding-left: 18px;
+}
+
+/* コースセットボディ: インデント幅拡大 */
+.terrain-tree-view .expl-courseset-body {
+  padding-left: 18px;
+}
+
+/* コース行: インデント幅拡大 */
+.terrain-tree-view .expl-item {
+  padding-left: 24px;
 }

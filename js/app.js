@@ -6676,13 +6676,26 @@ function _showCourseDeleteModal(courseId, courseName = 'コース') {
 });
 
 // 削除確定処理
-document.getElementById('terrain-delete-modal-confirm')?.addEventListener('click', () => {
+document.getElementById('terrain-delete-modal-confirm')?.addEventListener('click', async () => {
   const modal = document.getElementById('terrain-delete-modal');
   const terrainId = modal?.dataset.terrainId;
   if (!terrainId) return;
-  deleteWsTerrain(terrainId);
+
+  // 関連ファイルを未分類に移動
+  localMapLayers.filter(m => m.terrainId === terrainId).forEach(m => { m.terrainId = null; });
+  if (gpxState.terrainId === terrainId) gpxState.terrainId = null;
+
+  await deleteWsTerrain(terrainId);
+  const all = await getWsTerrains();
+  updateWorkspaceTerrainSource(map, all);
   _hideDeleteModal('terrain-delete-modal');
-  _renderTerrainGridView();
+
+  // グリッドに戻る（削除テレインを選択中なら一覧へ）
+  if (_selectedTerrainInGrid === terrainId) {
+    _backToTerrainGrid();
+  } else {
+    _renderTerrainGridView();
+  }
 });
 
 document.getElementById('event-delete-modal-confirm')?.addEventListener('click', async () => {
@@ -7212,19 +7225,36 @@ async function _renderTerrainGridView() {
     card.className = 'terrain-card';
 
     card.innerHTML = `
-      <div class="terrain-card-header">
-        <button class="terrain-card-menu-btn" data-terrain-id="${terrain.id}" title="オプション">⋮</button>
+      <div class="terrain-card-thumb"></div>
+      <div class="terrain-card-info">
+        <div class="terrain-card-name">${terrain.name}</div>
+        <div class="terrain-card-meta">${eventCount} 大会</div>
       </div>
-      <div class="terrain-card-thumbnail"></div>
-      <div class="terrain-card-name">${terrain.name}</div>
-      <div class="terrain-card-meta">
-        <div>${eventCount} 大会</div>
-      </div>
+      <button class="terrain-card-menu-btn" data-terrain-id="${terrain.id}" title="オプション" aria-label="オプション">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="5" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="12" cy="19" r="1.2"/></svg>
+      </button>
     `;
 
     card.addEventListener('click', (e) => {
       if (e.target.closest('.terrain-card-menu-btn')) return;
       _switchTerrainViewMode('tree', terrain.id);
+    });
+
+    // 三点メニュー → テレインフォルダと同じメニュー（移動 / 削除）
+    card.querySelector('.terrain-card-menu-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      const r = e.currentTarget.getBoundingClientRect();
+      _showExplorerCtx(r.right + 4, r.top, [
+        { label: 'この場所へ移動', action: () => {
+            if (terrain.center) map.easeTo({ center: terrain.center, zoom: Math.max(map.getZoom(), 12), duration: EASE_DURATION });
+          }
+        },
+        { separator: true },
+        { label: 'ワークスペースから削除', danger: true, action: () => {
+            _showTerrainDeleteModal(terrain.id);
+          }
+        },
+      ]);
     });
 
     container.appendChild(card);
@@ -7326,20 +7356,51 @@ async function _renderExplorerOnce() {
   // ── 全データ取得完了 → ここで初めて DOM を置換（ちらつきゼロ）──
   const frag = document.createDocumentFragment();
 
-  for (const { terrain, maps, gpx, eventsData, standaloneSets } of terrainData) {
-    const folder = _buildTerrainFolder(terrain, maps, gpx, eventsData, standaloneSets);
-    if (focusId === terrain.id) {
-      folder.classList.add('is-focused');
-      requestAnimationFrame(() => folder.scrollIntoView({ behavior: 'smooth', block: 'nearest' }));
+  if (_selectedTerrainInGrid) {
+    // ── ドリルダウンモード: 選択テレインの内容のみ、テレインフォルダなしで表示 ──
+    const selected = terrainData.find(d => d.terrain.id === _selectedTerrainInGrid);
+    if (selected) {
+      const { eventsData, standaloneSets, maps, gpx } = selected;
+
+      // 追加ポップオーバーボタン（ツリートップ）
+      const addBar = document.createElement('div');
+      addBar.className = 'terrain-tree-add-bar';
+      addBar.appendChild(_buildAddPopoverBtn(_selectedTerrainInGrid));
+      frag.appendChild(addBar);
+
+      eventsData.forEach(({ event, courseSets, sheetsWithImages }) => {
+        frag.appendChild(_buildEventFolder(event, courseSets, sheetsWithImages));
+      });
+      standaloneSets.forEach(({ courseSet, courses }) => {
+        frag.appendChild(_buildCourseSetFolder(courseSet, courses));
+      });
+      maps.forEach(entry => frag.appendChild(_buildMapItem(entry)));
+      if (gpx) frag.appendChild(_buildGpxItem(gpx));
+
+      if (eventsData.length === 0 && standaloneSets.length === 0 && maps.length === 0 && !gpx) {
+        const hint = document.createElement('div');
+        hint.className = 'expl-ws-hint';
+        hint.innerHTML = '<span>「＋」ボタンで大会やコースを追加できます</span>';
+        frag.appendChild(hint);
+      }
     }
-    frag.appendChild(folder);
+  } else {
+    // ── 通常モード: 全テレインをフォルダで包んで表示 ──
+    for (const { terrain, maps, gpx, eventsData, standaloneSets } of terrainData) {
+      const folder = _buildTerrainFolder(terrain, maps, gpx, eventsData, standaloneSets);
+      if (focusId === terrain.id) {
+        folder.classList.add('is-focused');
+        requestAnimationFrame(() => folder.scrollIntoView({ behavior: 'smooth', block: 'nearest' }));
+      }
+      frag.appendChild(folder);
+    }
+
+    if (uncatMaps.length > 0 || uncatGpx || uncatEvents.length > 0) {
+      frag.appendChild(_buildUncategorizedFolder(uncatMaps, uncatGpx, uncatEvents));
+    }
   }
 
-  if (uncatMaps.length > 0 || uncatGpx || uncatEvents.length > 0) {
-    frag.appendChild(_buildUncategorizedFolder(uncatMaps, uncatGpx, uncatEvents));
-  }
-
-  if (wsTerrains.length === 0 && uncatMaps.length === 0 && !uncatGpx && uncatEvents.length === 0) {
+  if (!_selectedTerrainInGrid && wsTerrains.length === 0 && uncatMaps.length === 0 && !uncatGpx && uncatEvents.length === 0) {
     const hint = document.createElement('div');
     hint.className = 'expl-ws-hint';
     hint.innerHTML = '<span>検索タブでテレインを探し「＋」で追加すると<br>ここにフォルダが作成されます</span>';
@@ -7442,14 +7503,8 @@ function _buildTerrainFolder(terrain, maps, gpx, eventsData = [], standaloneSets
         }
       },
       { separator: true },
-      { label: 'ワークスペースから削除', danger: true, action: async () => {
-          if (!confirm(`「${terrain.name}」をワークスペースから削除しますか？\n関連付けられたファイルは未分類に移動します。`)) return;
-          localMapLayers.filter(m => m.terrainId === terrain.id).forEach(m => { m.terrainId = null; });
-          if (gpxState.terrainId === terrain.id) gpxState.terrainId = null;
-          await deleteWsTerrain(terrain.id);
-          const all = await getWsTerrains();
-          updateWorkspaceTerrainSource(map, all);
-          renderExplorer();
+      { label: 'ワークスペースから削除', danger: true, action: () => {
+          _showTerrainDeleteModal(terrain.id);
         }
       },
     ]);
