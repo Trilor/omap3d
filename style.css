@@ -8100,9 +8100,8 @@ select,
   line-height: 1.4;
 }
 
-/* ヘッダーアクションボタン（フライ・削除） */
-.expl-terrain-fly,
-.expl-terrain-del {
+/* ヘッダーアクションボタン（⋮ ハンバーガー） */
+.expl-terrain-more {
   width: 20px; height: 20px;
   display: flex; align-items: center; justify-content: center;
   border: none;
@@ -8111,13 +8110,11 @@ select,
   cursor: pointer;
   border-radius: 3px;
   opacity: 0;
-  transition: opacity 0.1s, background 0.1s;
+  transition: opacity 0.1s, background 0.1s, color 0.1s;
   flex-shrink: 0;
 }
-.expl-terrain-hd:hover .expl-terrain-fly,
-.expl-terrain-hd:hover .expl-terrain-del { opacity: 1; }
-.expl-terrain-fly:hover { background: var(--bg-subtle); color: var(--primary); }
-.expl-terrain-del:hover { background: rgba(192,57,43,0.08); color: #c0392b; }
+.expl-terrain-hd:hover .expl-terrain-more { opacity: 1; }
+.expl-terrain-more:hover { background: var(--bg-subtle); color: var(--text-main); }
 
 /* フォルダボディ */
 .expl-terrain-body {
@@ -8161,27 +8158,26 @@ select,
   animation: expl-folder-highlight 1.2s ease-out forwards;
 }
 
-/* ＋▾ ポップオーバーボタン */
+/* ＋ 追加ボタン（シンプルアイコン、枠なし） */
 .expl-add-pop-btn {
   display: inline-flex;
   align-items: center;
-  gap: 1px;
-  padding: 2px 5px;
-  border: 1px solid var(--border-input);
-  background: var(--bg-surface);
-  color: var(--text-sub);
+  justify-content: center;
+  width: 20px; height: 20px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
   cursor: pointer;
-  border-radius: 4px;
+  border-radius: 3px;
   opacity: 0;
-  font-size: 11px;
   transition: opacity 0.1s, background 0.1s, color 0.1s;
   flex-shrink: 0;
 }
 .expl-terrain-hd:hover .expl-add-pop-btn { opacity: 1; }
 .expl-add-pop-btn:hover {
-  background: var(--primary);
-  border-color: var(--primary);
-  color: #fff;
+  background: var(--bg-subtle);
+  color: var(--primary);
 }
 
 /* ポップオーバーメニュー本体 */
@@ -8193,14 +8189,34 @@ select,
   border-radius: 7px;
   box-shadow: 0 6px 20px rgba(0,0,0,0.18);
   padding: 4px 0;
-  min-width: 160px;
+  min-width: 200px;
 }
+
+/* セクション見出し */
+.expl-add-popover-section {
+  padding: 6px 12px 3px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  user-select: none;
+}
+
+/* 区切り線 */
+.expl-add-popover-sep {
+  height: 1px;
+  background: var(--border-light);
+  margin: 4px 8px;
+}
+
+/* メニュー項目ボタン */
 .expl-add-popover-item {
   display: flex;
   align-items: center;
   gap: 8px;
   width: 100%;
-  padding: 7px 12px;
+  padding: 6px 12px;
   border: none;
   background: transparent;
   color: var(--text-main);
@@ -8210,11 +8226,31 @@ select,
   transition: background 0.1s;
 }
 .expl-add-popover-item:hover { background: var(--bg-subtle); }
+
+/* アイコン列（SVG） */
 .expl-add-popover-icon {
-  width: 14px; height: 14px;
+  width: 16px; height: 16px;
   display: flex; align-items: center; justify-content: center;
   color: var(--primary);
   flex-shrink: 0;
+}
+
+/* テキスト列（ラベル + サブテキスト縦並び） */
+.expl-add-popover-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.expl-add-popover-label {
+  font-size: 12px;
+  color: var(--text-main);
+  line-height: 1.3;
+}
+.expl-add-popover-sub {
+  font-size: 10px;
+  color: var(--text-muted);
+  line-height: 1.2;
 }
 
 /* ドラッグ中アイテム */
@@ -8289,13 +8325,6 @@ select,
 .expl-courseset-folder.is-collapsed .expl-courseset-body { display: none; }
 .expl-courseset-folder.is-collapsed .expl-section-chevron { transform: rotate(-90deg); }
 
-/* アクティブなコースセット — 左ボーダーでハイライト */
-.expl-courseset-folder.is-active-courseset > .expl-courseset-hd {
-  background: color-mix(in srgb, #7c3aed 8%, transparent);
-  border-left: 2px solid #7c3aed;
-  padding-left: 0;
-}
-
 .expl-courseset-hd {
   display: flex;
   align-items: center;
@@ -8305,7 +8334,6 @@ select,
   cursor: pointer;
   user-select: none;
   transition: background 0.1s;
-  border-left: 2px solid transparent;
 }
 .expl-courseset-hd:hover { background: var(--bg-subtle); }
 
@@ -8316,7 +8344,6 @@ select,
   align-items: center;
   flex-shrink: 0;
 }
-.expl-courseset-folder.is-active-courseset .expl-courseset-icon { opacity: 1; }
 
 .expl-courseset-label {
   flex: 1;
@@ -8326,9 +8353,6 @@ select,
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-.expl-courseset-folder.is-active-courseset .expl-courseset-label {
-  color: var(--text-main);
 }
 
 /* コースセット追加ボタン（イベントヘッダー内） */
