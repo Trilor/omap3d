@@ -8224,13 +8224,12 @@ select,
 }
 .expl-add-popover-item:hover { background: var(--bg-subtle); }
 
-/* 絵文字列 */
-.expl-add-popover-emoji {
-  width: 16px;
-  text-align: center;
+/* アイコン列（SVG） */
+.expl-add-popover-icon {
+  width: 16px; height: 16px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--primary);
   flex-shrink: 0;
-  font-size: 13px;
-  line-height: 1;
 }
 
 /* テキスト列（ラベル + サブテキスト縦並び） */

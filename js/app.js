@@ -7227,6 +7227,13 @@ function _showAddPopover(anchorBtn, terrainId) {
   const menu = document.createElement('div');
   menu.className = 'expl-add-popover';
 
+  // SVG アイコン定数（既存コードと同一パス）
+  const SVG_EVENT     = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4a2 2 0 01-2-2V5h4"/><path d="M18 9h2a2 2 0 002-2V5h-4"/><path d="M6 9a6 6 0 0012 0"/><path d="M12 15v4"/><path d="M8 19h8"/></svg>`;
+  const SVG_COURSESET = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/></svg>`;
+  const SVG_MAP       = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>`;
+  const SVG_GPX       = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>`;
+  const SVG_FILE      = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>`;
+
   // ── ヘルパー ──
   const addSection = label => {
     const el = document.createElement('div');
@@ -7239,12 +7246,12 @@ function _showAddPopover(anchorBtn, terrainId) {
     el.className = 'expl-add-popover-sep';
     menu.appendChild(el);
   };
-  const addItem = (emoji, label, sub, action) => {
+  const addItem = (svgHtml, label, sub, action) => {
     const btn = document.createElement('button');
     btn.className = 'expl-add-popover-item';
-    const emojiEl = document.createElement('span');
-    emojiEl.className = 'expl-add-popover-emoji';
-    emojiEl.textContent = emoji;
+    const iconEl = document.createElement('span');
+    iconEl.className = 'expl-add-popover-icon';
+    iconEl.innerHTML = svgHtml;
     const wrap = document.createElement('span');
     wrap.className = 'expl-add-popover-text';
     const labelEl = document.createElement('span');
@@ -7257,7 +7264,7 @@ function _showAddPopover(anchorBtn, terrainId) {
       subEl.textContent = sub;
       wrap.appendChild(subEl);
     }
-    btn.appendChild(emojiEl);
+    btn.appendChild(iconEl);
     btn.appendChild(wrap);
     // mousedown を止めないと閉じるリスナーが先に発火してclickが届かない
     btn.addEventListener('mousedown', e => e.stopPropagation());
@@ -7271,12 +7278,12 @@ function _showAddPopover(anchorBtn, terrainId) {
 
   // ── 新規作成 ──
   addSection('新規作成');
-  addItem('🚩', '大会', null, async () => {
+  addItem(SVG_EVENT, '大会', null, async () => {
     await createEvent(terrainId, '大会');
     await renderExplorer();
     openCourseEditor();
   });
-  addItem('📦', 'コースセット', null, async () => {
+  addItem(SVG_COURSESET, 'コースセット', null, async () => {
     await createCourseSet(null, terrainId, 'コースセット');
     await renderExplorer();
     openCourseEditor();
@@ -7286,15 +7293,15 @@ function _showAddPopover(anchorBtn, terrainId) {
 
   // ── ファイルを読み込み ──
   addSection('ファイルを読み込み');
-  addItem('🖼️', '地図画像', 'png / jpg / kmz', () => {
+  addItem(SVG_MAP, '地図画像', 'png / jpg / kmz', () => {
     _pendingImportTerrainId = terrainId;
     document.getElementById('explorer-map-input')?.click();
   });
-  addItem('👟', 'GPSログ', 'gpx', () => {
+  addItem(SVG_GPX, 'GPSログ', 'gpx', () => {
     _pendingGpxTerrainId = terrainId;
     document.getElementById('explorer-gpx-input')?.click();
   });
-  addItem('📦', 'コースデータ', 'ppen / IOF XML', () => {
+  addItem(SVG_FILE, 'コースデータ', 'ppen / IOF XML', () => {
     document.getElementById('explorer-json-input')?.click();
   });
 
