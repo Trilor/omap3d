@@ -115,6 +115,13 @@ import {
   updateBasemapAttribution, updateRegionalAttribution,
   updatePlateauAttribution, updateMagneticAttribution,
 } from './core/attribution.js';
+import {
+  init as initMagneticLines,
+  setUserMagneticInterval,
+  clearGlobalMagneticCache, getLastMagneticNorthData,
+  updateMagneticNorth, getMagneticLineColor,
+  applyMagneticLineColor, handleMagneticColorChange,
+} from './core/magneticLines.js';
 
 // ベースマップ切替の状態管理
 // oriLibreLayers: isomizer が追加したレイヤーを [{ id, defaultVisibility }] 形式で保持
@@ -1021,6 +1028,9 @@ map.on('load', async () => {
     getBasemap: () => currentBasemap,
     getOverlay: () => currentOverlay,
   });
+
+  // 磁北線モジュール初期化（PCシム readmap をゲッターで遅延注入）
+  initMagneticLines(map, { getReadMap: () => pcSimState.readMap });
 
   // 地図が安定表示されたらURLをフル状態に更新（Google Maps方式）
   // hash:true がハッシュを確定した後に updateShareableUrl を呼ぶことで
@@ -3375,222 +3385,6 @@ document.addEventListener('drop', async (e) => {
 
 // ---- スライダーのグラデーション更新ヘルパー ----
 // ユーザーが手動で設定した磁北線間隔（m）。zoom > 10 のときに使用する。
-let userMagneticInterval = 300;
-
-// ── グローバル（zoom ≤ 3）用 固定磁北線キャッシュ ──
-// 起動後に一度だけ計算し、zoom ≤ 3 の間は再計算なしで使い回す。
-// 赤道（lat=0）を起点に 500km 間隔で全球に 80 本配置。
-const GLOBAL_MAG_INTERVAL_KM = 500;                          // 赤道での線間隔
-const GLOBAL_MAG_EQ_KM_DEG   = Math.PI * 6371 / 180;        // ≈ 111.195 km/deg
-const GLOBAL_MAG_DLNG        = GLOBAL_MAG_INTERVAL_KM / GLOBAL_MAG_EQ_KM_DEG; // ≈ 4.49°
-const GLOBAL_MAG_STEP_KM     = 100;                          // ウォーク時のステップ距離
-let   _globalMagneticLines   = null;                         // キャッシュ（null = 未計算）
-
-/**
- * zoom ≤ 3 用の固定磁北線セットを計算してキャッシュする。
- * 2 回目以降はキャッシュを返すだけ。
- *
- * 配置方法：
- *   numLines = round(360 / dLng) 本をちょうど均等配置することで
- *   ±180° 付近の重複・欠落を防ぐ。
- *   各線の開始経度 = -180 + i * (360 / numLines)
- *
- * 南方向は -89° まで延長（南極大陸をカバー）。
- * geomag の入力緯度は ±89° でクランプして極付近の発散を防ぐ。
- */
-function buildGlobalMagneticLines() {
-  if (_globalMagneticLines) return _globalMagneticLines;
-
-  // ちょうど numLines 本を均等配置（重複なし）
-  const numLines    = Math.round(360 / GLOBAL_MAG_DLNG); // ≈ 80 本
-  const actualDlng  = 360 / numLines;                    // 実際の経度間隔（≈ 4.5°）
-  const features    = [];
-
-  for (let i = 0; i < numLines; i++) {
-    const lng0 = -180 + i * actualDlng;
-
-    // 赤道から北方向（89° でクランプ）
-    const northPts = [[lng0, 0]];
-    let lng = lng0, lat = 0;
-    for (let s = 0; s < 120; s++) {
-      const decl = getDeclination(lat, lng);
-      const next = turf.destination(turf.point([lng, lat]), GLOBAL_MAG_STEP_KM, decl, { units: 'kilometers' });
-      lng = next.geometry.coordinates[0];
-      lat = next.geometry.coordinates[1];
-      northPts.push([lng, lat]);
-      if (lat > 89) break;
-    }
-
-    // 赤道から南方向（zoom ≤ 3 専用。-85° でクランプ）
-    const southPts = [[lng0, 0]];
-    lng = lng0; lat = 0;
-    for (let s = 0; s < 100; s++) {
-      const decl    = getDeclination(lat, lng);
-      const bearing = (decl + 180 + 360) % 360;
-      const next    = turf.destination(turf.point([lng, lat]), GLOBAL_MAG_STEP_KM, bearing, { units: 'kilometers' });
-      lng = next.geometry.coordinates[0];
-      lat = next.geometry.coordinates[1];
-      southPts.push([lng, lat]);
-      if (lat < -85) break;
-    }
-
-    // 南端 → 赤道 → 北端 の順に結合して 1 本の LineString にする
-    const coords = [...southPts.slice(1).reverse(), ...northPts];
-    if (coords.length >= 2) features.push(turf.lineString(coords));
-  }
-
-  _globalMagneticLines = turf.featureCollection(features);
-  return _globalMagneticLines;
-}
-
-// zoom レベルに応じた有効な磁北線間隔（m）を返す
-// 各ズームで画面内に約 7〜15 本表示されることを目安に設定。
-// 広域ズーム（z≤4）では間隔を大きくして本数を抑えつつ画面全体をカバーする。
-// ※ nHalf = min(30, ceil(halfExtentKm / intervalKm)) がキャップに当たらないよう調整。
-//   z≤1 ≈ 全球      → 2000km  (nHalf≈7, 約15本)
-//   z≤2 ≈ 1:100M   → 1000km  (nHalf≈7, 約15本)
-//   z≤3 ≈ 1:50M    →  500km  (nHalf≈7, 約15本)
-//   z≤6 ≈ 1:5M–    →  200km  (z4もここに含む, nHalf≈9, 約19本)
-//   z7  ≈ 1:2.5M   →  100km
-//   z8  ≈ 1:1.2M   →   50km
-//   z9  ≈ 1:600K   →   20km
-//   z10 ≈ 1:300K   →   10km
-//   z11 ≈ 1:150K   →    5km
-//   z12 ≈ 1:75K    →    2km
-//   z13 ≈ 1:35K    →    1km
-//   z13.5 ≈ 1:17K    →  500m（OL 1:15,000 向け）
-//   z14+ ≈ 1:8K–   → ユーザー設定（デフォルト 250m）
-function getEffectiveMagneticInterval() {
-  const z = map.getZoom();
-  if (z <=  1) return 2000000;
-  if (z <=  2) return 1000000;
-  if (z <=  3) return  500000;
-  if (z <=  6) return  200000;
-  if (z <=  7) return  100000;
-  if (z <=  8) return   50000;
-  if (z <=  9) return   20000;
-  if (z <= 10) return   10000;
-  if (z <= 11) return    5000;
-  if (z <= 12) return    2000;
-  if (z <= 13) return    1000;
-  if (z <= 13.5) return     500;
-  return userMagneticInterval;
-}
-
-// 磁北線の動的生成（曲線ポリライン版）
-// 各磁北線を「一定ステップごとに geomag で偏角を再計算しながら進む多角線」として生成する。
-// これにより広域表示時の地域差（偏角の曲がり具合）を正確に表現できる。
-// zoom レベルに応じた自動間隔切り替え＆セレクト表示の同期も行う。
-function updateMagneticNorth() {
-  if (!map.getSource('magnetic-north')) return;
-
-  const center = map.getCenter();
-  const bounds = map.getBounds();
-
-  // zoom ≤ 3: 固定グローバル磁北線キャッシュを使用（再計算なし）
-  if (map.getZoom() <= 3) {
-    const data = buildGlobalMagneticLines();
-    _lastMagneticNorthData = data;
-    map.getSource('magnetic-north').setData(data);
-    return;
-  }
-
-  // zoom レベルに応じた有効間隔を取得
-  const intervalM  = getEffectiveMagneticInterval();
-  const intervalKm = intervalM / 1000;
-
-  // ステップ距離を動的決定：視野の対角を15分割、広域は最大100km・拡大時は最小0.5km
-  const viewWidth  = turf.distance(
-    turf.point([bounds.getWest(), center.lat]),
-    turf.point([bounds.getEast(), center.lat]),
-    { units: 'kilometers' }
-  );
-  const viewHeight = turf.distance(
-    turf.point([center.lng, bounds.getSouth()]),
-    turf.point([center.lng, bounds.getNorth()]),
-    { units: 'kilometers' }
-  );
-  const halfExtentKm = Math.hypot(viewWidth, viewHeight) / 2 * 1.3;
-  const stepKm = Math.min(100, Math.max(0.5, halfExtentKm / 15));
-
-  // フェイルセーフ：最大ステップ数（無限ループ防止）
-  const MAX_STEPS = 400;
-
-  // 打ち切り緯度境界（Bounds + 1ステップ分バッファ）
-  // ±70° でクランプ：それ以上は geomag の偏角が不安定になり線が暴走するため
-  const bufDeg = stepKm / 100;
-  const minLat = Math.max(-70, bounds.getSouth() - bufDeg);
-  const maxLat = Math.min( 89.9, bounds.getNorth() + bufDeg);
-
-  // ── 絶対座標グリッド方式 ──
-  // 経度グリッドを赤道基準の固定値にし、東西パンで線がズレないようにする。
-  // 緯度の基準点を最近傍整数度にスナップし、南北パンでのズレを最小化する。
-  // （0.5° ≈ 55km 以上パンしない限り基準点は変わらない）
-  const EQ_KM_PER_DEG = Math.PI * 6371 / 180; // ≈ 111.195 km/deg（赤道）
-  const refLat = Math.round(center.lat); // 最近傍整数度にスナップした基準緯度
-
-  // 磁北線の基準点（refLat, center.lng）で偏角 θ を求め、
-  // 線に垂直な方向の間隔が intervalM になるよう経度グリッド間隔を補正する。
-  // 東西方向の実間隔は interval / cosθ に広げる必要がある。
-  const declCenter = getDeclination(center.lat, center.lng);
-  const declAtBase = getDeclination(refLat, center.lng);
-  const latDiffKm   = Math.abs(refLat - center.lat) * EQ_KM_PER_DEG;
-  const cosLat      = Math.max(0.01, Math.cos(center.lat * Math.PI / 180));
-  const cosTheta    = Math.max(0.01, Math.abs(Math.cos(declAtBase * Math.PI / 180)));
-  const dLng        = intervalKm / (EQ_KM_PER_DEG * cosLat * cosTheta);
-  const driftLngBuf = Math.abs(Math.sin(declCenter * Math.PI / 180) * latDiffKm / (EQ_KM_PER_DEG * cosLat));
-
-  // ビューポートをカバーする経度範囲のグリッドインデックス（ドリフト補正込み）
-  const westLng  = bounds.getWest()  - bufDeg - driftLngBuf;
-  const eastLng  = bounds.getEast()  + bufDeg + driftLngBuf;
-  const startIdx = Math.floor(westLng / dLng);
-  const endIdx   = Math.ceil (eastLng / dLng);
-
-  /**
-   * 基点座標から1方向へ多角線座標を生成する。
-   * 各ステップで現在地点の geomag 偏角を再計算して軌道修正する。
-   * @param {number[]} startCoords [lng, lat]
-   * @param {boolean}  towardNorth true=磁北方向, false=磁南方向
-   * @returns {number[][]} 座標配列（startCoords を先頭に含む）
-   */
-  function walkMagneticLine(startCoords, towardNorth) {
-    const pts = [startCoords];
-    let lng = startCoords[0];
-    let lat = startCoords[1];
-    for (let s = 0; s < MAX_STEPS; s++) {
-      // 現在地点の偏角を WMM で再計算（緯度を ±89.9° にクランプして極付近の発散を防ぐ）
-      const decl    = getDeclination(lat, lng);
-      const bearing = towardNorth ? decl : (decl + 180 + 360) % 360;
-      const next    = turf.destination(turf.point([lng, lat]), stepKm, bearing, { units: 'kilometers' });
-      lng = next.geometry.coordinates[0];
-      lat = next.geometry.coordinates[1];
-      pts.push([lng, lat]);
-      // 緯度のみで打ち切り（経度は全球を巡回するため判定しない）
-      if (towardNorth ? lat > maxLat : lat < minLat) break;
-    }
-    return pts;
-  }
-
-  const features = [];
-  for (let i = startIdx; i <= endIdx; i++) {
-    // 固定経度グリッド × スナップ済み基準緯度の基点から南北両方向に伸ばす
-    const basePt   = [i * dLng, refLat];
-    const northPts = walkMagneticLine(basePt, true);
-    const southPts = walkMagneticLine(basePt, false);
-    // 南端 → 基点 → 北端 の順に結合して1本の LineString にする
-    const coords   = [...southPts.slice(1).reverse(), ...northPts];
-    if (coords.length >= 2) {
-      features.push(turf.lineString(coords));
-    }
-  }
-
-  const featureCollection = turf.featureCollection(features);
-  _lastMagneticNorthData = featureCollection;
-  map.getSource('magnetic-north').setData(featureCollection);
-}
-
-// 都道府県別CS出典の動的表示
-// 0.5m モードはズーム17以上で地域CSを表示し、ズーム17未満は1mに自動フォールバック
 let currentOverlay = 'none'; // 選択中のオーバーレイキー（'none' = オーバーレイなし）
 
 function updateCsVisibility() {
@@ -5409,19 +5203,6 @@ selMagneticCombined = document.getElementById('sel-magnetic-combined');
 selMagneticModel    = document.getElementById('sel-magnetic-model');
 selMagneticColor    = document.getElementById('sel-magnetic-color');
 
-function getMagneticLineColor() {
-  return (selMagneticColor?.value ?? 'black') === 'black'
-    ? '#000000'
-    : '#00ffff';
-}
-
-function applyMagneticLineColor(targetMap = map, layerId = 'magnetic-north-layer') {
-  if (targetMap?.getLayer?.(layerId)) {
-    targetMap.setPaintProperty(layerId, 'line-color', getMagneticLineColor());
-    targetMap.triggerRepaint?.();
-  }
-}
-
 // ---- 磁北線カード クリックでトグル ----
 magneticCard?.addEventListener('click', (e) => {
   if (e.target.closest('.custom-select-wrap') || e.target.closest('select')) return;
@@ -5437,7 +5218,7 @@ magneticCard?.addEventListener('click', (e) => {
 // ---- 磁北線 モデルセレクト ----
 selMagneticModel?.addEventListener('change', async () => {
   await setDeclinationModel(selMagneticModel.value);
-  _globalMagneticLines = null; // グローバル磁北線キャッシュをクリア
+  clearGlobalMagneticCache();
   updateMagneticNorth();
   updateMagneticAttribution();
   updateShareableUrl();
@@ -5449,27 +5230,14 @@ if (selMagneticModel) setDeclinationModel(selMagneticModel.value);
 // ---- 磁北線 間隔セレクト ----
 selMagneticCombined?.addEventListener('change', () => {
   const val = parseInt(selMagneticCombined.value, 10);
-  if (val) {
-    userMagneticInterval = val;
-  }
+  if (val) setUserMagneticInterval(val);
   updateMagneticNorth();
   updateShareableUrl();
   saveUiState();
 });
 
-function handleMagneticColorChange() {
-  applyMagneticLineColor();
-  applyMagneticLineColor(pcSimState.readMap);
-  updateMagneticNorth();
-  requestAnimationFrame(() => {
-    applyMagneticLineColor();
-    applyMagneticLineColor(pcSimState.readMap);
-  });
-  saveUiState();
-}
-
-selMagneticColor?.addEventListener('input', handleMagneticColorChange);
-selMagneticColor?.addEventListener('change', handleMagneticColorChange);
+selMagneticColor?.addEventListener('input',  () => handleMagneticColorChange(saveUiState));
+selMagneticColor?.addEventListener('change', () => handleMagneticColorChange(saveUiState));
 
 // ---- ベースマップ切替 ----
 /**
@@ -5780,7 +5548,7 @@ function restoreUiState() {
     if (targetMagInt) {
       selMagneticCombined.value = targetMagInt;
       selMagneticCombined._csRefresh?.();
-      userMagneticInterval = parseInt(targetMagInt, 10) || 300;
+      setUserMagneticInterval(parseInt(targetMagInt, 10) || 300);
     }
     // 磁北線表示：URL > localStorage（デフォルトON）
     const magneticOn = up.has('magnetic') ? up.get('magnetic') !== '0' : (s.magneticVisible ?? true);
@@ -8372,8 +8140,7 @@ function getReadmapBaseStyle(bgKey) {
    initPcReadMap の load コールバック、updateMagneticNorth、
    applyContourInterval などから呼ばれる。
    ---------------------------------------------------------------- */
-// 直近の磁北線 GeoJSON（読図マップへの同期用キャッシュ）
-var _lastMagneticNorthData = { type: 'FeatureCollection', features: [] };
+
 
 function syncReadmapOriLibre() {
   if (!pcSimState.readMap || !pcSimState.readMap.isStyleLoaded()) return;
@@ -8397,7 +8164,7 @@ function syncReadmapOriLibre() {
   if (!pcSimState.readMap.getSource('magnetic-north')) {
     pcSimState.readMap.addSource('magnetic-north', {
       type: 'geojson',
-      data: _lastMagneticNorthData,
+      data: getLastMagneticNorthData(),
     });
     pcSimState.readMap.addLayer({
       id: 'magnetic-north-layer',
@@ -8411,7 +8178,7 @@ function syncReadmapOriLibre() {
       },
     });
   } else {
-    pcSimState.readMap.getSource('magnetic-north').setData(_lastMagneticNorthData);
+    pcSimState.readMap.getSource('magnetic-north').setData(getLastMagneticNorthData());
     if (pcSimState.readMap.getLayer('magnetic-north-layer')) {
       pcSimState.readMap.setLayoutProperty('magnetic-north-layer', 'visibility', magnVis);
       applyMagneticLineColor(pcSimState.readMap);
