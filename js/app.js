@@ -41,8 +41,8 @@ import {
   updateMapLayerState, clearAllMapLayers, estimateStorageUsage,
 } from './api/mapImageDb.js';
 
-import { buildTreeData }          from './tree/treeStore.js';
-import { initRenderer, renderItem } from './tree/renderTreeItem.js';
+import { buildTreeData }          from './ui/tree/treeStore.js';
+import { initRenderer, renderItem } from './ui/tree/renderTreeItem.js';
 import {
   generateSlopeDataTile, generateReliefDataTile, generateCurveDataTile,
   SLOPE_DATA_MIN, SLOPE_DATA_MAX, RELIEF_DATA_MIN, RELIEF_DATA_MAX, CURVE_DATA_MIN, CURVE_DATA_MAX,
