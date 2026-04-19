@@ -37,7 +37,6 @@
 import { getDeclination, setDeclinationModel } from './core/magneticDeclination.js';
 import { initCoursePlanner, setMapLayersGetter, setImportDoneCallback, setCourseMapVisible, getCoursesSummary, createCourseForTerrain, setActiveCourse, setCourseTerrainId, createEvent, loadEvent, loadCourseSet, getActiveEventId, getActiveCourseSetId, showAllControlsTab, deleteEvent, deleteCourseSet, createCourseSet, moveCourseSet, getActiveEventName, addCourseToActiveEvent, deleteCourseById, renameEvent, renameCourseSet, renameCourse, migrateCourseSets, flushSave } from './core/course.js';
 import {
-  saveMapLayer,
   updateMapLayerState, clearAllMapLayers, estimateStorageUsage,
 } from './api/mapImageDb.js';
 
