@@ -103,6 +103,10 @@ import {
   formatMMSS, updateSeekBarGradient, updateTimeDisplay,
   interpolateGpxPosition, toggleGpxPlayPause, toggleGpx3dMode,
 } from './gpx/gpxPlayer.js';
+import {
+  init as initScaleDisplay,
+  getCurrentDevicePPI, updatePpiRuler, updatePpiSliderBubble, updateScaleDisplay,
+} from './ui/components/scaleDisplay.js';
 
 // ベースマップ切替の状態管理
 // oriLibreLayers: isomizer が追加したレイヤーを [{ id, defaultVisibility }] 形式で保持
@@ -1000,6 +1004,9 @@ map.on('load', async () => {
   initGpxCamera(map);
   initGpxLoader(map);
   initGpxPlayer(map);
+
+  // 縮尺表示・PPI設定モジュール初期化
+  initScaleDisplay(map, { updateSliderGradient });
 
   // 地図が安定表示されたらURLをフル状態に更新（Google Maps方式）
   // hash:true がハッシュを確定した後に updateShareableUrl を呼ぶことで
@@ -7285,269 +7292,6 @@ document.getElementById('explorer-json-input')?.addEventListener('change', async
 });
 
 // ================================================================
-// ---- 縮尺セレクト（現在の縮尺をリアルタイム表示 ＋ プリセット選択でズーム） ----
-// モニターの物理PPIを考慮した実寸縮尺を計算・表示する。
-// 物理PPI: ユーザーが選択したモニターの実際のピクセル密度
-// effectiveDPI（CSS px/inch）= physicalPPI / DPR
-// → 地上分解能(m/CSS px) × effectiveDPI / 0.0254(m/inch) = 縮尺分母
-const _allDevicePpis = DEVICE_PPI_DATA.flatMap(cat => cat.devices.map(d => d.ppi));
-let currentDevicePPI = (() => {
-  const saved = parseInt(localStorage.getItem('teledrop-device-ppi'), 10);
-  return (saved && _allDevicePpis.includes(saved)) ? saved : DEFAULT_DEVICE_PPI;
-})();
-
-// PPI値からデバイス名を返す
-function findDeviceName(ppi) {
-  for (const cat of DEVICE_PPI_DATA) {
-    const dev = cat.devices.find(d => d.ppi === ppi);
-    if (dev) return dev.name;
-  }
-  return `${ppi} ppi`;
-}
-
-// カスケードメニューを構築し、イベントを登録する
-// メニュー・サブメニューを body 直下に配置し position:fixed で座標を JS 計算することで
-// パネルの overflow:hidden によるクリップを回避する
-(function buildPpiCascade() {
-  const btn   = document.getElementById('ppi-cascade-btn');
-  const label = document.getElementById('ppi-cascade-label');
-  const menu  = document.getElementById('ppi-cascade-menu');
-  if (!btn || !menu) return;
-
-  // body 直下に移動してオーバーフロークリップを回避
-  document.body.appendChild(menu);
-
-  // メニュー項目を生成（サブメニューは個別に body に追加）
-  const subs = []; // 各カテゴリのサブメニュー要素を保持
-  menu.innerHTML = DEVICE_PPI_DATA.map((cat, i) =>
-    `<div class="ppi-cascade-cat" data-cat-idx="${i}">
-      <span>${cat.category}</span>
-      <span class="ppi-cascade-cat-arrow">▶</span>
-    </div>`
-  ).join('');
-
-  DEVICE_PPI_DATA.forEach((cat, i) => {
-    const sub = document.createElement('div');
-    sub.className = 'ppi-cascade-sub';
-    sub.innerHTML = cat.devices.map(dev =>
-      `<div class="ppi-cascade-item${dev.ppi === currentDevicePPI ? ' selected' : ''}" data-ppi="${dev.ppi}">
-        <span>${dev.name}</span>
-        <span class="ppi-cascade-item-ppi">${dev.ppi} ppi</span>
-      </div>`
-    ).join('');
-    document.body.appendChild(sub);
-    subs.push(sub);
-  });
-
-  function closeAll() {
-    menu.classList.remove('open');
-    subs.forEach(s => { s.style.display = ''; });
-  }
-
-  // ボタンクリックでメニューを fixed 座標に表示
-  btn.addEventListener('click', e => {
-    e.stopPropagation();
-    if (menu.classList.contains('open')) { closeAll(); return; }
-    const r = btn.getBoundingClientRect();
-    menu.style.top  = (r.bottom + 2) + 'px';
-    menu.style.left = r.left + 'px';
-    menu.classList.add('open');
-  });
-
-  // カテゴリホバーでサブメニューを fixed 座標に表示
-  menu.querySelectorAll('.ppi-cascade-cat').forEach(catEl => {
-    const idx = parseInt(catEl.dataset.catIdx, 10);
-    const sub = subs[idx];
-    catEl.addEventListener('mouseenter', () => {
-      // 他のカテゴリのサブメニューと .open を閉じる
-      menu.querySelectorAll('.ppi-cascade-cat').forEach(c => c.classList.remove('open'));
-      subs.forEach(s => { s.style.display = ''; });
-      catEl.classList.add('open');
-      const r = catEl.getBoundingClientRect();
-      sub.style.top  = r.top + 'px';
-      sub.style.left = r.right + 'px';
-      sub.style.display = 'block';
-    });
-    // カテゴリ行からサブメニューへ移動した場合は閉じない
-    catEl.addEventListener('mouseleave', e => {
-      if (sub.contains(e.relatedTarget)) return;
-      sub.style.display = '';
-      catEl.classList.remove('open');
-    });
-    sub.addEventListener('mouseleave', e => {
-      if (catEl.contains(e.relatedTarget)) return;
-      sub.style.display = '';
-      catEl.classList.remove('open');
-    });
-  });
-
-  // 外クリックで閉じる
-  document.addEventListener('click', e => {
-    if (!btn.contains(e.target) && !menu.contains(e.target) && !subs.some(s => s.contains(e.target))) {
-      closeAll();
-    }
-  });
-
-  // デバイス選択
-  subs.forEach(sub => {
-    sub.addEventListener('click', e => {
-      const item = e.target.closest('.ppi-cascade-item');
-      if (!item) return;
-      const ppi = parseInt(item.dataset.ppi, 10);
-      currentDevicePPI = ppi;
-      localStorage.setItem('teledrop-device-ppi', ppi);
-      label.textContent = findDeviceName(ppi);
-      subs.forEach(s => s.querySelectorAll('.ppi-cascade-item').forEach(el =>
-        el.classList.toggle('selected', parseInt(el.dataset.ppi, 10) === ppi)
-      ));
-      closeAll();
-      updateScaleDisplay();
-      updatePpiRuler();
-      // 手動スライダーをプリセット値に同期
-      const _ms = document.getElementById('ppi-manual-slider');
-      if (_ms) { _ms.value = ppi; updateSliderGradient(_ms); updatePpiSliderBubble(_ms); }
-    });
-  });
-
-  // 初期ラベルを設定
-  label.textContent = findDeviceName(currentDevicePPI);
-})();
-
-// 実寸定規を SVG で描画する
-// 目盛り幅は PPI に基づく固定間隔。コンテナ幅に合わせて右端でクリップされる（Inkscape スタイル）
-function updatePpiRuler() {
-  const svg = document.getElementById('ppi-ruler');
-  if (!svg) return;
-  const dpr     = window.devicePixelRatio || 1;
-  const pxPerMm = currentDevicePPI / (dpr * 25.4); // CSS px per mm
-
-  // SVG 幅 = 親コンテナの実幅（overflow:hidden でクリップ）
-  const containerW = svg.parentElement ? svg.parentElement.clientWidth : 0;
-  const W   = containerW > 0 ? containerW : 240;
-  const H   = 34;
-  const BASE = H - 2; // ベースラインY
-
-  svg.setAttribute('width', W);
-
-  const lines = [];
-  const texts = [];
-
-  // 左端に "0" ラベルが収まるよう小さなオフセット（文字幅の半分程度）を設ける
-  const OX = 16; // 左端オフセット（px）
-  const RW = W; // 描画幅（コンテナ全幅）
-  // ベースライン（全幅）と 0 目盛り縦線
-  lines.push(`<path d="M${OX},${BASE - 16} L${OX},${BASE} L${RW},${BASE}" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linejoin="miter"/>`);
-  // 0 ラベル（目盛り中央揃え）
-  texts.push(`<text x="${OX}" y="${BASE - 18}" font-size="11" fill="currentColor" font-family="system-ui,sans-serif" font-weight="500" text-anchor="middle">0</text>`);
-
-  // 1mm 刻みで目盛りを描画し、描画幅を超えたら終了（右端でクリップ）
-  for (let mm = 1; OX + mm * pxPerMm <= RW + 0.5; mm++) {
-    const x     = OX + mm * pxPerMm;
-    const isCm  = mm % 10 === 0;
-    const is5mm = mm % 5 === 0;
-    const tickH = isCm ? 16 : is5mm ? 10 : 5;
-    lines.push(`<line x1="${x.toFixed(2)}" y1="${BASE - tickH}" x2="${x.toFixed(2)}" y2="${BASE}" stroke="currentColor" stroke-width="${isCm ? 1.5 : 1}"/>`);
-    if (isCm) {
-      texts.push(`<text x="${x.toFixed(2)}" y="${BASE - 18}" font-size="11" fill="currentColor" font-family="system-ui,sans-serif" font-weight="500" text-anchor="middle">${mm / 10}</text>`);
-    }
-  }
-
-  svg.innerHTML = lines.join('') + texts.join('');
-}
-
-// スライダーつまみの位置に追従してバブルを更新する
-// 位置は CSS calc(var(--pct) * (100% - 12px) + 6px) で計算するため offsetWidth 不要
-function updatePpiSliderBubble(slider) {
-  const bubble = document.getElementById('ppi-slider-bubble');
-  const numEl  = document.getElementById('ppi-current-display');
-  if (!slider) return;
-  const pct = (parseFloat(slider.value) - parseFloat(slider.min))
-            / (parseFloat(slider.max)  - parseFloat(slider.min));
-  if (bubble) {
-    bubble.style.setProperty('--pct', pct);
-    bubble.textContent = Math.round(slider.value);
-  }
-  if (numEl) numEl.textContent = Math.round(slider.value);
-}
-
-updatePpiRuler();
-
-// 手動PPIスライダー — ドラッグ中にリアルタイムで定規・縮尺を更新
-{
-  const _slider = document.getElementById('ppi-manual-slider');
-  const _val    = document.getElementById('ppi-manual-val');
-  if (_slider) {
-    // 初期値を currentDevicePPI に合わせる
-    _slider.value = currentDevicePPI;
-    updateSliderGradient(_slider);
-    updatePpiSliderBubble(_slider);
-    _slider.addEventListener('input', () => {
-      const ppi = parseInt(_slider.value, 10);
-      currentDevicePPI = ppi;
-      localStorage.setItem('teledrop-device-ppi', ppi);
-      updateSliderGradient(_slider);
-      updatePpiSliderBubble(_slider);
-      updateScaleDisplay();
-      updatePpiRuler();
-      // 手動操作時はプリセット選択を解除
-      const _lbl = document.getElementById('ppi-cascade-label');
-      if (_lbl) _lbl.textContent = 'カスタム';
-      document.querySelectorAll('.ppi-cascade-item').forEach(el => el.classList.remove('selected'));
-    });
-  }
-}
-
-// MapLibre GL JS のデフォルト tileSize は 512px
-// → ワールド幅 = 512 × 2^zoom CSS px
-// → 地上分解能 = 2π × 6378137 × cos(lat) / (512 × 2^zoom)
-//              = 78271.51696 × cos(lat) / 2^zoom  [m/CSS px]
-// ※ 旧来の Web メルカトル定数 156543.03392 は 256px タイル用であり
-//    MapLibre で使うと縮尺分母が 2 倍になるため使用しない
-const _MERCATOR_COEFF = 78271.51696; // 2π × 6378137 / 512
-
-// 現在の地図ズーム・中心緯度から縮尺分母を計算する
-// effectiveDPI = 物理PPI / DPR （CSS ピクセルあたりの物理インチ逆数）
-function calcScaleDenominator() {
-  const center = map.getCenter();
-  const zoom = map.getZoom();
-  const groundRes = _MERCATOR_COEFF * Math.cos(center.lat * Math.PI / 180) / Math.pow(2, zoom);
-  const effectiveDPI = currentDevicePPI / (window.devicePixelRatio || 1);
-  return Math.round(groundRes * effectiveDPI / 0.0254);
-}
-
-// 縮尺分母からズームレベルを計算して地図を移動するヘルパー
-function zoomToScale(targetScale) {
-  if (!targetScale) return;
-  const center = map.getCenter();
-  const effectiveDPI = currentDevicePPI / (window.devicePixelRatio || 1);
-  const targetGroundRes = targetScale * 0.0254 / effectiveDPI;
-  const zoom = Math.log2(_MERCATOR_COEFF * Math.cos(center.lat * Math.PI / 180) / targetGroundRes);
-  map.easeTo({ zoom, duration: EASE_DURATION });
-}
-
-const selScale = document.getElementById('sel-scale');
-const optCurrentScale = document.getElementById('opt-current-scale');
-
-// 先頭オプション（現在の縮尺＋ズーム）のテキストを更新し、先頭を選択状態に戻す
-function updateScaleDisplay() {
-  const s = calcScaleDenominator();
-  const z = map.getZoom().toFixed(1);
-  optCurrentScale.textContent = `1 : ${s.toLocaleString()} (z${z})`;
-  selScale.selectedIndex = 0;
-  selScale._csSync?.(); // カスタムセレクトのボタン表示を同期
-}
-
-// 地図の移動・ズームに連動してリアルタイム更新
-map.on('move', updateScaleDisplay);
-map.on('zoom', updateScaleDisplay);
-map.once('idle', updateScaleDisplay);
-
-// プリセット選択時 → その縮尺にズーム（map.on('move') が発火して先頭オプションに自動復帰）
-selScale.addEventListener('change', () => {
-  const val = parseInt(selScale.value, 10);
-  if (val) zoomToScale(val);
-});
-
 map.once('idle', () => { updateSidebarWidth(); });
 
 
@@ -8994,7 +8738,7 @@ function openSysSettingsModal() {
   document.getElementById('sys-settings-modal').style.display = 'flex';
   // バブル位置は CSS calc(--pct) で決まるため即時更新可
   const _ms = document.getElementById('ppi-manual-slider');
-  if (_ms) { _ms.value = currentDevicePPI; updateSliderGradient(_ms); updatePpiSliderBubble(_ms); }
+  if (_ms) { _ms.value = getCurrentDevicePPI(); updateSliderGradient(_ms); updatePpiSliderBubble(_ms); }
   // 定規は clientWidth が必要。二重 rAF でレイアウト確定後に取得する
   requestAnimationFrame(() => requestAnimationFrame(() => { updatePpiRuler(); }));
 }
