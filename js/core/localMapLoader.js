@@ -2,9 +2,9 @@
    localMapLoader.js — KMZ / 画像+JGW の読み込みと地図追加
    ================================================================ */
 
-import { addLocalMapLayer }   from '../store/localMapStore.js';
-import { saveMapLayer }       from '../api/mapImageDb.js';
-import { emit }               from '../store/eventBus.js';
+import { addLocalMapLayer }           from '../store/localMapStore.js';
+import { saveMapLayer, getAllMapLayers } from '../api/mapImageDb.js';
+import { emit }                        from '../store/eventBus.js';
 import {
   SIDEBAR_DEFAULT_WIDTH, FIT_BOUNDS_PAD, FIT_BOUNDS_PAD_SIDEBAR,
   EASE_DURATION, INITIAL_PITCH,
@@ -363,4 +363,38 @@ export async function loadImageWithJgw(imageFile, jgwText, crsValue) {
     .catch(e => console.warn('画像+JGW の DB 保存に失敗:', e));
 
   console.log(`画像+JGW 読み込み完了: ${imageFile.name}`, { crsValue, coordinates });
+}
+
+/* ----------------------------------------------------------------
+   restoreMapLayersFromDb — IndexedDB に保存された地図を起動時に復元する
+   ---------------------------------------------------------------- */
+export async function restoreMapLayersFromDb() {
+  let saved;
+  try {
+    saved = await getAllMapLayers();
+  } catch (err) {
+    console.warn('IndexedDB 読み込みエラー（地図の復元をスキップ）:', err);
+    return;
+  }
+  if (!saved || saved.length === 0) return;
+
+  for (const rec of saved) {
+    try {
+      const entry = addLocalMapLayer(
+        rec.imageBlob, rec.coordinates, rec.name,
+        {
+          opacity:     rec.opacity,
+          visible:     rec.visible,
+          terrainId:   rec.terrainId   ?? null,
+          terrainName: rec.terrainName ?? null,
+          mapSheetId:  rec.mapSheetId  ?? null,
+        }
+      );
+      entry.dbId = rec.id;
+    } catch (err) {
+      console.warn(`DB レコード id=${rec.id} の復元に失敗:`, err);
+    }
+  }
+  emit('localmap:changed');
+  console.log(`IndexedDB から ${saved.length} 件の地図を復元しました`);
 }

@@ -37,7 +37,7 @@
 import { getDeclination, setDeclinationModel } from './core/magneticDeclination.js';
 import { initCoursePlanner, setMapLayersGetter, setImportDoneCallback, setCourseMapVisible, getCoursesSummary, createCourseForTerrain, setActiveCourse, setCourseTerrainId, createEvent, loadEvent, loadCourseSet, getActiveEventId, getActiveCourseSetId, showAllControlsTab, deleteEvent, deleteCourseSet, createCourseSet, moveCourseSet, getActiveEventName, addCourseToActiveEvent, deleteCourseById, renameEvent, renameCourseSet, renameCourse, migrateCourseSets, flushSave } from './core/course.js';
 import {
-  saveMapLayer, getAllMapLayers,
+  saveMapLayer,
   updateMapLayerState, clearAllMapLayers, estimateStorageUsage,
 } from './api/mapImageDb.js';
 
@@ -91,7 +91,7 @@ import {
   getSidebarPanel, isSidebarOpen,
   updateSidebarWidth, restoreSidebarState, initSidebarNav,
 } from './ui/uiState.js';
-import { emit, on } from './store/eventBus.js';
+import { on } from './store/eventBus.js';
 import { gpxState, GPX_CAM_DIST_MIN, GPX_CAM_DIST_MAX } from './gpx/gpxState.js';
 import {
   init as initGpxCamera,
@@ -125,7 +125,7 @@ import {
 import { loadPersistedState, savePersistedState } from './store/uiPersistence.js';
 import {
   init as initLocalMapStore,
-  localMapLayers, toRasterOpacity, addLocalMapLayer, removeLocalMapLayer,
+  localMapLayers, toRasterOpacity, removeLocalMapLayer,
 } from './store/localMapStore.js';
 import {
   init as initImportModal,
@@ -133,7 +133,7 @@ import {
 } from './ui/modals/importModal.js';
 import {
   init as initLocalMapLoader,
-  loadKmz, loadImageWithJgw,
+  loadKmz, loadImageWithJgw, restoreMapLayersFromDb,
 } from './core/localMapLoader.js';
 import {
   initImgwModal, openImgwModal,
@@ -1079,39 +1079,6 @@ map.on('load', async () => {
 });
 
 
-/* =====================================================================
-   restoreMapLayersFromDb — IndexedDB に保存された地図を起動時に復元する
-   ===================================================================== */
-async function restoreMapLayersFromDb() {
-  let saved;
-  try {
-    saved = await getAllMapLayers();
-  } catch (err) {
-    console.warn('IndexedDB 読み込みエラー（地図の復元をスキップ）:', err);
-    return;
-  }
-  if (!saved || saved.length === 0) return;
-
-  for (const rec of saved) {
-    try {
-      const entry = addLocalMapLayer(
-        rec.imageBlob, rec.coordinates, rec.name,
-        {
-          opacity:     rec.opacity,
-          visible:     rec.visible,
-          terrainId:   rec.terrainId   ?? null,
-          terrainName: rec.terrainName ?? null,
-          mapSheetId:  rec.mapSheetId  ?? null,
-        }
-      );
-      entry.dbId = rec.id;
-    } catch (err) {
-      console.warn(`DB レコード id=${rec.id} の復元に失敗:`, err);
-    }
-  }
-  renderLocalMapList();
-  console.log(`IndexedDB から ${saved.length} 件の地図を復元しました`);
-}
 
 // 地図種別・サブタイプの日本語表示マップ
 const MAP_TYPE_JA    = { sprint: 'スプリント', forest: 'フォレスト' };
