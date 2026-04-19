@@ -108,6 +108,7 @@ import {
   getCurrentDevicePPI, updatePpiRuler, updatePpiSliderBubble, updateScaleDisplay,
 } from './ui/components/scaleDisplay.js';
 import { updateSliderGradient } from './utils/slider.js';
+import { escHtml, downloadDataUrl } from './utils/dom.js';
 
 // ベースマップ切替の状態管理
 // oriLibreLayers: isomizer が追加したレイヤーを [{ id, defaultVisibility }] 形式で保持
@@ -1149,10 +1150,6 @@ const MAP_TYPE_JA    = { sprint: 'スプリント', forest: 'フォレスト' };
 const MAP_SUBTYPE_JA = { stadium: 'スタジアム', school: '学校', park: '公園', urban: '市街地', campus: 'キャンパス' };
 
 
-// HTML 特殊文字をエスケープしてインジェクションを防ぐ
-function escHtml(str) {
-  return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
 
 
 
@@ -5646,16 +5643,6 @@ document.getElementById('basemap-cards').addEventListener('click', (e) => {
 
 
 // ---- サムネイル生成関連 ----
-
-function downloadDataUrl(dataUrl, filename) {
-  const a = document.createElement('a');
-  a.href = dataUrl;
-  a.download = filename;
-  a.style.display = 'none';
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-}
 
 // ---- 開発者向け: 地図中央切り取り PNG 出力ツール ----
 (function () {
