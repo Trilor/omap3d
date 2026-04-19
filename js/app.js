@@ -37,7 +37,7 @@
 import { getDeclination, setDeclinationModel } from './core/magneticDeclination.js';
 import { initCoursePlanner, setMapLayersGetter, setImportDoneCallback, setCourseMapVisible, getCoursesSummary, createCourseForTerrain, setActiveCourse, setCourseTerrainId, createEvent, loadEvent, loadCourseSet, getActiveEventId, getActiveCourseSetId, showAllControlsTab, deleteEvent, deleteCourseSet, createCourseSet, moveCourseSet, getActiveEventName, addCourseToActiveEvent, deleteCourseById, renameEvent, renameCourseSet, renameCourse, migrateCourseSets, flushSave } from './core/course.js';
 import {
-  saveMapLayer, getAllMapLayers, deleteMapLayer,
+  saveMapLayer, getAllMapLayers,
   updateMapLayerState, clearAllMapLayers, estimateStorageUsage,
 } from './api/mapImageDb.js';
 
@@ -125,7 +125,7 @@ import {
 import { loadPersistedState, savePersistedState } from './store/uiPersistence.js';
 import {
   init as initLocalMapStore,
-  localMapLayers, toRasterOpacity, addLocalMapLayer,
+  localMapLayers, toRasterOpacity, addLocalMapLayer, removeLocalMapLayer,
 } from './store/localMapStore.js';
 import {
   init as initImportModal,
@@ -2254,24 +2254,6 @@ function renderSimReadmapList() {
 }
 
 
-/*
-  ローカル地図レイヤーを地図・リスト・IndexedDB から削除する
-*/
-function removeLocalMapLayer(id) {
-  const idx = localMapLayers.findIndex(e => e.id === id);
-  if (idx === -1) return;
-
-  const entry = localMapLayers[idx];
-  if (map.getLayer(entry.layerId))  map.removeLayer(entry.layerId);
-  if (map.getSource(entry.sourceId)) map.removeSource(entry.sourceId);
-  URL.revokeObjectURL(entry.objectUrl);
-  // IndexedDB に保存済みなら削除する
-  if (entry.dbId != null) {
-    deleteMapLayer(entry.dbId).catch(e => console.warn('DB 削除失敗:', e));
-  }
-  localMapLayers.splice(idx, 1);
-  renderLocalMapList();
-}
 
 
 /* ========================================================

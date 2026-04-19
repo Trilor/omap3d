@@ -3,6 +3,8 @@
    ================================================================ */
 
 import { OMAP_INITIAL_OPACITY } from '../core/config.js';
+import { deleteMapLayer } from '../api/mapImageDb.js';
+import { emit } from './eventBus.js';
 
 let _map = null;
 
@@ -87,4 +89,22 @@ export function addLocalMapLayer(imageBlob, coordinates, name, {
   };
   localMapLayers.push(entry);
   return entry;
+}
+
+/* ----------------------------------------------------------------
+   removeLocalMapLayer — 地図・配列・IndexedDB からレイヤーを削除する
+   ---------------------------------------------------------------- */
+export function removeLocalMapLayer(id) {
+  const idx = localMapLayers.findIndex(e => e.id === id);
+  if (idx === -1) return;
+
+  const entry = localMapLayers[idx];
+  if (_map.getLayer(entry.layerId))   _map.removeLayer(entry.layerId);
+  if (_map.getSource(entry.sourceId)) _map.removeSource(entry.sourceId);
+  URL.revokeObjectURL(entry.objectUrl);
+  if (entry.dbId != null) {
+    deleteMapLayer(entry.dbId).catch(e => console.warn('DB 削除失敗:', e));
+  }
+  localMapLayers.splice(idx, 1);
+  emit('localmap:changed');
 }
