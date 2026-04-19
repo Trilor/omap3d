@@ -109,6 +109,12 @@ import {
 } from './ui/components/scaleDisplay.js';
 import { updateSliderGradient } from './utils/slider.js';
 import { escHtml, downloadDataUrl } from './utils/dom.js';
+import {
+  init as initAttribution,
+  initAttributionObserver,
+  updateBasemapAttribution, updateRegionalAttribution,
+  updatePlateauAttribution, updateMagneticAttribution,
+} from './core/attribution.js';
 
 // ベースマップ切替の状態管理
 // oriLibreLayers: isomizer が追加したレイヤーを [{ id, defaultVisibility }] 形式で保持
@@ -1009,6 +1015,12 @@ map.on('load', async () => {
 
   // 縮尺表示・PPI設定モジュール初期化
   initScaleDisplay(map);
+
+  // 出典管理モジュール初期化（currentBasemap / currentOverlay をゲッターで注入）
+  initAttribution(map, {
+    getBasemap: () => currentBasemap,
+    getOverlay: () => currentOverlay,
+  });
 
   // 地図が安定表示されたらURLをフル状態に更新（Google Maps方式）
   // hash:true がハッシュを確定した後に updateShareableUrl を呼ぶことで
@@ -3578,124 +3590,6 @@ function updateMagneticNorth() {
 }
 
 // 都道府県別CS出典の動的表示
-// 要素を lazy に取得し、ビューポートと bounds が重なる都道府県のみ出典を表示する。
-// map.on('load') の外で定義することで chkCs ハンドラーからも呼び出せる。
-let _lastAttrKey = null; // bounds+zoom のキャッシュ（変化がなければ更新をスキップ）
-let _attrObserver = null;
-
-function updateBasemapAttribution() {
-  const attrInner = document.querySelector('.maplibregl-ctrl-attrib-inner');
-  if (!attrInner) return;
-  let attrEl = document.getElementById('basemap-attr');
-  if (!attrEl) {
-    attrEl = document.createElement('span');
-    attrEl.id = 'basemap-attr';
-    attrInner.insertBefore(attrEl, attrInner.firstChild);
-  } else if (attrEl.parentNode !== attrInner) {
-    attrInner.insertBefore(attrEl, attrInner.firstChild);
-  }
-  const attr = BASEMAPS[currentBasemap]?.attr;
-  attrEl.innerHTML = attr ? attr + ' | ' : '';
-}
-
-function initAttributionObserver() {
-  const attrInner = document.querySelector('.maplibregl-ctrl-attrib-inner');
-  if (!attrInner) return false;
-  if (_attrObserver) _attrObserver.disconnect();
-  _attrObserver = new MutationObserver(() => {
-    _attrObserver.disconnect();
-    updateBasemapAttribution();
-    updatePlateauAttribution();
-    updateMagneticAttribution();
-    _attrObserver.observe(attrInner, { childList: true, subtree: true });
-  });
-  _attrObserver.observe(attrInner, { childList: true, subtree: true });
-  updateBasemapAttribution();
-  updatePlateauAttribution();
-  updateMagneticAttribution();
-  return true;
-}
-
-function updateRegionalAttribution() {
-  let attrEl = document.getElementById('regional-cs-attr');
-  if (!attrEl) {
-    const attrInner = document.querySelector('.maplibregl-ctrl-attrib-inner');
-    if (!attrInner) return;
-    attrEl = document.createElement('span');
-    attrEl.id = 'regional-cs-attr';
-    attrInner.appendChild(attrEl);
-  }
-  const _csOverlay  = currentOverlay;
-  const _csBasemap  = currentBasemap;
-  const _csKey      = _csOverlay !== 'none' ? _csOverlay : _csBasemap;
-  const csRegionalOn = (_csKey === 'cs' || _csKey === 'cs-0.5m') && map.getZoom() >= 16;
-  if (!csRegionalOn) {
-    attrEl.innerHTML = '';
-    _lastAttrKey = null;
-    return;
-  }
-  const z = map.getZoom();
-  const b = map.getBounds();
-  // bounds + zoom を0.01° / 0.1zoom 精度で文字列化してキャッシュキーにする
-  const key = `${z.toFixed(1)},${b.getWest().toFixed(2)},${b.getSouth().toFixed(2)},${b.getEast().toFixed(2)},${b.getNorth().toFixed(2)}`;
-  if (key === _lastAttrKey) return; // 変化なし → スキップ
-  _lastAttrKey = key;
-  const html = REGIONAL_CS_LAYERS
-    .filter(l =>
-      z >= 16 &&
-      b.getWest()  < l.bounds[2] &&
-      b.getEast()  > l.bounds[0] &&
-      b.getSouth() < l.bounds[3] &&
-      b.getNorth() > l.bounds[1]
-    )
-    .map(l => l.attribution)
-    .join(' | ');
-  attrEl.innerHTML = html ? ' | ' + html : '';
-}
-
-function updatePlateauAttribution() {
-  let attrEl = document.getElementById('plateau-attr');
-  if (!attrEl) {
-    const attrInner = document.querySelector('.maplibregl-ctrl-attrib-inner');
-    if (!attrInner) return;
-    attrEl = document.createElement('span');
-    attrEl.id = 'plateau-attr';
-    attrInner.appendChild(attrEl);
-  }
-  const buildingOn = document.getElementById('building3d-card')?.classList.contains('active') ?? false;
-  const mode       = document.getElementById('sel-building')?.value ?? 'plateau';
-  const plateauLink = ' | <a href="https://www.mlit.go.jp/plateau/open-data/" target="_blank">国土交通省3D都市モデルPLATEAU</a>';
-  const areaLabel = document.getElementById('plateau-area-label')?.textContent ?? '';
-  attrEl.innerHTML = !buildingOn ? ''
-    : mode === 'plateau'          ? plateauLink + '（<a href="https://github.com/shiwaku/mlit-plateau-bldg-pmtiles" target="_blank">shiwaku</a>加工）'
-    : mode === 'plateau-lod2-api' ? plateauLink + (areaLabel && areaLabel !== '—' ? `（${areaLabel} LOD2）` : '（LOD2）')
-    : mode === 'plateau-lod3-api' ? plateauLink + (areaLabel && areaLabel !== '—' ? `（${areaLabel} LOD3）` : '（LOD3）')
-    : '';
-}
-
-// 磁北線モデル別の出典情報
-const MAGNETIC_ATTRIBUTIONS = {
-  wmm2020: '<a href="https://www.ngdc.noaa.gov/geomag/WMM/" target="_blank" rel="noopener">WMM2020/NOAA</a>を加工して作成',
-  wmm2025: '<a href="https://www.ngdc.noaa.gov/geomag/WMM/" target="_blank" rel="noopener">WMM2025/NOAA</a>を加工して作成',
-  gsi2020: '<a href="https://vldb.gsi.go.jp/sokuchi/geomag/menu_04/index.html" target="_blank" rel="noopener">国土地理院 地磁気値(2020.0年値)</a>を加工して作成',
-};
-
-/** 磁北線の出典表示を選択中モデルに合わせて更新する */
-function updateMagneticAttribution() {
-  let attrEl = document.getElementById('magnetic-attr');
-  if (!attrEl) {
-    const attrInner = document.querySelector('.maplibregl-ctrl-attrib-inner');
-    if (!attrInner) return;
-    attrEl = document.createElement('span');
-    attrEl.id = 'magnetic-attr';
-    attrInner.appendChild(attrEl);
-  }
-  const isOn  = document.getElementById('magnetic-card')?.classList.contains('active') ?? false;
-  const model = document.getElementById('sel-magnetic-model')?.value ?? 'wmm2025';
-  attrEl.innerHTML = isOn ? ' | ' + (MAGNETIC_ATTRIBUTIONS[model] ?? '') : '';
-}
-
-// ---- CS立体図 オーバーレイ制御 ----
 // 0.5m モードはズーム17以上で地域CSを表示し、ズーム17未満は1mに自動フォールバック
 let currentOverlay = 'none'; // 選択中のオーバーレイキー（'none' = オーバーレイなし）
 
