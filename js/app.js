@@ -34,19 +34,19 @@
 
    ================================================================ */
 
-import { getDeclination, setDeclinationModel } from './magneticDeclination.js';
+import { getDeclination, setDeclinationModel } from './core/magneticDeclination.js';
 import { initCoursePlanner, setMapLayersGetter, setImportDoneCallback, setCourseMapVisible, getCoursesSummary, createCourseForTerrain, setActiveCourse, setCourseTerrainId, createEvent, loadEvent, loadCourseSet, getActiveEventId, getActiveCourseSetId, showAllControlsTab, deleteEvent, deleteCourseSet, createCourseSet, moveCourseSet, getActiveEventName, addCourseToActiveEvent, deleteCourseById, renameEvent, renameCourseSet, renameCourse, migrateCourseSets, flushSave } from './course.js';
 import {
   saveMapLayer, getAllMapLayers, deleteMapLayer,
   updateMapLayerState, clearAllMapLayers, estimateStorageUsage,
-} from './mapImageDb.js';
+} from './api/mapImageDb.js';
 
 import { buildTreeData }          from './tree/treeStore.js';
 import { initRenderer, renderItem } from './tree/renderTreeItem.js';
 import {
   generateSlopeDataTile, generateReliefDataTile, generateCurveDataTile,
   SLOPE_DATA_MIN, SLOPE_DATA_MAX, RELIEF_DATA_MIN, RELIEF_DATA_MAX, CURVE_DATA_MIN, CURVE_DATA_MAX,
-} from './protocols.js';
+} from './core/protocols.js';
 import {
   QCHIZU_DEM_BASE, QCHIZU_PROXY_BASE, DEM5A_BASE, DEM1A_BASE,
   // LAKEDEPTH_BASE, LAKEDEPTH_STANDARD_BASE, // 湖水深タイルは廃止（2026-03-23）
@@ -59,7 +59,7 @@ import {
   BASEMAPS,
   DEVICE_PPI_DATA, DEFAULT_DEVICE_PPI,
   RELIEF_PALETTES,
-} from './config.js';
+} from './core/config.js';
 
 import {
   contourState,
@@ -67,7 +67,7 @@ import {
   COLOR_CONTOUR_Q_IDS, COLOR_CONTOUR_DEM5A_IDS, COLOR_CONTOUR_DEM1A_IDS,
   setAllContourVisibility, buildColorContourExpr, buildContourThresholds,
   buildContourTileUrl, buildSeamlessContourTileUrl, buildDem1aContourTileUrl,
-} from './contours.js';
+} from './core/contours.js';
 
 import {
   searchTerrainsApi,
@@ -83,7 +83,7 @@ import {
   saveWsMapSheet, getMapSheetsByEvent, getWsMapSheet, deleteWsMapSheet,
   getCourseSetsForEvent, getCourseSetsForTerrain, getWsCourseSet, saveWsCourseSet,
   getCoursesBySet,
-} from './workspace-db.js';
+} from './api/workspace-db.js';
 
 
 // ベースマップ切替の状態管理

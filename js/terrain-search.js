@@ -11,7 +11,7 @@
  *   結果をマージして返す。
  */
 
-import { getWsTerrains } from './workspace-db.js';
+import { getWsTerrains } from './api/workspace-db.js';
 
 // ================================================================
 // ダミーテレインデータ（Phase 1 専用）

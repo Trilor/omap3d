@@ -5,7 +5,7 @@
      2. app.js        … 地図初期化・KMZ・GPX・UI イベント
    ================================================================ */
 
-import './protocols.js';
-import './workspace-db.js';
+import './core/protocols.js';
+import './api/workspace-db.js';
 import './terrain-search.js';
 import './app.js';

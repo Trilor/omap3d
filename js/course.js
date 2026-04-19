@@ -15,7 +15,7 @@
 
    ================================================================ */
 
-import { QCHIZU_DEM_BASE, DEM5A_BASE, ROUTE_COLORS, routeColor, ROUTE_COLOR_CMYK } from './config.js';
+import { QCHIZU_DEM_BASE, DEM5A_BASE, ROUTE_COLORS, routeColor, ROUTE_COLOR_CMYK } from './core/config.js';
 import {
   getAllWsEvents,
   getWsEvent,
@@ -32,7 +32,7 @@ import {
   getCourseSetsForEvent,
   getAllWsCourseSets,
   deleteWsCourseSet,
-} from './workspace-db.js';
+} from './api/workspace-db.js';
 
 // ================================================================
 // 定数
