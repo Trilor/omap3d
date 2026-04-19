@@ -54,7 +54,7 @@ import {
   REGIONAL_CS_LAYERS, REGIONAL_RRIM_LAYERS,
   REGIONAL_RELIEF_LAYERS, REGIONAL_SLOPE_LAYERS, REGIONAL_CURVE_LAYERS,
   INITIAL_CENTER, INITIAL_ZOOM, INITIAL_PITCH, INITIAL_BEARING,
-  TERRAIN_EXAGGERATION, OMAP_INITIAL_OPACITY, CS_INITIAL_OPACITY,
+  TERRAIN_EXAGGERATION, CS_INITIAL_OPACITY,
   EASE_DURATION, FIT_BOUNDS_PAD, FIT_BOUNDS_PAD_SIDEBAR, SIDEBAR_DEFAULT_WIDTH,
   BASEMAPS,
   DEVICE_PPI_DATA, DEFAULT_DEVICE_PPI,
@@ -123,6 +123,10 @@ import {
   applyMagneticLineColor, handleMagneticColorChange,
 } from './core/magneticLines.js';
 import { loadPersistedState, savePersistedState } from './store/uiPersistence.js';
+import {
+  init as initLocalMapStore,
+  localMapLayers, toRasterOpacity, addLocalMapLayer,
+} from './store/localMapStore.js';
 
 // ベースマップ切替の状態管理
 // oriLibreLayers: isomizer が追加したレイヤーを [{ id, defaultVisibility }] 形式で保持
@@ -1033,6 +1037,9 @@ map.on('load', async () => {
   // 磁北線モジュール初期化（PCシム readmap をゲッターで遅延注入）
   initMagneticLines(map, { getReadMap: () => pcSimState.readMap });
 
+  // ローカル地図レイヤーストア初期化
+  initLocalMapStore(map);
+
   // 地図が安定表示されたらURLをフル状態に更新（Google Maps方式）
   // hash:true がハッシュを確定した後に updateShareableUrl を呼ぶことで
   // https://teledrop.pages.dev/ → https://teledrop.pages.dev/?overlay=cs#15/35.02/135.78 に自動遷移する
@@ -1044,87 +1051,6 @@ map.on('load', async () => {
   console.log('3D OMap Viewer 初期化完了（OriLibreベースマップ）');
 });
 
-
-/* ========================================================
-    ローカル地図レイヤーの管理リスト
-    KMZ・画像+JGW・IndexedDB 復元のすべてを一元管理する。
-    各エントリは以下の情報を保持します：
-      id        : 連番（ユニークなソース/レイヤーIDの生成に使用）
-      name      : ファイル名（UIに表示）
-      sourceId  : MapLibre に登録したソースのID（"kmz-source-N"）
-      layerId   : MapLibre に登録したレイヤーのID（"kmz-layer-N"）
-      objectUrl : 画像のObjectURL（不要になったら revoke が必要）
-      dbId      : IndexedDB のレコード id（null = 未保存）
-    ======================================================== */
-const localMapLayers = [];
-let localMapCounter = 0;
-
-/* =====================================================================
-   _addLocalMapLayerFromBlob — Blob + 座標から KMZ 系レイヤーを地図に追加する内部ヘルパー
-
-   loadKmz / loadImageWithJgw / restoreMapLayersFromDb の共通処理をまとめる。
-   fitBounds は呼び出し元が責任を持つ（引数で制御）。
-   ===================================================================== */
-function _addLocalMapLayerFromBlob(imageBlob, coordinates, name, {
-  opacity     = OMAP_INITIAL_OPACITY,
-  visible     = true,
-  terrainId   = null,
-  terrainName = null,
-  mapSheetId  = null,   // コース枠 ID（null = 未割り当て）
-} = {}) {
-  const objectUrl = URL.createObjectURL(imageBlob);
-  const id        = localMapCounter++;
-  const sourceId  = `kmz-source-${id}`;
-  const layerId   = `kmz-layer-${id}`;
-
-  map.addSource(sourceId, { type: 'image', url: objectUrl, coordinates });
-  map.addLayer({
-    id: layerId, type: 'raster', source: sourceId,
-    minzoom: 0, maxzoom: 24,
-    paint: {
-      'raster-opacity':       visible ? toRasterOpacity(opacity) : 0,
-      'raster-fade-duration': 0,
-      'raster-resampling':    'linear',
-    },
-  });
-
-  // オーバーレイ（等高線・CS 立体図）の直下に配置する
-  const _anchor = ['color-contour-regular', 'contour-regular', 'color-relief-layer',
-    'slope-relief-layer', 'rrim-relief-layer', 'cs-relief-layer'].find(lid => map.getLayer(lid));
-  if (_anchor) {
-    map.moveLayer(layerId, _anchor);
-  } else if (map.getLayer('gpx-track-outline')) {
-    map.moveLayer(layerId, 'gpx-track-outline');
-  } else {
-    map.moveLayer(layerId);
-  }
-
-  // frames-fill が画像レイヤーより上にある場合は下に移動
-  if (map.getLayer('frames-fill')) {
-    const _ids = map.getStyle().layers.map(l => l.id);
-    if (_ids.indexOf('frames-fill') > _ids.indexOf(layerId)) {
-      map.moveLayer('frames-fill', layerId);
-    }
-  }
-
-  const lngs  = coordinates.map(c => c[0]);
-  const lats  = coordinates.map(c => c[1]);
-  const entry = {
-    id, name, sourceId, layerId, objectUrl,
-    visible, opacity,
-    coordinates: coordinates.map(c => [...c]),  // 4隅座標（TL→TR→BR→BL）。枠スナップ・DB保存に使用
-    bbox: {
-      west:  Math.min(...lngs), east:  Math.max(...lngs),
-      south: Math.min(...lats), north: Math.max(...lats),
-    },
-    terrainId,   // テレイン紐づけ（null = 未分類）
-    terrainName, // 表示名キャッシュ
-    mapSheetId,  // コース枠 ID（null = 枠なし / 未割り当て）
-    dbId: null,  // IndexedDB に保存後にセットされる
-  };
-  localMapLayers.push(entry);
-  return entry;
-}
 
 /* =====================================================================
    restoreMapLayersFromDb — IndexedDB に保存された地図を起動時に復元する
@@ -1141,7 +1067,7 @@ async function restoreMapLayersFromDb() {
 
   for (const rec of saved) {
     try {
-      const entry = _addLocalMapLayerFromBlob(
+      const entry = addLocalMapLayer(
         rec.imageBlob, rec.coordinates, rec.name,
         {
           opacity:     rec.opacity,
@@ -1158,14 +1084,6 @@ async function restoreMapLayersFromDb() {
   }
   renderLocalMapList();
   console.log(`IndexedDB から ${saved.length} 件の地図を復元しました`);
-}
-
-// MapLibre の 3D 地形（terrain draping）モードでは、ラスターレイヤーを
-// WebGL フレームバッファに合成する際にアルファがリニア空間で処理されるため、
-// raster-opacity が視覚的に非線形に見える（0.5 → ほぼ不透明）。
-// 地形 ON 時はガンマ補正の逆変換（^2.5）を適用し、知覚的に正しい透明感を再現する。
-function toRasterOpacity(opacity) {
-  return map.getTerrain() ? Math.pow(opacity, 3) : opacity;
 }
 
 // 地図種別・サブタイプの日本語表示マップ
@@ -1352,10 +1270,10 @@ async function loadKmz(file) {
     const imgBlob = await imgEntry.async('blob');
 
     /*
-      --- ステップ⑧ MapLibre にソースとレイヤーを追加する（_addLocalMapLayerFromBlob ヘルパー）---
+      --- ステップ⑧ MapLibre にソースとレイヤーを追加する（addLocalMapLayer ヘルパー）---
       レイヤー生成・配置・localMapLayers 登録を共通ヘルパーに委譲する。
     */
-    const entry = _addLocalMapLayerFromBlob(imgBlob, coordinates, file.name, {
+    const entry = addLocalMapLayer(imgBlob, coordinates, file.name, {
       terrainId:   null,
       terrainName: null,
     });
@@ -1451,7 +1369,7 @@ function parseJgw(text) {
 // ---- 画像 + JGW を MapLibre に追加 ----
 async function loadImageWithJgw(imageFile, jgwText, crsValue) {
   // ① 画像サイズ（W×H）を取得するために一時 ObjectURL を使う
-  //    後で _addLocalMapLayerFromBlob が改めて ObjectURL を生成するため、ここでは revoke する
+  //    後で addLocalMapLayer が改めて ObjectURL を生成するため、ここでは revoke する
   const _tmpUrl = URL.createObjectURL(imageFile);
   const img = await new Promise((resolve, reject) => {
     const i = new Image();
@@ -1497,9 +1415,9 @@ async function loadImageWithJgw(imageFile, jgwText, crsValue) {
     coordinates = cornersXY.map(([x, y]) => proj4(fromCRS, toCRS, [x, y]));
   }
 
-  // ⑤ _addLocalMapLayerFromBlob で MapLibre への追加・localMapLayers 登録を行う
+  // ⑤ addLocalMapLayer で MapLibre への追加・localMapLayers 登録を行う
   //    imageFile は File オブジェクトなので Blob として直接渡せる
-  const entry = _addLocalMapLayerFromBlob(imageFile, coordinates, imageFile.name, {
+  const entry = addLocalMapLayer(imageFile, coordinates, imageFile.name, {
     terrainId:   null,
     terrainName: null,
   });
@@ -9530,7 +9448,7 @@ function _buildAlignEditorPanel(showStep1 = true) {
     }
 
     // メインマップにレイヤー追加・localMapLayers 登録
-    const entry = _addLocalMapLayerFromBlob(
+    const entry = addLocalMapLayer(
       blob ? blob : await (await fetch(keepUrl)).blob(),
       coords, name,
       {
