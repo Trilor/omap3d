@@ -86,6 +86,12 @@ import {
 } from './api/workspace-db.js';
 
 import { makeCustomSelect, initCustomSelects } from './ui/components/customSelect.js';
+import {
+  openSidebarPanel, closeSidebar,
+  getSidebarPanel, isSidebarOpen,
+  updateSidebarWidth, restoreSidebarState, initSidebarNav,
+} from './ui/uiState.js';
+import { emit, on } from './store/eventBus.js';
 
 // ベースマップ切替の状態管理
 // oriLibreLayers: isomizer が追加したレイヤーを [{ id, defaultVisibility }] 形式で保持
@@ -1833,19 +1839,7 @@ let _layersView     = 'list'; // 'list' | 'detail'
 let _layersDetailId = null;   // detail view で表示中の terrain ID（null = 未分類）
 
 /** サイドバーの指定パネルを強制的に開く（同一パネルのトグル閉じを防ぐ） */
-function _openSidebarPanel(panelId) {
-  const sbPanel = document.getElementById('sidebar-panel');
-  document.querySelectorAll('.sidebar-nav-btn').forEach(b => b.classList.remove('active'));
-  document.querySelectorAll('.sidebar-section').forEach(s => s.classList.remove('active'));
-  const navBtn = document.querySelector(`.sidebar-nav-btn[data-panel="${panelId}"]`);
-  if (navBtn) navBtn.classList.add('active');
-  const sec = document.getElementById('panel-' + panelId);
-  if (sec) sec.classList.add('active');
-  if (sbPanel) sbPanel.classList.remove('sb-hidden');
-  _sidebarCurrentPanel = panelId;
-  _sidebarOpen = true;
-  requestAnimationFrame(updateSidebarWidth);
-}
+// _openSidebarPanel → ui/uiState.js の openSidebarPanel に移動済み
 
 /**
  * レイヤータブを開いて指定テレインの詳細へ遷移する。
@@ -1853,7 +1847,7 @@ function _openSidebarPanel(panelId) {
  * @param {string|null|undefined} terrainId
  */
 function openLayersPanel(terrainId) {
-  _openSidebarPanel('layers');
+  openSidebarPanel('layers');
   if (terrainId !== undefined) {
     showLayersDetail(terrainId);
   } else {
@@ -3161,7 +3155,7 @@ document.getElementById('layers-qa-gpx')?.addEventListener('click', () => {
 
 // コース作成 → コースタブに切り替え
 document.getElementById('layers-qa-course')?.addEventListener('click', () => {
-  _openSidebarPanel('course');
+  openSidebarPanel('course');
 });
 
 /* ========================================================
@@ -3358,7 +3352,7 @@ async function renderTerrainSearchResults(terrains) {
       actionBtn?.addEventListener('click', () => {
         _focusTerrainId = t.id;
         _explorerCollapsed[t.id] = false;
-        _openSidebarPanel('layers');
+        openSidebarPanel('layers');
         renderExplorer();
       });
     } else {
@@ -3372,7 +3366,7 @@ async function renderTerrainSearchResults(terrains) {
         updateWorkspaceTerrainSource(map, wsAll);
         _focusTerrainId = t.id;
         _explorerCollapsed[t.id] = false;
-        _openSidebarPanel('layers');
+        openSidebarPanel('layers');
         await renderExplorer();
       });
     }
@@ -3736,7 +3730,7 @@ let _lastTerrainResults  = null;
         updateWorkspaceTerrainSource(map, wsAll);
         _focusTerrainId = id;
         _explorerCollapsed[id] = false;
-        _openSidebarPanel('layers');
+        openSidebarPanel('layers');
         await renderExplorer();
 
         overlay.remove();
@@ -6283,23 +6277,10 @@ function downloadDataUrl(dataUrl, filename) {
 
 // ---- サムネイル生成関連ここまで ----
 
-// ---- サイドバーナビゲーション ----
-let _sidebarCurrentPanel = 'sim';
-let _sidebarOpen = true;
-
 // ---- テレインドリルダウンUI ----
 let _terrainViewMode = 'grid'; // 'grid' | 'tree'
 let _selectedTerrainInGrid = null; // テレイン選択時のテレインID
-
-// サイドバー幅をCSS変数に反映（検索ボックス・縮尺の左位置が連動する）
-function updateSidebarWidth() {
-  const mobile = window.matchMedia('(max-width: 768px)').matches;
-  const sidebar = document.getElementById('sidebar');
-  const w = (!mobile && sidebar) ? sidebar.offsetWidth : 0;
-  document.documentElement.style.setProperty('--sidebar-w', w + 'px');
-}
-window.addEventListener('resize', updateSidebarWidth);
-updateSidebarWidth();
+// _sidebarCurrentPanel / _sidebarOpen / updateSidebarWidth → ui/uiState.js に移動済み
 
 // ---- UI状態の永続化（localStorage）----
 const _UI_STATE_KEY = 'teledrop-ui-state';
@@ -6321,8 +6302,8 @@ function saveUiState() {
       terrainExaggeration: selTerrainExaggeration.value,
       building:            building3dCard.classList.contains('active'),
       buildingSrc:         document.getElementById('sel-building')?.value ?? 'plateau',
-      sidebarPanel:        _sidebarCurrentPanel,
-      sidebarOpen:         _sidebarOpen,
+      sidebarPanel:        getSidebarPanel(),
+      sidebarOpen:         isSidebarOpen(),
     }));
   } catch {}
 }
@@ -6485,66 +6466,21 @@ function restoreUiState() {
       }
     }
 
-    // タブ（サイドバーパネル）：localStorageのみ（他者に強制しない個人設定）
-    if (s.sidebarPanel) {
-      _sidebarCurrentPanel = s.sidebarPanel;
-      _sidebarOpen = s.sidebarOpen !== false;
-      const btn = document.querySelector(`.sidebar-nav-btn[data-panel="${s.sidebarPanel}"]`);
-      const sbPanel = document.getElementById('sidebar-panel');
-      document.querySelectorAll('.sidebar-nav-btn').forEach(b => b.classList.remove('active'));
-      document.querySelectorAll('.sidebar-section').forEach(ss => ss.classList.remove('active'));
-      if (_sidebarOpen && btn) {
-        sbPanel.classList.remove('sb-hidden');
-        btn.classList.add('active');
-        const panelEl = document.getElementById('panel-' + s.sidebarPanel);
-        if (panelEl) panelEl.classList.add('active');
-      } else {
-        sbPanel.classList.add('sb-hidden');
-      }
-      requestAnimationFrame(updateSidebarWidth);
-    }
+    // タブ（サイドバーパネル）：ui/uiState.js に委譲
+    restoreSidebarState(s);
   } catch {}
 }
 
-document.querySelectorAll('.sidebar-nav-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    const panel = btn.dataset.panel;
-    const sbPanel = document.getElementById('sidebar-panel');
-    if (_sidebarCurrentPanel === panel && _sidebarOpen) {
-      // 同じアイコン → パネルを閉じる
-      sbPanel.classList.add('sb-hidden');
-      btn.classList.remove('active');
-      _sidebarOpen = false;
-    } else {
-      sbPanel.classList.remove('sb-hidden');
-      document.querySelectorAll('.sidebar-nav-btn').forEach(b => b.classList.remove('active'));
-      document.querySelectorAll('.sidebar-section').forEach(s => s.classList.remove('active'));
-      btn.classList.add('active');
-      document.getElementById('panel-' + panel).classList.add('active');
-      _sidebarCurrentPanel = panel;
-      _sidebarOpen = true;
-      // テレインタブを開いたとき、まだ一度も検索していなければ初回検索を実行
-      if (panel === 'terrain') _runTerrainSearch?.();
-      // レイヤーズタブを開いたときはテレインドリルダウンUIを初期化
-      if (panel === 'layers') _renderTerrainPanelView();
-    }
-    // CSSアニメーション完了後に幅を反映
-    // display:none は即時反映されるため rAF 1フレームで幅を取得可能
-    requestAnimationFrame(updateSidebarWidth);
-    saveUiState();
-  });
-});
+// サイドバーナビゲーション初期化（ui/uiState.js に委譲）
+initSidebarNav();
 
-
-// パネル閉じるボタン（✕）
-document.querySelectorAll('.sidebar-close-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    const sbPanel = document.getElementById('sidebar-panel');
-    sbPanel.classList.add('sb-hidden');
-    document.querySelectorAll('.sidebar-nav-btn').forEach(b => b.classList.remove('active'));
-    _sidebarOpen = false;
-    requestAnimationFrame(updateSidebarWidth);
-  });
+// sidebar:panelChanged を受け取り、パネル固有の副作用とセーブを実行
+on('sidebar:panelChanged', ({ panelId, open }) => {
+  if (open) {
+    if (panelId === 'terrain') _runTerrainSearch?.();
+    if (panelId === 'layers')  _renderTerrainPanelView();
+  }
+  saveUiState();
 });
 
 // ワークスペースヘッダー — 戻るボタン
@@ -6880,7 +6816,7 @@ async function _updateWsHeader() {
 document.addEventListener('DOMContentLoaded', () => {
   // レイヤーズパネルをアクティブにしてテレイングリッドを初期化
   // ユーザーが先にテレイン検索パネルを使う場合に備えて条件付き
-  if (!_sidebarOpen) {
+  if (!isSidebarOpen()) {
     // sidebar が非表示なら、layers パネルを初期化するだけ
     _renderTerrainPanelView();
   }
@@ -11293,11 +11229,11 @@ document.addEventListener('keydown', (e) => {
   });
 
   // ---- ナビボタンタップ: 開くときは mid に展開、閉じるときは min にスナップ ----
-  // 注: 一般ハンドラ（3881行）が先に実行され _sidebarOpen を更新済み
+  // 注: uiState.js の initSidebarNav が先に実行され isSidebarOpen() が更新済み
   document.querySelectorAll('.sidebar-nav-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       if (!MQ.matches) return;
-      if (_sidebarOpen) {
+      if (isSidebarOpen()) {
         // パネルを開いた/切り替えた → min なら mid へ展開
         if (snapState === 'min') snapTo('mid');
       } else {
