@@ -122,6 +122,7 @@ import {
   updateMagneticNorth, getMagneticLineColor,
   applyMagneticLineColor, handleMagneticColorChange,
 } from './core/magneticLines.js';
+import { loadPersistedState, savePersistedState } from './store/uiPersistence.js';
 
 // ベースマップ切替の状態管理
 // oriLibreLayers: isomizer が追加したレイヤーを [{ id, defaultVisibility }] 形式で保持
@@ -5405,29 +5406,25 @@ let _selectedTerrainInGrid = null; // テレイン選択時のテレインID
 // _sidebarCurrentPanel / _sidebarOpen / updateSidebarWidth → ui/uiState.js に移動済み
 
 // ---- UI状態の永続化（localStorage）----
-const _UI_STATE_KEY = 'teledrop-ui-state';
-
 function saveUiState() {
-  try {
-    localStorage.setItem(_UI_STATE_KEY, JSON.stringify({
-      basemap:             currentBasemap,
-      overlay:             currentOverlay,
-      overlayOpacity:      sliderCs.value,
-      contourVisible:      contourCard.classList.contains('active'),
-      contourDem:          selContourDem.value,
-      contourInterval:     selContourInterval.value,
-      magneticVisible:     magneticCard.classList.contains('active'),
-      magneticModel:       selMagneticModel.value,
-      magneticInterval:    selMagneticCombined.value,
-      magneticColor:       selMagneticColor.value,
-      terrain3d:           terrain3dCard.classList.contains('active'),
-      terrainExaggeration: selTerrainExaggeration.value,
-      building:            building3dCard.classList.contains('active'),
-      buildingSrc:         document.getElementById('sel-building')?.value ?? 'plateau',
-      sidebarPanel:        getSidebarPanel(),
-      sidebarOpen:         isSidebarOpen(),
-    }));
-  } catch {}
+  savePersistedState({
+    basemap:             currentBasemap,
+    overlay:             currentOverlay,
+    overlayOpacity:      sliderCs.value,
+    contourVisible:      contourCard.classList.contains('active'),
+    contourDem:          selContourDem.value,
+    contourInterval:     selContourInterval.value,
+    magneticVisible:     magneticCard.classList.contains('active'),
+    magneticModel:       selMagneticModel.value,
+    magneticInterval:    selMagneticCombined.value,
+    magneticColor:       selMagneticColor.value,
+    terrain3d:           terrain3dCard.classList.contains('active'),
+    terrainExaggeration: selTerrainExaggeration.value,
+    building:            building3dCard.classList.contains('active'),
+    buildingSrc:         document.getElementById('sel-building')?.value ?? 'plateau',
+    sidebarPanel:        getSidebarPanel(),
+    sidebarOpen:         isSidebarOpen(),
+  });
 }
 
 // URLクエリパラメータを更新する（Q地図MapLibre版と同方式: ?params#hash）
@@ -5496,7 +5493,7 @@ function restoreUiState() {
   try {
     // URLクエリ（シェアURL）を最優先、次にlocalStorage
     const up = new URLSearchParams(location.search);
-    const s  = JSON.parse(localStorage.getItem(_UI_STATE_KEY) || 'null') || {};
+    const s  = loadPersistedState();
 
     // ベースマップ：URL > localStorage
     const targetBase = up.get('base') || s.basemap;
