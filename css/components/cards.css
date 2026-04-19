@@ -1,0 +1,558 @@
+/* ===== 地図カタログ ===== */
+
+/* 検索バー */
+.catalog-search-wrap {
+  padding: 6px 10px 4px;
+}
+
+.catalog-search-row {
+  position: relative;
+}
+
+.catalog-search-row .search-icon {
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: var(--text-muted);
+}
+
+.catalog-search-wrap input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 5px 8px 5px 28px;
+  border: 1px solid #b0b8b0;
+  border-radius: 4px;
+  font-size: var(--font-base);
+  color: var(--text-main);
+  background: var(--bg-subtle);
+  outline: none;
+}
+
+.catalog-search-wrap input:focus {
+  border-color: var(--primary);
+  background: var(--bg-surface);
+}
+
+/* テレイングループ（<details>） */
+.terrain-group {
+  margin: 0;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.terrain-group>summary {
+  padding: 5px 10px;
+  font-size: var(--font-base);
+  font-weight: var(--font-bold);
+  color: var(--text-body);
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  user-select: none;
+  background: var(--bg-subtle);
+}
+
+.terrain-group>summary::-webkit-details-marker {
+  display: none;
+}
+
+.terrain-group>summary::before {
+  content: '▶';
+  font-size: var(--font-xs);
+  color: var(--text-disabled);
+  transition: transform 0.15s;
+  flex-shrink: 0;
+}
+
+.terrain-group[open]>summary::before {
+  transform: rotate(90deg);
+}
+
+.terrain-group-count {
+  margin-left: auto;
+  font-size: var(--font-xs);
+  color: var(--text-disabled);
+  font-weight: 400;
+}
+
+/* フレームエントリ行 */
+.frame-entry {
+  padding: 5px 10px 5px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.frame-entry:last-child {
+  border-bottom: none;
+}
+
+/* ヘッダー行: 状態ドット + 大会名 + バッジ + 画像ボタン */
+.frame-entry-header {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+/* 可視チェックボックス */
+.frame-vis-chk {
+  flex-shrink: 0;
+}
+
+/* 状態ドット（緑=画像あり、灰=なし） */
+.frame-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--border-input);
+  border: 1.5px solid var(--border-weak);
+}
+
+.frame-status-dot.has-image {
+  background: var(--primary);
+  border-color: var(--primary-hover);
+}
+
+/* 大会名テキスト */
+.frame-event-name {
+  font-size: var(--font-sm);
+  color: var(--text-main);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.frame-event-name.disabled {
+  color: var(--text-disabled);
+}
+
+/* バッジ（種別タグ） */
+.frame-badge {
+  font-size: var(--font-xs);
+  font-weight: var(--font-bold);
+  padding: 1px 5px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.frame-badge.sprint {
+  background: #fff3e0;
+  color: #c77700;
+  border: 1px solid #f0c060;
+}
+
+.frame-badge.forest {
+  background: #e8f5e9;
+  color: var(--primary-dark);
+  border: 1px solid #a5d6a7;
+}
+
+.frame-badge.subtype {
+  background: var(--bg-hover);
+  color: var(--text-caption);
+  border: 1px solid var(--border-muted);
+}
+
+/* GeoJSONボタン（チップスの直下） */
+.geojson-load-btn-top {
+  display: block;
+  width: calc(100% - 20px);
+  margin: 4px 10px 8px;
+}
+
+/* ===== テレイン検索カードリスト ===== */
+
+/* 検索結果コンテナ（スクロール可能） */
+.terrain-search-results {
+  max-height: 260px;
+  overflow-y: auto;
+  border-top: 1px solid var(--border-muted);
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-input) transparent;
+}
+
+/* 空/ローディング状態メッセージ */
+.terrain-search-empty,
+.terrain-search-loading {
+  padding: 14px 10px;
+  font-size: var(--font-sm);
+  color: var(--text-disabled);
+  text-align: center;
+}
+
+.terrain-search-loading {
+  color: var(--text-muted);
+}
+
+/* ローカルテレイン追加ボタン行 */
+.local-terrain-create-row {
+  padding: 6px 8px 8px;
+  border-top: 1px solid var(--border-muted);
+}
+
+.local-terrain-create-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 10px;
+  font-size: var(--font-sm);
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px dashed var(--border-muted);
+  border-radius: 5px;
+  cursor: pointer;
+  transition: color 0.12s, border-color 0.12s, background 0.12s;
+  justify-content: center;
+}
+
+.local-terrain-create-btn:hover {
+  color: #16a34a;
+  border-color: #16a34a;
+  background: rgba(22,163,74,0.05);
+}
+
+.local-terrain-create-btn.active {
+  color: #16a34a;
+  border-color: #16a34a;
+  background: rgba(22,163,74,0.1);
+  border-style: solid;
+}
+
+/* ポリゴン描画中のヒントバー */
+.terrain-draw-hint {
+  position: absolute;
+  bottom: 36px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,0.72);
+  color: #fff;
+  font-size: 11px;
+  padding: 5px 14px;
+  border-radius: 20px;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 9100;
+  backdrop-filter: blur(4px);
+}
+
+/* ローカルテレイン作成ダイアログ */
+.local-terrain-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+  z-index: 10200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.local-terrain-dialog {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-input);
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  padding: 20px;
+  width: 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.local-terrain-dialog-title {
+  font-size: var(--font-md);
+  font-weight: var(--font-semi);
+  color: var(--text-main);
+}
+
+.local-terrain-dialog-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: var(--font-sm);
+  color: var(--text-muted);
+}
+
+.local-terrain-dialog-input {
+  background: var(--bg-input);
+  border: 1px solid var(--border-input);
+  border-radius: 4px;
+  padding: 5px 8px;
+  font-size: var(--font-sm);
+  color: var(--text-main);
+  outline: none;
+}
+
+.local-terrain-dialog-input:focus {
+  border-color: var(--primary);
+}
+
+.local-terrain-dialog-btns {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.local-terrain-dialog-btn {
+  padding: 5px 14px;
+  font-size: var(--font-sm);
+  border-radius: 4px;
+  cursor: pointer;
+  border: 1px solid var(--border-input);
+  background: transparent;
+  color: var(--text-muted);
+  transition: background 0.1s;
+}
+
+.local-terrain-dialog-btn.ok {
+  background: #16a34a;
+  color: #fff;
+  border-color: #16a34a;
+}
+
+.local-terrain-dialog-btn.ok:hover { background: #15803d; }
+.local-terrain-dialog-btn.cancel:hover { background: var(--bg-hover); }
+
+/* テレイン検索カード */
+.terrain-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--border-muted);
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.terrain-card:last-child {
+  border-bottom: none;
+}
+
+.terrain-card:hover {
+  background: var(--primary-light);
+}
+
+.terrain-card.hovered {
+  background: var(--primary-light);
+}
+
+/* カード左: テキスト情報 */
+.terrain-card-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.terrain-card-name {
+  font-size: var(--font-sm);
+  font-weight: var(--font-semi);
+  color: var(--text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.4;
+}
+
+.terrain-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 2px;
+  flex-wrap: wrap;
+}
+
+.terrain-card-pref {
+  font-size: var(--font-xs);
+  color: var(--text-muted);
+}
+
+/* タイプバッジ */
+.terrain-type-badge {
+  font-size: 10px;
+  line-height: 1;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-weight: var(--font-semi);
+  flex-shrink: 0;
+}
+
+.terrain-type-badge.sprint {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.terrain-type-badge.forest {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.terrain-type-badge.other {
+  background: var(--bg-hover);
+  color: var(--text-muted);
+}
+
+/* カード右: アクションボタン */
+.terrain-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+/* ＋ワークスペースに追加ボタン */
+.terrain-add-btn {
+  background: none;
+  border: 1px solid var(--border-input);
+  border-radius: 4px;
+  padding: 3px 7px;
+  font-size: var(--font-xs);
+  color: var(--primary);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s, border-color 0.12s;
+  line-height: 1.4;
+}
+
+.terrain-add-btn:hover {
+  background: var(--primary-light);
+  border-color: var(--primary);
+}
+
+.terrain-add-btn:disabled {
+  color: var(--text-disabled);
+  border-color: var(--border-muted);
+  cursor: default;
+  background: none;
+}
+
+/* ローカルテレインの「→」ジャンプボタン */
+.terrain-goto-btn {
+  color: var(--text-muted);
+  border-color: var(--border-muted);
+}
+.terrain-goto-btn:hover {
+  background: var(--bg-subtle);
+  border-color: var(--border-input);
+  color: var(--text-main);
+}
+
+/* ソースバッジ（公式 / ローカル）*/
+.terrain-source-badge {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: var(--font-semi);
+  padding: 1px 4px;
+  border-radius: 3px;
+  vertical-align: middle;
+  margin-left: 4px;
+  line-height: 1.4;
+}
+
+.terrain-source-public {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.terrain-source-local {
+  background: #dcfce7;
+  color: #166534;
+}
+
+/* ローカルテレインカードの左枠アクセント */
+.terrain-card-local {
+  border-left: 2px solid #16a34a;
+}
+
+/* ===== ワークスペーステレイン一覧 ===== */
+.workspace-terrain-list {
+  padding: 2px 0;
+}
+
+/* ワークスペーステレイン行 */
+.ws-terrain-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--border-muted);
+  min-width: 0;
+}
+
+.ws-terrain-row:last-child {
+  border-bottom: none;
+}
+
+/* 目玉トグルボタン */
+.ws-terrain-eye {
+  background: none;
+  border: none;
+  padding: 2px 4px;
+  cursor: pointer;
+  color: var(--primary);
+  flex-shrink: 0;
+  border-radius: 3px;
+  transition: opacity 0.12s;
+}
+
+.ws-terrain-eye.hidden {
+  color: var(--text-disabled);
+  opacity: 0.5;
+}
+
+.ws-terrain-eye:hover {
+  opacity: 0.7;
+}
+
+/* テレイン名 */
+.ws-terrain-name {
+  flex: 1;
+  font-size: var(--font-sm);
+  color: var(--text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.ws-terrain-row.hidden-terrain .ws-terrain-name {
+  color: var(--text-disabled);
+}
+
+/* 地図フライトボタン */
+.ws-terrain-fly {
+  background: none;
+  border: none;
+  padding: 2px 4px;
+  cursor: pointer;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  border-radius: 3px;
+  transition: color 0.12s;
+}
+
+.ws-terrain-fly:hover {
+  color: var(--primary);
+}
+
+/* 削除ボタン */
+.ws-terrain-del {
+  background: none;
+  border: none;
+  padding: 2px 4px;
+  cursor: pointer;
+  color: var(--text-disabled);
+  flex-shrink: 0;
+  border-radius: 3px;
+  transition: color 0.12s;
+}
+
+.ws-terrain-del:hover {
+  color: #dc2626;
+}
+

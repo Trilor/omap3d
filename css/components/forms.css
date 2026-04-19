@@ -1,0 +1,1110 @@
+
+/* ================================================================
+   カスケードドロップダウン — 汎用定義
+   2段階プルダウンを使う場合は .cascade-* クラスを使用する。
+   既存の .ppi-cascade-* は後方互換エイリアスとして並列定義。
+   新しいカスケードを追加する場合は .cascade-* だけで実装できる。
+   ================================================================ */
+
+/* ---- ラッパー ---- */
+.cascade-wrap,
+.ppi-cascade-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+/* ---- トリガーボタン（外観は「共通パネルプルダウン」セクションの .cascade-btn で定義済み） ---- */
+.cascade-btn,
+.ppi-cascade-btn {
+  display: block;
+  width: 100%;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cascade-btn:hover,
+.ppi-cascade-btn:hover {
+  border-color: #888;
+  background-color: var(--primary-light);
+}
+
+.cascade-arrow,
+.ppi-cascade-arrow {
+  display: none;
+}
+
+/* ---- 1段目メニュー本体 ----
+   body 直下に配置し position:fixed で描画 → overflow:hidden 祖先を回避 */
+.cascade-menu,
+.ppi-cascade-menu {
+  position: fixed;
+  z-index: 10100;
+  background: var(--dropdown-bg);
+  border: 1px solid var(--border-muted);
+  border-radius: 4px;
+  box-shadow: 2px 4px 12px rgba(0, 0, 0, 0.15);
+  min-width: 140px;
+  display: none;
+  padding: 2px 0;
+}
+
+.cascade-menu.open,
+.ppi-cascade-menu.open {
+  display: block;
+}
+
+.cascade-menu.open-up,
+.ppi-cascade-menu.open-up {
+  box-shadow: 2px -4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* ---- 1段目カテゴリ行（右矢印つき） ---- */
+.cascade-cat,
+.ppi-cascade-cat {
+  padding: 5px var(--chevron-pad-r) 5px 10px;
+  font-size: var(--font-sm);
+  font-weight: 500;
+  cursor: default;
+  white-space: nowrap;
+  user-select: none;
+  background: var(--chevron-right) no-repeat right var(--chevron-inset) center / var(--chevron-size-right);
+}
+
+.cascade-cat+.cascade-cat,
+.ppi-cascade-cat+.ppi-cascade-cat {
+  border-top: 1px solid var(--border-subtle);
+}
+
+.cascade-cat:hover,
+.cascade-cat.open,
+.ppi-cascade-cat:hover,
+.ppi-cascade-cat.open {
+  background-color: var(--primary-light);
+}
+
+.cascade-cat-arrow,
+.ppi-cascade-cat-arrow {
+  display: none;
+}
+
+/* ---- 2段目サブメニュー ---- */
+.cascade-sub,
+.ppi-cascade-sub {
+  position: fixed;
+  z-index: 10101;
+  background: var(--dropdown-bg);
+  border: 1px solid var(--border-muted);
+  border-radius: 4px;
+  box-shadow: 2px 4px 12px rgba(0, 0, 0, 0.15);
+  min-width: 220px;
+  max-height: 60vh;
+  overflow-y: auto;
+  display: none;
+  padding: 2px 0;
+}
+
+/* ---- 2段目アイテム行 ---- */
+.cascade-item,
+.ppi-cascade-item {
+  padding: 5px 10px;
+  font-size: var(--font-sm);
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+/* ホバー中・ハイライト中アイテム */
+.cascade-item:hover,
+.ppi-cascade-item:hover,
+.cascade-item.highlighted,
+.ppi-cascade-item.highlighted {
+  background: var(--primary-light);
+  border-radius: 3px;
+}
+
+/* ハイライトなし・パネル未離脱のとき、選択済みをハイライト */
+.cascade-menu:not(:has(.cascade-item.highlighted)):not(.left) .cascade-item.selected,
+.cascade-menu:not(:has(.ppi-cascade-item.highlighted)):not(.left) .ppi-cascade-item.selected,
+.cascade-sub:not(:has(.cascade-item:hover)) .cascade-item.selected,
+.ppi-cascade-sub:not(:has(.ppi-cascade-item:hover)) .ppi-cascade-item.selected {
+  background: var(--primary-light);
+  border-radius: 3px;
+}
+
+.cascade-item.selected::after,
+.ppi-cascade-item.selected::after {
+  content: '';
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpolyline points='2%2C6.5 5%2C9.5 10%2C2.5' fill='none' stroke='%232a9d8f' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+}
+
+/* ---- アイテム右側の補足テキスト（例: PPI値） ---- */
+.cascade-item-sub,
+.ppi-cascade-item-ppi {
+  color: var(--text-muted);
+  font-size: var(--font-xs);
+  flex-shrink: 0;
+}
+
+/* ---- 実寸定規（PPI確認用） ---- */
+.ppi-ruler-row {
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 8px 12px 10px;
+  gap: 4px;
+}
+
+#ppi-ruler {
+  display: block;
+  color: var(--text-ink);
+  overflow: hidden;
+}
+
+.ppi-ruler-hint {
+  font-size: var(--font-xs);
+  color: var(--text-disabled);
+  user-select: none;
+}
+
+/* パネル内ブロック */
+.panel-block {
+  padding: 8px 10px;
+  border-bottom: 1px solid #e8e8e8;
+}
+
+.panel-block-title {
+  font-size: var(--font-xs);
+  font-weight: var(--font-bold);
+  color: var(--text-muted);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+/* シミュレーター：読図地図リスト */
+.sim-map-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 6px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+  margin-bottom: 2px;
+}
+
+.sim-map-item:hover {
+  background: var(--primary-light);
+}
+
+.sim-map-item.active {
+  background: #e6f2ea;
+}
+
+.sim-map-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--border-input);
+  flex-shrink: 0;
+  border: 1.5px solid var(--border-weak);
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.sim-map-item.active .sim-map-dot {
+  background: var(--primary);
+  border-color: var(--primary-hover);
+}
+
+.sim-map-name {
+  flex: 1;
+  font-size: var(--font-base);
+  color: var(--text-main);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.sim-map-item.active .sim-map-name {
+  font-weight: 600;
+  color: var(--primary-dark);
+}
+
+.sim-map-fly-btn {
+  flex-shrink: 0;
+  background: none;
+  border: 1px solid var(--border-input);
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-size: var(--font-sm);
+  cursor: pointer;
+  color: var(--text-caption);
+  line-height: 1.4;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.sim-map-fly-btn:hover {
+  background: var(--primary);
+  color: var(--on-primary);
+  border-color: var(--primary);
+}
+
+.sim-readmap-empty {
+  font-size: var(--font-sm);
+  color: var(--text-disabled);
+  padding: 8px 4px;
+  text-align: center;
+}
+
+/* 読図地図タブ: セクション見出し */
+.readmap-section-hd {
+  font-size: var(--font-xs);
+  font-weight: var(--font-bold);
+  color: var(--text-light);
+  letter-spacing: 0.06em;
+  padding: 10px 10px 4px;
+  text-transform: uppercase;
+}
+
+/* 読図地図タブ: スマートスロット */
+#readmap-smart-slots {
+  padding: 0 10px 6px;
+}
+
+.readmap-slot-hint {
+  font-size: var(--font-sm);
+  color: var(--text-disabled);
+  padding: 8px 4px;
+  text-align: center;
+  line-height: 1.6;
+}
+
+.readmap-slot {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  margin-bottom: 6px;
+  border: 1.5px dashed #ccc;
+  border-radius: 6px;
+  background: var(--bg-subtle);
+}
+
+.readmap-slot.readmap-slot-filled {
+  border-style: solid;
+  border-color: var(--primary);
+  background: var(--primary-light, #f4f8e4);
+}
+
+.readmap-slot-label {
+  font-size: var(--font-sm);
+  font-weight: var(--font-semi);
+  color: var(--text-main);
+}
+
+.readmap-slot-img {
+  font-size: var(--font-xs);
+  color: var(--text-caption);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.readmap-slot-btn {
+  display: block;
+  width: 100%;
+  padding: 5px 8px;
+  background: var(--bg-surface);
+  color: var(--primary);
+  border: 1.5px solid var(--primary);
+  border-radius: 4px;
+  font-size: var(--font-sm);
+  font-weight: var(--font-semi);
+  cursor: pointer;
+  text-align: center;
+  transition: background var(--transition), color var(--transition);
+}
+
+.readmap-slot-btn:hover {
+  background: var(--primary);
+  color: var(--on-primary, #fff);
+}
+
+/* 読図地図タブ: 案内テキスト */
+.readmap-info-note {
+  margin: 10px 10px 6px;
+  padding: 8px 10px;
+  background: #f4f8e4;
+  border-left: 3px solid var(--primary);
+  border-radius: 4px;
+  font-size: var(--font-sm);
+  color: var(--text-sub);
+  line-height: 1.5;
+}
+
+.readmap-info-note kbd {
+  display: inline-block;
+  padding: 1px 5px;
+  background: var(--bg-hover-btn);
+  border: 1px solid var(--border-weak);
+  border-radius: 3px;
+  font-size: var(--font-xs);
+  font-family: monospace;
+}
+
+/* 開始ボタンブロック（sidebar-panel最下部に常時固定） */
+.sim-start-block {
+  padding: 10px;
+  border-top: 1px solid #e0e0e0;
+  flex-shrink: 0;
+  background: var(--bg-surface);
+}
+
+/* 読図タブ: 地図追加ボタン — .panel-btn-outline を使用 */
+
+/* 削除済みボタンのスタブ（参照残らないように） */
+#sim-open-catalog-btn {
+  display: block;
+  width: 100%;
+  padding: 5px 10px;
+  background: var(--bg-hover);
+  color: var(--text-sub);
+  border: 1px solid var(--border-input);
+  border-radius: 4px;
+  font-size: var(--font-base);
+  cursor: pointer;
+  text-align: center;
+  transition: background var(--transition-fast);
+}
+
+#sim-open-catalog-btn:hover {
+  background: var(--bg-hover-btn);
+}
+
+/* セクションヘッダ（後方互換のため残存） */
+.sec-header {
+  background: var(--bg-select);
+  border-top: 1px solid var(--border-muted);
+  border-bottom: 1px solid var(--border-muted);
+  padding: 4px 10px;
+  font-size: var(--font-sm);
+  font-weight: var(--font-bold);
+  color: var(--text-sub);
+  letter-spacing: 0.02em;
+}
+
+/* ---- アコーディオンセクション (<details> / <summary>) ---- */
+.panel-section {
+  margin: 0;
+}
+
+/* summary がセクションヘッダ代わり */
+.panel-section>summary {
+  background: none;
+  border-top: 1px solid #e4e8ec;
+  border-left: 4px solid var(--primary);
+  padding: 7px 10px 7px 10px;
+  font-size: var(--font-base);
+  font-weight: var(--font-bold);
+  color: var(--text-main);
+  letter-spacing: 0.02em;
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  user-select: none;
+}
+
+/* Chrome / Safari でのデフォルトマーカーを消す */
+.panel-section>summary::-webkit-details-marker {
+  display: none;
+}
+
+/* 開閉インジケーター: 開 = ▲、閉 = ▼ */
+.panel-section>summary::after {
+  content: '▲';
+  font-size: var(--font-sm);
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.panel-section:not([open])>summary::after {
+  content: '▼';
+}
+
+/* ---- 表示設定セクション内の1行レイアウト ---- */
+.setting-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 8px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.setting-row:last-child {
+  border-bottom: none;
+}
+
+/* パネル内の通常チェックボックス・ラジオボタンを同一サイズに統一 */
+/* トグルスイッチ内の input はこのルールから除外する（詳細度の競合防止） */
+#sidebar input[type="checkbox"]:not(.toggle-switch input),
+#sidebar input[type="radio"] {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+  cursor: pointer;
+  accent-color: var(--primary);
+}
+
+.setting-label {
+  font-size: var(--font-sm);
+  color: var(--text-main);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.setting-sublabel {
+  font-size: var(--font-sm);
+  color: var(--text-sub);
+  white-space: nowrap;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+/* ================================================================
+   共通パネルプルダウン
+   <select> の外観（chevron・border・radius）は上の「全 <select> 要素の基本外観」で一括定義済み。
+   ここでは各コンテキスト固有のサイズ・レイアウトのみ定義する。
+   .ppi-cascade-btn / .cascade-btn は <button> 要素なので外観をここで定義。
+   矢印の形・色は :root の --chevron-* 変数で管理
+   ================================================================ */
+
+/* ---- .cascade-btn / .ppi-cascade-btn — <button> なので外観を個別定義 ---- */
+.cascade-btn,
+.ppi-cascade-btn {
+  appearance: none;
+  background-color: var(--dropdown-bg);
+  background-image: var(--chevron-down);
+  background-repeat: no-repeat;
+  background-position: right var(--chevron-inset) center;
+  background-size: var(--chevron-size-down);
+  color: var(--dropdown-color);
+  border: 1px solid var(--dropdown-border);
+  border-radius: var(--dropdown-radius);
+  cursor: pointer;
+  outline: none;
+  padding: 2px var(--chevron-pad-r) 2px 6px;
+  font-size: var(--font-sm);
+  font-weight: 500;
+  font-family: var(--font-family);
+}
+
+.cascade-btn:disabled,
+.ppi-cascade-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+  pointer-events: none;
+}
+
+/* ---- .setting-select — サイズ・レイアウトのみ ---- */
+.setting-select {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  padding: 2px var(--chevron-pad-r) 2px 4px;
+  font-size: var(--font-sm);
+}
+
+/* ---- ベースマップカードグリッド ---- */
+.setting-row.bm-row {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+  padding: 6px 4px;
+}
+
+.bm-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2px;
+  width: 100%;
+}
+
+/* オーバーレイカードはベースマップと同じ3列 */
+#overlay-cards.bm-cards {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+/* 正方形カード*/
+.bm-card {
+  --bm-card-radius: 12px;
+  --bm-card-inner-radius: 10px;
+  --bm-card-stroke: var(--border-subtle);
+  position: relative;
+  display: block;
+  aspect-ratio: 1 / 1;
+  background: none;
+  border: none;
+  border-radius: var(--bm-card-radius);
+  padding: 0;
+  cursor: pointer;
+  overflow: hidden;
+  isolation: isolate;
+  clip-path: inset(0 round var(--bm-card-radius));
+  box-shadow: none;
+  transition: box-shadow 0.15s;
+}
+
+.bm-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: var(--bm-card-radius);
+  box-shadow: inset 0 0 0 2px var(--bm-card-stroke);
+  pointer-events: none;
+  z-index: 3;
+}
+
+.bm-card:hover {
+  --bm-card-stroke: #94cec7;
+}
+
+.bm-card.active {
+  --bm-card-stroke: var(--primary);
+}
+
+/* サムネイル: カード全面を覆う */
+/* サムネイル画像 */
+.bm-card-img {
+  position: absolute;
+  /* relativeからabsoluteに戻す */
+  top: 1px;
+  left: 1px;
+  width: calc(100% - 2px);
+  height: calc(100% - 2px);
+  object-fit: contain;
+  border-radius: calc(var(--bm-card-radius) - 1px);
+}
+
+/* ラベル */
+.bm-card-label {
+  position: absolute;
+  bottom: 0.5px;
+  left: 0.5px;
+  right: 0.5px;
+  min-height: 20px;
+  font-size: var(--font-xs);
+  font-weight: 500;
+  padding: 0 5px 1px;
+  color: var(--text-body);
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0 0 calc(var(--bm-card-radius) - 1px) calc(var(--bm-card-radius) - 1px);
+}
+
+.bm-card.active .bm-card-label {
+  background: var(--primary);
+  color: #fff;
+}
+
+/* ---- レイヤートグルカード（等高線・磁北線 / 3D表示）横並びレイアウト ---- */
+/* 2列グリッド: パネル幅を2分割して各カードを配置 */
+.setting-row.layer-2col-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2px;
+}
+
+/* 各カードの列（カード＋プルダウン） */
+.layer-card-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  min-width: 0;
+  /* グリッドセルからのはみ出しを防止 */
+}
+
+/* カード: 横長（アスペクト比 2:1） */
+.layer-2col-row .bm-card {
+  width: 100%;
+  aspect-ratio: 2 / 1;
+}
+
+/* OFF時: サムネイルをグレースケール＋半透明にして無効感を表現 */
+.layer-2col-row .bm-card:not(.active) .bm-card-img {
+  filter: grayscale(100%) opacity(55%);
+  transition: filter 0.2s;
+}
+
+.layer-2col-row .bm-card.active .bm-card-img {
+  filter: none;
+  transition: filter 0.2s;
+}
+
+
+/* OFF時: カード下プルダウンをグレーアウト */
+.layer-card-wrapper:has(.bm-card:not(.active)) .custom-select-wrap.layer-card-select>.cascade-btn {
+  opacity: 0.4;
+  pointer-events: none;
+  cursor: default;
+}
+
+.layer-card-wrapper:has(.bm-card:not(.active)) .plateau-area-label {
+  opacity: 0.4;
+}
+
+/* 非アクティブ時はベースマップカードと同じスタイル（border-subtleの枠線のみ） */
+/* PLATEAU 現在地域ラベル（LOD2/LOD3選択時にカード下に表示） */
+.plateau-area-label {
+  width: 100%;
+  min-width: 0;
+  font-size: var(--font-xs);
+  color: var(--text-sub);
+  padding: 2px 4px;
+  white-space: normal;
+  line-height: 1.45;
+  word-break: break-word;
+  text-align: left;
+}
+
+/* カード下セレクト（等高線・磁北線・3D地形・3D建物） */
+.layer-card-wrapper .custom-select-wrap.layer-card-select {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  /* テキスト幅でラッパーが広がるのを防止 */
+}
+
+.layer-card-subrow {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  min-width: 0;
+}
+
+.layer-card-subrow--magnetic {
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+}
+
+.layer-card-subrow .custom-select-wrap.layer-card-select {
+  width: 100%;
+}
+
+.layer-card-wrapper .custom-select-wrap.layer-card-select>.cascade-btn {
+  flex: 1;
+  min-width: 0;
+  min-height: 20px !important;
+  font-size: var(--font-xs) !important;
+  padding: 0 var(--chevron-pad-r) 1px 5px !important;
+  border-radius: 4px !important;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+/* ================================================================
+   共通スライダー (.ui-slider)
+   トラック・つまみのスタイルをここで一括管理。
+   色は var(--primary) で統一。
+   変更は .ui-slider ブロックのみ編集すれば全スライダーに反映される。
+   ================================================================ */
+.ui-slider {
+  flex: 1;
+  min-width: 0;
+  height: 3px;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  border-radius: 2px;
+  background: linear-gradient(to right,
+      var(--primary) var(--pct, 0%),
+      var(--slider-track) var(--pct, 0%));
+  outline: none;
+}
+
+/* つまみ（WebKit / Blink） */
+.ui-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--bg-surface);
+  border: 1.5px solid #888;
+  cursor: pointer;
+}
+
+.ui-slider::-webkit-slider-thumb:hover {
+  border-color: var(--primary);
+}
+
+/* つまみ（Firefox） */
+.ui-slider::-moz-range-track {
+  height: 3px;
+  border-radius: 2px;
+  background: linear-gradient(to right,
+      var(--primary) var(--pct, 0%),
+      var(--slider-track) var(--pct, 0%));
+}
+
+.ui-slider::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--bg-surface);
+  border: 1.5px solid #888;
+  cursor: pointer;
+}
+
+.ui-slider:disabled {
+  opacity: 0.35;
+  cursor: default;
+  pointer-events: none;
+}
+
+.ui-slider:disabled~.opacity-val {
+  color: var(--text-disabled);
+}
+
+/* 表示設定：左ラベル列 / 右コントロール列 */
+.setting-left {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  width: 80px;
+  padding-right: 8px;
+  border-right: 1px solid var(--border-muted);
+}
+
+/* 区切り線なし・ラベル左＋トグル右行 */
+.setting-row.no-divider .setting-left {
+  width: auto;
+  flex: 1;
+  border-right: none;
+  padding-right: 0;
+}
+
+.setting-row.no-divider .setting-right {
+  flex: 0 0 auto;
+  padding-left: 8px;
+}
+
+.setting-right {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex: 1;
+  min-width: 0;
+  padding-left: 4px;
+}
+
+/* ラベルを区切り線の左に右揃え、コントロールを右端に寄せる行 */
+.setting-row.ctrl-right .setting-left {
+  justify-content: flex-end;
+}
+
+/* ラベル右揃え（コントロール側は通常レイアウト）*/
+.setting-row.label-right .setting-left {
+  justify-content: flex-end;
+}
+
+/* トグルを区切り線の左に置く行：[ラベル][トグル] | [select/slider] */
+.setting-row.toggle-left .setting-left {
+  justify-content: flex-end;
+  width: 80px;
+}
+
+.setting-label.disabled {
+  color: var(--text-disabled);
+}
+
+/* レイヤー行 */
+.layer-row {
+  padding: 5px 10px 4px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.layer-row:last-child {
+  border-bottom: none;
+}
+
+/* チェックボックス + ラベル行 */
+.layer-label-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 3px;
+}
+
+/* #ui-panel input[type="checkbox"] に統合済み */
+
+.layer-name {
+  flex: 1;
+  font-size: var(--font-md);
+  color: var(--text-dark);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  user-select: none;
+}
+
+.layer-name.disabled {
+  color: var(--text-disabled);
+}
+
+.kmz-del-btn {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--text-disabled);
+  cursor: pointer;
+  font-size: var(--font-lg);
+  line-height: 1;
+  padding: 0 2px;
+  transition: color 0.15s;
+}
+
+.kmz-del-btn:hover {
+  color: var(--color-danger);
+}
+
+/* ================================================================
+   共通トグルスイッチ (.toggle-switch / .toggle-slider)
+   全トグルスイッチのスタイルをここで一括管理。
+   サイズ・色を変えたい場合はこのブロックだけ編集すれば全体に反映される。
+   HTML パターン:
+     <label class="toggle-switch">
+       <input type="checkbox" ... />
+       <span class="toggle-slider"></span>
+     </label>
+   ================================================================ */
+.toggle-switch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  width: 28px;
+  /* ← ピル幅 */
+  height: 16px;
+  /* ← ピル高さ */
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+/* hidden input（アクセシビリティ用、視覚的には非表示） */
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+  position: absolute;
+}
+
+/* ピル背景 */
+.toggle-slider {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--border-weak);
+  /* ← OFF 時の色 */
+  border-radius: 16px;
+  transition: background 0.18s;
+  cursor: pointer;
+}
+
+/* つまみ（白い丸） */
+.toggle-slider::before {
+  content: '';
+  position: absolute;
+  width: 12px;
+  /* ← つまみ幅 */
+  height: 12px;
+  /* ← つまみ高さ */
+  left: 2px;
+  top: 2px;
+  background: var(--bg-surface);
+  border-radius: 50%;
+  transition: transform 0.18s;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+
+/* ON 時: ピル背景を primary 色に */
+.toggle-switch input:checked+.toggle-slider {
+  background: var(--primary);
+  /* ← ON 時の色 */
+}
+
+/* ON 時: つまみを右へ移動 */
+.toggle-switch input:checked+.toggle-slider::before {
+  transform: translateX(12px);
+  /* ← ピル幅(28) - つまみ幅(10) - 左余白(3) - 右余白(3) = 12 */
+}
+
+/* ---- ホバーエフェクト（クリック可能行の視覚フィードバック） ---- */
+.setting-row:has(label) {
+  cursor: pointer;
+  transition: background-color 0.12s;
+}
+
+.setting-row:has(label):hover {
+  background-color: #f0f5f1;
+}
+
+.layer-label-row {
+  transition: background-color 0.12s;
+}
+
+.layer-label-row:hover {
+  background-color: #f0f5f1;
+  border-radius: 3px;
+}
+
+label.setting-label {
+  cursor: pointer;
+}
+
+.setting-label.disabled,
+.layer-name.disabled {
+  cursor: default;
+}
+
+/* ---- シミュレーターボタングループ（タブ最上部） ---- */
+.sim-btn-group {
+  padding: 10px 10px 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* ---- シミュレーター設定セクションヘッダ ---- */
+.panel-section.sim-section>summary {
+  background: var(--primary-light);
+  color: var(--primary-hover);
+}
+
+/* オーバーレイ ヘッダー行（ラベル＋トグル＋透明度スライダー） */
+.overlay-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 0 8px;
+}
+
+.overlay-header .setting-label {
+  flex-shrink: 0;
+}
+
+/* .ui-slider に統合済み */
+
+/* 透明度スライダー行 */
+.opacity-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-left: 18px;
+  padding-right: 10px;
+}
+
+.opacity-row-label {
+  font-size: var(--font-xs);
+  color: var(--text-light);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* .ui-slider に統合済み（layout のみ残す） */
+.opacity-row input[type="range"] {
+  flex: 1;
+  min-width: 0;
+}
+
+.opacity-val {
+  min-width: 30px;
+  text-align: right;
+  font-size: var(--font-sm);
+  color: var(--text-caption);
+  font-variant-numeric: tabular-nums;
+}
+
+/* KMZアップロードボタン */
+/* ================================================================
+   パネル内共通ボタン（ここで一括管理）
+   フォントサイズ・色・トランジションは変数から読み込む。
+   margin のみ用途別に上書きして使うこと。
+   ================================================================ */
+
+/* セカンダリ（アウトライン） */
+.panel-btn-outline {
+  display: block;
+  width: calc(100% - 20px);
+  margin: 6px 10px;
+  padding: 6px 12px;
+  background: var(--bg-surface);
+  color: var(--primary);
+  border: 1.5px solid var(--primary);
+  border-radius: 4px;
+  font-size: var(--font-base);
+  font-weight: var(--font-semi);
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition);
+  text-align: center;
+  letter-spacing: 0.02em;
+}
+
+.panel-btn-outline:hover {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+
+/* プライマリ（塗りつぶし） */
+.panel-btn-primary {
+  display: block;
+  width: calc(100% - 20px);
+  margin: 6px 10px 8px;
+  padding: 7px 12px;
+  background: var(--primary);
+  color: var(--on-primary);
+  border: none;
+  border-radius: 4px;
+  font-size: var(--font-base);
+  font-weight: var(--font-semi);
+  cursor: pointer;
+  transition: background var(--transition);
+  text-align: center;
+  letter-spacing: 0.04em;
+}
+
+.panel-btn-primary:hover {
+  background: var(--primary-hover);
+}
+
+/* 地図追加ボタン: .panel-btn-outline を使用。margin のみ調整 */
+#map-import-btn-top {
+  margin: 4px 10px 6px;
+}
+

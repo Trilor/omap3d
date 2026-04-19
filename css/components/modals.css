@@ -1,0 +1,370 @@
+/* ===== タブバー ===== */
+.tab-bar {
+  display: flex;
+  align-items: flex-end;
+  border-bottom: 1px solid var(--border-muted);
+  background: var(--bg-select);
+  padding: 5px 5px 0;
+  gap: 3px;
+}
+
+.tab-btn {
+  flex: 1;
+  padding: 6px 0;
+  font-size: var(--font-base);
+  font-weight: var(--font-semi);
+  color: var(--text-main);
+  background: none;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 5px 5px 0 0;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+  letter-spacing: 0.02em;
+  margin-bottom: -1px;
+}
+
+.tab-btn:hover {
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.tab-btn.active {
+  color: var(--text-main);
+  background: var(--bg-surface);
+  border-color: var(--border-muted);
+  border-bottom-color: var(--on-primary);
+}
+
+.tab-panel {
+  display: none;
+}
+
+.tab-panel.active {
+  display: block;
+}
+
+/* ===== map_type チップフィルター ===== */
+.map-type-chips {
+  display: flex;
+  gap: 5px;
+  padding: 6px 10px 4px;
+  flex-wrap: wrap;
+}
+
+.type-chip {
+  padding: 2px 9px;
+  font-size: var(--font-sm);
+  font-weight: var(--font-semi);
+  border-radius: 12px;
+  border: 1px solid var(--border-input);
+  background: var(--bg-hover);
+  color: var(--text-sub);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+  letter-spacing: 0.02em;
+}
+
+.type-chip.active {
+  background: var(--primary);
+  color: var(--on-primary);
+  border-color: var(--primary);
+}
+
+.type-chip:hover:not(.active) {
+  background: var(--primary-light);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+
+/* 都道府県グループ（3段ツリーの最上位） */
+.pref-group {
+  border-bottom: 1px solid #e8e8e8;
+}
+
+.pref-group>summary {
+  padding: 5px 10px;
+  font-size: var(--font-xs);
+  font-weight: var(--font-bold);
+  color: var(--text-muted);
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  list-style: none;
+  text-transform: uppercase;
+  user-select: none;
+}
+
+.pref-group>summary::-webkit-details-marker {
+  display: none;
+}
+
+/* 画像ピッカーボタン（小） */
+.frame-img-pick-btn {
+  flex-shrink: 0;
+  background: none;
+  border: 1px solid var(--border-input);
+  border-radius: 3px;
+  padding: 2px 5px;
+  font-size: var(--font-sm);
+  cursor: pointer;
+  color: var(--text-caption);
+  line-height: 1.2;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+
+.frame-img-pick-btn:hover {
+  background: var(--primary);
+  color: var(--on-primary);
+  border-color: var(--primary);
+}
+
+/* フレームコントロール（プルダウン＋スライダー）— 画像ありの時のみ表示 */
+.frame-controls {
+  margin-top: 4px;
+}
+
+.frame-img-select {
+  width: 100%;
+  padding: 3px var(--chevron-pad-r) 3px 5px;
+  font-size: var(--font-sm);
+  margin-bottom: 3px;
+}
+
+/* MapLibreポップアップ内のカスタムスタイル */
+.frame-popup {
+  font-size: var(--font-base);
+  min-width: 200px;
+}
+
+.frame-popup-title {
+  font-weight: var(--font-bold);
+  font-size: var(--font-md);
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.frame-popup-meta {
+  color: var(--text-caption);
+  font-size: var(--font-sm);
+  margin-bottom: 6px;
+  line-height: 1.5;
+}
+
+.frame-popup-select {
+  width: 100%;
+  padding: 4px var(--chevron-pad-r) 4px 6px;
+  font-size: var(--font-sm);
+  margin-bottom: 6px;
+}
+
+.frame-popup-upload {
+  display: block;
+  width: 100%;
+  padding: 6px 10px;
+  background: var(--primary);
+  color: var(--on-primary);
+  border: none;
+  border-radius: 4px;
+  font-size: var(--font-base);
+  font-weight: var(--font-semi);
+  cursor: pointer;
+  text-align: center;
+}
+
+.frame-popup-upload:hover {
+  background: var(--primary-hover);
+}
+
+/* 重なり時の選択メニュー */
+.frame-overlap-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.frame-overlap-item {
+  padding: 5px 8px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: var(--font-base);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.frame-overlap-item:hover {
+  background: var(--primary-light);
+}
+
+.frame-overlap-item:last-child {
+  border-bottom: none;
+}
+
+
+/* ===== 画像+JGW モーダル ===== */
+.imgw-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 282;
+  background: rgba(0, 0, 0, 0.48);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.imgw-modal-box {
+  background: var(--bg-surface);
+  border-radius: 8px;
+  box-shadow: 0 6px 32px rgba(0, 0, 0, 0.28);
+  width: min(440px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.imgw-modal-header {
+  background: var(--primary);
+  color: var(--on-primary);
+  padding: 12px 16px;
+  border-radius: 8px 8px 0 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: var(--font-lg);
+  font-weight: var(--font-bold);
+  flex-shrink: 0;
+}
+
+.imgw-modal-close {
+  background: none;
+  border: none;
+  color: var(--on-primary);
+  font-size: 18px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0 2px;
+  opacity: 0.8;
+}
+
+.imgw-modal-close:hover {
+  opacity: 1;
+}
+
+.imgw-modal-body {
+  padding: 16px;
+}
+
+.imgw-step {
+  margin-bottom: 18px;
+}
+
+.imgw-step:last-child {
+  margin-bottom: 0;
+}
+
+.imgw-step-label {
+  font-size: var(--font-base);
+  font-weight: var(--font-bold);
+  color: var(--text-main);
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.imgw-step-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 19px;
+  height: 19px;
+  background: var(--primary);
+  color: var(--on-primary);
+  border-radius: 50%;
+  font-size: var(--font-sm);
+  font-weight: var(--font-bold);
+  flex-shrink: 0;
+}
+
+.imgw-pick-btn {
+  display: block;
+  width: 100%;
+  padding: 9px 12px;
+  background: var(--bg-surface);
+  color: var(--primary);
+  border: 1.5px dashed var(--primary);
+  border-radius: 5px;
+  font-size: var(--font-base);
+  font-weight: var(--font-semi);
+  cursor: pointer;
+  text-align: center;
+  transition: background var(--transition);
+}
+
+.imgw-pick-btn:hover {
+  background: var(--primary-light);
+}
+
+.imgw-pick-btn.has-files {
+  border-style: solid;
+  background: var(--primary-light);
+}
+
+.imgw-file-list {
+  margin-top: 6px;
+  font-size: var(--font-sm);
+  color: var(--primary-hover);
+  line-height: 1.6;
+}
+
+.imgw-file-item::before {
+  content: '✓ ';
+  font-weight: 700;
+}
+
+.imgw-step-note {
+  margin: 6px 0 0;
+  font-size: var(--font-xs);
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.imgw-crs-select {
+  width: 100%;
+  padding: 7px var(--chevron-pad-r) 7px 8px;
+  font-size: var(--font-base);
+}
+
+.imgw-modal-footer {
+  padding: 12px 16px;
+  border-top: 1px solid #e8e8e8;
+  display: flex;
+  justify-content: flex-end;
+  flex-shrink: 0;
+}
+
+.imgw-place-btn {
+  padding: 9px 24px;
+  background: var(--primary);
+  color: var(--on-primary);
+  border: none;
+  border-radius: 5px;
+  font-size: var(--font-base);
+  font-weight: var(--font-semi);
+  cursor: pointer;
+  transition: background 0.15s, opacity 0.15s;
+}
+
+.imgw-place-btn:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+
+.imgw-place-btn:not(:disabled):hover {
+  background: var(--primary-hover);
+}
+

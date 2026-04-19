@@ -1,0 +1,930 @@
+/* ============================================================
+   印刷・エクスポートパネル
+   ============================================================ */
+
+
+/* 地図上の印刷範囲フレームオーバーレイ */
+#print-frame-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 5;
+  display: none;
+}
+
+#print-frame-overlay.visible {
+  display: block;
+}
+
+/* パネル内の情報テキスト */
+/* 印刷パネル — セクション間余白を広げてグループを明確化 */
+#panel-print .settings-group {
+  margin-bottom: 0;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-light, #e8e8e8);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+#panel-print .settings-group:last-of-type {
+  border-bottom: none;
+}
+
+/* 縮尺行: 「1 :」プレフィックス + select */
+.print-scale-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.print-scale-prefix {
+  white-space: nowrap;
+  font-size: var(--font-base);
+  font-weight: 500;
+  color: var(--text-main);
+  flex-shrink: 0;
+}
+
+/* 出力情報（元のスタイルに戻す） */
+.print-panel-info {
+  font-size: var(--font-xs);
+  color: var(--text-muted);
+  white-space: pre-line;
+  line-height: 1.6;
+  padding: 2px 12px 8px;
+}
+
+/* エクスポートボタン */
+.print-panel-actions {
+  padding: 4px 12px 16px;
+}
+
+#print-export-btn {
+  width: 100%;
+  background: var(--primary);
+  color: var(--on-primary);
+  border: none;
+  border-radius: 6px;
+  padding: 8px 0;
+  font-size: var(--font-base);
+  font-weight: var(--font-bold);
+  font-family: inherit;
+  cursor: pointer;
+  transition: background var(--transition);
+}
+
+#print-export-btn:hover {
+  background: var(--primary-hover);
+}
+
+#print-export-btn:disabled {
+  background: var(--text-disabled);
+  cursor: not-allowed;
+}
+
+/* maplibre-gl-export のドロップダウンパネルを非表示（独自実装に置換） */
+.maplibregl-export-list {
+  display: none !important;
+}
+
+/* ============================================================
+   モバイル専用要素: デスクトップでは非表示
+   ============================================================ */
+#sheet-handle,
+#sheet-mini-bar {
+  display: none;
+}
+
+/* ============================================================
+   @media (max-width: 768px)
+   ボトムナビゲーション & ドラッグ可能ボトムシート
+   ============================================================ */
+@media (max-width: 768px) {
+
+  /* サイドバー幅を 0 に（地図UIをフルスクリーン化） */
+  :root {
+    --sidebar-w: 0px !important;
+  }
+
+  /* #sidebar → 画面下部に固定・縦→横レイアウト */
+  #sidebar {
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100vw;
+    height: auto;
+    flex-direction: column-reverse;
+    /* icon-bar が最下部 */
+    z-index: 20;
+  }
+
+  /* ── ボトムナビゲーションバー ── */
+  #sidebar-icon-bar {
+    width: 100%;
+    height: 54px;
+    height: calc(54px + env(safe-area-inset-bottom, 0px));
+    flex-direction: row;
+    justify-content: space-around;
+    padding: 0 4px;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    gap: 0;
+    box-shadow: 0 -1px 0 var(--shadow-xs), 0 -2px 12px rgba(0, 0, 0, 0.08);
+    flex-shrink: 0;
+  }
+
+  /* ロゴ非表示 */
+  #sidebar-logo {
+    display: none;
+  }
+
+  /* ナビボタン: 横並びに */
+  .sidebar-nav-btn,
+  .sidebar-modal-btn {
+    flex: 1;
+    height: 54px;
+    width: auto;
+    border-radius: 0;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  /* スペーサーはモバイル横並びでは不要 */
+  .sidebar-nav-spacer {
+    display: none;
+  }
+
+  .nav-label {
+    display: block;
+    font-size: var(--font-xs);
+  }
+
+  /* モバイル: 左バー非表示、上端ラインでアクティブを表現 */
+  .sidebar-nav-btn.active::before {
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: auto;
+    width: auto;
+    height: 3px;
+    border-radius: 0 0 2px 2px;
+  }
+
+  /* ── ボトムシート ── */
+  #sidebar-panel {
+    position: fixed;
+    bottom: 54px;
+    bottom: calc(54px + env(safe-area-inset-bottom, 0px));
+    left: 0;
+    right: 0;
+    top: auto;
+    width: 100vw;
+    height: var(--sheet-height, 72px);
+    border-right: none;
+    border-top: 1px solid var(--shadow-xs);
+    border-radius: 16px 16px 0 0;
+    box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.14);
+    transition: height 0.32s cubic-bezier(0.4, 0, 0.2, 1);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* sb-hidden を無効化（ボトムシートは常に表示） */
+  #sidebar-panel.sb-hidden {
+    display: flex !important;
+  }
+
+  /* ── ドラッグハンドル ── */
+  #sheet-handle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 22px;
+    flex-shrink: 0;
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+    background: inherit;
+  }
+
+  #sheet-handle:active {
+    cursor: grabbing;
+  }
+
+  .sheet-handle-bar {
+    width: 40px;
+    height: 4px;
+    background: var(--shadow-md);
+    border-radius: 2px;
+    transition: background 0.15s, width 0.15s;
+  }
+
+  #sheet-handle:active .sheet-handle-bar {
+    background: rgba(37, 99, 235, 0.55);
+    width: 52px;
+  }
+
+  /* ── ミニバー（最小展開時のプレビュー行） ── */
+  #sheet-mini-bar {
+    display: flex;
+    align-items: center;
+    padding: 0 14px;
+    gap: 10px;
+    height: 50px;
+    flex-shrink: 0;
+    border-top: 1px solid rgba(0, 0, 0, 0.07);
+    background: var(--bg-surface);
+  }
+
+  #sheet-mini-label {
+    flex: 1;
+    font-size: var(--font-base);
+    color: var(--text-sub);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: var(--font-semi);
+  }
+
+  #sheet-mini-start-btn {
+    padding: 6px 16px;
+    background: var(--primary);
+    color: var(--on-primary);
+    border: none;
+    border-radius: 6px;
+    font-size: var(--font-base);
+    font-weight: var(--font-bold);
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+    font-family: inherit;
+  }
+
+  /* 展開時はミニバー非表示 */
+  #sidebar-panel.sheet-mid #sheet-mini-bar,
+  #sidebar-panel.sheet-full #sheet-mini-bar {
+    display: none;
+  }
+
+  /* 最小時: スクロール無効 / 展開時: スクロール有効 */
+  #sidebar-panel.sheet-min .sidebar-scroll {
+    overflow-y: hidden;
+  }
+
+  #sidebar-panel.sheet-mid .sidebar-scroll,
+  #sidebar-panel.sheet-full .sidebar-scroll {
+    overflow-y: auto;
+  }
+
+  /* セクションが見えないときは pointer-events を切る */
+  #sidebar-panel.sheet-min .sidebar-section {
+    pointer-events: none;
+  }
+
+  #sidebar-panel.sheet-mid .sidebar-section,
+  #sidebar-panel.sheet-full .sidebar-section {
+    pointer-events: auto;
+  }
+
+  /* 地図コントロール（ズーム等）が底に隠れないよう上げる */
+  .maplibregl-ctrl-bottom-right,
+  .maplibregl-ctrl-bottom-left {
+    bottom: calc(54px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  /* 縮尺: ボトムナビの上・モバイルは sidebar-w=0 なので左端に 10px 余白 */
+  #scale-ctrl-container {
+    left: 10px;
+    bottom: calc(54px + env(safe-area-inset-bottom, 0px) + var(--control-edge-gap));
+  }
+
+  #scale-ctrl-container.above-attrib {
+    bottom: calc(54px + env(safe-area-inset-bottom, 0px) + var(--attrib-h, 40px) + 14px);
+  }
+}
+
+
+/* ============================================================
+   --on-primary 一括適用ブロック
+   ファイル末尾に置くことで既存の color: #fff を上書き
+   ============================================================ */
+
+/* primary 背景上で白/黒を切り替える全要素 */
+/* .sidebar-nav-btn.active は直接ルールで color:#fff !important を指定済みのため除外 */
+.panel-btn-primary,
+.panel-btn-outline:hover,
+.sim-map-fly-btn:hover,
+.type-chip.active,
+.frame-img-pick-btn:hover,
+.frame-popup-upload,
+.imgw-modal-header,
+.imgw-step-num,
+.imgw-place-btn,
+#view-toggle-btn.active-first,
+#view-toggle-btn.active-chase,
+#play-pause-btn,
+#sim-toggle-btn:not(.sim-active),
+#pc-sim-toggle-btn:not(.pc-sim-active),
+.import-overlay-header,
+#import-decide-btn,
+#sheet-mini-start-btn {
+  color: var(--on-primary);
+}
+
+
+/* ============================================================
+   色別標高図（dem2relief）— グラデーション背景付きデュアルレンジスライダー
+   ============================================================ */
+
+/* コントロール全体のラッパー: カード一覧の直下に密着（区切り線なし） */
+/* ---- パレットピッカー ---- */
+.palette-picker-row {
+  width: 100%;
+  margin-bottom: 4px;
+}
+
+/* ボタン: グラデーションバー + 右端にシェブロン */
+.palette-picker-btn {
+  width: 100%;
+  height: 24px;
+  padding: 3px var(--chevron-pad-r) 3px 3px;
+  background-color: transparent !important; /* cascade-btn の background-color を上書き */
+}
+
+/* ドロップダウン内の各パレット行 */
+.palette-picker-item {
+  height: 22px;
+  margin: 2px 4px;
+  border-radius: 3px;
+  background-size: 100% 100%;
+  cursor: pointer;
+}
+.palette-picker-item:hover,
+.palette-picker-item.highlighted {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+.palette-picker-item.selected {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+/* selected の ::after チェックマークは不要なので非表示 */
+.palette-picker-item.selected::after { display: none; }
+
+.color-relief-ctrls {
+  width: 100%;
+  padding: 4px 8px 8px;
+  box-sizing: border-box;
+}
+
+/* ラベル行: "標高(m)  [min] – [max]" */
+.cr-label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.cr-label-text {
+  font-size: var(--font-sm);
+  color: var(--text-main);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* 自動フィットボタン */
+.cr-autofit-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: var(--font-xs);
+  padding: 2px 7px;
+  border-radius: 4px;
+  border: 1px solid var(--border-input);
+  background: var(--bg-hover);
+  color: var(--text-sub);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.cr-autofit-btn:hover:not(:disabled) {
+  background: var(--primary, #2563eb);
+  border-color: var(--primary, #2563eb);
+  color: var(--on-primary);
+}
+
+.cr-autofit-btn:active:not(:disabled) {
+  filter: brightness(0.9);
+}
+
+.cr-autofit-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* 数値表示エリア（ラベル行中央） */
+.cr-range-display {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 1;
+  justify-content: center;
+}
+
+.cr-range-sep {
+  font-size: var(--font-sm);
+  color: var(--text-light);
+  padding: 0 1px;
+}
+
+/* 数値直接入力欄: テキスト風インライン */
+.cr-num-input {
+  width: 40px;
+  padding: 1px 2px;
+  font-size: var(--font-sm);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border-input);
+  border-radius: 0;
+  color: var(--text-main);
+  outline: none;
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.cr-num-input::-webkit-inner-spin-button,
+.cr-num-input::-webkit-outer-spin-button {
+  display: none;
+}
+
+.cr-num-input:focus {
+  border-bottom-color: var(--primary, #2563eb);
+  color: #111;
+}
+
+/* グラデーショントラック + 2つのレンジ入力を重ねるコンテナ（全幅） */
+.cr-dual-track {
+  position: relative;
+  width: 100%;
+  height: 20px;
+  overflow: visible;
+}
+
+/* グラデーション背景バー（background は JS が動的に設定） */
+.cr-gradient-track {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  left: 0;
+  right: 0;
+  height: 5px;
+  border-radius: 3px;
+  background: linear-gradient(to right,
+      #0006fb 0%, #0092fb 17%, #00e7fb 33%, #8af708 50%,
+      #f2f90b 67%, #f28a09 83%, #f2480b 100%);
+  pointer-events: none;
+}
+
+/* 左右つまみの間だけ重なる太い選択バー */
+.cr-selected-track {
+  --cr-bar-h: 20px;
+  --cr-edge-hit: 7px;
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  left: 0;
+  display: flex;
+  align-items: stretch;
+  width: 0;
+  height: var(--cr-bar-h);
+  border-radius: 999px;
+  background: linear-gradient(to right,
+      #0006fb 0%, #0092fb 17%, #00e7fb 33%, #8af708 50%,
+      #f2f90b 67%, #f28a09 83%, #f2480b 100%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+  overflow: visible;
+  pointer-events: auto;
+}
+
+.cr-selected-drag {
+  position: absolute;
+  top: -6px;
+  bottom: -6px;
+  background: transparent;
+}
+
+.cr-selected-drag--min,
+.cr-selected-drag--max {
+  width: var(--cr-edge-hit);
+  z-index: 2;
+}
+
+.cr-selected-drag--min {
+  left: 0;
+  cursor: ew-resize;
+}
+
+.cr-selected-drag--max {
+  right: 0;
+  cursor: ew-resize;
+}
+
+.cr-selected-drag--min::before,
+.cr-selected-drag--max::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: 5px;
+  height: 5px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0);
+  background: transparent;
+  pointer-events: none;
+}
+
+.cr-selected-drag--min::before {
+  left: calc(var(--cr-bar-h) / 2);
+}
+
+.cr-selected-drag--max::before {
+  left: calc(100% - (var(--cr-bar-h) / 2));
+}
+
+.cr-selected-drag--move {
+  left: var(--cr-edge-hit);
+  right: var(--cr-edge-hit);
+  min-width: 6px;
+  cursor: grab;
+}
+
+.cr-selected-track.cr-dragging .cr-selected-drag--move {
+  cursor: grabbing;
+}
+
+.cr-dual-track.cr-dragging {
+  user-select: none;
+}
+
+/* レンジ入力共通: 左右 -6px 拡張でつまみが端まで届くよう */
+.cr-range {
+  position: absolute;
+  top: 0;
+  left: -6px;
+  width: calc(100% + 12px);
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  pointer-events: none;
+  outline: none;
+  accent-color: transparent;
+  color: transparent;
+}
+
+/* WebKit/Blink: トラック非表示 */
+.cr-range::-webkit-slider-runnable-track {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  height: 100%;
+  border: none;
+}
+
+/* WebKit: トラックを全高に（つまみがコンテナ中央に来る） */
+.cr-range::-webkit-slider-runnable-track {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  height: 20px;
+  border: none;
+}
+
+/* Firefox: トラック非表示 */
+.cr-range::-moz-range-track {
+  background: transparent;
+  height: 100%;
+}
+
+/* Firefox: 位置合わせグラデーションつまみ */
+input[type=range].cr-range::-moz-range-thumb {
+  width: 0;
+  height: 0;
+  border: none;
+  box-shadow: none;
+  opacity: 0;
+}
+
+/* 色別標高図カード: グラデーションサムネイル */
+/* 「なし」カード: 薄い灰色 */
+.bm-card-none-bg {
+  position: absolute;
+  inset: -2px;
+  border-radius: var(--bm-card-radius);
+  background-color: #b0b0b0;
+}
+
+.bm-card-gradient {
+  position: absolute;
+  inset: -2px;
+  bottom: 0;
+  border-radius: var(--bm-card-radius);
+  background: linear-gradient(135deg,
+      #0006fb 0%,
+      #0092fb 17%,
+      #00e7fb 33%,
+      #8af708 50%,
+      #f2f90b 67%,
+      #f28a09 83%,
+      #f2480b 100%);
+  border-radius: inherit;
+}
+
+/* ---- 汎用ローディングインジケーター ---- */
+
+/* コンパスSVG（小・デフォルト） */
+.compass-spinner {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+}
+
+/* コンパスSVG（大・中央モーダル用） */
+.compass-spinner--lg {
+  width: 48px;
+  height: 48px;
+  margin-bottom: 4px;
+}
+
+/* 針グループ: SVGビューボックス中心(32,32)を軸に回転 */
+.compass-needle-group {
+  transform-box: view-box;
+  transform-origin: 32px 32px;
+  animation: compass-cw 2s linear infinite;
+  will-change: transform;
+}
+
+/* 旧アニメーション（磁針風・バウンス付き）— コメントアウト
+@keyframes magnetic-spin {
+  0%   { transform: rotate(-20deg); animation-timing-function: ease-in; }
+  25%  { transform: rotate(180deg); animation-timing-function: cubic-bezier(0.34, 1.4, 0.64, 1); }
+  50%  { transform: rotate(380deg); animation-timing-function: ease-in; }
+  75%  { transform: rotate(180deg); animation-timing-function: cubic-bezier(0.34, 1.4, 0.64, 1); }
+  100% { transform: rotate(-20deg); }
+}
+*/
+
+@keyframes compass-cw {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 中央モーダル（オーバーレイ選択時） */
+#map-loading {
+  position: fixed;
+  top: 50%;
+  left: calc(50% + var(--sidebar-w, 296px) / 2);
+  transform: translate(-50%, -50%);
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg-glass-heavy);
+  backdrop-filter: blur(4px);
+  border-radius: 12px;
+  padding: 24px 32px;
+  box-shadow: 0 8px 24px var(--shadow-sm);
+  font-size: var(--font-lg);
+  font-weight: 500;
+  color: #475569;
+  letter-spacing: 0.03em;
+  pointer-events: none;
+}
+
+/* 右下ピル（地図移動/ズーム時） */
+#map-tile-loading {
+  position: fixed;
+  bottom: 42px;
+  right: 10px;
+  z-index: 200;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 7px;
+  background: var(--bg-glass-heavy);
+  backdrop-filter: blur(4px);
+  border-radius: 20px;
+  padding: 5px 10px 5px 6px;
+  box-shadow: 0 2px 8px var(--shadow-sm);
+  font-size: var(--font-base);
+  color: #475569;
+  pointer-events: none;
+}
+
+/* ---- 枠エクスポート テレイン情報入力ダイアログ ---- */
+#export-terrain-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  background: var(--overlay-base);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.export-dialog-box {
+  background: var(--bg-surface);
+  border-radius: 12px;
+  padding: 24px 28px 20px;
+  width: min(92vw, 340px);
+  box-shadow: 0 8px 32px var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.export-dialog-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: var(--font-semi);
+  color: var(--text-ink);
+}
+
+.export-dialog-label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: var(--font-base);
+  color: var(--text-sub);
+  font-weight: 500;
+}
+
+/* カスケードステップ */
+.export-dialog-step {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.export-dialog-step-label {
+  font-size: var(--font-sm);
+  font-weight: var(--font-semi);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* 地方・都道府県のピルボタン群 */
+.export-pill-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.export-pill-btn {
+  padding: 5px 12px;
+  border-radius: 20px;
+  border: 1px solid var(--slider-track);
+  background: var(--bg-hover);
+  font-size: var(--font-base);
+  font-family: inherit;
+  cursor: pointer;
+  color: var(--text-main);
+  transition: background 0.12s, border-color 0.12s;
+  white-space: nowrap;
+}
+
+.export-pill-btn:hover {
+  background: var(--bg-hover-btn);
+}
+
+.export-pill-btn.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--on-primary);
+}
+
+/* テレイン一覧（縦リスト） */
+.export-item-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.export-item-btn {
+  padding: 7px 12px;
+  border-radius: 7px;
+  border: 1px solid #e0e0e0;
+  background: var(--bg-subtle);
+  font-size: var(--font-md);
+  font-family: inherit;
+  cursor: pointer;
+  color: var(--text-main);
+  text-align: left;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.export-item-btn:hover {
+  background: var(--bg-select);
+}
+
+.export-item-btn.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--on-primary);
+}
+
+.export-dialog-input {
+  font-size: var(--font-lg);
+  padding: 7px var(--chevron-pad-r) 7px 10px;
+  /* 印刷ダイアログ独自外観: 大きめ角丸・薄灰背景で select{} を上書き */
+  border: 1px solid var(--slider-track);
+  border-radius: 7px;
+  font-family: inherit;
+  color: var(--text-dark);
+  background-color: var(--bg-subtle);
+  transition: border-color 0.15s;
+}
+
+.export-dialog-input:focus {
+  border-color: var(--primary);
+  background-color: var(--bg-surface);
+}
+
+.export-dialog-btns {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.export-dialog-btn {
+  padding: 7px 18px;
+  border-radius: 7px;
+  border: 1px solid var(--slider-track);
+  background: var(--bg-hover);
+  font-size: var(--font-md);
+  font-family: inherit;
+  cursor: pointer;
+  color: var(--text-main);
+  transition: background var(--transition-fast);
+}
+
+.export-dialog-btn:hover {
+  background: var(--bg-hover-btn);
+}
+
+.export-dialog-btn--primary {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--on-primary);
+}
+
+.export-dialog-btn--primary:hover {
+  background: var(--primary-hover);
+}
+
+/* 詳細情報フィールド群 */
+.export-detail-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.export-detail-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.export-detail-label {
+  font-size: var(--font-base);
+  color: var(--text-sub);
+  width: 60px;
+  flex-shrink: 0;
+}
+
+.export-detail-input {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--font-md);
+}
+

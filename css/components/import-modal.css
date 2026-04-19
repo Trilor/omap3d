@@ -1,0 +1,507 @@
+
+/* ================================================================
+   スマホアドレスバー対応 / Attribution折り返し / レスポンシブ
+   ================================================================ */
+
+/* 100dvh: スマホのアドレスバーによる下部隠れを防止 */
+@supports (height: 100dvh) {
+  body {
+    height: 100dvh;
+  }
+}
+
+/* 地図コントロール群 */
+.maplibregl-ctrl-bottom-right {
+  left: var(--sidebar-w, 296px) !important;
+}
+
+.maplibregl-ctrl-top-right,
+.maplibregl-ctrl-bottom-right {
+  z-index: 20 !important;
+}
+
+/* 右パネルが開いている間、コントロール群を右パネル幅分左に移動 */
+body.rp-open .maplibregl-ctrl-top-right,
+body.rp-open .maplibregl-ctrl-bottom-right {
+  right: var(--rp-w) !important;
+}
+
+.maplibregl-ctrl-bottom-left {
+  z-index: 20 !important;
+}
+
+/* 注釈コントロール: 右上コントロール群と外観統一（サイズはMapLibreに委ねる） */
+.maplibregl-ctrl-attrib {
+  border-radius: var(--control-radius) !important;
+  border: var(--control-border) !important;
+  box-shadow: var(--control-shadow) !important;
+  background: var(--control-bg) !important;
+}
+
+.maplibregl-ctrl-attrib .maplibregl-ctrl-attrib-button {
+  border-radius: var(--control-radius) !important;
+}
+
+.maplibregl-ctrl-attrib.maplibregl-compact:not(.maplibregl-compact-show) .maplibregl-ctrl-attrib-button:hover {
+  background-color: var(--control-hover-bg) !important;
+}
+
+.maplibregl-ctrl-attrib-inner {
+  white-space: normal !important;
+}
+
+/* 展開時: ボタンをコンテナ右下に固定（コンテナが上に広がるため画面位置が変わらない） */
+.maplibregl-ctrl-attrib.maplibregl-compact-show .maplibregl-ctrl-attrib-button {
+  top: auto !important;
+  bottom: 0 !important;
+}
+
+/* 縮尺コントロール: 左下に配置（検索ボックスとの重なりを回避）
+   出典が閉じているとき: (i) マークと同じ高さ（bottom: 10px）
+   出典が開いているとき: JS が .above-attrib を付与し出典の上に移動 */
+#scale-ctrl-container {
+  position: absolute;
+  left: calc(var(--sidebar-w, 296px) + 10px);
+  bottom: 10px;
+  z-index: 19;
+  transition: bottom 0.2s ease;
+}
+
+#scale-ctrl-container.above-attrib {
+  bottom: calc(var(--attrib-h, 40px) + 14px);
+}
+
+/* スマホ向けパネル最適化 */
+@media (max-width: 600px) {
+  #sidebar-panel {
+    width: 220px;
+  }
+
+  .setting-row {
+    padding: 9px 12px;
+  }
+
+  /* 検索入力を大きめに */
+  #place-search-input {
+    font-size: var(--font-lg);
+    padding: 7px 10px 7px 32px;
+  }
+
+  /* PCシムボタンはスマホでも表示する */
+}
+
+/* ===================================================================
+   共通モーダルデコレーション
+   wrapper・header・close-btn のデザインをここで一元管理する。
+   サイズ（width / height）は各モーダルの個別ルールで上書きする。
+   =================================================================== */
+
+/* モーダル本体の枠・影・形状 */
+.modal-wrapper {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 6px 24px var(--overlay-dark);
+  border: 1px solid var(--border-muted);
+  background: var(--bg-surface);
+  display: flex;
+  flex-direction: column;
+}
+
+/* ヘッダー（白背景 + 濃いグレーテキスト） */
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  flex-shrink: 0;
+  background: var(--bg-surface);
+  color: var(--text-dark);
+  font-size: var(--font-base);
+  font-weight: var(--font-bold);
+  border-bottom: 1px solid var(--border-light);
+}
+
+/* 閉じるボタン（円形・グレー → ホバーでプライマリ） */
+.modal-close-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: var(--font-lg);
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  transition: background var(--transition), color var(--transition);
+  flex-shrink: 0;
+}
+
+.modal-close-btn:hover {
+  background: var(--primary-light);
+  color: var(--primary);
+}
+
+/* ===================================================================
+   地図画像 位置合わせモーダル（読図モードポップアップと同デザイン）
+   =================================================================== */
+
+/* 全画面暗転オーバーレイ（PC readmap と同系） */
+/* 旧 #import-overlay モーダル廃止 — 右パネルで表示 */
+
+.import-tab {
+  padding: 6px 18px;
+  font-size: var(--font-base);
+  font-weight: var(--font-bold);
+  font-family: inherit;
+  border: none;
+  border-right: 1px solid var(--border-muted);
+  background: var(--bg-select);
+  color: var(--text-caption);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.import-tab:hover {
+  background: var(--bg-hover-btn);
+  color: var(--text-main);
+}
+
+.import-tab.active {
+  background: var(--bg-surface);
+  color: var(--primary);
+  font-weight: var(--font-bold);
+  box-shadow: inset 0 -2px 0 var(--primary);
+}
+
+/* 右パネル 位置合わせコントロールラッパー */
+.import-controls-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 10px 12px 4px;
+  overflow-y: auto;
+  height: 100%;
+  font-size: var(--font-base);
+}
+
+.import-ctrl-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.import-ctrl-label {
+  font-size: var(--font-sm);
+  color: var(--text-sub);
+  font-weight: var(--font-bold);
+  letter-spacing: 0.02em;
+}
+
+.import-label-with-reset {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.import-reset-btn {
+  width: 18px;
+  height: 18px;
+  border: 1px solid var(--border-input);
+  border-radius: 50%;
+  background: var(--bg-surface);
+  color: var(--text-sub);
+  font-size: var(--font-base);
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+
+.import-reset-btn:hover {
+  background: var(--bg-select);
+  color: var(--text-main);
+  border-color: var(--border-weak);
+}
+
+.import-reset-btn:active {
+  background: var(--bg-hover-btn);
+}
+
+.import-slider-wrap {
+  position: relative;
+  height: 12px;
+  display: flex;
+  align-items: center;
+}
+
+.import-slider-wrap::after {
+  content: '';
+  position: absolute;
+  left: var(--init-pct, 50%);
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 2px;
+  height: 11px;
+  border-radius: 1px;
+  background: #666;
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+.import-slider-line {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr) max-content;
+  align-items: center;
+  gap: 1px;
+  width: 100%;
+}
+
+.import-slider-side {
+  font-size: var(--font-xs);
+  color: var(--text-muted);
+  line-height: 1;
+  white-space: nowrap;
+  padding: 0;
+  margin: 0;
+}
+
+.import-slider-side.left {
+  text-align: right;
+}
+
+.import-slider-side.right {
+  text-align: left;
+}
+
+/* select は select{} グローバルルールで外観定義済み。サイズのみ */
+.import-ctrl-select {
+  width: 100%;
+  padding: 4px var(--chevron-pad-r) 4px 6px;
+  font-size: var(--font-base);
+}
+
+.import-ctrl-select:focus {
+  border-color: var(--primary);
+}
+
+/* input は select{} の影響を受けないので外観を個別定義 */
+.import-ctrl-input {
+  width: 100%;
+  background: var(--bg-surface);
+  color: var(--text-main);
+  border: 1px solid var(--border-input);
+  border-radius: 3px;
+  padding: 4px 6px;
+  font-size: var(--font-base);
+  font-family: inherit;
+  outline: none;
+}
+
+.import-ctrl-input:focus {
+  border-color: var(--primary);
+}
+
+/* 縮尺手入力欄: セレクトボックスと同じ角丸・フォントサイズに揃える */
+.import-ctrl-input--scale {
+  border-radius: var(--dropdown-radius);
+  font-size: var(--font-base);
+  box-sizing: border-box;
+}
+
+.import-ctrl-hint {
+  font-size: var(--font-sm);
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+/* .ui-slider に統合済み（レイアウトのみ残す） */
+.import-ctrl-slider {
+  width: 100%;
+  margin: 0;
+  flex: none;
+  /* import-ctrl-slider は width:100% で使うため flex:1 を上書き */
+}
+
+#import-image-only-ctrl {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* 右パネル 位置合わせフッター（決定・キャンセルボタン） */
+.align-editor-footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 0 6px;
+  flex-shrink: 0;
+  border-top: 1px solid var(--border-muted);
+  margin-top: 12px;
+}
+
+.align-decide-btn {
+  background: var(--primary);
+  color: var(--on-primary);
+  border: none;
+  border-radius: 3px;
+  padding: 6px 16px;
+  font-size: var(--font-base);
+  font-weight: var(--font-bold);
+  font-family: inherit;
+  cursor: pointer;
+  transition: background var(--transition);
+}
+
+.align-decide-btn:hover { background: var(--primary-hover); }
+
+.align-cancel-btn {
+  background: var(--bg-surface);
+  color: var(--text-sub);
+  border: 1px solid var(--border-input);
+  border-radius: 3px;
+  padding: 6px 12px;
+  font-size: var(--font-base);
+  font-family: inherit;
+  cursor: pointer;
+  transition: background var(--transition);
+}
+
+.align-cancel-btn:hover { background: var(--bg-select); color: var(--text-main); }
+
+/* 右パネル Undo/Redo グループ */
+.align-undo-redo {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border-muted);
+  margin-bottom: 4px;
+}
+
+/* Undo/Redo ボタン（モードタブ行の右端） */
+.import-undo-redo-btn {
+  background: none;
+  border: none;
+  padding: 4px 8px;
+  font-size: 16px;
+  cursor: pointer;
+  color: var(--text-sub);
+  line-height: 1;
+  border-radius: 4px;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.import-undo-redo-btn:hover {
+  background: var(--bg-hover-btn);
+  color: var(--text-dark);
+}
+
+.import-undo-redo-btn:active {
+  background: var(--slider-track);
+}
+
+/* 旧モーダル用 Undo/Redo グループ（.align-undo-redo に統合） */
+#import-undo-redo-group {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+
+/* コントロールパネル：ステップセクション */
+.import-ctrl-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 14px;
+  border-top: 1px solid #e8e8e8;
+}
+
+.import-ctrl-section:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.import-ctrl-section-title {
+  font-size: var(--font-xs);
+  font-weight: var(--font-bold);
+  color: var(--primary);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* 既存の枠スナップリスト */
+.import-snap-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.import-snap-btn {
+  background: var(--bg-select);
+  border: 1px solid var(--border-input);
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-size: var(--font-xs);
+  color: var(--text-main);
+  cursor: pointer;
+  transition: background 0.1s, border-color 0.1s;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.import-snap-btn:hover {
+  background: var(--primary-light);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.import-snap-btn.active {
+  background: var(--primary-light);
+  border-color: var(--primary);
+  color: var(--primary);
+  font-weight: var(--font-semi);
+}
+
+/* 回転補正 ±0.5° ボタン */
+.import-rotation-adj-row {
+  display: flex;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.import-rotation-adj-btn {
+  flex: 1;
+  background: var(--bg-select);
+  border: 1px solid var(--border-input);
+  border-radius: 3px;
+  padding: 3px 0;
+  font-size: var(--font-sm);
+  font-family: inherit;
+  cursor: pointer;
+  color: var(--text-main);
+  transition: background var(--transition-fast);
+}
+
+.import-rotation-adj-btn:hover {
+  background: var(--bg-hover-btn);
+}
+
+.import-rotation-adj-btn:active {
+  background: var(--slider-track);
+}
+
+.import-rotation-adj-btn.active {
+  background: var(--primary-light);
+  border-color: var(--primary);
+  color: var(--primary-dark);
+}
+

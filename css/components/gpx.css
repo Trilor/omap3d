@@ -1,0 +1,598 @@
+/* 地名検索 */
+/* ===== 開発用カラーピッカー ===== */
+#dev-color-picker {
+  position: absolute;
+  top: 52px;
+  /* 検索ボックス(top:10px + h:36px) + 6px */
+  left: calc(var(--sidebar-w, 296px) + 8px);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-glass);
+  backdrop-filter: blur(4px);
+  border-radius: 6px;
+  padding: 4px 8px;
+  box-shadow: 0 1px 6px var(--shadow-md);
+  font-size: var(--font-sm);
+  color: var(--text-main);
+  user-select: none;
+}
+
+#dev-primary-color {
+  width: 28px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--border-input);
+  border-radius: 3px;
+  cursor: pointer;
+  background: none;
+}
+
+#dev-color-copy {
+  font-size: var(--font-xs);
+  padding: 2px 6px;
+  border: 1px solid var(--border-input);
+  border-radius: 3px;
+  background: var(--bg-hover);
+  cursor: pointer;
+  color: var(--text-sub);
+}
+
+#dev-color-copy:hover {
+  background: var(--bg-hover-btn);
+}
+
+#dev-on-primary-toggle {
+  cursor: pointer;
+  font-size: var(--font-xs);
+}
+
+#dev-on-primary-knob {
+  display: inline-block;
+  padding: 2px 6px;
+  border: 1px solid var(--border-input);
+  border-radius: 10px;
+  background: var(--bg-hover);
+  white-space: nowrap;
+  transition: background var(--transition);
+}
+
+#dev-on-primary-toggle:hover #dev-on-primary-knob {
+  background: var(--bg-hover-btn);
+}
+
+@media (max-width: 768px) {
+  #dev-color-picker {
+    display: none;
+  }
+}
+
+/* ===== 統合検索ボックス（常時表示・サイドバー幅に連動） ===== */
+#unified-search {
+  position: absolute;
+  top: var(--control-edge-gap);
+  left: calc(var(--sidebar-w, 296px) + var(--control-edge-gap));
+  z-index: 10;
+  width: 270px;
+}
+
+#unified-search-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+#unified-search-row .search-icon {
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: var(--control-text);
+}
+
+#unified-search-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 26px 6px 30px;
+  border: var(--control-border);
+  border-radius: var(--control-radius);
+  font-size: var(--font-base);
+  color: var(--control-text);
+  background: var(--control-bg);
+  box-shadow: var(--control-shadow);
+  outline: none;
+}
+
+#unified-search-input:focus {
+  border-color: var(--primary) !important;
+  box-shadow: var(--control-shadow);
+}
+
+#unified-search-clear {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  padding: 2px;
+  cursor: pointer;
+  color: var(--text-muted);
+  line-height: 0;
+  border-radius: 50%;
+  transition: color 0.15s, background 0.15s;
+}
+
+#unified-search-clear:hover {
+  color: var(--control-text-hover);
+  background: var(--control-hover-bg);
+}
+
+#unified-search-msg {
+  font-size: var(--font-xs);
+  color: var(--text-muted);
+  margin-top: 3px;
+  padding: 0 2px;
+}
+
+#unified-search-results {
+  margin-top: 4px;
+  border: var(--control-border);
+  border-radius: var(--control-radius);
+  overflow-y: auto;
+  max-height: 280px;
+  background: var(--control-bg);
+  box-shadow: var(--control-shadow);
+}
+
+#unified-search-results:empty {
+  display: none;
+}
+
+#unified-search-msg:empty {
+  margin-top: 0;
+}
+
+/* 結果ソースアイコン */
+.result-source-icon {
+  flex-shrink: 0;
+  font-size: var(--font-md);
+  width: 20px;
+  text-align: center;
+}
+
+/* テレインタイプバッジ（検索結果用） */
+.result-type-badge {
+  font-size: var(--font-xs);
+  font-weight: var(--font-bold);
+  padding: 1px 4px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.result-type-sprint {
+  background: #fff3e0;
+  color: #c77700;
+}
+
+.result-type-forest {
+  background: #e8f5e9;
+  color: var(--primary-dark);
+}
+
+#place-search-wrap {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border-muted);
+}
+
+#place-search-row {
+  position: relative;
+}
+
+.search-icon {
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: var(--text-muted);
+}
+
+#place-search-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 5px 26px 5px 28px;
+  border: 1px solid #b0b8b0;
+  border-radius: 4px;
+  font-size: var(--font-base);
+  color: var(--text-main);
+  background: var(--bg-subtle);
+  outline: none;
+}
+
+#place-search-input:focus {
+  border-color: var(--primary);
+  background: var(--bg-surface);
+}
+
+#place-search-clear {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  padding: 2px;
+  cursor: pointer;
+  color: var(--text-disabled);
+  line-height: 0;
+  border-radius: 50%;
+  transition: color 0.15s, background 0.15s;
+}
+
+#place-search-clear:hover {
+  color: var(--text-sub);
+  background: var(--bg-hover-btn);
+}
+
+#place-search-msg {
+  font-size: var(--font-xs);
+  color: var(--text-muted);
+  margin-top: 3px;
+}
+
+#place-search-results {
+  margin-top: 4px;
+  border: 1px solid var(--border-input);
+  border-radius: 4px;
+  overflow-y: auto;
+  max-height: 200px;
+  background: var(--bg-surface);
+}
+
+.place-result-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 5px 8px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.place-result-item:last-child {
+  border-bottom: none;
+}
+
+.place-result-item:hover,
+.place-result-item:active {
+  background: var(--primary-light);
+}
+
+.place-result-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-sm);
+  color: var(--text-main);
+}
+
+.place-result-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  font-size: var(--font-xs);
+  color: var(--text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+  line-height: 1.35;
+}
+
+/* 地形誇張スライダー行 */
+.terrain-row {
+  padding: 5px 10px 5px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.terrain-label {
+  font-size: var(--font-sm);
+  color: var(--text-sub);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* .ui-slider に統合済み（#slider-exaggeration.ui-slider に --slider-color: #6a8fa0 適用） */
+.terrain-row input[type="range"] {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ドラッグ＆ドロップ用オーバーレイ */
+#drop-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(74, 124, 89, 0.12);
+  border: 4px dashed var(--primary);
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  font-weight: var(--font-bold);
+  color: var(--primary);
+  pointer-events: none;
+}
+
+#drop-overlay.visible {
+  display: flex;
+}
+
+/* 操作ヒント */
+#hint {
+  position: absolute;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  background: var(--overlay-mid);
+  color: var(--on-primary);
+  font-size: var(--font-sm);
+  padding: 5px 14px;
+  border-radius: 20px;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+/* 等高線間隔セレクト */
+.contour-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 2px;
+}
+
+.contour-row label {
+  font-size: var(--font-sm);
+  color: var(--text-main);
+  white-space: nowrap;
+}
+
+/* ベーススタイルは「共通パネルプルダウン」セクションで定義済み */
+#sel-contour-dem,
+#sel-contour-interval,
+#sel-magnetic-color,
+#sel-magnetic-combined {
+  flex: 1;
+  padding: 3px var(--chevron-pad-r) 3px 6px;
+  font-size: var(--font-base);
+}
+
+/* チェックボックス/トグルのない行でラベル位置を揃えるスペーサー */
+.chk-spacer {
+  display: inline-block;
+  width: 28px;
+  flex-shrink: 0;
+}
+
+/* 現在位置ボタン（MapLibre GeolocateControl）のカスタムスタイル */
+.maplibregl-ctrl-geolocate {
+  background-size: 70% !important;
+}
+
+/* ---- プライバシー注記 ---- */
+.privacy-note {
+  font-size: var(--font-xs);
+  color: var(--text-light);
+  padding: 4px 10px 6px;
+  line-height: 1.45;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+/* GPXアップロードボタン */
+#gpx-upload-btn {
+  display: block;
+  width: calc(100% - 20px);
+  margin: 6px 10px 4px;
+  padding: 6px 12px;
+  background: var(--bg-surface);
+  color: var(--secondary);
+  border: 1.5px solid var(--secondary);
+  border-radius: 4px;
+  font-size: var(--font-base);
+  font-weight: var(--font-semi);
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition);
+  text-align: center;
+  letter-spacing: 0.02em;
+}
+
+#gpx-upload-btn:hover {
+  background: var(--secondary);
+  color: var(--on-primary);
+}
+
+/* ---- 視点切り替えトグルボタン ---- */
+#view-toggle-btn {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  background: var(--bg-glass);
+  border: 1px solid var(--border-input);
+  border-radius: 20px;
+  padding: 6px 18px;
+  font-size: var(--font-base);
+  font-weight: var(--font-semi);
+  color: var(--text-main);
+  cursor: pointer;
+  box-shadow: 0 1px 4px var(--shadow-md);
+  display: none;
+  /* GPX読み込み前は非表示 */
+  white-space: nowrap;
+  transition: background var(--transition);
+}
+
+#view-toggle-btn:hover {
+  background: rgba(240, 240, 240, 0.95);
+}
+
+#view-toggle-btn.active-first {
+  background: var(--primary);
+  color: var(--on-primary);
+  border-color: var(--primary);
+}
+
+#view-toggle-btn.active-chase {
+  background: var(--color-warn);
+  color: var(--on-primary);
+  border-color: var(--color-warn);
+}
+
+/* ---- タイムラインパネル（画面下部） ---- */
+#timeline-panel {
+  position: absolute;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  background: var(--bg-glass-heavy);
+  border: 1px solid var(--border-input);
+  border-radius: 8px;
+  padding: 6px 14px 8px;
+  box-shadow: 0 2px 8px var(--shadow-lg);
+  display: none;
+  /* GPX読み込み前は非表示 */
+  flex-direction: column;
+  gap: 4px;
+  min-width: 320px;
+  max-width: 90vw;
+}
+
+#timeline-main-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* キーヒント（3D モード時のみ表示） */
+#gpx-key-hint {
+  display: none;
+  font-size: var(--font-xs);
+  color: var(--text-muted);
+  text-align: center;
+  letter-spacing: 0.04em;
+  padding-top: 2px;
+}
+
+#timeline-panel.gpx-3d #gpx-key-hint {
+  display: block;
+}
+
+/* 2D/3D 切替ボタン */
+#gpx-3d-btn {
+  flex-shrink: 0;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 4px;
+  border: 1px solid var(--border-input);
+  background: var(--bg-select);
+  color: var(--text-sub);
+  font-size: var(--font-sm);
+  font-weight: var(--font-bold);
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+
+#gpx-3d-btn:hover {
+  background: var(--bg-hover-btn);
+  color: var(--text-main);
+}
+
+#gpx-3d-btn.active {
+  background: var(--color-warn);
+  color: var(--on-primary);
+  border-color: var(--color-warn);
+}
+
+#play-pause-btn {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: var(--primary);
+  color: var(--on-primary);
+  font-size: var(--font-lg);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background var(--transition);
+}
+
+#play-pause-btn:hover {
+  background: var(--primary-hover);
+}
+
+#timeline-controls {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+#seek-bar {
+  width: 100%;
+  height: 4px;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  border-radius: 2px;
+  background: linear-gradient(to right, var(--primary) var(--pct, 0%), var(--slider-track) var(--pct, 0%));
+  outline: none;
+}
+
+#seek-bar::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--bg-surface);
+  border: 2px solid var(--primary);
+  cursor: pointer;
+}
+
+#time-display {
+  font-size: var(--font-sm);
+  color: var(--text-sub);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+/* ベーススタイルは「共通パネルプルダウン」セクションで定義済み */
+#speed-select {
+  flex-shrink: 0;
+  padding: 3px var(--chevron-pad-r) 3px 5px;
+  font-size: var(--font-sm);
+}
+
+/* GPX軌跡が読み込まれているときの情報表示 */
+#gpx-status {
+  padding: 4px 10px 5px;
+  font-size: var(--font-xs);
+  color: var(--secondary);
+  border-top: 1px solid #ebebeb;
+  display: none;
+}
+

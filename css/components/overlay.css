@@ -1,0 +1,1070 @@
+/* =================================================================
+   サイドバー: スペーサー + 環境設定ボタン
+   ================================================================= */
+
+/* アイコンバー内で残りスペースを埋め、ボタンを下部に寄せる */
+.sidebar-nav-spacer {
+  flex: 1;
+}
+
+/* 環境設定モーダルを開くボタン（sidebar-nav-btn と同一スタイル） */
+.sidebar-modal-btn {
+  width: 100%;
+  height: 56px;
+  border: none;
+  background: transparent;
+  color: var(--text-main);
+  border-radius: 0;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  transition: background var(--transition), color var(--transition);
+  position: relative;
+  flex-shrink: 0;
+  padding: 0;
+}
+
+.sidebar-modal-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-main);
+}
+
+/* =================================================================
+   環境設定モーダル
+   ================================================================= */
+
+/* 全画面暗転オーバーレイ */
+#sys-settings-modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: var(--overlay-mid);
+  align-items: center;
+  justify-content: center;
+}
+
+#sys-settings-modal.visible {
+  display: flex;
+}
+
+/* モーダル本体: サイズのみ個別定義（装飾は .modal-wrapper で共通管理） */
+#sys-settings-wrapper {
+  width: min(92vw, 780px);
+  height: min(88vh, 520px);
+}
+
+/* ボディ: 左ナビ + 右コンテンツ */
+#sys-settings-body {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* 左ナビゲーション */
+#settings-nav {
+  width: 180px;
+  flex-shrink: 0;
+  background: var(--bg-panel);
+  border-right: 1px solid var(--border-light);
+  display: flex;
+  flex-direction: column;
+  padding: 6px 0;
+  overflow-y: auto;
+}
+
+.settings-nav-item {
+  width: 100%;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  color: var(--text-sub);
+  text-align: left;
+  transition: background var(--transition), color var(--transition);
+  position: relative;
+}
+
+.settings-nav-item:hover {
+  background: var(--bg-hover-btn);
+  color: var(--text-main);
+}
+
+.settings-nav-item.active {
+  background: var(--primary-light);
+  color: var(--primary);
+}
+
+.settings-nav-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--primary);
+  border-radius: 0 2px 2px 0;
+}
+
+.settings-nav-icon {
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.settings-nav-label {
+  font-size: var(--font-base);
+  font-weight: var(--font-semi);
+}
+
+/* 右コンテンツエリア */
+#settings-content {
+  flex: 1;
+  overflow-y: auto;
+  background: var(--bg-surface);
+  min-width: 0;
+}
+
+/* セクション（非アクティブは非表示） */
+.settings-section {
+  display: none;
+}
+
+.settings-section.active {
+  display: block;
+}
+
+/* セクション見出し */
+.settings-section-heading {
+  font-size: var(--font-md);
+  font-weight: var(--font-semi);
+  color: var(--text-dark);
+  padding: 18px 24px 12px;
+  border-bottom: 1px solid var(--border-light);
+  margin: 0;
+}
+
+/* 設定項目行 */
+.settings-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 14px 24px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.settings-item:last-child {
+  border-bottom: none;
+}
+
+.settings-item-label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+}
+
+.settings-item-title {
+  font-size: var(--font-base);
+  color: var(--text-main);
+  font-weight: var(--font-semi);
+}
+
+.settings-item-desc {
+  font-size: var(--font-sm);
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.settings-item-ctrl {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.settings-item-ctrl--slider {
+  width: 220px;
+}
+
+/* --stack バリアント: ラベルとコントロールを縦積みにして全幅スライダー */
+.settings-item--stack {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 20px;
+  padding-bottom: 16px;
+}
+
+.settings-item--stack .settings-item-label {
+  flex: none;
+}
+
+.settings-item--stack .settings-item-ctrl--slider {
+  width: auto;
+}
+
+/* スライダーつまみ追従バブル */
+.slider-bubble-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.slider-bubble-wrap .ui-slider {
+  width: 100%;
+  display: block;
+}
+
+.slider-bubble {
+  position: absolute;
+  /* pct は JS が --pct に設定。12px = つまみ幅、6px = つまみ半幅 */
+  left: calc(var(--pct, 0) * (100% - 12px) + 6px);
+  bottom: calc(100% + 8px);
+  transform: translateX(-50%);
+  font-size: var(--font-xs);
+  color: var(--text-muted);
+  white-space: nowrap;
+  pointer-events: none;
+  line-height: 1;
+}
+
+.settings-slider-bound {
+  font-size: var(--font-xs);
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+/* 画面・校正 説明文 */
+.settings-display-desc {
+  padding: 12px 24px 18px;
+  font-size: var(--font-sm);
+  color: var(--text-sub);
+  line-height: 1.7;
+  border-bottom: 1px solid var(--border-subtle);
+  margin: 0;
+}
+
+/* ---- シミュレーター速度スライダー ---- */
+.settings-sim-speed-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 24px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.settings-sim-speed-item:last-child {
+  border-bottom: none;
+}
+
+.settings-sim-speed-ctrl {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-top: 38px;
+  /* バッジ高さ + gap 分の余白 */
+}
+
+/* 読図マップ用: バッジがないので padding-top 不要 */
+.settings-sim-speed-ctrl--select {
+  padding-top: 0;
+}
+
+/* 通常バブル用（飛行高度スライダー等、badge でなく bubble を使う場合） */
+.settings-sim-speed-ctrl--bubble {
+  padding-top: 22px;
+}
+
+.settings-sim-speed-ctrl .slider-bubble-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.settings-sim-speed-ctrl .slider-bubble-wrap .ui-slider {
+  width: 100%;
+  display: block;
+  position: relative;
+  z-index: 1;
+  /* 円ドット（.sim-speed-dot-area）の上に thumb を重ねる */
+}
+
+/* ---- バッジ（thumb追随: アイコン + 速度 + ペース） ---- */
+/* thumb追随バッジ: シンプルなテキストのみ */
+.sim-speed-badge {
+  position: absolute;
+  left: calc(var(--pct, 0) * (100% - 12px) + 6px);
+  bottom: calc(100% + 8px);
+  transform: translateX(-50%);
+  font-size: var(--font-md);
+  color: var(--text-muted);
+  white-space: nowrap;
+  pointer-events: none;
+  line-height: 1;
+}
+
+/* ---- スライダー上重ね円ドットエリア ---- */
+.sim-speed-dot-area {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  pointer-events: none;
+}
+
+.sim-speed-tick {
+  position: absolute;
+  top: 50%;
+  left: calc(var(--tick-pct) * (100% - 12px) + 6px);
+  transform: translate(-50%, -50%);
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--slider-track);
+}
+
+.sim-speed-tick.tick-active {
+  background: var(--primary);
+}
+
+.sim-speed-tick-lbl {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: var(--font-sm);
+  color: var(--text-muted);
+  white-space: nowrap;
+  line-height: 1;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.sim-speed-tick.tick-current .sim-speed-tick-lbl {
+  visibility: hidden;
+}
+
+/* ---- モードラベル ---- */
+.sim-speed-tick-area {
+  position: relative;
+  height: 22px;
+  margin-top: 2px;
+  cursor: pointer;
+}
+
+.sim-speed-mode-lbl {
+  position: absolute;
+  top: 6px;
+  left: calc(var(--lbl-ctr) * (100% - 12px) + 6px);
+  transform: translateX(-50%);
+  font-size: var(--font-sm);
+  color: #c8c8c8;
+  white-space: nowrap;
+  line-height: 1;
+}
+
+/* 「または手動で調整」区切り線 */
+.settings-display-sep {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 24px;
+  height: 48px;
+  font-size: var(--font-xs);
+  color: var(--text-disabled);
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.settings-display-sep::before,
+.settings-display-sep::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border-light);
+}
+
+/* 定規コンテナ */
+.settings-ruler-wrap {
+  padding: 16px 24px 24px;
+}
+
+.settings-ruler-inner {
+  width: 100%;
+  background: #f8f9fa;
+  border-radius: 8px;
+  overflow: hidden;
+  padding: 8px 0 6px;
+}
+
+.settings-ruler-inner #ppi-ruler {
+  display: block;
+  color: var(--text-ink);
+}
+
+/* ---- PPI 統合グループ ---- */
+.settings-ppi-group {
+  padding: 16px 24px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+/* ヘッダー行: タイトル + 現在値 */
+.settings-ppi-header {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.settings-ppi-value-wrap {
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+.settings-ppi-num {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--primary);
+  line-height: 1;
+}
+
+.settings-ppi-unit {
+  font-size: var(--font-sm);
+  color: var(--text-muted);
+}
+
+/* ---- 速度・ペース 2カラム表示 ---- */
+.sim-speed-display {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.sim-speed-block,
+.sim-pace-block {
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+}
+
+.sim-speed-big {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--primary);
+  line-height: 1;
+}
+
+.sim-speed-sep {
+  width: 1px;
+  height: 22px;
+  background: var(--border-muted);
+  flex-shrink: 0;
+  align-self: flex-end;
+}
+
+.sim-pace-big {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text-sub);
+  line-height: 1;
+}
+
+.sim-metric-unit {
+  font-size: var(--font-xs);
+  color: var(--text-muted);
+}
+
+/* プリセット行 */
+.settings-ppi-preset-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.settings-ppi-preset-label {
+  font-size: var(--font-sm);
+  color: var(--text-sub);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.settings-ppi-preset-row .ppi-cascade-wrap {
+  flex: 1;
+  min-width: 0;
+}
+
+/* スライダー行 */
+.settings-ppi-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-top: 6px;
+}
+
+.settings-ppi-slider-row .slider-bubble-wrap {
+  flex: 1;
+  min-width: 0;
+}
+
+.settings-ppi-slider-row .slider-bubble-wrap .ui-slider {
+  width: 100%;
+  display: block;
+}
+
+.settings-item-title-sub {
+  display: block;
+  font-size: var(--font-xs);
+  font-weight: 400;
+  color: var(--text-muted);
+  margin-top: 2px;
+  letter-spacing: 0;
+}
+
+/* =================================================================
+   PC シミュレーター ポーズHUD（シンプルなボタンのみ）
+   ================================================================= */
+
+#pc-sim-pause-hud {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.68);
+  z-index: 9800;
+  align-items: center;
+  justify-content: center;
+}
+
+#pause-hud-card {
+  background: rgba(18, 26, 38, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 14px;
+  padding: 22px 26px 20px;
+  width: min(90vw, 280px);
+  color: #dde4ed;
+}
+
+#pause-hud-title {
+  text-align: center;
+  font-size: 17px;
+  font-weight: bold;
+  margin-bottom: 18px;
+  letter-spacing: 0.06em;
+  color: #ffffff;
+}
+
+.pause-hud-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pause-hud-btn {
+  width: 100%;
+  padding: 10px;
+  border: none;
+  border-radius: 7px;
+  font-size: var(--font-base);
+  font-family: inherit;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.1);
+  color: #dde4ed;
+  transition: background 0.15s;
+  letter-spacing: 0.02em;
+}
+
+.pause-hud-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.pause-hud-btn--primary {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+
+.pause-hud-btn--primary:hover {
+  background: var(--primary-hover);
+}
+
+.pause-hud-btn--danger {
+  background: rgba(185, 40, 40, 0.7);
+  color: #fff;
+}
+
+.pause-hud-btn--danger:hover {
+  background: rgba(185, 40, 40, 0.92);
+}
+
+/* ================================================================
+   CustomSelect — JS が生成するカスタムドロップダウンのスタイル
+   ネイティブ <select> の open 状態はブラウザ制御のため CSS で変更不可。
+   makeCustomSelect() が .cascade-* クラスを使ってカスタムUIを構築する。
+   ================================================================ */
+
+/* ---- ラッパー div: レイアウト制御のみ ----
+   元 select のクラスを継承して flex/width 等を引き継ぐ。
+   ビジュアル（背景・枠・影）は内側の .cascade-btn が担当するためここでリセット。
+   !important で元クラスの視覚プロパティを確実に上書きする。 */
+.custom-select-wrap {
+  display: inline-flex;
+  align-items: stretch;
+  box-sizing: border-box;
+  background: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  outline: none !important;
+  cursor: default;
+}
+
+/* ---- トリガーボタン: ラッパー全体を占有 ----
+   外観は .cascade-btn で定義済み。ここではレイアウトと継承のみ。 */
+.custom-select-wrap>.cascade-btn {
+  flex: 1;
+  min-width: 0;
+  font-size: inherit;
+  /* 元クラスの font-size を引き継ぐ */
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---- ドロップダウンパネル: スクロール制限 ---- */
+.custom-select-menu {
+  max-height: 50vh;
+  overflow-y: auto;
+}
+
+/* ---- ID 別レイアウト調整（ラッパーに data-select-id が設定される） ---- */
+/* #speed-select は flex-shrink:0 が必要（ID が hidden select に残るため wrapper で再定義） */
+.custom-select-wrap[data-select-id="speed-select"] {
+  flex-shrink: 0;
+}
+
+/* ---- .scale-ctrl-select 専用: 地図コントロール外観をボタンに適用 ---- */
+.custom-select-wrap.scale-ctrl-select {
+  height: var(--control-icon-btn-size);
+  min-height: var(--control-icon-btn-size);
+}
+
+.custom-select-wrap.scale-ctrl-select>.cascade-btn {
+  height: var(--control-icon-btn-size) !important;
+  min-height: var(--control-icon-btn-size) !important;
+  background-color: var(--control-bg);
+  color: var(--control-text);
+  border: var(--control-border) !important;
+  box-shadow: var(--control-shadow) !important;
+  border-radius: var(--control-radius) !important;
+  padding: 0 var(--chevron-pad-r) 0 8px;
+  font-size: var(--font-sm);
+  line-height: 1.1;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.custom-select-wrap.scale-ctrl-select>.cascade-btn:hover {
+  background-color: var(--control-hover-bg);
+  color: var(--control-text-hover);
+}
+
+/* ---- .export-dialog-input 専用: 印刷ダイアログ外観をボタンに適用 ---- */
+.custom-select-wrap.export-dialog-input>.cascade-btn {
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--slider-track);
+  border-radius: 7px;
+  color: var(--text-dark);
+  font-size: var(--font-lg);
+  padding: 7px var(--chevron-pad-r) 7px 10px;
+  transition: border-color 0.15s;
+}
+
+.custom-select-wrap.export-dialog-input>.cascade-btn:hover {
+  border-color: var(--primary);
+  background-color: var(--bg-surface);
+}
+
+/* ================================================================
+   §30  アニメ・アクアシアン フラットデザイン オーバーライド
+   参考: 2Dアニメ調・鮮やかシアン・ダークネイビーテキスト
+   ================================================================ */
+
+/* ---- グローバル: 丸ゴシックフォント ---- */
+body,
+button,
+input,
+select,
+textarea {
+  font-family: var(--font-family);
+  color: var(--text-main);
+}
+
+h1,
+h2,
+h3,
+h4,
+.settings-section-heading,
+.modal-header,
+.panel-btn-primary,
+.panel-btn-outline,
+#pc-sim-toggle-btn,
+.nav-label {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+/* ---- サイドバー フローティング化 ---- */
+#sidebar {
+  padding: 0 !important;
+  gap: 0 !important;
+  filter: drop-shadow(6px 0 18px rgba(27, 61, 56, 0.08)) !important;
+}
+
+#sidebar-icon-bar {
+  height: 100% !important;
+  border-radius: 0 !important;
+  border: 2px solid var(--border-light) !important;
+  border-left: 0 !important;
+  border-right: 0 !important;
+  box-shadow: none !important;
+  overflow: hidden !important;
+  background: #ffffff !important;
+}
+
+#sidebar-panel {
+  width: 292px !important;
+  height: 100% !important;
+  border-radius: 0 16px 16px 0 !important;
+  border: 2px solid var(--border-light) !important;
+  border-left: 1px solid var(--border-light) !important;
+  box-shadow: none !important;
+  overflow: hidden !important;
+  background: #ffffff !important;
+}
+
+/* 右パネル: 左パネルと対称に統一（幅はドラッグリサイズ変数を維持） */
+#right-panel {
+  width: var(--rp-w) !important;
+  border-radius: 16px 0 0 16px !important;
+  border: 2px solid var(--border-light) !important;
+  border-right: 1px solid var(--border-light) !important;
+  box-shadow: none !important;
+  overflow: hidden !important;
+  background: #ffffff !important;
+}
+
+/* ---- 検索バー: pill shape ---- */
+#unified-search-input {
+  border-radius: 9999px !important;
+  padding-left: 30px !important;
+  padding-right: 18px !important;
+  border: var(--control-border) !important;
+  box-shadow: var(--control-shadow) !important;
+  font-weight: 500;
+}
+
+#unified-search-input:focus {
+  border-color: var(--primary) !important;
+  box-shadow: var(--control-shadow) !important;
+}
+
+#place-search-input,
+.catalog-search-wrap input {
+  border-radius: 9999px !important;
+  padding-left: 30px !important;
+  padding-right: 14px !important;
+  border-color: var(--border-light) !important;
+}
+
+/* ---- 検索履歴ドロップダウン ---- */
+.search-history-header {
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 6px 10px 2px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.search-history-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.search-history-del {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0 4px;
+  flex-shrink: 0;
+  opacity: 0.6;
+}
+
+.search-history-del:hover {
+  opacity: 1;
+  color: var(--text-primary);
+}
+
+#catalog-search-history {
+  display: none;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  margin-top: 4px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+#catalog-search-history .place-result-item {
+  padding: 7px 10px;
+  cursor: pointer;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+#catalog-search-history .place-result-item:hover {
+  background: var(--bg-hover);
+}
+
+/* ---- プライマリボタン: 鮮やかシアンベタ塗り ---- */
+.panel-btn-primary,
+#pc-sim-toggle-btn {
+  border-radius: 10px !important;
+  background-color: var(--primary) !important;
+  border: none !important;
+  box-shadow: none !important;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.panel-btn-primary:hover,
+#pc-sim-toggle-btn:hover {
+  background-color: var(--primary-hover) !important;
+  box-shadow: none !important;
+}
+
+/* ---- アウトラインボタン ---- */
+.panel-btn-outline {
+  border-radius: 10px !important;
+  border: 2px solid var(--primary) !important;
+  color: var(--primary) !important;
+  font-weight: 700;
+  box-shadow: none !important;
+}
+
+.panel-btn-outline:hover {
+  background-color: var(--primary-light) !important;
+  box-shadow: none !important;
+}
+
+/* ---- モーダル: 大きな角丸 + シアンヘッダー ---- */
+.modal-wrapper {
+  border-radius: 16px !important;
+  border: 2px solid var(--border-light) !important;
+  box-shadow: none !important;
+  overflow: hidden;
+}
+
+.modal-header {
+  border-radius: 14px 14px 0 0 !important;
+}
+
+/* ---- チップ・小ボタン ---- */
+.type-chip,
+.sim-speed-btn,
+.sim-speed-chip {
+  border-radius: 9999px !important;
+  font-weight: 600;
+}
+
+/* ---- タイムラインパネル ---- */
+#timeline-panel {
+  border-radius: 14px 14px 0 0 !important;
+  border-top: 2px solid var(--border-light) !important;
+  box-shadow: none !important;
+}
+
+/* ---- MapLibre コントロール: 丸ボタン ---- */
+/* グループの overflow:hidden が角丸クリッピングを担うため個別設定不要 */
+.maplibregl-ctrl-group {
+  border-radius: var(--control-radius) !important;
+  border: var(--control-border) !important;
+  box-shadow: var(--control-shadow) !important;
+  background: var(--control-bg) !important;
+  overflow: hidden;
+}
+
+.maplibregl-ctrl-group button+button {
+  border-top: 1px solid var(--border-subtle) !important;
+}
+
+.maplibregl-ctrl-group button {
+  background: var(--control-bg) !important;
+  color: var(--control-text) !important;
+  width: var(--control-icon-btn-size);
+  height: var(--control-icon-btn-size);
+}
+
+.maplibregl-ctrl-group button:hover {
+  background: var(--control-hover-bg) !important;
+  color: var(--control-text-hover) !important;
+}
+
+/* ---- スライダーつまみ: シアン丸 ---- */
+/* .cr-range を除外してグローバルを適用 */
+input[type=range]:not(.cr-range)::-webkit-slider-thumb {
+  background: var(--primary) !important;
+  border: 3px solid #ffffff !important;
+  box-shadow: 0 0 0 2px var(--primary) !important;
+  border-radius: 50% !important;
+}
+
+input[type=range]:not(.cr-range)::-moz-range-thumb {
+  background: var(--primary) !important;
+  border: 3px solid #ffffff !important;
+  box-shadow: 0 0 0 2px var(--primary) !important;
+  border-radius: 50% !important;
+}
+
+/* .cr-range 専用つまみ（トラックと同じグラデーションを位置合わせ） */
+input[type=range].cr-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 0;
+  height: 0;
+  border: none;
+  box-shadow: none;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ---- 各種フローティングパネル: ボーダー ---- */
+.imgw-panel,
+.overlay-ctrl-panel,
+.print-dialog-panel,
+.export-dialog-panel {
+  border: 2px solid var(--border-light) !important;
+  border-radius: 14px !important;
+  box-shadow: none !important;
+}
+
+/* ---- 設定モーダル ---- */
+.settings-nav-item.active {
+  border-radius: 8px !important;
+}
+
+
+/* ---- 設定セクション見出し ---- */
+.settings-section-heading {
+  color: var(--primary-dark) !important;
+  border-bottom: 2px solid var(--border-subtle) !important;
+}
+
+/* ---- ボタン: プレスアニメ ---- */
+.panel-btn-outline {
+  box-shadow: 3px 3px 0px var(--border-main) !important;
+  transition: transform 0.1s ease, box-shadow 0.1s ease !important;
+}
+
+.panel-btn-outline:hover {
+  transform: translate(2px, 2px) !important;
+  box-shadow: 1px 1px 0px var(--border-main) !important;
+  background-color: var(--primary-light) !important;
+}
+
+.panel-btn-primary,
+#pc-sim-toggle-btn {
+  box-shadow: 3px 3px 0px var(--primary-dark) !important;
+  transition: transform 0.1s ease, box-shadow 0.1s ease !important;
+}
+
+.panel-btn-primary:hover,
+#pc-sim-toggle-btn:hover {
+  transform: translate(2px, 2px) !important;
+  box-shadow: 1px 1px 0px var(--primary-dark) !important;
+}
+
+/* ---- タイポグラフィ: フォントサイズ拡大 ---- */
+:root {
+  --font-base: 13px !important;
+  --font-md: 14px !important;
+  --font-lg: 15px !important;
+}
+
+/* パネルセクションヘッダー: 大きく・太く */
+.sidebar-section-header {
+  font-size: 18px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.03em !important;
+  padding: 0 16px !important;
+  height: 52px !important;
+}
+
+/* パネルセクション summary（折り畳み見出し）*/
+.panel-section>summary {
+  font-size: var(--font-lg) !important;
+  font-weight: 700 !important;
+  padding: 10px 16px !important;
+}
+
+/* ---- 余白: ぽってり感 ---- */
+/* スクロールエリア内の余白 */
+.sidebar-scroll {
+  padding: 8px 10px !important;
+}
+
+/* 設定グループ間のスペース */
+.settings-group {
+  margin-bottom: 14px !important;
+}
+
+.panel-section {
+  margin-bottom: 6px !important;
+}
+
+/* setting-row の上下余白 */
+.setting-row {
+  padding-top: 6px !important;
+  padding-bottom: 6px !important;
+}
+
+/* ---- 入力要素: ぽってりサイズ ---- */
+select,
+.cascade-btn,
+.ppi-cascade-btn {
+  min-height: 38px !important;
+  padding-top: 6px !important;
+  padding-bottom: 6px !important;
+}
+
+.panel-btn-primary,
+.panel-btn-outline,
+#pc-sim-toggle-btn {
+  min-height: 40px !important;
+  padding: 8px 16px !important;
+  font-size: var(--font-lg) !important;
+}}

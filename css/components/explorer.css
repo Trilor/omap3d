@@ -1,0 +1,1201 @@
+/* ================================================================
+   Phase 2 — エクスプローラー ファイルツリー
+   ================================================================ */
+
+.explorer-tree {
+  padding: 6px 0;
+}
+
+/* ── セクション（コース / 地図 / GPX） ── */
+.expl-section {
+  margin-bottom: 2px;
+}
+
+.expl-section-hd {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 8px 3px 6px;
+  cursor: pointer;
+  user-select: none;
+  color: var(--text-muted);
+  font-size: 10.5px;
+  font-weight: var(--font-bold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.expl-section-hd:hover { color: var(--text-main); }
+
+.expl-section-chevron {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.15s;
+}
+.expl-section.is-collapsed .expl-section-chevron {
+  transform: rotate(-90deg);
+}
+
+.expl-section-label { flex: 1; }
+
+.expl-section-add {
+  width: 20px; height: 20px;
+  border: none; border-radius: 3px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0;
+  transition: opacity 0.12s, background 0.12s;
+  flex-shrink: 0;
+}
+.expl-section-hd:hover .expl-section-add { opacity: 1; }
+.expl-section-add:hover {
+  background: var(--bg-subtle);
+  color: var(--text-main);
+}
+
+.expl-section-body {
+  overflow: hidden;
+}
+.expl-section.is-collapsed .expl-section-body {
+  display: none;
+}
+
+/* ── ファイルアイテム ── */
+.expl-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px 2px 20px;
+  cursor: pointer;
+  border-radius: 3px;
+  margin: 0 2px;
+  position: relative;
+  font-size: 11px;
+  color: var(--text-main);
+  user-select: none;
+}
+.expl-item:hover { background: var(--bg-subtle); }
+.expl-item.is-active {
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+  color: var(--primary);
+}
+
+.expl-item-icon {
+  width: 13px; height: 13px;
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+.expl-item.is-active .expl-item-icon { color: var(--primary); }
+
+.expl-item-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.expl-item-badge {
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 8px;
+  background: var(--bg-subtle);
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.expl-item-more {
+  width: 18px; height: 18px;
+  border: none; border-radius: 3px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0;
+  transition: opacity 0.12s;
+  flex-shrink: 0;
+}
+.expl-item:hover .expl-item-more,
+.expl-item.is-active .expl-item-more,
+.expl-event-hd:hover .expl-item-more,
+.expl-courseset-hd:hover .expl-item-more,
+.expl-sheet-hd:hover .expl-item-more { opacity: 1; }
+.expl-item-more:hover { background: var(--bg-subtle); color: var(--text-main); }
+
+/* 空状態メッセージ */
+.expl-empty {
+  padding: 4px 18px 4px;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* ストレージ情報バー（地図セクション下部） */
+.expl-storage-bar {
+  margin: 4px 8px 2px;
+  padding: 5px 8px;
+  font-size: 10.5px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-top: 1px solid var(--border-light);
+}
+.expl-storage-clear {
+  margin-left: auto;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 10.5px;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 3px;
+}
+.expl-storage-clear:hover { color: #c0392b; background: rgba(192,57,43,0.06); }
+
+/* ================================================================
+   エクスプローラー — テレインフォルダ
+   ================================================================ */
+.expl-terrain-folder {
+  margin-bottom: 2px;
+}
+
+/* フォルダヘッダー */
+.expl-terrain-hd {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 6px 5px 4px;
+  cursor: pointer;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-sub);
+  user-select: none;
+  transition: background 0.1s;
+}
+.expl-terrain-hd:hover { background: var(--bg-subtle); color: var(--text-main); }
+
+/* chevron は共通 .expl-section-chevron を再利用 */
+.expl-terrain-folder.is-collapsed .expl-section-chevron { transform: rotate(-90deg); }
+
+.expl-terrain-icon {
+  width: 14px; height: 14px;
+  display: flex; align-items: center; justify-content: center;
+  color: #059669;
+  opacity: 0.85;
+  flex-shrink: 0;
+}
+.expl-uncategorized .expl-terrain-icon { color: var(--text-muted); }
+
+.expl-terrain-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.expl-uncategorized-label { color: var(--text-muted); font-weight: 500; }
+
+/* コンテンツ数バッジ */
+.expl-terrain-badge {
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* エクスプローラー: テレインフォルダの source バッジ（ローカルのみ） */
+.expl-terrain-source-badge {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: var(--font-semi);
+  padding: 1px 4px;
+  border-radius: 3px;
+  vertical-align: middle;
+  margin-left: 4px;
+  background: #dcfce7;
+  color: #166534;
+  line-height: 1.4;
+}
+
+/* ヘッダーアクションボタン（⋮ ハンバーガー） */
+.expl-terrain-more {
+  width: 20px; height: 20px;
+  display: flex; align-items: center; justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 3px;
+  opacity: 0;
+  transition: opacity 0.1s, background 0.1s, color 0.1s;
+  flex-shrink: 0;
+}
+.expl-terrain-hd:hover .expl-terrain-more { opacity: 1; }
+.expl-terrain-more:hover { background: var(--bg-subtle); color: var(--text-main); }
+
+/* フォルダボディ */
+.expl-terrain-body {
+  padding-left: 16px;
+}
+.expl-terrain-folder.is-collapsed .expl-terrain-body { display: none; }
+
+/* フォルダ内の追加ボタン行 */
+.expl-terrain-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 2px 0 4px;
+}
+.expl-terrain-add-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 11px;
+  cursor: pointer;
+  border-radius: 4px;
+  text-align: left;
+  width: 100%;
+  transition: background 0.1s, color 0.1s;
+}
+.expl-terrain-add-btn:hover {
+  background: var(--bg-subtle);
+  color: var(--primary);
+}
+
+/* フォーカスアニメーション（テレイン追加直後） */
+@keyframes expl-folder-highlight {
+  0%   { background: color-mix(in srgb, var(--primary) 18%, transparent); }
+  100% { background: transparent; }
+}
+.expl-terrain-folder.is-focused > .expl-terrain-hd {
+  animation: expl-folder-highlight 1.2s ease-out forwards;
+}
+
+/* ＋ 追加ボタン（シンプルアイコン、枠なし） */
+.expl-add-pop-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px; height: 20px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 3px;
+  opacity: 0;
+  transition: opacity 0.1s, background 0.1s, color 0.1s;
+  flex-shrink: 0;
+}
+.expl-terrain-hd:hover .expl-add-pop-btn { opacity: 1; }
+.expl-add-pop-btn:hover {
+  background: var(--bg-subtle);
+  color: var(--primary);
+}
+
+/* ポップオーバーメニュー本体 */
+.expl-add-popover {
+  position: fixed;
+  z-index: 10600;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-input);
+  border-radius: 7px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.18);
+  padding: 4px 0;
+  min-width: 200px;
+}
+
+/* セクション見出し */
+.expl-add-popover-section {
+  padding: 6px 12px 3px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  user-select: none;
+}
+
+/* 区切り線 */
+.expl-add-popover-sep {
+  height: 1px;
+  background: var(--border-light);
+  margin: 4px 8px;
+}
+
+/* メニュー項目ボタン */
+.expl-add-popover-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 12px;
+  border: none;
+  background: transparent;
+  color: var(--text-main);
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.1s;
+}
+.expl-add-popover-item:hover { background: var(--bg-subtle); }
+
+/* アイコン列（SVG） */
+.expl-add-popover-icon {
+  width: 16px; height: 16px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--primary);
+  flex-shrink: 0;
+}
+
+/* テキスト列（ラベル + サブテキスト縦並び） */
+.expl-add-popover-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.expl-add-popover-label {
+  font-size: 12px;
+  color: var(--text-main);
+  line-height: 1.3;
+}
+.expl-add-popover-sub {
+  font-size: 10px;
+  color: var(--text-muted);
+  line-height: 1.2;
+}
+
+/* ドラッグ中アイテム */
+.expl-draggable { cursor: grab; }
+.expl-draggable:active { cursor: grabbing; }
+.expl-draggable.is-dragging { opacity: 0.4; }
+
+/* DnD ドロップ先ハイライト */
+.expl-terrain-folder.dnd-over {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+  border-radius: 6px;
+}
+.expl-terrain-folder.dnd-over > .expl-terrain-hd {
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+}
+
+
+/* ================================================================
+   イベントフォルダ（コースファイル単位のサブフォルダ）
+   ================================================================ */
+.expl-event-folder {
+  margin: 2px 0;
+}
+.expl-event-folder.is-collapsed .expl-event-body { display: none; }
+.expl-event-folder.is-collapsed .expl-section-chevron { transform: rotate(-90deg); }
+
+.expl-event-hd {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 4px 2px 2px;
+  border-radius: 4px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.1s;
+}
+.expl-event-hd:hover { background: var(--bg-subtle); }
+.expl-event-hd.is-active-event .expl-event-label { color: var(--text-main); }
+
+.expl-event-icon {
+  color: #b45309;
+  opacity: 0.85;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.expl-event-label {
+  flex: 1;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--text-main);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+/* イベントボディ（コースグループ + コース枠フォルダを含む） */
+.expl-event-body {
+  padding-left: 16px;
+  padding-top: 0;
+  padding-bottom: 2px;
+}
+
+/* ================================================================
+   コースセットフォルダ（大会フォルダ内 — controlDefs の単位）
+   ================================================================ */
+.expl-courseset-folder { margin: 2px 0; }
+.expl-courseset-folder.is-collapsed .expl-courseset-body { display: none; }
+.expl-courseset-folder.is-collapsed .expl-section-chevron { transform: rotate(-90deg); }
+
+.expl-courseset-hd {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 4px 3px 2px;
+  border-radius: 4px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.1s;
+}
+.expl-courseset-hd:hover { background: var(--bg-subtle); }
+
+.expl-courseset-icon {
+  color: #7c3aed;
+  opacity: 0.85;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.expl-courseset-label {
+  flex: 1;
+  font-size: 11px;
+  color: var(--text-sub);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* コースセット追加ボタン（イベントヘッダー内） */
+.expl-event-add-cs-btn {
+  opacity: 0;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 3px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--text-sub);
+  transition: opacity 0.1s, background 0.1s, color 0.1s;
+}
+.expl-event-hd:hover .expl-event-add-cs-btn { opacity: 1; }
+.expl-event-add-cs-btn:hover {
+  background: color-mix(in srgb, #7c3aed 12%, transparent);
+  color: #7c3aed;
+}
+
+/* コースセット — コース追加ボタン */
+.expl-courseset-add-btn {
+  opacity: 0;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 3px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--text-sub);
+  transition: opacity 0.1s, background 0.1s, color 0.1s;
+}
+.expl-courseset-hd:hover .expl-courseset-add-btn { opacity: 1; }
+.expl-courseset-add-btn:hover {
+  background: color-mix(in srgb, #dc2626 10%, transparent);
+  color: #dc2626;
+}
+
+.expl-courseset-body {
+  padding-left: 14px;
+  padding-bottom: 2px;
+}
+
+/* DnD ドラッグ中 */
+.expl-courseset-folder.drag-over > .expl-courseset-hd {
+  outline: 1px dashed #7c3aed;
+  border-radius: 4px;
+}
+
+/* ================================================================
+   コース枠フォルダ（大会フォルダ内 — 画像位置合わせ用フレーム）
+   ================================================================ */
+.expl-sheet-folder { margin: 2px 0; }
+.expl-sheet-folder.is-collapsed .expl-sheet-body { display: none; }
+.expl-sheet-folder.is-collapsed .expl-section-chevron { transform: rotate(-90deg); }
+
+.expl-sheet-hd {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 4px 3px 2px;
+  border-radius: 4px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.1s;
+}
+.expl-sheet-hd:hover { background: var(--bg-subtle); }
+
+.expl-sheet-icon {
+  color: #2563eb;
+  opacity: 0.75;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+.expl-sheet-label {
+  flex: 1;
+  font-size: 11px;
+  color: var(--text-sub);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.expl-sheet-body {
+  padding-left: 14px;
+  padding-bottom: 2px;
+}
+
+/* 全コントロールノード（後方互換 — course_set フォルダに吸収されたが残留スタイルとして保持） */
+.expl-all-controls-item {
+  border-left: 2px solid transparent;
+}
+.expl-all-controls-item.is-active {
+  border-left-color: var(--primary);
+}
+.expl-ctrl-icon {
+  color: var(--primary);
+  opacity: 0.75;
+  display: flex;
+  align-items: center;
+}
+.expl-all-controls-item.is-active .expl-ctrl-icon { opacity: 1; }
+
+/* コースアイテム — フラグアイコン（赤） */
+.expl-course-flag-icon {
+  color: #dc2626;
+  opacity: 0.8;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+.expl-course-item.is-active .expl-course-flag-icon { opacity: 1; }
+
+/* GPX — 緑アイコン */
+.expl-gpx-icon {
+  color: #16a34a;
+  opacity: 0.8;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+/* インラインリネーム入力 */
+.expl-inline-rename {
+  flex: 1;
+  /* ラベルと同じフォントサイズを継承して高さが変わらないようにする */
+  font-size: inherit;
+  font-weight: 500;
+  /* borderとpaddingを高さに含めて行の高さを変えない */
+  box-sizing: border-box;
+  height: 1.6em;
+  padding: 0 3px;
+  border: 1px solid var(--primary);
+  border-radius: 3px;
+  background: var(--bg-surface);
+  color: var(--text-main);
+  outline: none;
+  min-width: 0;
+  line-height: normal;
+}
+
+/* ワークスペース空状態ヒント */
+.expl-ws-hint {
+  padding: 24px 16px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+/* ================================================================
+   汎用コンテキストメニュー（.ctx-menu）
+   課題コンテキストメニュー（#course-ctx-menu）と共通スタイル
+   ================================================================ */
+.ctx-menu {
+  position: fixed;
+  z-index: 10500;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-input);
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+  padding: 4px 0;
+  min-width: 170px;
+}
+
+/* ================================================================
+   Phase 1 — 左パネル オーバーレイモード
+   ================================================================ */
+
+/* 左パネルがオーバーレイモードの時: 地図に重なって固定表示、地図幅は変わらない */
+#sidebar-panel.lp-overlay:not(.sb-hidden) {
+  position: fixed;
+  left: 52px;   /* アイコンバー幅ぴったり */
+  top: 0;
+  height: 100vh;
+  z-index: 11;  /* 地図コントロールより前面 */
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.18);
+  border-radius: 0 8px 8px 0; /* 地図側（右）の角を丸める */
+  overflow: hidden;
+}
+
+/* ピン留めボタン（各セクションヘッダーに注入） */
+.sidebar-pin-btn {
+  width: 26px;
+  height: 26px;
+  margin-left: 2px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.12s, color 0.12s;
+}
+.sidebar-pin-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--on-primary);
+}
+.sidebar-pin-btn.is-pinned {
+  color: #fff;
+  opacity: 1;
+}
+.sidebar-pin-btn.is-pinned svg {
+  fill: rgba(255, 255, 255, 0.25);
+}
+
+/* ================================================================
+   Phase 1 — 右オーバーレイパネル
+   ================================================================ */
+
+#right-panel {
+  position: fixed;
+  right: 0;
+  top: 0;
+  width: var(--rp-w);   /* 右パネル専用幅（ドラッグリサイズで変化） */
+  height: 100vh;
+  background: var(--bg-surface);
+  border-left: 1px solid var(--border-muted);
+  box-shadow: -4px 0 24px rgba(0, 0, 0, 0.16);
+  border-radius: 8px 0 0 8px; /* 地図側（左）の角を丸める */
+  z-index: 9;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transform: translateX(100%);
+  visibility: hidden;
+  pointer-events: none;
+}
+#right-panel.rp-open {
+  transform: translateX(0);
+  visibility: visible;
+  pointer-events: auto;
+}
+
+/* 右パネル ドラッグリサイズハンドル
+   パネル外に独立した fixed 要素として配置（overflow:hidden の影響を受けない）
+   パネルが閉じているときは非表示 */
+#rp-resize-handle {
+  display: none;
+  position: fixed;
+  top: 0;
+  right: calc(var(--rp-w) - 4px); /* パネル左端を中心に ±6px */
+  width: 8px;
+  height: 100vh;
+  cursor: w-resize;
+  z-index: 12;
+  user-select: none;
+}
+body.rp-open #rp-resize-handle {
+  display: block;
+}
+
+.right-panel-header {
+  background: var(--bg-panel);
+  color: var(--primary);
+  padding: 0 12px;
+  height: 44px;
+  font-size: var(--font-md);
+  font-weight: var(--font-bold);
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  letter-spacing: 0.02em;
+  gap: 4px;
+}
+
+.right-panel-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.right-panel-close-btn {
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.12s;
+}
+.right-panel-close-btn:hover {
+  background: var(--bg-subtle);
+  color: var(--text-main);
+}
+
+.right-panel-body {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* ================================================================
+   右パネル コンテンツ（地図・GPX プロパティ）
+   ================================================================ */
+
+.rp-section {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border-muted);
+}
+.rp-section:last-child { border-bottom: none; }
+
+.rp-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+}
+.rp-label {
+  font-size: 12px;
+  color: var(--text-sub);
+  flex-shrink: 0;
+}
+.rp-opacity-row { gap: 6px; }
+.rp-opacity-slider { flex: 1; }
+.rp-opacity-val {
+  font-size: 11px;
+  color: var(--text-muted);
+  width: 32px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.rp-info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 3px 0;
+  font-size: 12px;
+}
+.rp-info-label { color: var(--text-sub); }
+.rp-info-val { font-weight: var(--font-bold); color: var(--text-main); }
+
+.rp-actions { display: flex; flex-direction: column; gap: 6px; }
+.rp-gpx-controls { display: flex; flex-direction: column; gap: 6px; }
+
+.rp-action-btn {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  padding: 8px 12px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-input);
+  border-radius: 5px;
+  font-size: 12px;
+  color: var(--text-main);
+  cursor: pointer;
+  text-align: left;
+}
+.rp-action-btn:hover { background: var(--bg-panel); }
+.rp-action-danger {
+  color: #c0392b;
+  border-color: rgba(192,57,43,0.3);
+}
+.rp-action-danger:hover { background: rgba(192,57,43,0.06); }
+
+/* コースエディター（右パネル内に常駐、display で表示切り替え） */
+#course-editor-view {
+  display: none;
+  flex-direction: column;
+  overflow-y: auto;
+  height: 100%;
+  padding: 10px 14px 20px;
+  box-sizing: border-box;
+}
+
+/* コースエディター内の settings-group-title: 親パディングが適用されるので自前の左右パディングをリセット */
+#course-editor-view .settings-group-title {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+/* コースエディター内の settings-group 区切り線はパネル幅いっぱいに伸ばす */
+#course-editor-view .settings-group {
+  margin-left: -14px;
+  margin-right: -14px;
+  padding-left: 14px;
+  padding-right: 14px;
+  padding-bottom: 10px;
+}
+
+/* タブはすでに -12px マージンを持つので、親の14pxに合わせて更新 */
+#course-editor-view .course-tabs {
+  margin: 0 -14px;
+  padding: 0 14px;
+}
+
+/* ====== ワークスペースパネル動的ヘッダー ====== */
+
+#ws-panel-header {
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border-light);
+  padding: 0 8px 0 10px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 2px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+/* タイトル（テレイン一覧 or テレイン名） */
+.ws-header-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 2px;
+  outline: none;
+}
+
+/* contentEditable 中 */
+.ws-header-title[contenteditable="true"] {
+  background: var(--bg-subtle);
+  border-radius: 3px;
+  padding: 1px 4px;
+  box-shadow: inset 0 0 0 1px var(--primary);
+}
+
+/* ヘッダー内の小さいアイコンボタン（戻る / ＋ / ⋮） */
+.ws-header-icon-btn {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 5px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background var(--transition), color var(--transition);
+}
+
+.ws-header-icon-btn:hover {
+  background: var(--primary-light);
+  color: var(--primary);
+}
+
+/* コンテキストメニュー — disabled アイテム */
+.ctx-menu-disabled {
+  opacity: 0.4;
+  cursor: default;
+  pointer-events: none;
+}
+
+/* ====== テレインドリルダウンUI ====== */
+
+/* テレインカードグリッド */
+/* ====== テレインカード一覧グリッド ====== */
+
+.terrain-grid-view {
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* カードは縦リスト（横幅フル） */
+.terrain-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.terrain-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 64px;
+  border-radius: 6px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-light);
+  padding: 0 8px 0 8px;
+  cursor: pointer;
+  transition: background var(--transition), box-shadow var(--transition);
+  overflow: hidden;
+}
+
+.terrain-card:hover {
+  background: var(--bg-subtle);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+
+/* 左: サムネイル正方形 */
+.terrain-card-thumb {
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  border-radius: 5px;
+  background: #e2ede9;
+}
+
+/* 中央: テキスト */
+.terrain-card-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.terrain-card-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.terrain-card-meta {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+/* 右上: 三点メニューボタン */
+.terrain-card-menu-btn {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: 4px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity var(--transition), background var(--transition);
+}
+
+.terrain-card:hover .terrain-card-menu-btn {
+  opacity: 1;
+}
+
+.terrain-card-menu-btn:hover {
+  background: rgba(0,0,0,0.06);
+  color: var(--text-main);
+}
+
+/* ====== テレインツリービュー ====== */
+
+.terrain-tree-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+#explorer-tree {
+  flex: 1;
+  overflow-y: auto;
+}
+
+/* コース空状態CTA */
+.course-empty-cta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.empty-state-icon {
+  font-size: 64px;
+  margin-bottom: 16px;
+}
+
+.course-empty-cta h3 {
+  font-size: 18px;
+  font-weight: var(--font-bold);
+  color: var(--text-main);
+  margin-bottom: 8px;
+}
+
+.course-empty-cta p {
+  font-size: 13px;
+  line-height: 1.5;
+  margin-bottom: 24px;
+}
+
+.btn-cta {
+  padding: 10px 16px;
+  border-radius: 6px;
+  background: var(--primary);
+  color: white;
+  font-weight: var(--font-bold);
+  border: none;
+  cursor: pointer;
+  transition: background var(--transition);
+  font-size: 12px;
+}
+
+.btn-cta:hover {
+  background: var(--primary-dark);
+}
+
+/* 削除確認モーダル */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+}
+
+.modal-body {
+  padding: 16px;
+  color: var(--text-main);
+  line-height: 1.6;
+}
+
+.delete-warning-text {
+  margin-bottom: 20px;
+  font-size: 13px;
+}
+
+.modal-footer {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.btn-cancel {
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: 1px solid var(--border-light);
+  background: transparent;
+  color: var(--text-main);
+  cursor: pointer;
+  transition: background var(--transition);
+  font-size: 12px;
+}
+
+.btn-cancel:hover {
+  background: var(--bg-panel);
+}
+
+.btn-delete-danger {
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: none;
+  background: #dc2626;
+  color: white;
+  font-weight: var(--font-bold);
+  cursor: pointer;
+  transition: background var(--transition);
+  font-size: 12px;
+}
+
+.btn-delete-danger:hover {
+  background: #b91c1c;
+}
+
+/* ====== ドリルダウンモード: ツリー視認性向上 ====== */
+
+/* 大会ヘッダー: padding 増やしてフルwidthホバー */
+.terrain-tree-view .expl-event-hd {
+  padding: 5px 6px 5px 4px;
+  border-radius: 5px;
+  margin: 1px 0;
+}
+
+/* コースセットヘッダー */
+.terrain-tree-view .expl-courseset-hd {
+  padding: 4px 6px 4px 2px;
+  margin: 1px 0;
+}
+
+/* 大会ボディ: インデント幅拡大 */
+.terrain-tree-view .expl-event-body {
+  padding-left: 18px;
+}
+
+/* コースセットボディ: インデント幅拡大 */
+.terrain-tree-view .expl-courseset-body {
+  padding-left: 18px;
+}
+
+/* コース行: インデント幅拡大 */
+.terrain-tree-view .expl-item {
+  padding-left: 24px;
+}
