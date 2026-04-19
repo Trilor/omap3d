@@ -1,0 +1,318 @@
+@import url('https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;500;700&display=swap');
+
+/* ================================================================
+   style.css — TeleDrop スタイルシート（全 §セクション）
+   ================================================================
+   §01   CSS 変数（テーマカラー・サイドバー幅）              L.1–
+   §02   リセット・ベーススタイル                            L.29–
+   §03   マップコンテナ・カーソル                            L.51–
+   §04   UIパネル・サイドバー                               L.63–
+   §05   Miller Columns フレーム行（コンパクト・アコーディオン） L.437–
+   §06   アコーディオン <details> / <summary>               L.804–
+   §07   表示設定行・スライダー・セレクト                    L.844–
+   §08   ベースマップカード・オーバーレイカード                L.893–
+   §09   トグルスイッチ                                     L.1114–
+   §10   パネル内ボタン基底（セカンダリ / プライマリ）         L.1275–
+   §11   地図カタログ（テレイン一覧）                        L.1337–
+   §12   Miller Columns ブラウザ UI                        L.1475–
+   §13   タブバー                                          L.1599–
+   §14   map_type チップフィルター                          L.1633–
+   §15   JGW + 画像モーダル                                L.1762–
+   §16   開発用カラーピッカー                               L.1893–
+   §17   検索ボックス（常時表示）                            L.1943–
+   §18   プライバシー注記                                   L.2262–
+   §19   視点切り替えトグルボタン                            L.2294–
+   §20   タイムラインパネル（GPX 再生）                      L.2331–
+   §21   O-シミュレーターモード（モバイル）                   L.2467–
+   §22   PC O-シミュレーターモード                          L.2614–
+   §23   レスポンシブ / スマホ対応 / Attribution              L.2868–
+   §24   地図画像 位置合わせモーダル                         L.2955–
+   §25   印刷・エクスポートダイアログ                        L.3298–
+   §26   モバイル専用要素                                   L.3417–
+   §27   ボトムシート（モバイル）                            L.3423–
+   §28   汎用ローディングインジケーター                       L.3828–
+   §29   枠エクスポート ダイアログ                           L.3909–
+   ================================================================ */
+
+/* --sidebar-w をアニメータブルなCSS変数として宣言（Chrome85+ / Firefox128+） */
+/* ★ パネル幅を変更する場合は --panel-w のみ編集する。
+   --sidebar-w の initial-value と config.js の SIDEBAR_DEFAULT_WIDTH は
+   「アイコンバー幅(52px) + --panel-w」に合わせて手動更新が必要（@property はvar()不可）。 */
+@property --sidebar-w {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 282px;
+  /* 52px(アイコンバー) + 230px(--panel-w) */
+}
+
+:root {
+  --panel-w: 230px;
+  /* ★ 左パネル幅。変更はここだけでよい */
+  --rp-w: 220px;
+  /* ★ 右パネル幅のデフォルト。ドラッグリサイズで上書きされる */
+
+  /* ===== テーマカラー（ミュートティール） ===== */
+  --primary: #2a9d8f;
+  /* メインカラー：ミストティール */
+  --primary-hover: #228879;
+  /* ホバー・押下状態（一段暗め）*/
+  --primary-dark: #1a6b60;
+  /* さらに暗いアクセント */
+  --primary-light: #e8f5f3;
+  /* 極薄背景・ハイライト用 */
+  --primary-alpha: rgba(42, 157, 143, 0.12);
+  /* 半透明オーバーレイ */
+
+  /* 主要背景色（--primary）上のテキスト色 */
+  --on-primary: #ffffff;
+  --on-primary-muted: rgba(255, 255, 255, 0.80);
+
+  /* ===== テキスト色（落ち着いたスレート） ===== */
+  --text-main: #2d3d4a;
+  /* 主要テキスト・見出し */
+  --text-sub: #3d5060;
+  /* 副次テキスト・説明 */
+  --text-muted: #5a7080;
+  /* ヒント・ラベル・アイコン */
+  --text-light: #8aa0ae;
+  /* 薄いテキスト */
+  --text-disabled: #b8cad4;
+  /* 無効状態 */
+
+  /* ===== 背景色（クリームホワイト系） ===== */
+  --bg-map: #eaf0ef;
+  /* アプリ最背面（くすんだグリーングレー） */
+  --bg-surface: #ffffff;
+  /* 白背景（モーダル・カード・入力欄） */
+  --bg-panel: #fafbf8;
+  /* パネル・アイコンバー（クリーム白） */
+  --bg-subtle: #f0f5f3;
+  /* 薄いカード背景 */
+  --bg-hover: #e4eeeb;
+  /* リスト行ホバー */
+  --bg-select: #d5e8e4;
+  /* セレクト・非アクティブタブ背景 */
+  --bg-hover-btn: #c2deda;
+  /* 小ボタンホバー・フォーカス背景 */
+
+  /* ===== 境界線（ソフトティール） ===== */
+  --border-subtle: #d8e6e2;
+  /* 極薄区切り線 */
+  --border-light: #b8d4ce;
+  /* 通常の区切り線 */
+  --border-muted: #88b0a8;
+  /* モーダル・タブの枠線 */
+  --border-main: #4a8880;
+  /* 標準の枠線 */
+  --border-input: #90b8b0;
+  /* 入力欄・セレクトの枠線 */
+  --border-weak: #c0d8d4;
+  /* 薄いアクセント枠線 */
+
+  /* ===== テキスト（追加） ===== */
+  --text-dark: #1a2830;
+  /* 見出し・強調（text-main より濃い） */
+  --text-body: #2d3d4a;
+  /* 本文 */
+  --text-caption: #4a6070;
+  /* キャプション・ラベル補足 */
+
+  /* ===== セカンダリカラー ===== */
+  --secondary: #3d8a7a;
+  /* 副次カラー（ミュートティール） */
+  --text-ink: #1a2830;
+  /* ほぼ黒テキスト（タイトル・強調見出し） */
+
+  /* ===== 機能色 ===== */
+  --color-danger: #c0392b;
+  /* 削除・エラー */
+  --color-warn: #d06000;
+  /* 警告・カメラ追尾モード */
+  --color-warn-hover: #b85500;
+  /* 警告ホバー */
+  --color-marker: #ff3300;
+  /* GPS位置マーカー */
+  --color-sim-active: #b33a2a;
+  /* シミュレーター実行中 */
+  --color-sim-hover: #962d20;
+  /* シミュレーター実行中ホバー */
+
+  /* ===== スライダー ===== */
+  --slider-track: #b0d4ce;
+  /* スライダー未充填トラック色 */
+
+  /* ===== シャドウ（フラット化・ぼかしなし） ===== */
+  --shadow-xs: rgba(0, 0, 0, 0.06);
+  /* フォーカスリング・極薄シャドウ */
+  --shadow-sm: rgba(0, 0, 0, 0.08);
+  /* 小パネルシャドウ */
+  --shadow-md: rgba(0, 0, 0, 0.10);
+  /* 中シャドウ */
+  --shadow-lg: rgba(0, 0, 0, 0.12);
+  /* 大パネルシャドウ */
+
+  /* ===== 地図コントロール共通 ===== */
+  --control-bg: var(--bg-surface);
+  --control-text: var(--text-sub);
+  --control-text-hover: var(--text-main);
+  --control-border: 1.5px solid var(--border-light);
+  --control-radius: 10px;
+  --control-shadow: none;
+  --control-hover-bg: var(--primary-light);
+  --control-edge-gap: 10px;
+  --control-stack-gap: 8px;
+  --control-icon-btn-size: 29px;
+  --control-icon-radius: var(--control-radius);
+
+  /* ===== オーバーレイ（スクリム・モーダル背景） ===== */
+  --overlay-light: rgba(0, 0, 0, 0.45);
+  /* 薄いスクリム */
+  --overlay-base: rgba(0, 0, 0, 0.5);
+  /* 標準スクリム */
+  --overlay-mid: rgba(0, 0, 0, 0.55);
+  /* 中程度スクリム */
+  --overlay-dark: rgba(0, 0, 0, 0.65);
+  /* 濃いスクリム */
+
+  /* ===== 白オーバーレイ ===== */
+  --white-subtle: rgba(255, 255, 255, 0.15);
+  /* 薄い白オーバーレイ（暗背景上のボタン） */
+  --white-border: rgba(255, 255, 255, 0.25);
+  /* 白枠線（モーダル上） */
+  --white-hover: rgba(255, 255, 255, 0.3);
+  /* 白ホバー */
+  --white-strong: rgba(255, 255, 255, 0.9);
+  /* 強い白テキスト */
+  --bg-glass: rgba(255, 255, 255, 0.92);
+  /* 半透明白パネル */
+  --bg-glass-heavy: rgba(255, 255, 255, 0.95);
+  /* ほぼ不透明白パネル */
+
+  /* ===== トランジション ===== */
+  --transition: 0.15s;
+  /* 標準（ボタン・スライダー） */
+  --transition-fast: 0.12s;
+  /* 高速（リスト行ホバー） */
+
+  /* ===== タイポグラフィ ===== */
+  /* フォントファミリー */
+  --font-family: 'M PLUS Rounded 1c', 'Hiragino Maru Gothic ProN', 'Hiragino Sans', system-ui, -apple-system, sans-serif;
+  --font-family-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+  /* フォントサイズ（UIで使用する段階的なスケール） */
+  --font-xs: 10px;
+  /* 最小ラベル・単位 */
+  --font-sm: 11px;
+  /* 補足・小ラベル */
+  --font-base: 12px;
+  /* UI基本サイズ */
+  --font-md: 13px;
+  /* 強調テキスト・リスト */
+  --font-lg: 14px;
+  /* 見出し・ボタン */
+  /* フォントウェイト */
+  --font-normal: 400;
+  --font-semi: 600;
+  --font-bold: 700;
+
+  /* ===== プルダウン矢印（くの字 chevron） ===== */
+  /* 矢印の形・色・サイズを変えたい場合はここだけ編集すれば全体に反映される */
+  --chevron-color: %234a8880;
+  /* 矢印色（#4a8880 ミュートティール）※ SVG内のためパーセントエンコード */
+  --chevron-width: 2;
+  /* 線の太さ（SVG stroke-width） */
+  --chevron-down: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpolyline points='1,1 5,5 9,1' fill='none' stroke='%234a8880' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  --chevron-right: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 6 10'%3E%3Cpolyline points='1,1 5,5 1,9' fill='none' stroke='%234a8880' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  --chevron-size-down: 8px 5px;
+  /* background-size（下向き） */
+  --chevron-size-right: 5px 8px;
+  /* background-size（右向き） */
+  --chevron-inset: 6px;
+  /* 右端からの距離（background-position） */
+  --chevron-pad-r: 20px;
+  /* 矢印領域分の右パディング */
+
+  /* ===== プルダウン外観（ドロップダウン共通） ===== */
+  /* <select> 要素および .cascade-btn の見た目をここで一元管理。 */
+  /* 個別クラスはサイズ・レイアウトのみ上書きし、外観はここだけ変更すれば全体に反映される。 */
+  --dropdown-bg: var(--bg-surface);
+  /* 背景色（白） */
+  --dropdown-border: var(--border-input);
+  /* 枠線色 */
+  --dropdown-radius: 8px;
+  /* 角丸（大きめ） */
+  --dropdown-color: var(--text-main);
+  /* テキスト色 */
+}
+
+/*
+  ========================================================
+  全画面表示のスタイル設定
+  ========================================================
+*/
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+button,
+input,
+textarea {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+/* ================================================================
+   全 <select> 要素の基本外観 — ここだけ変更すれば全体に反映される
+   個別クラスは background-color / padding / font-size のみ上書きすること。
+   background shorthand で上書きすると chevron が消えるので使わないこと。
+   ================================================================ */
+select {
+  font-family: var(--font-family);
+  font-weight: 500;
+  appearance: none;
+  background-color: var(--dropdown-bg);
+  background-image: var(--chevron-down);
+  background-repeat: no-repeat;
+  background-position: right var(--chevron-inset) center;
+  background-size: var(--chevron-size-down);
+  color: var(--dropdown-color);
+  border: 1px solid var(--dropdown-border);
+  border-radius: var(--dropdown-radius);
+  cursor: pointer;
+  outline: none;
+}
+
+select:hover {
+  background-color: var(--primary-light);
+}
+
+select:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+body {
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  font-family: var(--font-family);
+  color: var(--text-main);
+  background-color: var(--bg-map);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+#map {
+  width: 100%;
+  height: 100%;
+  background-color: var(--bg-map);
+}
+
+/* MapLibre のデフォルト grab カーソルを矢印に上書き */
+#map .maplibregl-canvas-container,
+#map .maplibregl-canvas-container.maplibregl-interactive {
+  cursor: default !important;
+}
+
