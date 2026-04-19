@@ -1,19 +1,16 @@
 /* ================================================================
    scaleDisplay.js — 縮尺表示・PPI設定・実寸定規
-   依存: config.js (DEVICE_PPI_DATA, DEFAULT_DEVICE_PPI, EASE_DURATION)
-   init(map, { updateSliderGradient }) で map と依存関数を注入する
    ================================================================ */
 
 import {
   DEVICE_PPI_DATA, DEFAULT_DEVICE_PPI, EASE_DURATION,
 } from '../../core/config.js';
+import { updateSliderGradient } from '../../utils/slider.js';
 
 let _map = null;
-let _updateSliderGradient = () => {};
 
-export function init(map, { updateSliderGradient } = {}) {
+export function init(map) {
   _map = map;
-  if (updateSliderGradient) _updateSliderGradient = updateSliderGradient;
 
   _map.on('move', updateScaleDisplay);
   _map.on('zoom', updateScaleDisplay);
@@ -141,7 +138,7 @@ function buildPpiCascade() {
       updateScaleDisplay();
       updatePpiRuler();
       const _ms = document.getElementById('ppi-manual-slider');
-      if (_ms) { _ms.value = ppi; _updateSliderGradient(_ms); updatePpiSliderBubble(_ms); }
+      if (_ms) { _ms.value = ppi; updateSliderGradient(_ms); updatePpiSliderBubble(_ms); }
     });
   });
 
@@ -199,12 +196,12 @@ function _initManualPpiSlider() {
   const _slider = document.getElementById('ppi-manual-slider');
   if (!_slider) return;
   _slider.value = _currentDevicePPI;
-  _updateSliderGradient(_slider);
+  updateSliderGradient(_slider);
   updatePpiSliderBubble(_slider);
   _slider.addEventListener('input', () => {
     const ppi = parseInt(_slider.value, 10);
     _setDevicePPI(ppi);
-    _updateSliderGradient(_slider);
+    updateSliderGradient(_slider);
     updatePpiSliderBubble(_slider);
     updateScaleDisplay();
     updatePpiRuler();

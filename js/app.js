@@ -107,6 +107,7 @@ import {
   init as initScaleDisplay,
   getCurrentDevicePPI, updatePpiRuler, updatePpiSliderBubble, updateScaleDisplay,
 } from './ui/components/scaleDisplay.js';
+import { updateSliderGradient } from './utils/slider.js';
 
 // ベースマップ切替の状態管理
 // oriLibreLayers: isomizer が追加したレイヤーを [{ id, defaultVisibility }] 形式で保持
@@ -1006,7 +1007,7 @@ map.on('load', async () => {
   initGpxPlayer(map);
 
   // 縮尺表示・PPI設定モジュール初期化
-  initScaleDisplay(map, { updateSliderGradient });
+  initScaleDisplay(map);
 
   // 地図が安定表示されたらURLをフル状態に更新（Google Maps方式）
   // hash:true がハッシュを確定した後に updateShareableUrl を呼ぶことで
@@ -3364,12 +3365,6 @@ document.addEventListener('drop', async (e) => {
     ======================================================== */
 
 // ---- スライダーのグラデーション更新ヘルパー ----
-// color: スライダーのアクセントカラー（デフォルト：グリーン系）
-function updateSliderGradient(input) {
-  const pct = ((input.value - input.min) / (input.max - input.min)) * 100;
-  input.style.setProperty('--pct', pct + '%');
-}
-
 // ユーザーが手動で設定した磁北線間隔（m）。zoom > 10 のときに使用する。
 let userMagneticInterval = 300;
 
