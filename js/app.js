@@ -1236,13 +1236,16 @@ function renderLocalMapList() {
           <span class="toggle-slider"></span>
         </label>
         <label class="layer-name${entry.visible ? '' : ' disabled'}" for="chk-kmz-${entry.id}" title="${entry.name}">${shortName}</label>
-        <button class="kmz-del-btn" title="削除" onclick="removeLocalMapLayer(${entry.id})">✕</button>
+        <button class="kmz-del-btn" title="削除" data-id="${entry.id}">✕</button>
       </div>
       <div class="opacity-row">
         <input type="range" class="ui-slider" id="slider-kmz-${entry.id}" min="0" max="100" step="5" value="${pct}" ${entry.visible ? '' : 'disabled'} />
         <span class="opacity-val" id="val-kmz-${entry.id}">${pct}%</span>
       </div>`;
     listEl.appendChild(rowEl);
+
+    // 削除ボタン
+    rowEl.querySelector('.kmz-del-btn').addEventListener('click', () => removeLocalMapLayer(entry.id));
 
     // チェックボックス：表示/非表示
     rowEl.querySelector(`#chk-kmz-${entry.id}`).addEventListener('change', (e) => {
