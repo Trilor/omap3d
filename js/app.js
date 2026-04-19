@@ -1275,10 +1275,6 @@ function renderLocalMapList() {
 
   // シミュレータータブの読図地図リストも同期して更新
   renderSimReadmapList();
-  // 「その他の地図」ツリーも更新
-  renderOtherMapsTree();
-  // エクスプローラーも同期
-  renderExplorer();
 }
 
 
