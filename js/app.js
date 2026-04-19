@@ -129,7 +129,7 @@ import {
 } from './store/localMapStore.js';
 import {
   init as initImportModal,
-  openImportModal, openImportModalFromKmz, openImportModalWithCoords, closeAlignEditor,
+  openImportModal, openImportModalFromKmz,
 } from './ui/modals/importModal.js';
 
 // ベースマップ切替の状態管理
