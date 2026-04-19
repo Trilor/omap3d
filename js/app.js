@@ -92,6 +92,17 @@ import {
   updateSidebarWidth, restoreSidebarState, initSidebarNav,
 } from './ui/uiState.js';
 import { emit, on } from './store/eventBus.js';
+import { gpxState, GPX_CAM_DIST_MIN, GPX_CAM_DIST_MAX } from './gpx/gpxState.js';
+import {
+  init as initGpxCamera,
+  updateGpxMarker, updateCamera,
+} from './gpx/gpxCamera.js';
+import { init as initGpxLoader, loadGpx } from './gpx/gpxLoader.js';
+import {
+  init as initGpxPlayer,
+  formatMMSS, updateSeekBarGradient, updateTimeDisplay,
+  interpolateGpxPosition, toggleGpxPlayPause, toggleGpx3dMode,
+} from './gpx/gpxPlayer.js';
 
 // ベースマップ切替の状態管理
 // oriLibreLayers: isomizer が追加したレイヤーを [{ id, defaultVisibility }] 形式で保持
@@ -985,6 +996,11 @@ map.on('load', async () => {
   setImportDoneCallback(() => { renderExplorer(); openCourseEditor(); });
   initCoursePlanner(map);
 
+  // GPX モジュール初期化（map インスタンスを注入）
+  initGpxCamera(map);
+  initGpxLoader(map);
+  initGpxPlayer(map);
+
   // 地図が安定表示されたらURLをフル状態に更新（Google Maps方式）
   // hash:true がハッシュを確定した後に updateShareableUrl を呼ぶことで
   // https://teledrop.pages.dev/ → https://teledrop.pages.dev/?overlay=cs#15/35.02/135.78 に自動遷移する
@@ -1130,35 +1146,6 @@ function escHtml(str) {
   return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-/* ========================================================
-    GPX リプレイ機能：状態管理変数
-    ======================================================== */
-const gpxState = {
-  trackPoints:     [],       // GPXのトラックポイント配列（{lng, lat, relTime}の形式）
-  totalDuration:   0,        // 総再生時間（ミリ秒）
-  currentTime:     0,        // 現在の再生位置（ミリ秒）
-  isPlaying:       false,    // 再生中かどうか
-  animFrameId:     null,     // requestAnimationFrameのID（キャンセルに使用）
-  lastTimestamp:   null,     // 前フレームのタイムスタンプ（差分計算用）
-  viewMode:        '2d',     // 視点モード: '2d'＝俯瞰 / '3d'＝追尾カメラ
-  chasePitch:      60,       // 3D追尾カメラ ピッチ（deg）
-  camDistM:        50,       // 3D追尾カメラ距離（m）
-  bearingOffset:   0,        // 進行方向からの bearing オフセット（deg）
-  chaseKeys: {               // 矢印キー押下状態（3D モード専用）
-    ArrowLeft: false, ArrowRight: false, ArrowUp: false, ArrowDown: false,
-  },
-  cachedTerrainH:  0,        // 地形高度キャッシュ（queryTerrainElevation が null のときに維持）
-  lastBearing:     0,        // 前フレームの進行方向（端点などbearing=0の補完用）
-  smoothedBearing: 0,        // bearing ローパスフィルタ値（カクカク防止）
-  smoothedZoom:    15,       // zoom ローパスフィルタ値
-  fileName:        null,     // 読み込んだ GPX ファイル名（レイヤーパネル表示用）
-  terrainId:       null,     // 関連付けられたワークスペーステレイン ID（null = 未分類）
-};
-const GPX_CAM_DIST_MIN = 1;
-const GPX_CAM_DIST_MAX = 500;
-// bearing / zoom 平滑化の時定数（秒）。大きいほど滑らかで遅延が増す
-const GPX_BEARING_TC = 0.35;
-const GPX_ZOOM_TC    = 0.15;
 
 
 /* ========================================================
@@ -2335,522 +2322,6 @@ function removeLocalMapLayer(id) {
 
 
 /* ========================================================
-    時間を MM:SS 形式にフォーマットする
-    引数 ms : ミリ秒
-    ======================================================== */
-function formatMMSS(ms) {
-  // ミリ秒 → 秒に変換し、分と秒を算出する
-  const totalSec = Math.floor(ms / 1000);
-  const mm = Math.floor(totalSec / 60).toString().padStart(2, '0');
-  const ss = (totalSec % 60).toString().padStart(2, '0');
-  return `${mm}:${ss}`;
-}
-
-/* ========================================================
-    シークバーのグラデーションを現在値に合わせて更新する
-    ======================================================== */
-function updateSeekBarGradient() {
-  const bar = document.getElementById('seek-bar');
-  const max = parseFloat(bar.max) || 1;
-  const pct = (parseFloat(bar.value) / max) * 100;
-  bar.style.setProperty('--pct', pct + '%');
-}
-
-/* ========================================================
-    時間表示パネルを更新する（現在時間 / 総時間）
-    ======================================================== */
-function updateTimeDisplay() {
-  document.getElementById('time-current').textContent = formatMMSS(gpxState.currentTime);
-  document.getElementById('time-total').textContent = formatMMSS(gpxState.totalDuration);
-}
-
-/* ========================================================
-    GPXのレイヤーを地図から削除する（再読み込み時のクリーンアップ）
-    ======================================================== */
-function removeGpxLayers() {
-  const layerIds = [
-    'gpx-marker-inner', 'gpx-marker-outer',
-    'gpx-track-line', 'gpx-track-outline',
-  ];
-  const sourceIds = ['gpx-marker', 'gpx-track'];
-
-  // レイヤーを先に削除してからソースを削除する（順序重要）
-  layerIds.forEach(id => {
-    if (map.getLayer(id)) map.removeLayer(id);
-  });
-  sourceIds.forEach(id => {
-    if (map.getSource(id)) map.removeSource(id);
-  });
-}
-
-/* ========================================================
-    GPXファイルを処理するメイン関数
-    引数 file : ユーザーが選択した File オブジェクト
-    ======================================================== */
-async function loadGpx(file) {
-  try {
-    // ファイルをテキストとして読み込む
-    const text = await file.text();
-
-    // DOMParser で GPX（XMLフォーマット）を解析する
-    const parser = new DOMParser();
-    const gpxDom = parser.parseFromString(text, 'application/xml');
-
-    // trkpt 要素（トラックポイント）をすべて取得する（外部ライブラリ不使用・ネイティブDOM API）
-    const trkptEls = gpxDom.querySelectorAll('trkpt');
-
-    // ---- トラックポイントを配列化する ----
-    // trkpt の lon/lat 属性から経度・緯度を取得し、
-    // 子要素の <time> から ISO8601 文字列をミリ秒のタイムスタンプに変換する
-    const points = Array.from(trkptEls).map(pt => ({
-      lng: parseFloat(pt.getAttribute('lon')),
-      lat: parseFloat(pt.getAttribute('lat')),
-      time: pt.querySelector('time')
-        ? new Date(pt.querySelector('time').textContent).getTime()
-        : null,
-    }));
-
-    if (points.length < 2) {
-      alert('GPXファイルにトラックポイントが見つかりませんでした。\ntrkデータを含むファイルをご使用ください。');
-      return;
-    }
-
-    // 時刻でソートする（念のため）
-    points.sort((a, b) => (a.time ?? 0) - (b.time ?? 0));
-
-    // 時刻データがない場合：インデックスベースで1秒間隔を設定
-    const hasTime = points.some(p => p.time !== null);
-    if (!hasTime) {
-      console.warn('GPXに時刻データがありません。インデックスベースで代替します。');
-      points.forEach((p, i) => { p.time = i * 1000; });
-    }
-
-    // 各ポイントに開始時刻からの相対時間（relTime）を付与する
-    // relTime = 0 〜 totalDuration（ミリ秒）がシークバーの値に対応する
-    const t0 = points[0].time;
-    points.forEach(p => { p.relTime = (p.time ?? 0) - t0; });
-
-    // アニメーション管理変数を初期化する
-    gpxState.trackPoints = points;
-    gpxState.totalDuration = points[points.length - 1].relTime;
-    gpxState.currentTime = 0;
-    gpxState.isPlaying = false;
-    gpxState.lastTimestamp = null;
-    // 追尾カメラ用キャッシュ・オフセットをリセット
-    gpxState.cachedTerrainH = map.queryTerrainElevation(
-      { lng: points[0].lng, lat: points[0].lat }, { exaggerated: false }
-    ) ?? 0;
-    gpxState.lastBearing  = 0;
-    gpxState.bearingOffset = 0;
-    // ローパスフィルタ値を先頭セグメントの bearing でスナップ初期化
-    if (points.length >= 2) {
-      gpxState.smoothedBearing = turf.bearing(
-        turf.point([points[0].lng, points[0].lat]),
-        turf.point([points[1].lng, points[1].lat])
-      );
-    } else {
-      gpxState.smoothedBearing = 0;
-    }
-    gpxState.smoothedZoom = 15;
-
-    // 再生中ならキャンセルする
-    if (gpxState.animFrameId) {
-      cancelAnimationFrame(gpxState.animFrameId);
-      gpxState.animFrameId = null;
-    }
-
-    // ---- 既存のGPXレイヤーを削除して新規追加 ----
-    removeGpxLayers();
-
-    // 軌跡全体を表す GeoJSON LineString を手動で構築する（外部ライブラリ不使用）
-    const geojson = {
-      type: 'FeatureCollection',
-      features: [{
-        type: 'Feature',
-        geometry: {
-          type: 'LineString',
-          coordinates: points.map(p => [p.lng, p.lat]),
-        },
-        properties: {},
-      }],
-    };
-
-    // 軌跡全体のGeoJSONソースを追加する（LineStringレイヤー）
-    map.addSource('gpx-track', { type: 'geojson', data: geojson });
-
-    // 軌跡の白い外枠（見やすさのため）
-    map.addLayer({
-      id: 'gpx-track-outline',
-      type: 'line',
-      source: 'gpx-track',
-      paint: {
-        'line-color': '#ffffff',
-        'line-width': 5,
-        'line-opacity': 0.75,
-      },
-    });
-
-    // 軌跡の赤ライン
-    map.addLayer({
-      id: 'gpx-track-line',
-      type: 'line',
-      source: 'gpx-track',
-      paint: {
-        'line-color': '#e63030',
-        'line-width': 3,
-        'line-opacity': 0.9,
-      },
-    });
-
-    // 現在地マーカーのGeoJSONソース（アニメーション中に座標を更新する）
-    const markerGeoJson = {
-      type: 'FeatureCollection',
-      features: [{
-        type: 'Feature',
-        geometry: { type: 'Point', coordinates: [points[0].lng, points[0].lat] },
-      }],
-    };
-    map.addSource('gpx-marker', { type: 'geojson', data: markerGeoJson });
-
-    // 現在地マーカーの外側の白い輪
-    map.addLayer({
-      id: 'gpx-marker-outer',
-      type: 'circle',
-      source: 'gpx-marker',
-      paint: {
-        'circle-radius': 12,
-        'circle-color': '#ffffff',
-        'circle-opacity': 0.75,
-      },
-    });
-
-    // 現在地マーカーの内側の赤い点
-    map.addLayer({
-      id: 'gpx-marker-inner',
-      type: 'circle',
-      source: 'gpx-marker',
-      paint: {
-        'circle-radius': 7,
-        'circle-color': '#e63030',
-        'circle-opacity': 1.0,
-      },
-    });
-
-    // ---- シークバーと時間表示を初期化する ----
-    const seekBar = document.getElementById('seek-bar');
-    seekBar.min = 0;
-    seekBar.max = gpxState.totalDuration;
-    seekBar.value = 0;
-    updateSeekBarGradient();
-    updateTimeDisplay();
-
-    // 再生ボタンを▶にリセットする
-    document.getElementById('play-pause-btn').textContent = '▶';
-
-    // ---- タイムラインパネルを表示する ----
-    document.getElementById('timeline-panel').style.display = 'flex';
-
-    // GPX読み込み状態をUIパネルに表示する
-    gpxState.fileName = file.name;
-    const gpxStatusEl = document.getElementById('gpx-status');
-    gpxStatusEl.style.display = 'block';
-    gpxStatusEl.textContent =
-      `✓ ${file.name}（${points.length}pts・${formatMMSS(gpxState.totalDuration)}）`;
-    renderExplorer();
-
-    // 地図をGPXトラック全体が見えるようにズームする
-    const lngs = points.map(p => p.lng);
-    const lats = points.map(p => p.lat);
-    map.fitBounds(
-      [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
-      { padding: 80, duration: EASE_DURATION }
-    );
-
-    console.log(`GPX読み込み完了: ${file.name}、${points.length}ポイント、総時間 ${formatMMSS(gpxState.totalDuration)}`);
-
-  } catch (err) {
-    console.error('GPX読み込みエラー:', err);
-    alert(`GPXファイルの読み込み中にエラーが発生しました。\n詳細: ${err.message}`);
-  }
-}
-
-/* ========================================================
-    現在地マーカーの座標を更新する
-    引数 pos : { lng, lat } オブジェクト
-    ======================================================== */
-function updateGpxMarker(pos) {
-  const src = map.getSource('gpx-marker');
-  if (!src) return;
-
-  // setData() でGeoJSONを差し替えて現在地を移動させる
-  src.setData({
-    type: 'FeatureCollection',
-    features: [{
-      type: 'Feature',
-      geometry: { type: 'Point', coordinates: [pos.lng, pos.lat] },
-    }],
-  });
-}
-
-/* ========================================================
-    currentTime の位置をGPXトラックポイント間で線形補間して返す
-    引数 t : 現在の相対時間（ミリ秒、0 〜 gpxState.totalDuration）
-    返値 : { lng, lat, bearing } または null（ポイント不足時）
-
-    【処理の流れ】
-    1. gpxState.trackPoints 配列を先頭から順番に走査する
-    2. t が p0.relTime 以上かつ p1.relTime 以下のセグメントを特定する
-    3. セグメント内での進行割合（ratio）を計算する
-      ratio = (t - p0.relTime) / (p1.relTime - p0.relTime)
-    4. 経度・緯度をそれぞれ ratio で線形補間する
-    5. Turf.js で p0→p1 の方位角（bearing）を計算して返す
-    ======================================================== */
-function interpolateGpxPosition(t) {
-  if (gpxState.trackPoints.length < 2) return null;
-
-  // 配列の末尾を超えた場合は最後のポイントを返す
-  if (t >= gpxState.totalDuration) {
-    const last = gpxState.trackPoints[gpxState.trackPoints.length - 1];
-    return { lng: last.lng, lat: last.lat, bearing: 0 };
-  }
-
-  // t が含まれるセグメントを線形探索する
-  for (let i = 0; i < gpxState.trackPoints.length - 1; i++) {
-    const p0 = gpxState.trackPoints[i];
-    const p1 = gpxState.trackPoints[i + 1];
-
-    // t がこのセグメント（p0〜p1）の範囲内かどうかを確認する
-    if (t >= p0.relTime && t <= p1.relTime) {
-      // セグメント内での経過時間の割合を求める（0.0 〜 1.0）
-      const segDuration = p1.relTime - p0.relTime;
-      const ratio = segDuration > 0 ? (t - p0.relTime) / segDuration : 0;
-
-      // 経度と緯度をそれぞれ線形補間する
-      // 例：ratio=0.3 なら p0 から 30% 進んだ位置
-      const lng = p0.lng + (p1.lng - p0.lng) * ratio;
-      const lat = p0.lat + (p1.lat - p0.lat) * ratio;
-
-      // Turf.js で p0 から p1 への方位角（北を0°として時計回り）を計算する
-      // これを 1人称視点でのカメラの向きに使用する
-      let bearing = 0;
-      try {
-        const from = turf.point([p0.lng, p0.lat]);
-        const to = turf.point([p1.lng, p1.lat]);
-        bearing = turf.bearing(from, to);
-      } catch (e) {
-        // Turf.js エラー時は前回の bearing を維持（0 で代替）
-      }
-
-      return { lng, lat, bearing };
-    }
-  }
-
-  // 該当セグメントが見つからない場合は先頭ポイントを返す
-  const first = gpxState.trackPoints[0];
-  return { lng: first.lng, lat: first.lat, bearing: 0 };
-}
-
-/* ========================================================
-    視点モードに応じてカメラを更新する
-    引数 pos : { lng, lat, bearing } オブジェクト
-
-    【視点モード別の設定（仕様書 §5-3 より）】
-    - 1人称（ドローン）視点:
-        Zoom 18〜19, Pitch 70〜75, Bearing = 進行方向
-    - 3人称（俯瞰）視点:
-        Zoom 15〜16, Pitch 45〜50, Bearing = 0（北固定）
-    両モードとも Center は現在地座標に追従する
-    ======================================================== */
-function updateCamera(pos, elapsed) {
-  if (gpxState.viewMode === '3d') {
-    // 3D 追尾視点：setCameraFromPlayer() と同じロジックで GPX 位置を追尾
-    updateCameraChase(pos, elapsed);
-  } else {
-    // 2D 俯瞰視点：北向き固定・現在地を追従
-    map.easeTo({
-      center: [pos.lng, pos.lat],
-      zoom: 15.5,
-      pitch: 0,
-      bearing: 0,
-      duration: 100,
-    });
-  }
-}
-
-/* ========================================================
-    GPX 追尾カメラ（PC シムと同じ画角・設定）
-    setCameraFromPlayer() と同じロジックを GPX 位置で実行する。
-    pcSimState.camDistM・pcSimState.pitch を共有することで PC シムの設定値がそのまま反映される。
-    ======================================================== */
-function updateCameraChase(pos, elapsed) {
-  // ── bearing のローパスフィルタ（カクカク防止） ──────────────────────
-  // GPS 記録間隔が粗いと bearing がセグメント境界で突変するため、
-  // 指数平滑化で滑らかに追従させる。時定数 GPX_BEARING_TC 秒。
-  // ユーザーの矢印キーによる gpxState.bearingOffset は平滑化後に加算するため
-  // レスポンスを損なわない。
-  const dt = Math.max(0, elapsed ?? 16) / 1000; // 実経過時間（秒）
-  const bearingAlpha = 1 - Math.exp(-dt / GPX_BEARING_TC);
-  // 角度の最短経路で差分を求めて wraparound を回避する
-  const bearingDelta = ((pos.bearing - gpxState.smoothedBearing + 540) % 360) - 180;
-  gpxState.smoothedBearing = (gpxState.smoothedBearing + bearingDelta * bearingAlpha + 360) % 360;
-
-  // 地形標高取得（タイル未読み込み時はキャッシュ維持）
-  const rawH = map.queryTerrainElevation(
-    { lng: pos.lng, lat: pos.lat }, { exaggerated: false }
-  );
-  if (rawH !== null) gpxState.cachedTerrainH += (rawH - gpxState.cachedTerrainH) * 0.25;
-  const h = gpxState.cachedTerrainH;
-
-  const H       = map.getCanvas().height || 600;
-  const fov_rad = 0.6435;
-  const R       = 6371008.8;
-  const lat_rad = pos.lat * Math.PI / 180;
-
-  // GPX 独自のピッチ・カメラ距離を使用（PC シムとは独立）
-  const pitchDeg = Math.max(0, Math.min(map.getMaxPitch(), gpxState.chasePitch));
-  const pitchRad = pitchDeg * Math.PI / 180;
-  // 平滑化済み進行方向 + ユーザーオフセット
-  const camBearing = (gpxState.smoothedBearing + gpxState.bearingOffset + 360) % 360;
-
-  // 後方地点の地形高度を取得してカメラのめり込みを防止
-  const backDistKm = gpxState.camDistM * Math.sin(pitchRad) / 1000;
-  const backPt = turf.destination(
-    [pos.lng, pos.lat], backDistKm, (camBearing + 180) % 360
-  );
-  const backH = map.queryTerrainElevation(
-    { lng: backPt.geometry.coordinates[0], lat: backPt.geometry.coordinates[1] },
-    { exaggerated: false }
-  ) ?? h;
-
-  // zoom のローパスフィルタ（距離変更時に滑らかに変化）
-  const zoomAlpha = 1 - Math.exp(-dt / GPX_ZOOM_TC);
-  const targetZoom = Math.max(12, Math.min(map.getMaxZoom(), Math.log2(
-    H * 2 * Math.PI * R * Math.cos(lat_rad) /
-    (1024 * Math.tan(fov_rad / 2) * Math.max(0.3, gpxState.camDistM * Math.cos(pitchRad)))
-  )));
-  gpxState.smoothedZoom += (targetZoom - gpxState.smoothedZoom) * zoomAlpha;
-
-  map.jumpTo({
-    center:  [pos.lng, pos.lat],
-    bearing: camBearing,
-    pitch:   pitchDeg,
-    zoom:    gpxState.smoothedZoom,
-  });
-}
-
-/* ========================================================
-    アニメーションループ（requestAnimationFrame で毎フレーム呼ばれる）
-    引数 timestamp : ブラウザが提供する現在時刻（ミリ秒）
-
-    【ループの流れ】
-    1. 前フレームとの差分時間（elapsed）を計算する
-    2. 再生速度（speed）を掛けてシミュレーション時間を進める
-    3. シークバーと時間表示を更新する
-    4. interpolateGpxPosition() で現在地を補間して求める
-    5. マーカーとカメラを更新する
-    6. 再生中であれば次フレームをリクエストする
-    ======================================================== */
-function gpxAnimationLoop(timestamp) {
-  // 前フレームとの実経過時間を計算する（ミリ秒）
-  const elapsed = gpxState.lastTimestamp !== null ? timestamp - gpxState.lastTimestamp : 0;
-  gpxState.lastTimestamp = timestamp;
-
-  // ── 3D モード: 矢印キーによる視点調整（毎フレーム滑らかに更新） ──
-  if (gpxState.viewMode === '3d') {
-    const dt = Math.max(0, elapsed) / 1000; // 秒
-    const BEARING_RATE = 90; // deg/s
-    const PITCH_RATE   = 60; // deg/s
-    if (gpxState.chaseKeys.ArrowLeft)  gpxState.bearingOffset = (gpxState.bearingOffset - BEARING_RATE * dt + 360) % 360;
-    if (gpxState.chaseKeys.ArrowRight) gpxState.bearingOffset = (gpxState.bearingOffset + BEARING_RATE * dt) % 360;
-    if (gpxState.chaseKeys.ArrowUp)    gpxState.chasePitch = Math.min(85, gpxState.chasePitch + PITCH_RATE * dt);
-    if (gpxState.chaseKeys.ArrowDown)  gpxState.chasePitch = Math.max(0,  gpxState.chasePitch - PITCH_RATE * dt);
-  }
-
-  // 再生速度セレクトの値を読み取る（10x, 30x, 60x, 120x）
-  const speed = parseInt(document.getElementById('speed-select').value, 10) || 30;
-
-  // シミュレーション時間を speed 倍で進める
-  // elapsed=33ms（約30fps）+ speed=30 → 990ms/frame 進む（約1分/秒の速度）
-  gpxState.currentTime += elapsed * speed;
-
-  // 終端に達したら停止する
-  if (gpxState.currentTime >= gpxState.totalDuration) {
-    gpxState.currentTime = gpxState.totalDuration;
-    gpxState.isPlaying = false;
-    document.getElementById('play-pause-btn').textContent = '▶';
-  }
-
-  // シークバーの値と表示を更新する
-  const seekBar = document.getElementById('seek-bar');
-  seekBar.value = gpxState.currentTime;
-  updateSeekBarGradient();
-  updateTimeDisplay();
-
-  // 現在時間に対応する地図上の座標を補間して求める
-  const pos = interpolateGpxPosition(gpxState.currentTime);
-
-  if (pos) {
-    // 進行方向をキャッシュ（端点で bearing=0 になる箇所の補完）
-    if (pos.bearing !== 0) gpxState.lastBearing = pos.bearing;
-    else pos.bearing = gpxState.lastBearing;
-    // 現在地マーカーと視点カメラを更新する（elapsed を平滑化に使用）
-    updateGpxMarker(pos);
-    updateCamera(pos, elapsed);
-  }
-
-  // まだ再生中であれば次のフレームをリクエストする
-  if (gpxState.isPlaying) {
-    gpxState.animFrameId = requestAnimationFrame(gpxAnimationLoop);
-  }
-}
-
-/* ========================================================
-    再生 / 一時停止の切り替え
-    ======================================================== */
-function toggleGpxPlayPause() {
-  if (gpxState.trackPoints.length === 0) return;
-
-  gpxState.isPlaying = !gpxState.isPlaying;
-  document.getElementById('play-pause-btn').textContent = gpxState.isPlaying ? '⏸' : '▶';
-
-  if (gpxState.isPlaying) {
-    // 終端まで再生済みの場合は先頭から再生し直す
-    if (gpxState.currentTime >= gpxState.totalDuration) gpxState.currentTime = 0;
-    gpxState.lastTimestamp = null;
-    gpxState.animFrameId = requestAnimationFrame(gpxAnimationLoop);
-  } else {
-    // 一時停止：アニメーションフレームをキャンセルする
-    if (gpxState.animFrameId) {
-      cancelAnimationFrame(gpxState.animFrameId);
-      gpxState.animFrameId = null;
-    }
-    gpxState.lastTimestamp = null;
-  }
-}
-
-/* ========================================================
-    視点モードを切り替える（1人称 ↔ 3人称）
-    ======================================================== */
-function toggleGpx3dMode() {
-  gpxState.viewMode = (gpxState.viewMode === '2d') ? '3d' : '2d';
-  const btn = document.getElementById('gpx-3d-btn');
-  const panel = document.getElementById('timeline-panel');
-  if (gpxState.viewMode === '3d') {
-    btn.textContent = '3D';
-    btn.classList.add('active');
-    panel.classList.add('gpx-3d');
-    // 3D に切り替えたとき bearing オフセットをリセット
-    gpxState.bearingOffset = 0;
-  } else {
-    btn.textContent = '2D';
-    btn.classList.remove('active');
-    panel.classList.remove('gpx-3d');
-    // 2D 復帰時はすべての矢印キーをリセット
-    Object.keys(gpxState.chaseKeys).forEach(k => { gpxState.chaseKeys[k] = false; });
-  }
-}
-
-/* ========================================================
     地名検索（国土地理院 地名検索API）
     候補一覧を表示し、タップ／クリックで flyTo。
     ======================================================== */
@@ -3216,7 +2687,7 @@ gpxUploadBtn.addEventListener('click', () => gpxFileInput.click());
 // GPXファイルが選択されたら loadGpx を呼び出す（単一ファイル）
 gpxFileInput.addEventListener('change', async (e) => {
   const file = e.target.files[0];
-  if (file) { await loadGpx(file); renderExplorer(); }
+  if (file) { await loadGpx(file); }
   e.target.value = ''; // 同じファイルを再選択できるようにリセット
 });
 
@@ -3866,7 +3337,7 @@ document.addEventListener('drop', async (e) => {
 
   // KMZ もモーダル経由に統一。GPX は即座に処理する
   for (const file of kmzFiles) await openImportModalFromKmz(file);
-  for (const file of gpxFiles) { await loadGpx(file); renderExplorer(); }
+  for (const file of gpxFiles) { await loadGpx(file); }
 
   // 画像は統合インポートモーダルへ（1枚ずつ）
   // ワールドファイル付きの場合は従来の imgwModal にフォールバック
@@ -6474,6 +5945,9 @@ function restoreUiState() {
 // サイドバーナビゲーション初期化（ui/uiState.js に委譲）
 initSidebarNav();
 
+// gpx:loaded を受け取り、エクスプローラーを再描画する
+on('gpx:loaded', () => renderExplorer());
+
 // sidebar:panelChanged を受け取り、パネル固有の副作用とセーブを実行
 on('sidebar:panelChanged', ({ panelId, open }) => {
   if (open) {
@@ -7130,8 +6604,7 @@ function _buildGpxRightPanel() {
   const pts   = gpxState.trackPoints.length;
   const dur   = gpxState.totalDuration ?? 0;
 
-  // 既存の formatMMSS を利用（app.js 内で定義済み）
-  const durStr = typeof formatMMSS === 'function' ? formatMMSS(dur) : '--:--';
+  const durStr = formatMMSS(dur);
 
   wrap.innerHTML = `
     <div class="rp-section">
@@ -7791,9 +7264,7 @@ document.getElementById('explorer-gpx-input')?.addEventListener('change', async 
   const terrainId = _pendingGpxTerrainId;
   _pendingGpxTerrainId = null;
   e.target.value = '';
-  await loadGpx(file);
-  gpxState.terrainId = terrainId ?? null;
-  renderExplorer();
+  await loadGpx(file, { terrainId: terrainId ?? null });
 });
 
 document.getElementById('explorer-json-input')?.addEventListener('change', async e => {
