@@ -1,5 +1,5 @@
 /**
- * renderTreeItem.js — Composite パターン再帰的 DOM レンダラー
+ * treeRenderer.js — Composite パターン再帰的 DOM レンダラー
  *
  * 使い方:
  *   1. initRenderer(ctx) でコンテキストを設定（アプリ起動時に一度だけ）

@@ -3,7 +3,7 @@
  *
  * app.js の _renderExplorerOnce が非同期データ取得を行った後、
  * buildTreeData() を呼び出してツリーを組み立てる。
- * DOMレンダリングは renderTreeItem.js が担当する。
+ * DOMレンダリングは treeRenderer.js が担当する。
  */
 
 import { TreeItem } from './TreeItem.js';
