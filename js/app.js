@@ -178,6 +178,11 @@ import {
   init as initLayersPanel, openLayersPanel, renderLayersPanel,
 } from './ui/layersPanel.js';
 import { terrainMap } from './store/terrainStore.js';
+import {
+  init as initOverlayController,
+  getCurrentOverlay, setCurrentOverlay, updateCsVisibility,
+  isCsLayerVisible, isGeneratingLayer,
+} from './core/overlayController.js';
 
 // ================================================================
 // §2  グローバル状態変数
@@ -1056,7 +1061,7 @@ map.on('load', async () => {
 
   // 等高線UIコントローラー初期化（restoreUiState より前に必要）
   initContourController(map, {
-    getCurrentOverlay: () => currentOverlay,
+    getCurrentOverlay,
     updateCsVisibility,
   });
 
@@ -1066,11 +1071,14 @@ map.on('load', async () => {
   // PLATEAU 3Dビル・地形コントローラー初期化
   initPlateauController(map);
 
+  // オーバーレイ制御コントローラー初期化
+  initOverlayController(map);
+
   // UI状態管理モジュール初期化（restoreUiState より前に必要）
   initUiStateManager({
     getCurrentBasemap,
-    getCurrentOverlay:       () => currentOverlay,
-    setCurrentOverlay:       (v) => { currentOverlay = v; },
+    getCurrentOverlay,
+    setCurrentOverlay,
     getUserContourInterval,
     setUserContourInterval,
     getMap:                  () => map,
@@ -1106,7 +1114,7 @@ map.on('load', async () => {
   // 出典管理モジュール初期化（currentBasemap / currentOverlay をゲッターで注入）
   initAttribution(map, {
     getBasemap: getCurrentBasemap,
-    getOverlay: () => currentOverlay,
+    getOverlay: getCurrentOverlay,
   });
 
   // 磁北線モジュール初期化（PCシム readmap をゲッターで遅延注入）
@@ -1145,7 +1153,7 @@ map.on('load', async () => {
   initLocalMapLoader(map);
 
   // リリーフオーバーレイ初期化
-  initReliefOverlay(map, { getCurrentOverlay: () => currentOverlay });
+  initReliefOverlay(map, { getCurrentOverlay });
 
   // シミュレーターモジュール初期化
   initSim(map, {
@@ -2050,209 +2058,6 @@ document.addEventListener('drop', async (e) => {
 
 // ---- スライダーのグラデーション更新ヘルパー ----
 // ユーザーが手動で設定した磁北線間隔（m）。zoom > 10 のときに使用する。
-let currentOverlay = 'none'; // 選択中のオーバーレイキー（'none' = オーバーレイなし）
-
-function updateCsVisibility() {
-  const basemap    = getCurrentBasemap();
-  const overlayOn  = currentOverlay !== 'none';
-  const overlay    = currentOverlay;
-
-  const sliderVal = parseFloat(document.getElementById('slider-cs').value);
-  const z = map.getZoom();
-
-  // 非選択の data-render レイヤーを非表示にする
-  Object.keys(OVERLAY_DATA_CONFIGS).forEach(key => {
-    if (key === overlay) return;
-    const cfg = OVERLAY_DATA_CONFIGS[key];
-    if (map.getLayer(cfg.maplibreLayerId)) {
-      map.setLayoutProperty(cfg.maplibreLayerId, 'visibility', 'none');
-    }
-  });
-
-  // 選択中のオーバーレイは data-render:// プロトコル経由で raster タイルを更新
-  if (overlay in OVERLAY_DATA_CONFIGS) {
-    scheduleDataOverlayDeckSync(overlay);
-  }
-  const showColorRelief     = overlay === 'color-relief';
-  const showSlopeRelief     = overlay === 'slope';
-  const showCurvatureRelief = overlay === 'curvature';
-  const showRrimRelief      = overlay === 'rrim';
-  if (map.getLayer('rrim-relief-layer')) {
-    map.setLayoutProperty('rrim-relief-layer', 'visibility', showRrimRelief ? 'visible' : 'none');
-    if (map.getLayer('rrim-qchizu-layer')) map.setLayoutProperty('rrim-qchizu-layer', 'visibility', showRrimRelief ? 'visible' : 'none');
-    if (showRrimRelief) {
-      map.setPaintProperty('rrim-relief-layer', 'raster-opacity', sliderVal);
-      if (map.getLayer('rrim-qchizu-layer')) map.setPaintProperty('rrim-qchizu-layer', 'raster-opacity', sliderVal);
-    }
-  }
-  // スライダーはカード選択だけで表示（オーバーレイトグルのON/OFFに依存しない）
-  const crCtrls = document.getElementById('color-relief-controls');
-  if (crCtrls) crCtrls.style.display = (currentOverlay === 'color-relief' || currentOverlay === 'color-contour') ? '' : 'none';
-  if (currentOverlay === 'color-relief' || currentOverlay === 'color-contour') refreshColorReliefTrackLayout();
-  const srCtrls = document.getElementById('slope-relief-controls');
-  if (srCtrls) srCtrls.style.display = currentOverlay === 'slope' ? '' : 'none';
-  if (currentOverlay === 'slope') refreshSlopeReliefTrackLayout();
-  const cvCtrls = document.getElementById('curvature-relief-controls');
-  if (cvCtrls) cvCtrls.style.display = currentOverlay === 'curvature' ? '' : 'none';
-  if (currentOverlay === 'curvature') refreshCurvatureReliefTrackLayout();
-
-  // 色別等高線の表示制御（contourState.demMode に応じて排他表示）
-  const showColorContour = overlay === 'color-contour';
-  const ccBaseVis = showColorContour ? 'visible' : 'none';
-  COLOR_CONTOUR_Q_IDS.forEach(id => {
-    if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility',
-      (ccBaseVis === 'visible' && contourState.demMode === 'q1m') ? 'visible' : 'none');
-  });
-  COLOR_CONTOUR_DEM5A_IDS.forEach(id => {
-    if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility',
-      (ccBaseVis === 'visible' && contourState.demMode === 'dem5a') ? 'visible' : 'none');
-  });
-  COLOR_CONTOUR_DEM1A_IDS.forEach(id => {
-    if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility',
-      (ccBaseVis === 'visible' && contourState.demMode === 'dem1a') ? 'visible' : 'none');
-  });
-
-  // CS立体図: 他の生成系オーバーレイ選択時は非表示
-  const csOverlay = (showColorRelief || showColorContour || showSlopeRelief || showCurvatureRelief || showRrimRelief) ? 'none' : overlay;
-  const csKey = csOverlay !== 'none' ? csOverlay
-              : basemap.startsWith('cs-') ? basemap
-              : null;
-
-  // 'cs'（統合キー）または旧 'cs-0.5m'（ベースマップ用に残存）はプログレッシブ表示
-  // z>=17 で 1m を下敷きにした上に 0.5m を重ねる。旧 'cs-1m' は 1m のみ。
-  const show1m  = !!csKey && csKey !== 'none';
-  const show05m = !!csKey && csKey !== 'cs-1m' && z >= 16;
-
-  if (map.getLayer('cs-relief-layer')) {
-    map.setLayoutProperty('cs-relief-layer', 'visibility', show1m ? 'visible' : 'none');
-    if (map.getLayer('cs-qchizu-layer')) map.setLayoutProperty('cs-qchizu-layer', 'visibility', show1m ? 'visible' : 'none');
-    if (show1m) {
-      map.setPaintProperty('cs-relief-layer', 'raster-opacity', parseFloat(sliderCs.value));
-      if (map.getLayer('cs-qchizu-layer')) map.setPaintProperty('cs-qchizu-layer', 'raster-opacity', parseFloat(sliderCs.value));
-    }
-  }
-  REGIONAL_CS_LAYERS.forEach(layer => {
-    if (map.getLayer(layer.layerId)) {
-      map.setLayoutProperty(layer.layerId, 'visibility', show05m ? 'visible' : 'none');
-      if (show05m) {
-        map.setPaintProperty(layer.layerId, 'raster-opacity', parseFloat(sliderCs.value));
-      }
-    }
-  });
-
-  // 赤色立体図: rrim 選択時 z>=17 で地域DEMレイヤーを重ねる
-  const showRrim05m = showRrimRelief && z >= 16;
-  REGIONAL_RRIM_LAYERS.forEach(layer => {
-    if (map.getLayer(layer.layerId)) {
-      map.setLayoutProperty(layer.layerId, 'visibility', showRrim05m ? 'visible' : 'none');
-      if (showRrim05m) {
-        map.setPaintProperty(layer.layerId, 'raster-opacity', parseFloat(sliderCs.value));
-      }
-    }
-  });
-
-  // なし選択時はスライダーを無効化
-  document.getElementById('slider-cs').disabled = !overlayOn;
-  updateRegionalAttribution();
-}
-
-// CS立体図レイヤーが現在表示中かどうか
-function isCsLayerVisible() {
-  return !!(map.getLayer('cs-relief-layer') &&
-    map.getLayoutProperty('cs-relief-layer', 'visibility') === 'visible');
-}
-
-function isGeneratingLayer() {
-  return isCsLayerVisible() || currentOverlay === 'color-relief' || currentOverlay === 'slope' || currentOverlay === 'curvature' || currentOverlay === 'rrim';
-}
-
-map.on('movestart', () => {
-  if (isGeneratingLayer()) showMapTileLoading();
-});
-
-// オーバーレイカードのクリックハンドラー
-document.getElementById('overlay-cards').addEventListener('click', (e) => {
-  const card = e.target.closest('.bm-card');
-  if (!card) return;
-  document.querySelectorAll('#overlay-cards .bm-card').forEach(c => c.classList.remove('active'));
-  card.classList.add('active');
-  currentOverlay = card.dataset.key;
-  updateShareableUrl();
-  saveUiState();
-  updateCsVisibility();
-  // CS立体図・生成系オーバーレイ選択時はローディング表示（idle で非表示）
-  if (currentOverlay === 'cs' || currentOverlay === 'color-relief' || currentOverlay === 'slope' || currentOverlay === 'curvature' || currentOverlay === 'rrim') showMapLoading();
-  else hideMapLoading();
-  // 色別標高図選択時はタイルを即座にリクエスト（visibility:none 中はMapLibreがフェッチしないため）
-  // 自動フィット成功時は updateXReliefSource() 内で applyXTiles() が再呼び出しされるが、
-  // 地形データ未ロード時のフォールバックとして先に applyXTiles() を実行しておく
-  if (currentOverlay === 'color-relief') { applyColorReliefTiles(); autoFitColorRelief(); }
-  if (currentOverlay === 'slope') { applySlopeReliefTiles(); autoFitSlopeRelief(); }
-  if (currentOverlay === 'curvature') { applyCurvatureReliefTiles(); autoFitCurvatureRelief(); }
-  // 色別等高線は visibility 変更後に再描画を明示的に発火させる必要がある
-  if (currentOverlay === 'color-contour') map.triggerRepaint();
-});
-
-// （chk-overlay 削除のため、トグルイベントリスナーは不要）
-
-// ズーム17の境界を跨いだとき 0.5m ↔ 1m を自動切替
-map.on('zoomend', updateCsVisibility);
-
-// ズーム変化時にオーバーレイを再同期（data-render:// の stops パラメータ更新）
-map.on('zoomend', () => {
-  if (currentOverlay in OVERLAY_DATA_CONFIGS) scheduleDataOverlayDeckSync(currentOverlay);
-});
-
-// ---- deck.gl 建物レイヤー: 地図移動・ズーム変更で位置連動自動更新 ----
-function _onMapMoveForPlateau() {
-  const mode = document.getElementById('sel-building')?.value ?? '';
-  if (mode !== 'plateau-lod2-api' && mode !== 'plateau-lod3-api') return;
-  if (!document.getElementById('building3d-card')?.classList.contains('active')) return;
-  const lod = mode === 'plateau-lod2-api' ? 2 : 3;
-  // デバウンス: 連続移動中は最後の moveend から 300ms 後に実行
-  clearTimeout(_plateauAutoTimer);
-  _plateauAutoTimer = setTimeout(() => _autoShowPlateauByPosition(lod), 300);
-}
-map.on('moveend', _onMapMoveForPlateau);
-map.on('zoomend', _onMapMoveForPlateau);
-
-
-
-// ---- CS立体図 透明度スライダー（全国・地域別共通） ----
-const sliderCs = document.getElementById('slider-cs');
-updateSliderGradient(sliderCs);
-
-sliderCs.addEventListener('input', () => {
-  const v = parseFloat(sliderCs.value);
-  updateSliderGradient(sliderCs);
-  if (map.getLayer('cs-relief-layer')) {
-    map.setPaintProperty('cs-relief-layer', 'raster-opacity', v);
-    if (map.getLayer('cs-qchizu-layer')) map.setPaintProperty('cs-qchizu-layer', 'raster-opacity', v);
-  }
-  REGIONAL_CS_LAYERS.forEach(layer => {
-    if (map.getLayer(layer.layerId)) {
-      map.setPaintProperty(layer.layerId, 'raster-opacity', v);
-    }
-  });
-  // 色別標高図・傾斜図・色別曲率図は data-render:// 経由（opacity は raster-opacity で制御）
-  if (currentOverlay === 'color-relief') scheduleDataOverlayDeckSync('color-relief');
-  if (currentOverlay === 'slope') scheduleSlopeDeckSync();
-  if (currentOverlay === 'rrim' && map.getLayer('rrim-relief-layer')) {
-    map.setPaintProperty('rrim-relief-layer', 'raster-opacity', v);
-    if (map.getLayer('rrim-qchizu-layer')) map.setPaintProperty('rrim-qchizu-layer', 'raster-opacity', v);
-  }
-  if (currentOverlay === 'curvature') scheduleDataOverlayDeckSync('curvature');
-  if (currentOverlay === 'rrim') {
-    REGIONAL_RRIM_LAYERS.forEach(layer => {
-      if (map.getLayer(layer.layerId)) map.setPaintProperty(layer.layerId, 'raster-opacity', v);
-    });
-  }
-  updateShareableUrl();
-  saveUiState();
-  });
-
-
-
 // ---- 磁北線 タイルカード ----
 const magneticCard = document.getElementById('magnetic-card');
 selMagneticCombined = document.getElementById('sel-magnetic-combined');
