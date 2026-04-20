@@ -12,7 +12,7 @@
  */
 
 import {
-  REGIONAL_CS_LAYERS, REGIONAL_RRIM_LAYERS,
+  REGIONAL_CS_LAYERS, REGIONAL_RRIM_LAYERS, CS_INITIAL_OPACITY,
 } from './config.js';
 import {
   contourState,
@@ -187,6 +187,7 @@ function _initListeners() {
   // CS立体図 透明度スライダー（全国・地域別共通）
   const sliderCs = document.getElementById('slider-cs');
   if (sliderCs) {
+    sliderCs.value = CS_INITIAL_OPACITY;
     updateSliderGradient(sliderCs);
     sliderCs.addEventListener('input', () => {
       const v = parseFloat(sliderCs.value);
