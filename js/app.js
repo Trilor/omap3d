@@ -164,6 +164,12 @@ on('sidebar:panelChanged', () => saveUiState());
 
 map.on('load', async () => {
 
+  // setupMapLayers 内で updateBuildingLayer / updateMagneticNorth / updateContourAutoInterval が
+  // 呼ばれるため、それらのモジュールを先に初期化して _map を設定しておく
+  initPlateauController(map);
+  initMagneticLines(map, { getReadMap: () => pcSimState.readMap });
+  initContourController(map, { getCurrentOverlay, updateCsVisibility });
+
   // ソース・レイヤー追加・イベントハンドラ登録 → js/features/mapSetup/mapLayerSetup.js
   await setupMapLayers(map, { restoredFromStorage });
 
@@ -178,17 +184,10 @@ map.on('load', async () => {
   // ローディングインジケーターモジュール初期化
   initMapLoading(map);
 
-  // 等高線UIコントローラー初期化（restoreUiState より前に必要）
-  initContourController(map, {
-    getCurrentOverlay,
-    updateCsVisibility,
-  });
-
   // ベースマップ切替コントローラー初期化
   initBasemapController(map, { updateCsVisibility });
 
-  // PLATEAU 3Dビル・地形コントローラー初期化
-  initPlateauController(map);
+  // PLATEAU 3Dビル・地形コントローラー初期化（initPlateauController は上で呼済み）
 
   // オーバーレイ制御コントローラー初期化
   initOverlayController(map);
@@ -235,9 +234,6 @@ map.on('load', async () => {
     getBasemap: getCurrentBasemap,
     getOverlay: getCurrentOverlay,
   });
-
-  // 磁北線モジュール初期化（PCシム readmap をゲッターで遅延注入）
-  initMagneticLines(map, { getReadMap: () => pcSimState.readMap });
 
   // レイヤーパネルモジュール初期化
   initLayersPanel(map, { onStorageClear: updateStorageInfoBar });

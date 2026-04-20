@@ -7,7 +7,7 @@
  * 使い方: initBottomSheet() を起動直後に呼ぶ。
  */
 
-import { isSidebarOpen, updateSidebarWidth } from './uiState.js';
+import { isSidebarOpen, updateSidebarWidth } from '../store/uiState.js';
 
 export function initBottomSheet() {
   const MQ        = window.matchMedia('(max-width: 768px)');

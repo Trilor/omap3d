@@ -382,6 +382,8 @@ export function initPrintDialog(map, { setTerrain3dEnabled, setBuilding3dEnabled
   async function enterPrintMode() {
     if (printModeState.active) return;
     printModeState.active = true;
+    const terrain3dCard  = document.getElementById('terrain3d-card');
+    const building3dCard = document.getElementById('building3d-card');
     printModeState.prevTerrainEnabled = terrain3dCard?.classList.contains('active') ?? false;
     printModeState.prevBuildingEnabled = building3dCard?.classList.contains('active') ?? false;
     printModeState.prevProjectionType = map.getProjection?.()?.type ?? null;

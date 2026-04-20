@@ -19,8 +19,9 @@ import {
 import { updateSliderGradient } from '../utils/slider.js';
 import { contourState, setAllContourVisibility } from '../core/contours.js';
 import {
-  applyMagneticLineColor, setUserMagneticInterval, updateMagneticAttribution,
+  applyMagneticLineColor, setUserMagneticInterval,
 } from '../core/magneticLines.js';
+import { updateMagneticAttribution } from '../core/attribution.js';
 import { showMapLoading } from '../ui/mapLoading.js';
 
 let _deps = {};

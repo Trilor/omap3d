@@ -4,13 +4,15 @@
    ================================================================ */
 
 import {
-  SLOPE_DATA_MIN, SLOPE_DATA_MAX,
-  RELIEF_DATA_MIN, RELIEF_DATA_MAX,
-  CURVE_DATA_MIN,  CURVE_DATA_MAX,
   QCHIZU_DEM_BASE, DEM5A_BASE,
   RELIEF_PALETTES,
   REGIONAL_RELIEF_LAYERS, REGIONAL_SLOPE_LAYERS, REGIONAL_CURVE_LAYERS,
 } from './config.js';
+import {
+  SLOPE_DATA_MIN, SLOPE_DATA_MAX,
+  RELIEF_DATA_MIN, RELIEF_DATA_MAX,
+  CURVE_DATA_MIN,  CURVE_DATA_MAX,
+} from './protocols.js';
 import {
   generateSlopeDataTile, generateReliefDataTile, generateCurveDataTile,
 } from './protocols.js';
@@ -960,6 +962,7 @@ export function scheduleDataOverlayDeckSync(overlayKey) {
 export function scheduleSlopeDeckSync() { scheduleDataOverlayDeckSync('slope'); }
 
 function _applyDataOverlayRasterTiles(overlayKey) {
+  if (!_map) return;
   const cfg = OVERLAY_DATA_CONFIGS[overlayKey];
   if (!cfg) return;
 

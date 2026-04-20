@@ -16,7 +16,7 @@
    ===================================================================== */
 
 const DB_NAME = 'teledrop-map-images';
-const DB_VER  = 1;
+const DB_VER  = 6;
 const STORE   = 'layers';
 
 let _db = null;
