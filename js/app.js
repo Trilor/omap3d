@@ -80,8 +80,8 @@ import {
 import { makeCustomSelect, initCustomSelects } from './ui/components/customSelect.js';
 import {
   openSidebarPanel, closeSidebar,
-  getSidebarPanel, isSidebarOpen,
-  updateSidebarWidth, restoreSidebarState, initSidebarNav,
+  isSidebarOpen,
+  updateSidebarWidth, initSidebarNav,
 } from './ui/uiState.js';
 import { on } from './store/eventBus.js';
 import { gpxState, GPX_CAM_DIST_MIN, GPX_CAM_DIST_MAX } from './gpx/gpxState.js';
@@ -112,9 +112,8 @@ import {
   setUserMagneticInterval,
   clearGlobalMagneticCache, getLastMagneticNorthData,
   updateMagneticNorth, getMagneticLineColor,
-  applyMagneticLineColor, handleMagneticColorChange,
+  handleMagneticColorChange,
 } from './core/magneticLines.js';
-import { loadPersistedState, savePersistedState } from './store/uiPersistence.js';
 import {
   init as initLocalMapStore,
   localMapLayers, toRasterOpacity, removeLocalMapLayer,
@@ -160,6 +159,10 @@ import {
   showTerrainDeleteModal, showEventDeleteModal,
   showCourseSetDeleteModal, showCourseDeleteModal,
 } from './ui/modals/deleteModal.js';
+import {
+  init as initUiStateManager,
+  saveUiState, updateShareableUrl, restoreUiState,
+} from './store/uiStateManager.js';
 
 // ================================================================
 // §2  グローバル状態変数
@@ -1061,6 +1064,21 @@ map.on('load', async () => {
 
   // ローディングインジケーターモジュール初期化
   initMapLoading(map);
+
+  // UI状態管理モジュール初期化
+  initUiStateManager({
+    getCurrentBasemap:       () => currentBasemap,
+    getCurrentOverlay:       () => currentOverlay,
+    setCurrentOverlay:       (v) => { currentOverlay = v; },
+    getUserContourInterval:  () => userContourInterval,
+    setUserContourInterval:  (v) => { userContourInterval = v; },
+    getMap:                  () => map,
+    switchBasemap,
+    applyContourInterval,
+    updateCsVisibility,
+    setTerrain3dEnabled,
+    setBuilding3dEnabled,
+  });
 
   // GPX モジュール初期化（map インスタンスを注入）
   initGpxCamera(map);
@@ -3482,190 +3500,6 @@ let _terrainViewMode = 'grid'; // 'grid' | 'tree'
 let _selectedTerrainInGrid = null; // テレイン選択時のテレインID
 // _sidebarCurrentPanel / _sidebarOpen / updateSidebarWidth → ui/uiState.js に移動済み
 
-// ---- UI状態の永続化（localStorage）----
-function saveUiState() {
-  savePersistedState({
-    basemap:             currentBasemap,
-    overlay:             currentOverlay,
-    overlayOpacity:      sliderCs.value,
-    contourVisible:      contourCard.classList.contains('active'),
-    contourDem:          selContourDem.value,
-    contourInterval:     selContourInterval.value,
-    magneticVisible:     magneticCard.classList.contains('active'),
-    magneticModel:       selMagneticModel.value,
-    magneticInterval:    selMagneticCombined.value,
-    magneticColor:       selMagneticColor.value,
-    terrain3d:           terrain3dCard.classList.contains('active'),
-    terrainExaggeration: selTerrainExaggeration.value,
-    building:            building3dCard.classList.contains('active'),
-    buildingSrc:         document.getElementById('sel-building')?.value ?? 'plateau',
-    sidebarPanel:        getSidebarPanel(),
-    sidebarOpen:         isSidebarOpen(),
-  });
-}
-
-// URLクエリパラメータを更新する（Q地図MapLibre版と同方式: ?params#hash）
-// デフォルト値は省略してURLを短く保つ
-function updateShareableUrl() {
-  const p = new URLSearchParams(location.search);
-
-  // ベースマップ（デフォルト: orilibre → 省略）
-  if (currentBasemap && currentBasemap !== 'orilibre') p.set('base', currentBasemap);
-  else p.delete('base');
-
-  // オーバーレイ（デフォルト: none → 省略）
-  if (currentOverlay && currentOverlay !== 'none') p.set('overlay', currentOverlay);
-  else p.delete('overlay');
-
-  // 透明度（デフォルト: 1.0 → 省略）
-  const opacity = parseFloat(sliderCs.value);
-  if (Math.abs(opacity - 1.0) > 0.005) p.set('opacity', opacity);
-  else p.delete('opacity');
-
-  // 等高線（ON = デフォルト → 省略; OFF時のみ明示）
-  if (contourCard.classList.contains('active')) {
-    p.delete('contour');
-    const ci = selContourInterval.value;
-    if (ci !== '5') p.set('cont_int', ci); else p.delete('cont_int');
-    const cd = selContourDem.value;
-    if (cd !== 'q1m') p.set('cont_dem', cd); else p.delete('cont_dem');
-  } else {
-    p.set('contour', '0'); p.delete('cont_int'); p.delete('cont_dem');
-  }
-
-  // 磁北線（ON = デフォルト → 省略; OFF時のみ明示）
-  if (magneticCard.classList.contains('active')) {
-    p.delete('magnetic');
-    const mi = selMagneticCombined.value;
-    if (mi !== '300') p.set('mag_int', mi); else p.delete('mag_int');
-    const mm = selMagneticModel.value;
-    if (mm !== 'gsi2020') p.set('mag_model', mm); else p.delete('mag_model');
-  } else {
-    p.set('magnetic', '0'); p.delete('mag_int'); p.delete('mag_model');
-  }
-
-  // 3D地形（OFF → 省略）
-  if (terrain3dCard.classList.contains('active')) {
-    p.set('terrain', '1');
-    const ex = selTerrainExaggeration.value;
-    if (ex !== '1') p.set('exag', ex); else p.delete('exag');
-  } else {
-    p.delete('terrain'); p.delete('exag');
-  }
-
-  // 建物（OFF → 省略）
-  if (building3dCard.classList.contains('active')) {
-    p.set('building', '1');
-    const bs = document.getElementById('sel-building')?.value ?? 'plateau';
-    if (bs !== 'plateau') p.set('bld_src', bs); else p.delete('bld_src');
-  } else {
-    p.delete('building'); p.delete('bld_src');
-  }
-
-  const qs = p.toString();
-  history.replaceState(null, '', location.pathname + (qs ? '?' + qs : '') + location.hash);
-}
-
-function restoreUiState() {
-  try {
-    // URLクエリ（シェアURL）を最優先、次にlocalStorage
-    const up = new URLSearchParams(location.search);
-    const s  = loadPersistedState();
-
-    // ベースマップ：URL > localStorage
-    const targetBase = up.get('base') || s.basemap;
-    if (targetBase) {
-      const card = document.querySelector(`#basemap-cards .bm-card[data-key="${targetBase}"]`);
-      if (card) {
-        document.querySelectorAll('#basemap-cards .bm-card').forEach(c => c.classList.remove('active'));
-        card.classList.add('active');
-        switchBasemap(targetBase);
-      }
-    }
-
-    // 透明度：URL > localStorage
-    const targetOpacity = up.has('opacity') ? parseFloat(up.get('opacity')) : parseFloat(s.overlayOpacity ?? 1);
-    sliderCs.value = targetOpacity;
-    updateSliderGradient(sliderCs);
-
-    // 等高線DEMソース：URL > localStorage
-    const targetContDem = up.get('cont_dem') || s.contourDem;
-    if (targetContDem) {
-      selContourDem.value = targetContDem;
-      selContourDem._csRefresh?.();
-      contourState.demMode = targetContDem;
-    }
-    // 等高線間隔：URL > localStorage
-    const targetContInt = up.get('cont_int') || s.contourInterval;
-    if (targetContInt) {
-      selContourInterval.value = targetContInt;
-      selContourInterval._csRefresh?.();
-      userContourInterval = parseFloat(targetContInt) || 5;
-    }
-    // 等高線表示：URL > localStorage（デフォルトON）
-    const contourOn = up.has('contour') ? up.get('contour') !== '0' : (s.contourVisible ?? true);
-    if (contourOn) {
-      contourCard.classList.add('active');
-      applyContourInterval(userContourInterval);
-      setAllContourVisibility(map, 'visible');
-    }
-
-    // 磁北線モデル：URL > localStorage
-    const targetMagModel = up.get('mag_model') || s.magneticModel;
-    if (targetMagModel) { selMagneticModel.value = targetMagModel; selMagneticModel._csRefresh?.(); }
-    if (s.magneticColor) {
-      selMagneticColor.value = s.magneticColor; selMagneticColor._csRefresh?.();
-      applyMagneticLineColor();
-    }
-    // 磁北線間隔：URL > localStorage
-    const targetMagInt = up.get('mag_int') || s.magneticInterval;
-    if (targetMagInt) {
-      selMagneticCombined.value = targetMagInt;
-      selMagneticCombined._csRefresh?.();
-      setUserMagneticInterval(parseInt(targetMagInt, 10) || 300);
-    }
-    // 磁北線表示：URL > localStorage（デフォルトON）
-    const magneticOn = up.has('magnetic') ? up.get('magnetic') !== '0' : (s.magneticVisible ?? true);
-    if (magneticOn) {
-      magneticCard.classList.add('active');
-      if (map.getLayer('magnetic-north-layer')) {
-        map.setLayoutProperty('magnetic-north-layer', 'visibility', 'visible');
-      }
-      updateMagneticAttribution();
-    }
-
-    // 地形誇張倍率：URL > localStorage
-    const targetExag = up.get('exag') || s.terrainExaggeration;
-    if (targetExag) { selTerrainExaggeration.value = targetExag; selTerrainExaggeration._csRefresh?.(); }
-    // 3D地形表示：URL > localStorage
-    const terrainOn = up.has('terrain') ? up.get('terrain') === '1' : !!s.terrain3d;
-    setTerrain3dEnabled(terrainOn, { updateCard: true });
-
-    // 建物ソース：URL > localStorage
-    const targetBldSrc = up.get('bld_src') || s.buildingSrc || 'plateau';
-    const selBldEl = document.getElementById('sel-building');
-    if (selBldEl) { selBldEl.value = targetBldSrc; selBldEl._csRefresh?.(); }
-    // 建物表示：URL > localStorage
-    const buildingOn = up.has('building') ? up.get('building') === '1' : !!s.building;
-    void setBuilding3dEnabled(buildingOn, { updateCard: true });
-
-    // オーバーレイ：URL > localStorage
-    const targetOverlay = up.get('overlay') || s.overlay;
-    if (targetOverlay && targetOverlay !== 'none') {
-      const card = document.querySelector(`#overlay-cards .bm-card[data-key="${targetOverlay}"]`);
-      if (card) {
-        document.querySelectorAll('#overlay-cards .bm-card').forEach(c => c.classList.remove('active'));
-        card.classList.add('active');
-        currentOverlay = targetOverlay;
-        updateCsVisibility();
-        if (['cs', 'color-relief', 'slope', 'curvature', 'rrim'].includes(currentOverlay)) showMapLoading();
-      }
-    }
-
-    // タブ（サイドバーパネル）：ui/uiState.js に委譲
-    restoreSidebarState(s);
-  } catch {}
-}
 
 // サイドバーナビゲーション初期化（ui/uiState.js に委譲）
 initSidebarNav();
