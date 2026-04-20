@@ -13,11 +13,11 @@
 
 import {
   REGIONAL_CS_LAYERS, REGIONAL_RRIM_LAYERS, CS_INITIAL_OPACITY,
-} from './config.js';
+} from '../../core/config.js';
 import {
   contourState,
   COLOR_CONTOUR_Q_IDS, COLOR_CONTOUR_DEM5A_IDS, COLOR_CONTOUR_DEM1A_IDS,
-} from './contours.js';
+} from '../../core/contours.js';
 import {
   OVERLAY_DATA_CONFIGS,
   scheduleDataOverlayDeckSync, scheduleSlopeDeckSync,
@@ -25,12 +25,12 @@ import {
   applySlopeReliefTiles, autoFitSlopeRelief,
   applyCurvatureReliefTiles, autoFitCurvatureRelief,
   refreshColorReliefTrackLayout, refreshSlopeReliefTrackLayout, refreshCurvatureReliefTrackLayout,
-} from './reliefOverlay.js';
-import { getCurrentBasemap } from './basemapController.js';
-import { updateRegionalAttribution } from './attribution.js';
-import { showMapLoading, hideMapLoading, showMapTileLoading } from '../ui/mapLoading.js';
-import { saveUiState, updateShareableUrl } from '../store/uiStateManager.js';
-import { updateSliderGradient } from '../utils/slider.js';
+} from '../../core/reliefOverlay.js';
+import { getCurrentBasemap } from '../basemap/basemapController.js';
+import { updateRegionalAttribution } from '../../core/attribution.js';
+import { showMapLoading, hideMapLoading, showMapTileLoading } from '../../ui/mapLoading.js';
+import { saveUiState, updateShareableUrl } from '../../store/uiStateManager.js';
+import { updateSliderGradient } from '../../utils/slider.js';
 
 let _map = null;
 

@@ -11,10 +11,10 @@
  * 使い方: init(map) を map.on('load') 内で呼ぶ。
  */
 
-import { localMapLayers, toRasterOpacity } from '../store/localMapStore.js';
-import { updatePlateauAttribution } from './attribution.js';
-import { showMapLoading, hideMapLoading } from '../ui/mapLoading.js';
-import { saveUiState, updateShareableUrl } from '../store/uiStateManager.js';
+import { localMapLayers, toRasterOpacity } from '../../store/localMapStore.js';
+import { updatePlateauAttribution } from '../../core/attribution.js';
+import { showMapLoading, hideMapLoading } from '../../ui/mapLoading.js';
+import { saveUiState, updateShareableUrl } from '../../store/uiStateManager.js';
 
 let _map = null;
 

@@ -10,9 +10,9 @@
  * 使い方: init(map, { updateCsVisibility }) を map.on('load') 内で呼ぶ。
  */
 
-import { BASEMAPS } from './config.js';
-import { updateBasemapAttribution } from './attribution.js';
-import { saveUiState, updateShareableUrl } from '../store/uiStateManager.js';
+import { BASEMAPS } from '../../core/config.js';
+import { updateBasemapAttribution } from '../../core/attribution.js';
+import { saveUiState, updateShareableUrl } from '../../store/uiStateManager.js';
 
 let _map = null;
 let _callbacks = {};

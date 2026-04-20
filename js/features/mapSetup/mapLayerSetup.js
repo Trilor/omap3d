@@ -23,14 +23,14 @@ import {
 
 import {
   setOriLibreLayers, getOriLibreLayers, setOriLibreCachedStyle, addOriLibreLayer,
-} from '../../core/basemapController.js';
+} from '../basemap/basemapController.js';
 
-import { updateBuildingLayer } from '../../core/plateauController.js';
+import { updateBuildingLayer } from '../plateau/plateauController.js';
 import { getMagneticLineColor, updateMagneticNorth } from '../../core/magneticLines.js';
 import {
   initAttributionObserver, updateMagneticAttribution, updateRegionalAttribution,
 } from '../../core/attribution.js';
-import { updateContourAutoInterval } from '../../core/contourController.js';
+import { updateContourAutoInterval } from '../contours/contourController.js';
 import { crMin, crMax, crPaletteId, getReliefPalette } from '../../core/reliefOverlay.js';
 
 // 都道府県別CS/RRIM 共通のソース・レイヤー追加

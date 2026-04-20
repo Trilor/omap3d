@@ -12,8 +12,8 @@
 import {
   buildContourTileUrl, buildSeamlessContourTileUrl, buildDem1aContourTileUrl,
   setAllContourVisibility, contourState,
-} from './contours.js';
-import { saveUiState, updateShareableUrl } from '../store/uiStateManager.js';
+} from '../../core/contours.js';
+import { saveUiState, updateShareableUrl } from '../../store/uiStateManager.js';
 
 let _map = null;
 let _callbacks = {};

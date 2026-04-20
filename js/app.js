@@ -23,8 +23,8 @@
      §8  左パネル・右パネル制御
      §9  エクスプローラー ファイルツリー
      §10 その他 UI（ボトムシート・右クリックメニュー）
-     ※ ベースマップ切替   → js/core/basemapController.js
-     ※ PLATEAU 3D建物     → js/core/plateauController.js
+     ※ ベースマップ切替   → js/features/basemap/basemapController.js
+     ※ PLATEAU 3D建物     → js/features/plateau/plateauController.js
      ※ レイヤーパネル     → js/ui/layersPanel.js
 
    ================================================================ */
@@ -102,20 +102,20 @@ import {
   applyContourInterval,
   getUserContourInterval, setUserContourInterval,
   getLastAppliedContourInterval,
-} from './core/contourController.js';
+} from './features/contours/contourController.js';
 import {
   init as initBasemapController,
   getCurrentBasemap, getOriLibreCachedStyle, switchBasemap,
-} from './core/basemapController.js';
+} from './features/basemap/basemapController.js';
 import {
   init as initPlateauController,
   setBuilding3dEnabled, setTerrain3dEnabled,
-} from './core/plateauController.js';
+} from './features/plateau/plateauController.js';
 import { init as initLayersPanel, openLayersPanel } from './ui/layersPanel.js';
 import {
   init as initOverlayController,
   getCurrentOverlay, setCurrentOverlay, updateCsVisibility,
-} from './core/overlayController.js';
+} from './features/overlay/overlayController.js';
 import { initDevTools } from './dev/devTools.js';
 import {
   init as initGlobeBackground,
