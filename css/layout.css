@@ -160,6 +160,8 @@
   align-items: center;
   flex-shrink: 0;
   letter-spacing: 0.02em;
+  position: relative;
+  z-index: 1;
 }
 
 /* パネル閉じるボタン */
