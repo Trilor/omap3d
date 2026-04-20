@@ -34,7 +34,7 @@
    ================================================================ */
 
 import { getDeclination, setDeclinationModel } from './core/magneticDeclination.js';
-import { initCoursePlanner, setMapLayersGetter, setImportDoneCallback, setCourseMapVisible, getCoursesSummary, createCourseForTerrain, setActiveCourse, setCourseTerrainId, createEvent, loadEvent, loadCourseSet, getActiveEventId, getActiveCourseSetId, showAllControlsTab, deleteEvent, deleteCourseSet, createCourseSet, moveCourseSet, getActiveEventName, addCourseToActiveEvent, deleteCourseById, renameEvent, renameCourseSet, renameCourse, migrateCourseSets, flushSave } from './core/course.js';
+import { initCoursePlanner, setMapLayersGetter, setImportDoneCallback, setCourseMapVisible, getCoursesSummary, createCourseForTerrain, setActiveCourse, setCourseTerrainId, createEvent, loadEvent, loadCourseSet, getActiveEventId, getActiveCourseSetId, showAllControlsTab, createCourseSet, moveCourseSet, addCourseToActiveEvent, deleteCourseById, renameEvent, renameCourseSet, renameCourse, migrateCourseSets, flushSave } from './core/course.js';
 import {
   updateMapLayerState, clearAllMapLayers, estimateStorageUsage,
 } from './api/mapImageDb.js';
@@ -73,7 +73,7 @@ import {
   getWsTerrains, getWsTerrain, saveWsTerrain, deleteWsTerrain, renameWsTerrain, updateWsTerrainVisibility,
   getWsEvents, getCoursesByEvent,
   saveWsMapSheet, getMapSheetsByEvent, getWsMapSheet, deleteWsMapSheet,
-  getCourseSetsForEvent, getCourseSetsForTerrain, getWsCourseSet, saveWsCourseSet,
+  getCourseSetsForEvent, getCourseSetsForTerrain,
   getCoursesBySet,
 } from './api/workspace-db.js';
 
@@ -155,6 +155,11 @@ import {
   showMapLoading, hideMapLoading,
   showMapTileLoading,
 } from './ui/mapLoading.js';
+import {
+  init as initDeleteModal,
+  showTerrainDeleteModal, showEventDeleteModal,
+  showCourseSetDeleteModal, showCourseDeleteModal,
+} from './ui/modals/deleteModal.js';
 
 // ================================================================
 // §2  グローバル状態変数
@@ -1079,6 +1084,26 @@ map.on('load', async () => {
 
   // 地図インポートモーダル初期化
   initImportModal(map);
+
+  // 削除確認モーダル初期化
+  initDeleteModal(map, {
+    onTerrainDeleted: (terrainId) => {
+      if (_selectedTerrainInGrid === terrainId) _backToTerrainGrid();
+      else _renderTerrainGridView();
+    },
+    onEventDeleted: async () => {
+      if (_explorerActiveId?.startsWith('courseSet-') || _explorerActiveId?.startsWith('course-')) _explorerActiveId = null;
+      await renderExplorer();
+    },
+    onCourseSetDeleted: async () => {
+      if (_explorerActiveId?.startsWith('course-')) _explorerActiveId = null;
+      await renderExplorer();
+    },
+    onCourseDeleted: async (courseId) => {
+      if (_explorerActiveId === 'course-' + courseId) _explorerActiveId = null;
+      await renderExplorer();
+    },
+  });
 
   // KMZ / 画像+JGW ローダー初期化
   initLocalMapLoader(map);
@@ -3719,7 +3744,7 @@ document.getElementById('ws-header-more-btn')?.addEventListener('click', async e
     },
     { separator: true },
     { label: 'ワークスペースから削除', danger: !isSystem, disabled: isSystem, action: () => {
-        _showTerrainDeleteModal(_selectedTerrainInGrid);
+        showTerrainDeleteModal(_selectedTerrainInGrid);
       }
     },
   ]);
@@ -3727,189 +3752,6 @@ document.getElementById('ws-header-more-btn')?.addEventListener('click', async e
 
 // ws-header-close-btn は sidebar-close-btn クラスを持つため
 // 既存のグローバルリスナー（querySelectorAll('.sidebar-close-btn')）で処理される
-
-// ---- 削除確認モーダル管理 ----
-
-function _hideDeleteModal(modalId) {
-  const modal = document.getElementById(modalId);
-  if (modal) modal.style.display = 'none';
-}
-
-function _showDeleteModal(modalId, config) {
-  const modal = document.getElementById(modalId);
-  if (!modal) return;
-
-  // config に従ってモーダル内容を更新
-  Object.entries(config).forEach(([key, value]) => {
-    const el = document.getElementById(key);
-    if (el) el.textContent = value;
-  });
-
-  // データを保存
-  Object.entries(config.data || {}).forEach(([key, value]) => {
-    modal.dataset[key] = value;
-  });
-
-  modal.style.display = 'flex';
-}
-
-// テレイン削除モーダル
-async function _showTerrainDeleteModal(terrainId) {
-  let terrains = [];
-  try { terrains = await getWsTerrains(); } catch { /* ignore */ }
-  const terrain = terrains.find(t => t.id === terrainId);
-  if (!terrain) return;
-
-  let eventCount = 0;
-  let courseCount = 0;
-  try {
-    const events = await getWsEvents(terrainId);
-    eventCount = events.length;
-    for (const ev of events) {
-      const sets = await getCourseSetsForEvent(ev.id);
-      for (const cs of sets) {
-        const courses = await getCoursesBySet(cs.id);
-        courseCount += courses.length;
-      }
-    }
-  } catch { /* ignore */ }
-
-  _showDeleteModal('terrain-delete-modal', {
-    'delete-modal-event-count': eventCount,
-    'delete-modal-course-count': courseCount,
-    data: { terrainId }
-  });
-}
-
-// 大会削除モーダル
-async function _showEventDeleteModal(eventId) {
-  let eventName = '大会';
-  let courseCount = 0;
-  try {
-    // イベント名はイベントIDからDB引き
-    const terrains = await getWsTerrains();
-    for (const t of terrains) {
-      const events = await getWsEvents(t.id);
-      const ev = events.find(e => e.id === eventId);
-      if (ev) {
-        eventName = ev.name;
-        const sets = await getCourseSetsForEvent(ev.id);
-        for (const cs of sets) {
-          const courses = await getCoursesBySet(cs.id);
-          courseCount += courses.length;
-        }
-        break;
-      }
-    }
-  } catch { /* ignore */ }
-
-  _showDeleteModal('event-delete-modal', {
-    'event-delete-modal-name': eventName,
-    'event-delete-modal-course-count': courseCount,
-    data: { eventId }
-  });
-}
-
-// コースセット削除モーダル
-async function _showCourseSetDeleteModal(courseSetId) {
-  let csName = 'コースセット';
-  let courseCount = 0;
-  try {
-    const cs = await getWsCourseSet(courseSetId);
-    if (cs) {
-      csName = cs.name;
-      const courses = await getCoursesBySet(courseSetId);
-      courseCount = courses.length;
-    }
-  } catch { /* ignore */ }
-
-  _showDeleteModal('courseset-delete-modal', {
-    'courseset-delete-modal-name': csName,
-    'courseset-delete-modal-course-count': courseCount,
-    data: { courseSetId }
-  });
-}
-
-// コース削除モーダル
-function _showCourseDeleteModal(courseId, courseName = 'コース') {
-  _showDeleteModal('course-delete-modal', {
-    'course-delete-modal-name': courseName,
-    data: { courseId }
-  });
-}
-
-// モーダル背景クリックで閉じる
-['terrain-delete-modal', 'event-delete-modal', 'courseset-delete-modal', 'course-delete-modal'].forEach(modalId => {
-  document.getElementById(modalId)?.addEventListener('click', (e) => {
-    if (e.target.id === modalId) {
-      _hideDeleteModal(modalId);
-    }
-  });
-
-  // クローズボタン
-  const closeBtn = document.getElementById(modalId + '-close');
-  closeBtn?.addEventListener('click', () => _hideDeleteModal(modalId));
-
-  // キャンセルボタン
-  const cancelBtn = document.getElementById(modalId + '-cancel');
-  cancelBtn?.addEventListener('click', () => _hideDeleteModal(modalId));
-});
-
-// 削除確定処理
-document.getElementById('terrain-delete-modal-confirm')?.addEventListener('click', async () => {
-  const modal = document.getElementById('terrain-delete-modal');
-  const terrainId = modal?.dataset.terrainId;
-  if (!terrainId) return;
-
-  // 関連ファイルを未分類に移動
-  localMapLayers.filter(m => m.terrainId === terrainId).forEach(m => { m.terrainId = null; });
-  if (gpxState.terrainId === terrainId) gpxState.terrainId = null;
-
-  await deleteWsTerrain(terrainId);
-  const all = await getWsTerrains();
-  updateWorkspaceTerrainSource(map, all);
-  _hideDeleteModal('terrain-delete-modal');
-
-  // グリッドに戻る（削除テレインを選択中なら一覧へ）
-  if (_selectedTerrainInGrid === terrainId) {
-    _backToTerrainGrid();
-  } else {
-    _renderTerrainGridView();
-  }
-});
-
-document.getElementById('event-delete-modal-confirm')?.addEventListener('click', async () => {
-  const modal = document.getElementById('event-delete-modal');
-  const eventId = modal?.dataset.eventId;
-  if (!eventId) return;
-  if (_explorerActiveId?.startsWith('courseSet-') || _explorerActiveId?.startsWith('course-')) _explorerActiveId = null;
-  await deleteEvent(eventId);
-  await renderExplorer();
-  _hideDeleteModal('event-delete-modal');
-});
-
-document.getElementById('courseset-delete-modal-confirm')?.addEventListener('click', async () => {
-  const modal = document.getElementById('courseset-delete-modal');
-  const courseSetId = modal?.dataset.courseSetId;
-  if (!courseSetId) return;
-  if (_explorerActiveId?.startsWith('course-')) _explorerActiveId = null;
-  await deleteCourseSet(courseSetId);
-  await renderExplorer();
-  _hideDeleteModal('courseset-delete-modal');
-});
-
-document.getElementById('course-delete-modal-confirm')?.addEventListener('click', async () => {
-  const modal = document.getElementById('course-delete-modal');
-  const courseId = modal?.dataset.courseId;
-  if (!courseId) return;
-
-  // course.js の削除関数を呼ぶ
-  deleteCourseById(courseId);
-  if (_explorerActiveId === 'course-' + courseId) _explorerActiveId = null;
-  await flushSave();
-  await renderExplorer();
-  _hideDeleteModal('course-delete-modal');
-});
 
 // テレインカード三点メニュー（委譲）
 document.getElementById('terrain-grid-container')?.addEventListener('click', (e) => {
@@ -3920,7 +3762,7 @@ document.getElementById('terrain-grid-container')?.addEventListener('click', (e)
   const terrainId = menuBtn.dataset.terrainId;
   if (!terrainId) return;
 
-  _showTerrainDeleteModal(terrainId);
+  showTerrainDeleteModal(terrainId);
 });
 
 // テレイングリッド右クリックメニュー
@@ -4469,7 +4311,7 @@ async function _renderTerrainGridView() {
         },
         { separator: true },
         { label: 'ワークスペースから削除', danger: true, action: () => {
-            _showTerrainDeleteModal(terrain.id);
+            showTerrainDeleteModal(terrain.id);
           }
         },
       ]);
@@ -5336,10 +5178,10 @@ initRenderer({
   buildGpxRightPanel:      _buildGpxRightPanel,
 
   // ── モーダル ──
-  showTerrainDeleteModal:   _showTerrainDeleteModal,
-  showEventDeleteModal:     _showEventDeleteModal,
-  showCourseSetDeleteModal: _showCourseSetDeleteModal,
-  showCourseDeleteModal:    _showCourseDeleteModal,
+  showTerrainDeleteModal,
+  showEventDeleteModal,
+  showCourseSetDeleteModal,
+  showCourseDeleteModal,
 
   // ── DB 操作 ──
   renameEvent,
