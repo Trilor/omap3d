@@ -9,12 +9,12 @@
  * 使い方: init(map, callbacks) を呼んだ後、各公開関数を使う。
  */
 
-import { localMapLayers, toRasterOpacity, removeLocalMapLayer } from '../store/localMapStore.js';
-import { clearAllMapLayers, updateMapLayerState, estimateStorageUsage } from '../api/mapImageDb.js';
+import { localMapLayers, toRasterOpacity, removeLocalMapLayer } from '../../store/localMapStore.js';
+import { clearAllMapLayers, updateMapLayerState, estimateStorageUsage } from '../../api/mapImageDb.js';
 import { gpxState } from '../gpx/gpxState.js';
-import { terrainMap } from '../store/terrainStore.js';
-import { openSidebarPanel } from './uiState.js';
-import { updateSliderGradient } from '../utils/slider.js';
+import { terrainMap } from '../../store/terrainStore.js';
+import { openSidebarPanel } from '../../store/uiState.js';
+import { updateSliderGradient } from '../../utils/slider.js';
 
 let _map = null;
 let _callbacks = {};

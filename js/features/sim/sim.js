@@ -2,21 +2,21 @@
    sim.js — O-シミュレーターモード（モバイル + PC）
    ================================================================ */
 
-import { localMapLayers } from '../store/localMapStore.js';
-import { updateSliderGradient } from '../utils/slider.js';
-import { escHtml } from '../utils/dom.js';
+import { localMapLayers } from '../../store/localMapStore.js';
+import { updateSliderGradient } from '../../utils/slider.js';
+import { escHtml } from '../../utils/dom.js';
 import {
   INITIAL_PITCH, EASE_DURATION,
   SIDEBAR_DEFAULT_WIDTH, FIT_BOUNDS_PAD, FIT_BOUNDS_PAD_SIDEBAR,
   BASEMAPS,
-} from '../core/config.js';
+} from '../../core/config.js';
 import {
   getMagneticLineColor, applyMagneticLineColor, getLastMagneticNorthData,
-} from '../core/magneticLines.js';
-import { buildContourTileUrl, contourLayerIds } from '../core/contours.js';
+} from '../../core/magneticLines.js';
+import { buildContourTileUrl, contourLayerIds } from '../../core/contours.js';
 import {
   getCurrentDevicePPI, updatePpiRuler, updatePpiSliderBubble,
-} from './components/scaleDisplay.js';
+} from '../../ui/components/scaleDisplay.js';
 import { gpxState, GPX_CAM_DIST_MIN, GPX_CAM_DIST_MAX } from '../gpx/gpxState.js';
 import {
   interpolateGpxPosition, updateSeekBarGradient, updateTimeDisplay,

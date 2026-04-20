@@ -9,7 +9,7 @@
  */
 
 import { localMapLayers } from '../../store/localMapStore.js';
-import { gpxState } from '../../gpx/gpxState.js';
+import { gpxState } from '../../features/gpx/gpxState.js';
 import {
   getWsTerrains, getWsEvents,
   getCourseSetsForEvent, getCoursesBySet,

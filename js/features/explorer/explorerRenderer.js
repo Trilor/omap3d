@@ -29,9 +29,9 @@ import {
   showCourseSetDeleteModal, showCourseDeleteModal,
 } from '../../ui/modals/deleteModal.js';
 import { localMapLayers, removeLocalMapLayer, toRasterOpacity } from '../../store/localMapStore.js';
-import { gpxState } from '../../gpx/gpxState.js';
-import { formatMMSS } from '../../gpx/gpxPlayer.js';
-import { openSidebarPanel, isSidebarOpen, updateSidebarWidth } from '../../ui/uiState.js';
+import { gpxState } from '../gpx/gpxState.js';
+import { formatMMSS } from '../gpx/gpxPlayer.js';
+import { openSidebarPanel, isSidebarOpen, updateSidebarWidth } from '../../store/uiState.js';
 import { saveUiState, updateShareableUrl } from '../../store/uiStateManager.js';
 import { buildTreeData } from '../../ui/tree/treeStore.js';
 import { initRenderer, renderItem } from '../../ui/tree/treeRenderer.js';

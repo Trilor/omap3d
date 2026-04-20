@@ -7,14 +7,14 @@
  * 使い方: init(map, { saveUiState, updateShareableUrl }) を起動直後に呼ぶ。
  */
 
-import { setDeclinationModel } from '../core/magneticDeclination.js';
+import { setDeclinationModel } from '../../core/magneticDeclination.js';
 import {
   setUserMagneticInterval,
   clearGlobalMagneticCache,
   updateMagneticNorth,
   handleMagneticColorChange,
-} from '../core/magneticLines.js';
-import { updateMagneticAttribution } from '../core/attribution.js';
+} from '../../core/magneticLines.js';
+import { updateMagneticAttribution } from '../../core/attribution.js';
 
 /**
  * @param {maplibregl.Map} map

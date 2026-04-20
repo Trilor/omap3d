@@ -25,7 +25,7 @@
      §10 その他 UI（ボトムシート・右クリックメニュー）
      ※ ベースマップ切替   → js/features/basemap/basemapController.js
      ※ PLATEAU 3D建物     → js/features/plateau/plateauController.js
-     ※ レイヤーパネル     → js/ui/layersPanel.js
+     ※ レイヤーパネル     → js/features/layerPanel/layersPanel.js
 
    ================================================================ */
 
@@ -34,7 +34,7 @@ import { initCoursePlanner, setMapLayersGetter, setImportDoneCallback, migrateCo
 import {
   init as initLocalMapListPanel,
   renderOtherMapsTree, renderLocalMapList, updateStorageInfoBar,
-} from './ui/localMapListPanel.js';
+} from './features/localMapPanel/localMapListPanel.js';
 
 import {
   init as initExplorerController,
@@ -53,23 +53,23 @@ import { initCustomSelects } from './ui/components/customSelect.js';
 import {
   openSidebarPanel,
   updateSidebarWidth,
-} from './ui/uiState.js';
+} from './store/uiState.js';
 import { initBottomSheet } from './ui/bottomSheet.js';
 import { init as initMapContextMenu } from './ui/mapContextMenu.js';
-import { init as initDropHandler } from './ui/dropHandler.js';
-import { init as initMagneticPanel } from './ui/magneticPanel.js';
+import { init as initDropHandler } from './features/fileDrop/dropHandler.js';
+import { init as initMagneticPanel } from './features/magneticPanel/magneticPanel.js';
 import { on } from './store/eventBus.js';
-import { gpxState } from './gpx/gpxState.js';
+import { gpxState } from './features/gpx/gpxState.js';
 import {
   init as initGpxCamera,
   updateGpxMarker, updateCamera,
-} from './gpx/gpxCamera.js';
-import { init as initGpxLoader, loadGpx } from './gpx/gpxLoader.js';
+} from './features/gpx/gpxCamera.js';
+import { init as initGpxLoader, loadGpx } from './features/gpx/gpxLoader.js';
 import {
   init as initGpxPlayer,
   updateSeekBarGradient, updateTimeDisplay,
   interpolateGpxPosition, toggleGpxPlayPause, toggleGpx3dMode,
-} from './gpx/gpxPlayer.js';
+} from './features/gpx/gpxPlayer.js';
 import { init as initScaleDisplay } from './ui/components/scaleDisplay.js';
 import { init as initAttribution } from './core/attribution.js';
 import { init as initMagneticLines } from './core/magneticLines.js';
@@ -84,12 +84,12 @@ import {
 } from './ui/modals/imgwModal.js';
 import {
   init as initPlaceSearch, initListeners as initPlaceSearchListeners,
-} from './ui/placeSearch.js';
+} from './features/placeSearch/placeSearch.js';
 import { initPrintDialog } from './ui/modals/printDialog.js';
 import {
   initSim, pcSimState,
   updateReadmapBgKmzOptions, renderSimReadmapList,
-} from './ui/sim.js';
+} from './features/sim/sim.js';
 import { init as initReliefOverlay, initPalettePickers } from './core/reliefOverlay.js';
 import { init as initMapLoading } from './ui/mapLoading.js';
 import { init as initDeleteModal } from './ui/modals/deleteModal.js';
@@ -111,7 +111,7 @@ import {
   init as initPlateauController,
   setBuilding3dEnabled, setTerrain3dEnabled,
 } from './features/plateau/plateauController.js';
-import { init as initLayersPanel, openLayersPanel } from './ui/layersPanel.js';
+import { init as initLayersPanel, openLayersPanel } from './features/layerPanel/layersPanel.js';
 import {
   init as initOverlayController,
   getCurrentOverlay, setCurrentOverlay, updateCsVisibility,

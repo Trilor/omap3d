@@ -10,13 +10,13 @@
  * 使い方: init(map, callbacks) を map.on('load') 内で呼ぶ。
  */
 
-import { localMapLayers, removeLocalMapLayer, toRasterOpacity } from '../store/localMapStore.js';
-import { updateMapLayerState, estimateStorageUsage } from '../api/mapImageDb.js';
-import { openImportModal, openImportModalFromKmz } from './modals/importModal.js';
-import { updateSliderGradient } from '../utils/slider.js';
+import { localMapLayers, removeLocalMapLayer, toRasterOpacity } from '../../store/localMapStore.js';
+import { updateMapLayerState, estimateStorageUsage } from '../../api/mapImageDb.js';
+import { openImportModal, openImportModalFromKmz } from '../../ui/modals/importModal.js';
+import { updateSliderGradient } from '../../utils/slider.js';
 import {
   EASE_DURATION, FIT_BOUNDS_PAD, FIT_BOUNDS_PAD_SIDEBAR, SIDEBAR_DEFAULT_WIDTH,
-} from '../core/config.js';
+} from '../../core/config.js';
 
 let _map = null;
 let _callbacks = {}; // { updateReadmapBgKmzOptions, renderSimReadmapList }

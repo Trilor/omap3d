@@ -15,7 +15,7 @@ import { savePersistedState, loadPersistedState } from './uiPersistence.js';
 import {
   getSidebarPanel, isSidebarOpen,
   restoreSidebarState,
-} from '../ui/uiState.js';
+} from './uiState.js';
 import { updateSliderGradient } from '../utils/slider.js';
 import { contourState, setAllContourVisibility } from '../core/contours.js';
 import {

@@ -176,7 +176,7 @@ export async function setupMapLayers(map, { restoredFromStorage }) {
   const snapshotBeforeIsomizer = new Set(map.getStyle().layers.map(l => l.id));
 
   try {
-    const { isomizer } = await import('../../isomizer/isomizer.js');
+    const { isomizer } = await import('../isomizer/isomizer.js');
     await isomizer(map);
     console.log('OriLibre スタイル構築完了');
 

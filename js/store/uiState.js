@@ -8,7 +8,7 @@
        → app.js がリスナー経由で副作用（検索初期化・saveUiState等）を実行
    ================================================================ */
 
-import { emit } from '../store/eventBus.js';
+import { emit } from './eventBus.js';
 
 // ---- 状態 ----
 let _currentPanel = 'sim';

@@ -32,9 +32,9 @@ export { openCourseEditor, backToTerrainGrid, renderTerrainPanelView, renderTerr
 import { getWsTerrains, renameWsTerrain } from '../../api/workspace-db.js';
 import { showTerrainDeleteModal } from '../../ui/modals/deleteModal.js';
 import { loadKmz, loadImageWithJgw } from '../../core/localMapLoader.js';
-import { loadGpx } from '../../gpx/gpxLoader.js';
+import { loadGpx } from '../gpx/gpxLoader.js';
 import { localMapLayers } from '../../store/localMapStore.js';
-import { initSidebarNav } from '../../ui/uiState.js';
+import { initSidebarNav } from '../../store/uiState.js';
 import { EASE_DURATION } from '../../core/config.js';
 
 let _map = null;

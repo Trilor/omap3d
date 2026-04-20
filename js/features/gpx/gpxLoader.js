@@ -2,7 +2,7 @@
    gpxLoader.js — GPX ファイル解析・MapLibre レイヤー追加
    ================================================================ */
 
-import { emit }     from '../store/eventBus.js';
+import { emit }     from '../../store/eventBus.js';
 import { gpxState } from './gpxState.js';
 import { updateSeekBarGradient, updateTimeDisplay, formatMMSS } from './gpxPlayer.js';
 
