@@ -978,9 +978,10 @@ body.rp-open #rp-resize-handle {
   align-items: center;
   gap: 10px;
   height: 64px;
-  border-radius: 6px;
+  border-radius: 8px;
   background: var(--bg-surface);
-  border: 1px solid var(--border-light);
+  border: none;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.07), 0 0 0 1px rgba(0,0,0,0.04);
   padding: 0 8px 0 8px;
   cursor: pointer;
   transition: background var(--transition), box-shadow var(--transition);
@@ -989,7 +990,7 @@ body.rp-open #rp-resize-handle {
 
 .terrain-card:hover {
   background: var(--bg-subtle);
-  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.09), 0 1px 3px rgba(0,0,0,0.05);
 }
 
 /* 左: サムネイル正方形 */
@@ -1012,16 +1013,16 @@ body.rp-open #rp-resize-handle {
 
 .terrain-card-name {
   font-size: 12px;
-  font-weight: 600;
-  color: var(--text-main);
+  font-weight: 700;
+  color: var(--text-dark);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .terrain-card-meta {
-  font-size: 10px;
-  color: var(--text-muted);
+  font-size: 11px;
+  color: var(--text-light);
 }
 
 /* 右上: 三点メニューボタン */

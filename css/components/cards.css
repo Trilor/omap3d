@@ -22,8 +22,8 @@
   width: 100%;
   box-sizing: border-box;
   padding: 5px 8px 5px 28px;
-  border: 1px solid #b0b8b0;
-  border-radius: 4px;
+  border: 1px solid var(--border-input);
+  border-radius: 6px;
   font-size: var(--font-base);
   color: var(--text-main);
   background: var(--bg-subtle);
@@ -136,8 +136,8 @@
 .frame-badge {
   font-size: var(--font-xs);
   font-weight: var(--font-bold);
-  padding: 1px 5px;
-  border-radius: 3px;
+  padding: 2px 7px;
+  border-radius: 10px;
   flex-shrink: 0;
 }
 
@@ -376,8 +376,8 @@
 .terrain-type-badge {
   font-size: 10px;
   line-height: 1;
-  padding: 1px 5px;
-  border-radius: 3px;
+  padding: 2px 7px;
+  border-radius: 10px;
   font-weight: var(--font-semi);
   flex-shrink: 0;
 }
@@ -426,9 +426,10 @@
 
 .terrain-add-btn:disabled {
   color: var(--text-disabled);
-  border-color: var(--border-muted);
+  border-color: var(--border-subtle);
   cursor: default;
-  background: none;
+  background: var(--bg-subtle);
+  opacity: 0.6;
 }
 
 /* ローカルテレインの「→」ジャンプボタン */
