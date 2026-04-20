@@ -78,9 +78,9 @@ import {
 import { makeCustomSelect, initCustomSelects } from './ui/components/customSelect.js';
 import {
   openSidebarPanel, closeSidebar,
-  isSidebarOpen,
   updateSidebarWidth, initSidebarNav,
 } from './ui/uiState.js';
+import { initBottomSheet } from './ui/bottomSheet.js';
 import { on } from './store/eventBus.js';
 import { gpxState } from './gpx/gpxState.js';
 import {
@@ -1487,136 +1487,7 @@ map.once('idle', () => { updateSidebarWidth(); });
 // 3D地形初期倍率をセレクトに反映（TERRAIN_EXAGGERATION = 1.0 なので ×1 がデフォルト選択済み）
 
 
-// ============================================================
-// モバイル ボトムシート ドラッグ制御
-// touchstart / touchmove / touchend で上下にスワイプし、
-// 離した位置に最も近い 3段階（min / mid / full）へスナップする。
-// ============================================================
-(function initBottomSheet() {
-  const MQ         = window.matchMedia('(max-width: 768px)');
-  const panel      = document.getElementById('sidebar-panel');
-  const handle     = document.getElementById('sheet-handle');
-  const miniLabel  = document.getElementById('sheet-mini-label');
-  const miniStart  = document.getElementById('sheet-mini-start-btn');
-  if (!panel || !handle) return;
-
-  const NAV_H  = 54;  // ボトムナビゲーションバーの高さ (px)
-  const MIN_H  = 72;  // 最小展開: ハンドル(22px) + ミニバー(50px)
-
-  // 3段階のスナップ高さ（mid / full は画面高さに依存するため動的）
-  function sh() {
-    return {
-      min:  MIN_H,
-      mid:  Math.round(window.innerHeight * 0.50),
-      full: window.innerHeight - NAV_H - 28,
-    };
-  }
-
-  let snapState  = 'min';
-  let dragStartY = 0;
-  let dragStartH = 0;
-  let dragging   = false;
-
-  function applyHeight(h, animate) {
-    panel.style.transition = animate
-      ? 'height 0.32s cubic-bezier(0.4,0,0.2,1)'
-      : 'none';
-    panel.style.height = h + 'px';
-  }
-
-  function snapTo(state, animate = true) {
-    snapState = state;
-    applyHeight(sh()[state], animate);
-    panel.classList.toggle('sheet-min',  state === 'min');
-    panel.classList.toggle('sheet-mid',  state === 'mid');
-    panel.classList.toggle('sheet-full', state === 'full');
-  }
-
-  function nearestSnap(h) {
-    const s = sh();
-    return [
-      { k: 'min',  v: s.min  },
-      { k: 'mid',  v: s.mid  },
-      { k: 'full', v: s.full },
-    ].reduce((a, b) => Math.abs(a.v - h) <= Math.abs(b.v - h) ? a : b).k;
-  }
-
-  // ---- タッチドラッグ ----
-  handle.addEventListener('touchstart', e => {
-    if (!MQ.matches) return;
-    dragging   = true;
-    dragStartY = e.touches[0].clientY;
-    dragStartH = panel.getBoundingClientRect().height;
-    panel.style.transition = 'none';
-  }, { passive: true });
-
-  handle.addEventListener('touchmove', e => {
-    if (!dragging || !MQ.matches) return;
-    const dy = dragStartY - e.touches[0].clientY;
-    const s  = sh();
-    panel.style.height = Math.max(s.min, Math.min(s.full, dragStartH + dy)) + 'px';
-  }, { passive: true });
-
-  handle.addEventListener('touchend', () => {
-    if (!dragging) return;
-    dragging = false;
-    snapTo(nearestSnap(panel.getBoundingClientRect().height));
-  });
-
-  // ---- ナビボタンタップ: 開くときは mid に展開、閉じるときは min にスナップ ----
-  // 注: uiState.js の initSidebarNav が先に実行され isSidebarOpen() が更新済み
-  document.querySelectorAll('.sidebar-nav-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      if (!MQ.matches) return;
-      if (isSidebarOpen()) {
-        // パネルを開いた/切り替えた → min なら mid へ展開
-        if (snapState === 'min') snapTo('mid');
-      } else {
-        // 同じアイコンを再タップしてパネルを閉じた → min にスワイプダウン
-        snapTo('min');
-      }
-    });
-  });
-
-  // ---- ミニバー「開始」ボタン → シミュレーター本体ボタンに委譲 ----
-  if (miniStart) {
-    miniStart.addEventListener('click', () => {
-      document.getElementById('pc-sim-toggle-btn')?.click();
-    });
-  }
-
-  // ---- ミニバーラベル: アクティブパネル名を表示 ----
-  const PANEL_NAMES = { terrain: 'テレイン', readmap: '読図地図', '3denv': '3D環境' };
-  function updateMiniLabel() {
-    const active = document.querySelector('.sidebar-nav-btn.active');
-    const key    = active?.dataset?.panel ?? 'terrain';
-    if (miniLabel) miniLabel.textContent = PANEL_NAMES[key] ?? key;
-  }
-  document.querySelectorAll('.sidebar-nav-btn').forEach(btn =>
-    btn.addEventListener('click', updateMiniLabel)
-  );
-  updateMiniLabel();
-
-  // ---- リサイズ: スナップ高さを再計算 ----
-  window.addEventListener('resize', () => {
-    if (MQ.matches) snapTo(snapState, false);
-  });
-
-  // ---- デスクトップ ↔ モバイル 切り替え ----
-  MQ.addEventListener('change', e => {
-    if (e.matches) {
-      snapTo('min', false);
-    } else {
-      panel.style.height     = '';
-      panel.style.transition = '';
-      panel.classList.remove('sheet-min', 'sheet-mid', 'sheet-full');
-    }
-    updateSidebarWidth();
-  });
-
-  // ---- 初期化 ----
-  if (MQ.matches) snapTo('min', false);
-})();
+initBottomSheet();
 
 initPrintDialog(map, { setTerrain3dEnabled, setBuilding3dEnabled });
 
