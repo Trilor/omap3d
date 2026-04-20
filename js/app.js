@@ -18,7 +18,7 @@
            ④ CS 立体図・色別標高図・磁北線ソース/レイヤー
            ⑤ テレインマスタ自動読み込み
      §5  ローカル地図リスト描画（renderLocalMapList / renderOtherMapsTree）
-     §6  テレイン検索 UI（renderTerrainSearchResults / renderWorkspaceTerrainList）
+     ※ テレイン検索 UI  → js/features/terrainSearch/terrainSearchPanel.js
      §7  CS立体図・オーバーレイ表示制御（updateCsVisibility）
      §8  左パネル・右パネル制御
      §9  エクスプローラー ファイルツリー
@@ -43,6 +43,9 @@ import {
 } from './features/explorer/explorerController.js';
 import { setActiveId as setExplorerActiveId } from './features/explorer/explorerState.js';
 import {
+  init as initTerrainSearchPanel, syncSearchLayer,
+} from './features/terrainSearch/terrainSearchPanel.js';
+import {
   QCHIZU_DEM_BASE, QCHIZU_PROXY_BASE, DEM5A_BASE, DEM1A_BASE,
   TERRAIN_URL, CS_RELIEF_URL,
   REGIONAL_CS_LAYERS, REGIONAL_RRIM_LAYERS,
@@ -62,15 +65,12 @@ import {
 } from './core/contours.js';
 
 import {
-  searchTerrainsApi,
   initTerrainLayers,
-  updateSearchTerrainSource,
   updateWorkspaceTerrainSource,
-  setHoverTerrain,
 } from './core/terrainSearch.js';
 
 import {
-  getWsTerrains, getWsTerrain, saveWsTerrain, deleteWsTerrain, updateWsTerrainVisibility,
+  getWsTerrains, getWsTerrain, saveWsTerrain,
 } from './api/workspace-db.js';
 
 import { makeCustomSelect, initCustomSelects } from './ui/components/customSelect.js';
@@ -400,6 +400,19 @@ map.addControl(new maplibregl.GeolocateControl({
   'top-right'
 );
 
+
+// テレイン検索 UI — map.on('load') より前に初期化して初回検索を即実行する
+initTerrainSearchPanel(map, {
+  onTerrainNavigate: (terrainId) => {
+    setFocusTerrain(terrainId);
+    setExplorerCollapsed(terrainId, false);
+    openSidebarPanel('layers');
+    renderExplorer();
+  },
+});
+
+// sidebar:panelChanged — UI 状態を保存
+on('sidebar:panelChanged', () => saveUiState());
 
 /*
   ========================================================
@@ -1050,7 +1063,7 @@ map.on('load', async () => {
   // ⑤ テレイン検索レイヤーを初期化する
   initTerrainLayers(map);
   // マップロード前に検索が完了していた場合、キャッシュ結果をレイヤーに反映する
-  if (_lastTerrainResults) updateSearchTerrainSource(map, _lastTerrainResults);
+  syncSearchLayer();
 
   // ローディングインジケーターモジュール初期化
   initMapLoading(map);
@@ -1177,9 +1190,6 @@ map.on('load', async () => {
 
 
 
-// 地図種別・サブタイプの日本語表示マップ
-const MAP_TYPE_JA    = { sprint: 'スプリント', forest: 'フォレスト' };
-const MAP_SUBTYPE_JA = { stadium: 'スタジアム', school: '学校', park: '公園', urban: '市街地', campus: 'キャンパス' };
 
 
 
@@ -1443,230 +1453,6 @@ document.getElementById('seek-bar').addEventListener('input', (e) => {
 
 initImgwModal();
 
-// ================================================================
-// テレイン検索 UI
-// ================================================================
-
-const MAP_TYPE_JA_SEARCH = { sprint: 'スプリント', forest: 'フォレスト' };
-
-/**
- * 検索結果テレインのカードリストを描画する
- * @param {Array} terrains
- */
-async function renderTerrainSearchResults(terrains) {
-  const res = document.getElementById('terrain-search-results');
-  if (!res) return;
-  res.innerHTML = '';
-
-  if (terrains.length === 0) {
-    res.innerHTML = '<div class="terrain-search-empty">該当するテレインが見つかりません</div>';
-    return;
-  }
-
-  // ワークスペースに追加済みの公式テレイン ID セットを取得
-  const wsTerrains = await getWsTerrains();
-  const wsPublicIds = new Set(wsTerrains.filter(t => t.source === 'public').map(t => t.id));
-
-  terrains.forEach(t => {
-    const card = document.createElement('div');
-    const isLocal = t.source === 'local';
-    card.className = 'terrain-card' + (isLocal ? ' terrain-card-local' : '');
-
-    const typeKey       = t.type ?? 'other';
-    const typeLabelText = MAP_TYPE_JA_SEARCH[typeKey] ?? typeKey;
-    const prefText      = t.prefecture ? escHtml(t.prefecture) : '';
-
-    // ソースバッジ（公式 / ローカル）
-    const sourceBadgeHtml = isLocal
-      ? '<span class="terrain-source-badge terrain-source-local">ローカル</span>'
-      : '<span class="terrain-source-badge terrain-source-public">公式</span>';
-
-    // 追加ボタン: ローカルテレインは常に「ワークスペース表示」ボタン、公式は追加/追加済み
-    const alreadyAdded = !isLocal && wsPublicIds.has(t.id);
-    const actionHtml = isLocal
-      ? `<button class="terrain-add-btn terrain-goto-btn" title="エクスプローラーで開く">→</button>`
-      : `<button class="terrain-add-btn" ${alreadyAdded ? 'disabled title="追加済み"' : 'title="ワークスペースに追加"'}>${alreadyAdded ? '追加済' : '＋'}</button>`;
-
-    card.innerHTML = `
-      <div class="terrain-card-info">
-        <div class="terrain-card-name">
-          ${escHtml(t.name)}
-          ${sourceBadgeHtml}
-        </div>
-        <div class="terrain-card-meta">
-          ${prefText ? `<span class="terrain-card-pref">${prefText}</span>` : ''}
-          <span class="terrain-type-badge ${escHtml(typeKey)}">${escHtml(typeLabelText)}</span>
-        </div>
-      </div>
-      <div class="terrain-card-actions">
-        ${actionHtml}
-      </div>
-    `;
-
-    // カードホバー → 境界ハイライト
-    card.addEventListener('mouseenter', () => { card.classList.add('hovered'); setHoverTerrain(map, t.id); });
-    card.addEventListener('mouseleave', () => { card.classList.remove('hovered'); setHoverTerrain(map, null); });
-
-    // カードクリック → 地図フライ
-    card.addEventListener('click', e => {
-      if (e.target.closest('.terrain-add-btn')) return;
-      if (t.center) {
-        map.easeTo({ center: t.center, zoom: Math.max(map.getZoom(), 12), duration: EASE_DURATION });
-      }
-    });
-
-    const actionBtn = card.querySelector('.terrain-add-btn');
-    if (isLocal) {
-      // ローカルテレイン → エクスプローラータブへジャンプ
-      actionBtn?.addEventListener('click', () => {
-        setFocusTerrain(t.id);
-        setExplorerCollapsed(t.id, false);
-        openSidebarPanel('layers');
-        renderExplorer();
-      });
-    } else {
-      // 公式テレイン → ワークスペースに追加 → エクスプローラータブへ切替
-      actionBtn?.addEventListener('click', async () => {
-        if (actionBtn.disabled) return;
-        await saveWsTerrain({ ...t, source: 'public', visible: true });
-        actionBtn.disabled = true;
-        actionBtn.textContent = '追加済';
-        const wsAll = await getWsTerrains();
-        updateWorkspaceTerrainSource(map, wsAll);
-        setFocusTerrain(t.id);
-        setExplorerCollapsed(t.id, false);
-        openSidebarPanel('layers');
-        await renderExplorer();
-      });
-    }
-
-    res.appendChild(card);
-  });
-}
-
-/**
- * ワークスペーステレイン一覧を描画する
- */
-async function renderWorkspaceTerrainList() {
-  const listEl = document.getElementById('workspace-terrain-list');
-  if (!listEl) return;
-  listEl.innerHTML = '';
-
-  const terrains = await getWsTerrains();
-  if (terrains.length === 0) {
-    listEl.innerHTML = '<div class="tree-empty-hint">検索結果の「＋」でテレインを追加</div>';
-    return;
-  }
-
-  terrains.forEach(t => {
-    const row = document.createElement('div');
-    row.className = 'ws-terrain-row' + (t.visible === false ? ' hidden-terrain' : '');
-
-    const isVisible = t.visible !== false;
-
-    row.innerHTML = `
-      <button class="ws-terrain-eye${isVisible ? '' : ' hidden'}" title="${isVisible ? '非表示にする' : '表示する'}">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          ${isVisible
-            ? '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>'
-            : '<path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/>'}
-        </svg>
-      </button>
-      <span class="ws-terrain-name" title="${escHtml(t.name)}">${escHtml(t.name)}</span>
-      <button class="ws-terrain-fly" title="この場所へ移動">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
-      </button>
-      <button class="ws-terrain-del" title="ワークスペースから削除">
-        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="1" y1="1" x2="11" y2="11"/><line x1="11" y1="1" x2="1" y2="11"/></svg>
-      </button>
-    `;
-
-    // 目玉トグル
-    row.querySelector('.ws-terrain-eye').addEventListener('click', async () => {
-      const newVis = t.visible === false;
-      await updateWsTerrainVisibility(t.id, newVis);
-      t.visible = newVis;
-      const all = await getWsTerrains();
-      updateWorkspaceTerrainSource(map, all);
-      renderWorkspaceTerrainList();
-    });
-
-    // フライボタン
-    row.querySelector('.ws-terrain-fly').addEventListener('click', () => {
-      if (t.center) map.easeTo({ center: t.center, zoom: Math.max(map.getZoom(), 12), duration: EASE_DURATION });
-    });
-
-    // 削除ボタン
-    row.querySelector('.ws-terrain-del').addEventListener('click', async () => {
-      await deleteWsTerrain(t.id);
-      const all = await getWsTerrains();
-      updateWorkspaceTerrainSource(map, all);
-      renderWorkspaceTerrainList();
-    });
-
-    listEl.appendChild(row);
-  });
-}
-
-// 起動時にワークスペーステレインを復元して描画
-getWsTerrains().then(all => {
-  if (all.length > 0) {
-    map.once('idle', () => updateWorkspaceTerrainSource(map, all));
-  }
-  renderExplorer();
-}).catch(() => {});
-
-// ---- 地図カタログ: GeoJSON 読み込み ----
-// ---- テレイン検索: 検索バー・チップフィルター ----
-/** テレイン検索を外部から起動できるよう公開（タブ切り替え用） */
-let _runTerrainSearch    = null;
-/** 最後の検索結果キャッシュ — マップロード後にレイヤーへ反映するために保持 */
-let _lastTerrainResults  = null;
-
-(function () {
-  let _searchTimer = null;
-  let _activeType  = '';
-
-  async function _runSearch() {
-    const q    = (document.getElementById('catalog-search')?.value ?? '').trim();
-    const res  = document.getElementById('terrain-search-results');
-    if (!res) return;
-
-    // ローディング表示
-    res.innerHTML = '<div class="terrain-search-loading">検索中…</div>';
-
-    const results = await searchTerrainsApi(q, { types: _activeType ? [_activeType] : [] });
-
-    // マップがロード済みならレイヤーも更新、まだなら結果だけキャッシュ
-    // （updateSearchTerrainSource は initTerrainLayers 後にしか呼べない）
-    _lastTerrainResults = results;
-    if (map.loaded()) updateSearchTerrainSource(map, results);
-
-    renderTerrainSearchResults(results);
-  }
-
-  // 入力（デバウンス 300ms）
-  document.getElementById('catalog-search')?.addEventListener('input', () => {
-    clearTimeout(_searchTimer);
-    _searchTimer = setTimeout(_runSearch, 300);
-  });
-
-  // チップフィルター
-  document.querySelectorAll('.map-type-chips .type-chip').forEach(chip => {
-    chip.addEventListener('click', () => {
-      _activeType = chip.dataset.type;
-      document.querySelectorAll('.map-type-chips .type-chip')
-        .forEach(c => c.classList.toggle('active', c.dataset.type === _activeType));
-      _runSearch();
-    });
-  });
-
-  // タブ切り替え用に外部公開
-  _runTerrainSearch = _runSearch;
-
-  // マップロードを待たず即時に初回検索を実行（UIカードはすぐ表示）
-  _runSearch();
-})();
 
 // ================================================================
 // ローカルテレイン作成 — 地図上のポリゴン描画 + 名前入力
