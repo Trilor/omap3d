@@ -30,13 +30,18 @@
    ================================================================ */
 
 import { getDeclination, setDeclinationModel } from './core/magneticDeclination.js';
-import { initCoursePlanner, setMapLayersGetter, setImportDoneCallback, setCourseMapVisible, getCoursesSummary, createCourseForTerrain, setActiveCourse, setCourseTerrainId, createEvent, loadEvent, loadCourseSet, getActiveEventId, getActiveCourseSetId, showAllControlsTab, createCourseSet, moveCourseSet, addCourseToActiveEvent, deleteCourseById, renameEvent, renameCourseSet, renameCourse, migrateCourseSets, flushSave } from './core/course.js';
+import { initCoursePlanner, setMapLayersGetter, setImportDoneCallback, migrateCourseSets } from './core/course.js';
 import {
-  updateMapLayerState, clearAllMapLayers, estimateStorageUsage,
+  updateMapLayerState, estimateStorageUsage,
 } from './api/mapImageDb.js';
 
-import { buildTreeData }          from './ui/tree/treeStore.js';
-import { initRenderer, renderItem } from './ui/tree/treeRenderer.js';
+import {
+  init as initExplorerController,
+  renderExplorer, openCourseEditor, backToTerrainGrid,
+  renderTerrainPanelView, renderTerrainGridView,
+  setFocusTerrain, setCollapsed as setExplorerCollapsed,
+} from './features/explorer/explorerController.js';
+import { setActiveId as setExplorerActiveId } from './features/explorer/explorerState.js';
 import {
   QCHIZU_DEM_BASE, QCHIZU_PROXY_BASE, DEM5A_BASE, DEM1A_BASE,
   TERRAIN_URL, CS_RELIEF_URL,
@@ -46,7 +51,6 @@ import {
   TERRAIN_EXAGGERATION, CS_INITIAL_OPACITY,
   EASE_DURATION, FIT_BOUNDS_PAD, FIT_BOUNDS_PAD_SIDEBAR, SIDEBAR_DEFAULT_WIDTH,
   BASEMAPS,
-  DEVICE_PPI_DATA, DEFAULT_DEVICE_PPI,
 } from './core/config.js';
 
 import {
@@ -66,11 +70,7 @@ import {
 } from './core/terrainSearch.js';
 
 import {
-  getWsTerrains, getWsTerrain, saveWsTerrain, deleteWsTerrain, renameWsTerrain, updateWsTerrainVisibility,
-  getWsEvents, getCoursesByEvent,
-  saveWsMapSheet, getMapSheetsByEvent, getWsMapSheet, deleteWsMapSheet,
-  getCourseSetsForEvent, getCourseSetsForTerrain,
-  getCoursesBySet,
+  getWsTerrains, getWsTerrain, saveWsTerrain, deleteWsTerrain, updateWsTerrainVisibility,
 } from './api/workspace-db.js';
 
 import { makeCustomSelect, initCustomSelects } from './ui/components/customSelect.js';
@@ -80,7 +80,7 @@ import {
   updateSidebarWidth, initSidebarNav,
 } from './ui/uiState.js';
 import { on } from './store/eventBus.js';
-import { gpxState, GPX_CAM_DIST_MIN, GPX_CAM_DIST_MAX } from './gpx/gpxState.js';
+import { gpxState } from './gpx/gpxState.js';
 import {
   init as initGpxCamera,
   updateGpxMarker, updateCamera,
@@ -88,7 +88,7 @@ import {
 import { init as initGpxLoader, loadGpx } from './gpx/gpxLoader.js';
 import {
   init as initGpxPlayer,
-  formatMMSS, updateSeekBarGradient, updateTimeDisplay,
+  updateSeekBarGradient, updateTimeDisplay,
   interpolateGpxPosition, toggleGpxPlayPause, toggleGpx3dMode,
 } from './gpx/gpxPlayer.js';
 import {
@@ -96,7 +96,7 @@ import {
   getCurrentDevicePPI, updatePpiRuler, updatePpiSliderBubble, updateScaleDisplay,
 } from './ui/components/scaleDisplay.js';
 import { updateSliderGradient } from './utils/slider.js';
-import { escHtml, downloadDataUrl } from './utils/dom.js';
+import { escHtml } from './utils/dom.js';
 import {
   init as initAttribution,
   initAttributionObserver,
@@ -150,11 +150,7 @@ import {
   showMapLoading, hideMapLoading,
   showMapTileLoading,
 } from './ui/mapLoading.js';
-import {
-  init as initDeleteModal,
-  showTerrainDeleteModal, showEventDeleteModal,
-  showCourseSetDeleteModal, showCourseDeleteModal,
-} from './ui/modals/deleteModal.js';
+import { init as initDeleteModal } from './ui/modals/deleteModal.js';
 import {
   init as initUiStateManager,
   saveUiState, updateShareableUrl, restoreUiState,
@@ -1123,6 +1119,9 @@ map.on('load', async () => {
   // レイヤーパネルモジュール初期化
   initLayersPanel(map, { onStorageClear: _updateStorageInfoBar });
 
+  // エクスプローラーモジュール初期化
+  initExplorerController(map, { renderLocalMapList, renderOtherMapsTree });
+
   // ローカル地図レイヤーストア初期化
   initLocalMapStore(map);
 
@@ -1131,20 +1130,19 @@ map.on('load', async () => {
 
   // 削除確認モーダル初期化
   initDeleteModal(map, {
-    onTerrainDeleted: (terrainId) => {
-      if (_selectedTerrainInGrid === terrainId) _backToTerrainGrid();
-      else _renderTerrainGridView();
+    onTerrainDeleted: () => {
+      backToTerrainGrid();
     },
     onEventDeleted: async () => {
-      if (_explorerActiveId?.startsWith('courseSet-') || _explorerActiveId?.startsWith('course-')) _explorerActiveId = null;
+      setExplorerActiveId(null);
       await renderExplorer();
     },
     onCourseSetDeleted: async () => {
-      if (_explorerActiveId?.startsWith('course-')) _explorerActiveId = null;
+      setExplorerActiveId(null);
       await renderExplorer();
     },
-    onCourseDeleted: async (courseId) => {
-      if (_explorerActiveId === 'course-' + courseId) _explorerActiveId = null;
+    onCourseDeleted: async () => {
+      setExplorerActiveId(null);
       await renderExplorer();
     },
   });
@@ -1521,8 +1519,8 @@ async function renderTerrainSearchResults(terrains) {
     if (isLocal) {
       // ローカルテレイン → エクスプローラータブへジャンプ
       actionBtn?.addEventListener('click', () => {
-        _focusTerrainId = t.id;
-        _explorerCollapsed[t.id] = false;
+        setFocusTerrain(t.id);
+        setExplorerCollapsed(t.id, false);
         openSidebarPanel('layers');
         renderExplorer();
       });
@@ -1535,8 +1533,8 @@ async function renderTerrainSearchResults(terrains) {
         actionBtn.textContent = '追加済';
         const wsAll = await getWsTerrains();
         updateWorkspaceTerrainSource(map, wsAll);
-        _focusTerrainId = t.id;
-        _explorerCollapsed[t.id] = false;
+        setFocusTerrain(t.id);
+        setExplorerCollapsed(t.id, false);
         openSidebarPanel('layers');
         await renderExplorer();
       });
@@ -1899,8 +1897,8 @@ let _lastTerrainResults  = null;
 
         const wsAll = await getWsTerrains();
         updateWorkspaceTerrainSource(map, wsAll);
-        _focusTerrainId = id;
-        _explorerCollapsed[id] = false;
+        setFocusTerrain(id);
+        setExplorerCollapsed(id, false);
         openSidebarPanel('layers');
         await renderExplorer();
 
@@ -2196,1181 +2194,11 @@ selMagneticColor?.addEventListener('change', () => handleMagneticColorChange(sav
 
 // ---- サムネイル生成関連ここまで ----
 
-// ---- テレインドリルダウンUI ----
-let _terrainViewMode = 'grid'; // 'grid' | 'tree'
-let _selectedTerrainInGrid = null; // テレイン選択時のテレインID
-// _sidebarCurrentPanel / _sidebarOpen / updateSidebarWidth → ui/uiState.js に移動済み
-
-
-// サイドバーナビゲーション初期化（ui/uiState.js に委譲）
-initSidebarNav();
-
-// gpx:loaded を受け取り、エクスプローラーを再描画する
-on('gpx:loaded', () => renderExplorer());
-
-// localmap:changed を受け取り、ローカル地図リストとエクスプローラーを再描画する
-on('localmap:changed', () => { renderLocalMapList(); renderOtherMapsTree(); renderExplorer(); });
-
-// sidebar:panelChanged を受け取り、パネル固有の副作用とセーブを実行
-on('sidebar:panelChanged', ({ panelId, open }) => {
-  if (open) {
-    if (panelId === 'terrain') _runTerrainSearch?.();
-    if (panelId === 'layers')  _renderTerrainPanelView();
-  }
-  saveUiState();
-});
-
-// ワークスペースヘッダー — 戻るボタン
-document.getElementById('ws-header-back-btn')?.addEventListener('click', () => {
-  _backToTerrainGrid();
-});
-
-// ワークスペースヘッダー — 追加ボタン
-document.getElementById('ws-header-add-btn')?.addEventListener('click', e => {
-  e.stopPropagation();
-  const r = e.currentTarget.getBoundingClientRect();
-  _showAddPopoverAt(r.left, r.bottom + 4, _selectedTerrainInGrid);
-});
-
-// ワークスペースヘッダー — ⋮ オプションボタン
-document.getElementById('ws-header-more-btn')?.addEventListener('click', async e => {
-  e.stopPropagation();
-  if (!_selectedTerrainInGrid) return;
-  let terrain = null;
-  try {
-    const terrains = await getWsTerrains();
-    terrain = terrains.find(t => t.id === _selectedTerrainInGrid);
-  } catch { /* ignore */ }
-  const isSystem = terrain && terrain.source !== 'local';
-  const r = e.currentTarget.getBoundingClientRect();
-  _showExplorerCtx(r.right + 4, r.top, [
-    { label: 'この場所へ移動', action: () => {
-        if (terrain?.center) map.easeTo({ center: terrain.center, zoom: Math.max(map.getZoom(), 12), duration: EASE_DURATION });
-      }
-    },
-    { label: '名前を変更', disabled: isSystem, action: () => {
-        const titleEl = document.getElementById('ws-header-title');
-        if (!titleEl || !terrain) return;
-        const prev = terrain.name;
-        titleEl.contentEditable = 'true';
-        titleEl.focus();
-        const range = document.createRange();
-        range.selectNodeContents(titleEl);
-        window.getSelection().removeAllRanges();
-        window.getSelection().addRange(range);
-        const finish = async () => {
-          titleEl.contentEditable = 'false';
-          const newName = titleEl.textContent.trim();
-          if (newName && newName !== prev) {
-            try {
-              await renameWsTerrain(_selectedTerrainInGrid, newName);
-              await renderExplorer();
-            } catch { titleEl.textContent = prev; }
-          } else {
-            titleEl.textContent = prev;
-          }
-        };
-        titleEl.addEventListener('blur', finish, { once: true });
-        titleEl.addEventListener('keydown', ke => {
-          if (ke.key === 'Enter') { ke.preventDefault(); titleEl.blur(); }
-          if (ke.key === 'Escape') { titleEl.textContent = prev; titleEl.blur(); }
-        }, { once: true });
-      }
-    },
-    { separator: true },
-    { label: 'ワークスペースから削除', danger: !isSystem, disabled: isSystem, action: () => {
-        showTerrainDeleteModal(_selectedTerrainInGrid);
-      }
-    },
-  ]);
-});
-
-// ws-header-close-btn は sidebar-close-btn クラスを持つため
-// 既存のグローバルリスナー（querySelectorAll('.sidebar-close-btn')）で処理される
-
-// テレインカード三点メニュー（委譲）
-document.getElementById('terrain-grid-container')?.addEventListener('click', (e) => {
-  const menuBtn = e.target.closest('.terrain-card-menu-btn');
-  if (!menuBtn) return;
-  e.stopPropagation();
-
-  const terrainId = menuBtn.dataset.terrainId;
-  if (!terrainId) return;
-
-  showTerrainDeleteModal(terrainId);
-});
-
-// テレイングリッド右クリックメニュー
-document.getElementById('panel-terrain-view-grid')?.addEventListener('contextmenu', (e) => {
-  e.preventDefault();
-  e.stopPropagation();
-
-  _showTerrainGridContextMenu(e.clientX, e.clientY);
-});
-
-function _showTerrainGridContextMenu(x, y) {
-  const items = [
-    {
-      label: '+ ローカルテレインを追加',
-      action: () => {
-        document.getElementById('add-local-terrain-btn')?.click();
-      }
-    }
-  ];
-
-  _showExplorerCtx(x, y, items);
-}
-
-// ツリービュー空白右クリック → 追加メニュー
-document.getElementById('explorer-tree')?.addEventListener('contextmenu', e => {
-  const onItem = e.target.closest('.expl-event-hd, .expl-courseset-hd, .expl-terrain-hd, .expl-item, .expl-sheet-hd');
-  if (onItem) return; // アイテム上はアイテム側のハンドラに任せる
-  e.preventDefault();
-  e.stopPropagation();
-  _showAddPopoverAt(e.clientX, e.clientY, _selectedTerrainInGrid);
-});
-
-/** ワークスペースパネルヘッダーをモードに合わせて更新する */
-async function _updateWsHeader() {
-  const backBtn  = document.getElementById('ws-header-back-btn');
-  const titleEl  = document.getElementById('ws-header-title');
-  const addBtn   = document.getElementById('ws-header-add-btn');
-  const moreBtn  = document.getElementById('ws-header-more-btn');
-  if (!titleEl) return;
-
-  if (_terrainViewMode === 'grid' || !_selectedTerrainInGrid) {
-    // グリッドビュー：タイトル固定、詳細ボタン非表示
-    titleEl.textContent = 'テレイン一覧';
-    titleEl.removeAttribute('data-system');
-    if (backBtn) backBtn.style.display = 'none';
-    if (addBtn)  addBtn.style.display  = 'none';
-    if (moreBtn) moreBtn.style.display = 'none';
-  } else {
-    // ツリービュー：テレイン名を表示、詳細ボタン表示
-    let terrainName = _selectedTerrainInGrid;
-    let isSystem = false;
-    try {
-      const terrains = await getWsTerrains();
-      const terrain  = terrains.find(t => t.id === _selectedTerrainInGrid);
-      if (terrain) {
-        terrainName = terrain.name;
-        isSystem = terrain.source !== 'local';
-      }
-    } catch { /* ignore */ }
-
-    titleEl.textContent = terrainName;
-    titleEl.dataset.system = isSystem ? '1' : '0';
-    if (backBtn) backBtn.style.display = '';
-    if (addBtn)  addBtn.style.display  = '';
-    if (moreBtn) moreBtn.style.display = '';
-  }
-}
-
-// ページロード時の初期化
-document.addEventListener('DOMContentLoaded', () => {
-  // レイヤーズパネルをアクティブにしてテレイングリッドを初期化
-  // ユーザーが先にテレイン検索パネルを使う場合に備えて条件付き
-  if (!isSidebarOpen()) {
-    // sidebar が非表示なら、layers パネルを初期化するだけ
-    _renderTerrainPanelView();
-  }
-});
-
-// ================================================================
-// §15 左パネル・右パネル制御
-// ================================================================
-
-// ピン留め状態（true=固定Push / false=オーバーレイ、localStorage で永続化）
-let _sidebarPinned = localStorage.getItem('teledrop-sidebar-pinned') !== 'false';
-
-/** ピン状態を CSS クラスに反映する */
-function _updatePinMode() {
-  const panel = document.getElementById('sidebar-panel');
-  if (!panel) return;
-  panel.classList.toggle('lp-overlay', !_sidebarPinned);
-  document.querySelectorAll('.sidebar-pin-btn').forEach(b =>
-    b.classList.toggle('is-pinned', _sidebarPinned)
-  );
-  requestAnimationFrame(updateSidebarWidth);
-}
-
-// 起動時に反映
-_updatePinMode();
-
-// ピンボタン SVG（画鋲アイコン）
-const _PIN_BTN_SVG_PINNED  = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/></svg>`;
-const _PIN_BTN_SVG_OVERLAY = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" opacity="0.7"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/></svg>`;
-
-/** ピンボタンの SVG を現在の状態に合わせて更新する */
-function _refreshPinBtnIcon() {
-  document.querySelectorAll('.sidebar-pin-btn').forEach(b => {
-    b.innerHTML = _sidebarPinned ? _PIN_BTN_SVG_PINNED : _PIN_BTN_SVG_OVERLAY;
-    b.title = _sidebarPinned ? 'フローティング表示に切り替え' : 'パネルを固定する';
-  });
-}
-
-// 各セクションヘッダーにピンボタンを注入（閉じるボタンの直前）
-// #ws-panel-header は sidebar-section-header クラスがないため別途追加
-[...document.querySelectorAll('.sidebar-section-header'), document.getElementById('ws-panel-header')].forEach(hd => {
-  if (!hd) return;
-  const btn = document.createElement('button');
-  btn.className = 'sidebar-pin-btn' + (_sidebarPinned ? ' is-pinned' : '');
-  btn.title     = _sidebarPinned ? 'フローティング表示に切り替え' : 'パネルを固定する';
-  btn.setAttribute('aria-label', btn.title);
-  btn.innerHTML = _sidebarPinned ? _PIN_BTN_SVG_PINNED : _PIN_BTN_SVG_OVERLAY;
-  btn.addEventListener('click', e => {
-    e.stopPropagation();
-    _sidebarPinned = !_sidebarPinned;
-    localStorage.setItem('teledrop-sidebar-pinned', String(_sidebarPinned));
-    _updatePinMode();
-    _refreshPinBtnIcon();
-  });
-  const closeBtn = hd.querySelector('.sidebar-close-btn');
-  if (closeBtn) hd.insertBefore(btn, closeBtn);
-  else          hd.appendChild(btn);
-});
-
-
-// ---- 右パネル ----
-
-/** 右パネルを開く。Phase 3 でコースエディターがここに統合される。*/
-/**
- * 右パネルを地図・GPX などの動的コンテンツで開く。
- * コースエディターは非表示、#rp-dynamic-content に contentEl を挿入する。
- */
-function openRightPanel(title, contentEl) {
-  const panel   = document.getElementById('right-panel');
-  if (!panel) return;
-  document.getElementById('right-panel-title').textContent = title ?? '';
-  // コースエディターを隠して動的コンテンツを表示
-  document.getElementById('course-editor-view').style.display = 'none';
-  const dynEl = document.getElementById('rp-dynamic-content');
-  dynEl.innerHTML = '';
-  if (contentEl instanceof HTMLElement) dynEl.appendChild(contentEl);
-  panel.classList.add('rp-open');
-  document.body.classList.add('rp-open');
-}
-
-/** 右パネルを閉じる */
-function closeRightPanel() {
-  document.getElementById('right-panel')?.classList.remove('rp-open');
-  document.body.classList.remove('rp-open');
-  document.getElementById('course-editor-view').style.display = 'none';
-  document.getElementById('rp-dynamic-content').innerHTML = '';
-  setCourseMapVisible(false);
-  _explorerActiveId = null;
-  renderExplorer();
-}
-
-document.getElementById('right-panel-close-btn')?.addEventListener('click', closeRightPanel);
-
-// ---- 右パネル ドラッグリサイズ ----
-(function () {
-  const RP_W_KEY = 'teledrop-rp-w';
-  const RP_W_MIN = 220;
-  const RP_W_MAX = 680;
-
-  /** --rp-w をセットし localStorage に保存 */
-  function _setRpWidth(px) {
-    const clamped = Math.min(RP_W_MAX, Math.max(RP_W_MIN, px));
-    document.documentElement.style.setProperty('--rp-w', clamped + 'px');
-    localStorage.setItem(RP_W_KEY, String(clamped));
-  }
-
-  // 起動時に保存値を復元
-  const saved = parseInt(localStorage.getItem(RP_W_KEY), 10);
-  if (!isNaN(saved)) _setRpWidth(saved);
-
-  const handle = document.getElementById('rp-resize-handle');
-  if (!handle) return;
-
-  handle.addEventListener('mousedown', (e) => {
-    e.preventDefault();
-    handle.classList.add('dragging');
-    document.body.style.cursor = 'w-resize';
-    document.body.style.userSelect = 'none';
-
-    const onMove = (ev) => {
-      // 右パネルは right:0 固定なので幅 = 画面右端 - マウスX
-      _setRpWidth(window.innerWidth - ev.clientX);
-    };
-    const onUp = () => {
-      handle.classList.remove('dragging');
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
-    };
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
-  });
-})();
-
-// ================================================================
-// §16 エクスプローラー ファイルツリー
-// ================================================================
-
-/** 現在選択中のエクスプローラーアイテムの ID */
-let _explorerActiveId = null;
-
-/** 表示中のエクスプローラーコンテキストメニュー */
-let _explorerCtx = null;
-
-/** コンテキストメニューを閉じる */
-function _closeExplorerCtx() {
-  _explorerCtx?.remove();
-  _explorerCtx = null;
-}
-
-/**
- * コンテキストメニューを表示する
- * items: { label, icon?, action, danger?, separator? }[]
- */
-function _showExplorerCtx(x, y, items) {
-  _closeExplorerCtx();
-  const menu = document.createElement('div');
-  menu.className = 'ctx-menu';
-
-  items.forEach(item => {
-    if (item.separator) {
-      const sep = document.createElement('div');
-      sep.className = 'ctx-menu-sep';
-      menu.appendChild(sep);
-      return;
-    }
-    const btn = document.createElement('button');
-    btn.className = 'ctx-menu-item' + (item.danger ? ' ctx-menu-danger' : '') + (item.disabled ? ' ctx-menu-disabled' : '');
-    btn.textContent = item.label;
-    if (item.disabled) {
-      btn.disabled = true;
-    } else {
-      btn.addEventListener('click', () => { _closeExplorerCtx(); item.action(); });
-    }
-    menu.appendChild(btn);
-  });
-
-  document.body.appendChild(menu);
-  _explorerCtx = menu;
-
-  // オーバーフロー補正
-  const vw = window.innerWidth, vh = window.innerHeight;
-  const { width: mw, height: mh } = menu.getBoundingClientRect();
-  menu.style.left = Math.min(x, vw - mw - 8) + 'px';
-  menu.style.top  = Math.min(y, vh - mh - 8) + 'px';
-}
-
-// 外側クリック / Escape でコンテキストメニューを閉じる
-document.addEventListener('mousedown', e => {
-  if (_explorerCtx && !_explorerCtx.contains(e.target)) _closeExplorerCtx();
-}, true);
-document.addEventListener('keydown', e => {
-  if (e.key === 'Escape' && _explorerCtx) _closeExplorerCtx();
-}, true);
-
-// F2キー でアクティブなアイテムをリネーム開始
-/** リネームハンドラー登録マップ（_explorerActiveId → 実行関数） */
-const _explorerRenameHandlers = new Map();
-
-document.addEventListener('keydown', e => {
-  if (e.key === 'F2' && _explorerActiveId) {
-    e.preventDefault();
-    const handler = _explorerRenameHandlers.get(_explorerActiveId);
-    if (handler) handler();
-  }
-}, true);
-
-// ---- セクション折りたたみ状態 ----
-// キー: 'course' | テレイン ID 文字列 | 'uncategorized'
-const _explorerCollapsed = { course: false };
-
-/** 次にファイルインプットが発火したとき関連付けるテレイン ID（null = 未分類） */
-let _pendingImportTerrainId = null;
-let _pendingGpxTerrainId    = null;
-
-/** 次の renderExplorer でフォーカス展開するテレイン ID */
-let _focusTerrainId = null;
-
-// ================================================================
-// 右パネル コンテンツビルダー（地図・GPX）
-// ================================================================
-
-/**
- * 地図レイヤーの右パネルコンテンツを生成する。
- * 可視トグル・透明度スライダー・中心移動・削除ボタンを含む。
- */
-function _buildMapLayerRightPanel(entry) {
-  const wrap = document.createElement('div');
-  wrap.className = 'rp-map-panel';
-
-  const pct = Math.round(entry.opacity * 100);
-
-  wrap.innerHTML = `
-    <div class="rp-section">
-      <div class="rp-row">
-        <label class="toggle-switch">
-          <input type="checkbox" id="rp-vis-${entry.id}" ${entry.visible ? 'checked' : ''} />
-          <span class="toggle-slider"></span>
-        </label>
-        <span class="rp-label">表示</span>
-      </div>
-      <div class="rp-row rp-opacity-row">
-        <span class="rp-label">透明度</span>
-        <input type="range" class="ui-slider rp-opacity-slider" min="0" max="100" step="5" value="${pct}" ${entry.visible ? '' : 'disabled'} />
-        <span class="rp-opacity-val">${pct}%</span>
-      </div>
-    </div>
-    <div class="rp-section rp-actions">
-      <button class="rp-action-btn" id="rp-fitbounds-${entry.id}">
-        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/></svg>
-        地図の中心に移動
-      </button>
-      <button class="rp-action-btn rp-action-danger" id="rp-del-${entry.id}">
-        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-        削除
-      </button>
-    </div>`;
-
-  // 可視トグル
-  const visChk = wrap.querySelector(`#rp-vis-${entry.id}`);
-  const slider  = wrap.querySelector('.rp-opacity-slider');
-  const valSpan = wrap.querySelector('.rp-opacity-val');
-  visChk.addEventListener('change', () => {
-    entry.visible = visChk.checked;
-    slider.disabled = !entry.visible;
-    if (map.getLayer(entry.layerId)) {
-      map.setLayoutProperty(entry.layerId, 'visibility', entry.visible ? 'visible' : 'none');
-    }
-  });
-
-  // 透明度スライダー
-  updateSliderGradient(slider);
-  slider.addEventListener('input', () => {
-    entry.opacity = parseInt(slider.value) / 100;
-    valSpan.textContent = slider.value + '%';
-    updateSliderGradient(slider);
-    if (entry.visible && map.getLayer(entry.layerId)) {
-      map.setPaintProperty(entry.layerId, 'raster-opacity', toRasterOpacity(entry.opacity));
-    }
-  });
-
-  // 中心移動ボタン
-  wrap.querySelector(`#rp-fitbounds-${entry.id}`)?.addEventListener('click', () => {
-    if (entry.bbox) {
-      const b = entry.bbox;
-      map.fitBounds([[b.west, b.south], [b.east, b.north]], { padding: 60, duration: 600 });
-    }
-  });
-
-  // 削除ボタン
-  wrap.querySelector(`#rp-del-${entry.id}`)?.addEventListener('click', () => {
-    if (confirm(`「${entry.name}」を削除しますか？`)) {
-      removeLocalMapLayer(entry.id);
-      closeRightPanel();
-      renderExplorer();
-    }
-  });
-
-  return wrap;
-}
-
-/**
- * GPX トラックの右パネルコンテンツを生成する。
- * ファイル情報・再生コントロール・削除ボタンを含む。
- */
-function _buildGpxRightPanel() {
-  const wrap = document.createElement('div');
-  wrap.className = 'rp-gpx-panel';
-
-  const pts   = gpxState.trackPoints.length;
-  const dur   = gpxState.totalDuration ?? 0;
-
-  const durStr = formatMMSS(dur);
-
-  wrap.innerHTML = `
-    <div class="rp-section">
-      <div class="rp-info-row"><span class="rp-info-label">ポイント数</span><span class="rp-info-val">${pts.toLocaleString()}</span></div>
-      <div class="rp-info-row"><span class="rp-info-label">総時間</span><span class="rp-info-val">${durStr}</span></div>
-    </div>
-    <div class="rp-section rp-gpx-controls">
-      <button class="rp-gpx-playpause rp-action-btn" id="rp-gpx-play">
-        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-        <span>${gpxState.isPlaying ? '一時停止' : '再生'}</span>
-      </button>
-    </div>
-    <div class="rp-section rp-actions">
-      <button class="rp-action-btn rp-action-danger" id="rp-gpx-del">
-        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-        削除
-      </button>
-    </div>`;
-
-  // 再生/一時停止：既存の play-pause-btn をプログラマチックに click
-  wrap.querySelector('#rp-gpx-play')?.addEventListener('click', () => {
-    document.getElementById('play-pause-btn')?.click();
-    // ボタンラベルを更新
-    const span = wrap.querySelector('#rp-gpx-play span');
-    if (span) span.textContent = gpxState.isPlaying ? '一時停止' : '再生';
-  });
-
-  // 削除ボタン
-  wrap.querySelector('#rp-gpx-del')?.addEventListener('click', () => {
-    if (confirm('GPXトラックを削除しますか？')) {
-      gpxState.trackPoints = [];
-      gpxState.fileName = null;
-      const src = map.getSource('gpx-source');
-      if (src) src.setData({ type: 'FeatureCollection', features: [] });
-      document.getElementById('gpx-status').innerHTML = '';
-      closeRightPanel();
-      renderExplorer();
-    }
-  });
-
-  return wrap;
-}
-
-// ================================================================
-// Phase 3 — コースエディタービュー切り替え
-// ================================================================
-
-/**
- * エクスプローラービューをコースエディタービューへスライドイン。
- * エクスプローラーパネルが閉じていれば先に開く。
- */
-/**
- * 右パネルにコースエディターを表示する。
- * #course-editor-view は #right-panel-body に常駐しており、display を切り替えるだけ。
- */
-function openCourseEditor() {
-  const panel = document.getElementById('right-panel');
-  if (!panel) return;
-  document.getElementById('right-panel-title').textContent = 'コース';
-  // 動的コンテンツを消してコースエディターを表示
-  document.getElementById('rp-dynamic-content').innerHTML = '';
-  document.getElementById('course-editor-view').style.display = 'block';
-  panel.classList.add('rp-open');
-  document.body.classList.add('rp-open');
-  setCourseMapVisible(true);
-}
-
-// ---- テレインドリルダウンUI 関数 ----
-
-/** テレインビューモード切り替え */
-function _switchTerrainViewMode(mode, terrainId = null) {
-  _terrainViewMode = mode;
-  if (mode === 'tree' && terrainId) {
-    _selectedTerrainInGrid = terrainId;
-  }
-  _renderTerrainPanelView();
-}
-
-/** テレイン一覧に戻る */
-function _backToTerrainGrid() {
-  _terrainViewMode = 'grid';
-  _selectedTerrainInGrid = null;
-  _renderTerrainPanelView();
-}
-
-/** テレインパネルビュー切り替え */
-function _renderTerrainPanelView() {
-  const gridView = document.getElementById('panel-terrain-view-grid');
-  const treeView = document.getElementById('panel-terrain-view-tree');
-
-  if (_terrainViewMode === 'grid') {
-    gridView.style.display = '';
-    treeView.style.display = 'none';
-    _renderTerrainGridView();
-  } else if (_terrainViewMode === 'tree') {
-    gridView.style.display = 'none';
-    treeView.style.display = 'flex';
-    _renderTerrainTreeView();
-  }
-  // ヘッダーを非同期で更新（DBアクセスが必要なため）
-  _updateWsHeader();
-}
-
-/** テレインカード一覧グリッド描画 */
-async function _renderTerrainGridView() {
-  const container = document.getElementById('terrain-grid-container');
-  if (!container) return;
-
-  container.innerHTML = '<div style="grid-column:1/-1;padding:20px;text-align:center;color:var(--text-muted);font-size:11px;">読み込み中…</div>';
-
-  let terrains = [];
-  try { terrains = await getWsTerrains(); } catch { /* ignore */ }
-
-  container.innerHTML = '';
-
-  if (terrains.length === 0) {
-    container.innerHTML = '<div style="grid-column:1/-1;padding:20px;text-align:center;color:var(--text-muted);">テレインを追加すると表示されます</div>';
-    return;
-  }
-
-  // 各テレインの大会数を並列取得
-  const terrainDataList = await Promise.all(terrains.map(async terrain => {
-    let eventCount = 0;
-    try {
-      const events = await getWsEvents(terrain.id);
-      eventCount = events.length;
-    } catch { /* ignore */ }
-    return { terrain, eventCount };
-  }));
-
-  terrainDataList.forEach(({ terrain, eventCount }) => {
-    const card = document.createElement('div');
-    card.className = 'terrain-card';
-
-    card.innerHTML = `
-      <div class="terrain-card-thumb"></div>
-      <div class="terrain-card-info">
-        <div class="terrain-card-name">${terrain.name}</div>
-        <div class="terrain-card-meta">${eventCount} 大会</div>
-      </div>
-      <button class="terrain-card-menu-btn" data-terrain-id="${terrain.id}" title="オプション" aria-label="オプション">
-        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="5" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="12" cy="19" r="1.2"/></svg>
-      </button>
-    `;
-
-    card.addEventListener('click', (e) => {
-      if (e.target.closest('.terrain-card-menu-btn')) return;
-      _switchTerrainViewMode('tree', terrain.id);
-    });
-
-    // 三点メニュー → テレインフォルダと同じメニュー（移動 / 削除）
-    card.querySelector('.terrain-card-menu-btn').addEventListener('click', (e) => {
-      e.stopPropagation();
-      const r = e.currentTarget.getBoundingClientRect();
-      _showExplorerCtx(r.right + 4, r.top, [
-        { label: 'この場所へ移動', action: () => {
-            if (terrain.center) map.easeTo({ center: terrain.center, zoom: Math.max(map.getZoom(), 12), duration: EASE_DURATION });
-          }
-        },
-        { separator: true },
-        { label: 'ワークスペースから削除', danger: true, action: () => {
-            showTerrainDeleteModal(terrain.id);
-          }
-        },
-      ]);
-    });
-
-    container.appendChild(card);
-  });
-}
-
-/** テレインツリービュー描画 */
-function _renderTerrainTreeView() {
-  renderExplorer();
-}
-
-/** エクスプローラーを再描画する（外部モジュールからも呼び出し可能） */
-/** renderExplorer の多重実行を防ぐフラグ */
-let _explorerRendering = false;
-let _explorerRenderPending = false;
-
-async function renderExplorer() {
-  // 既にレンダリング中なら完了後に1回だけ再実行（多重 DB 呼び出し防止）
-  if (_explorerRendering) { _explorerRenderPending = true; return; }
-  _explorerRendering = true;
-  try {
-    await _renderExplorerOnce();
-    // グリッドビューも更新（テレインカード一覧は独立した描画）
-    if (_terrainViewMode === 'grid') _renderTerrainGridView();
-  } finally {
-    _explorerRendering = false;
-    if (_explorerRenderPending) {
-      _explorerRenderPending = false;
-      renderExplorer();
-    }
-  }
-}
-
-async function _renderExplorerOnce() {
-  const treeEl = document.getElementById('explorer-tree');
-  if (!treeEl) return;
-
-  // ── すべての非同期データを先に取得してからDOMを一括更新（ちらつき防止）──
-  let wsTerrains = [];
-  try { wsTerrains = await getWsTerrains(); } catch { /* ignore */ }
-
-  const focusId   = _focusTerrainId;
-  _focusTerrainId = null;
-
-  /** 大会・コースセット（+コース）・コース枠をDBから取得してまとめる */
-  async function fetchEventsWithSheetsAndCourseSets(terrainId) {
-    // ── 大会配下のコースセット ──
-    let events = [];
-    try { events = await getWsEvents(terrainId); } catch { /* ignore */ }
-    const eventsData = await Promise.all(events.map(async ev => {
-      let courseSets = [];
-      try {
-        const sets = await getCourseSetsForEvent(ev.id);
-        courseSets = await Promise.all(sets.map(async cs => {
-          let courses = [];
-          try { courses = await getCoursesBySet(cs.id); } catch { /* ignore */ }
-          return { courseSet: cs, courses };
-        }));
-      } catch { /* ignore */ }
-      let sheets = [];
-      try { sheets = await getMapSheetsByEvent(ev.id); } catch { /* ignore */ }
-      const sheetsWithImages = sheets.map(sheet => ({
-        sheet,
-        images: localMapLayers.filter(e => e.mapSheetId === sheet.id),
-      }));
-      return { event: ev, courseSets, sheetsWithImages };
-    }));
-
-    // ── 大会に属さないスタンドアロンコースセット（terrain直属）──
-    let standaloneSets = [];
-    if (terrainId != null) { // null テレインは IDB null インデックス問題を回避
-      try {
-        const sets = await getCourseSetsForTerrain(terrainId);
-        standaloneSets = await Promise.all(sets.map(async cs => {
-          let courses = [];
-          try { courses = await getCoursesBySet(cs.id); } catch { /* ignore */ }
-          return { courseSet: cs, courses };
-        }));
-      } catch { /* ignore */ }
-    }
-    return { eventsData, standaloneSets };
-  }
-
-  // ── テレインフォルダ（全データを並列取得）──
-  const terrainData = await Promise.all(wsTerrains.map(async t => {
-    const { eventsData, standaloneSets } = await fetchEventsWithSheetsAndCourseSets(t.id);
-    return {
-      terrain: t,
-      maps:    localMapLayers.filter(e => e.terrainId === t.id && !e.mapSheetId),
-      gpx:     (gpxState.fileName && gpxState.terrainId === t.id) ? gpxState : null,
-      eventsData,
-      standaloneSets,
-    };
-  }));
-
-  // ── 未分類 ──
-  const uncatMaps   = localMapLayers.filter(e => !e.terrainId && !e.mapSheetId);
-  const uncatGpx    = (gpxState.fileName && !gpxState.terrainId) ? gpxState : null;
-  const { eventsData: uncatEvents } = await fetchEventsWithSheetsAndCourseSets(null);
-
-  // ── 全データ取得完了 → ここで初めて DOM を置換（ちらつきゼロ）──
-  const frag = document.createDocumentFragment();
-
-  // ── Composite パターン: TreeItem ツリーを構築してから再帰的に DOM へ変換 ──
-  const treeItems = buildTreeData({
-    terrainData,
-    uncatMaps,
-    uncatGpx,
-    uncatEvents: uncatEvents ?? [],
-    selectedTerrainId: _selectedTerrainInGrid,
-  });
-
-  if (_selectedTerrainInGrid) {
-    // ドリルダウンモード: renderItem で直接追加
-    treeItems.forEach(item => frag.appendChild(renderItem(item)));
-
-    if (treeItems.length === 0) {
-      const hint = document.createElement('div');
-      hint.className = 'expl-ws-hint';
-      hint.innerHTML = '<span>「＋」ボタンで大会やコースを追加できます</span>';
-      frag.appendChild(hint);
-    }
-  } else {
-    // 通常モード: テレインフォルダを順に追加し、フォーカス処理も実施
-    treeItems.forEach(item => {
-      const el = renderItem(item);
-      if (item.type === 'terrain' && focusId === item.id) {
-        el.classList.add('is-focused');
-        requestAnimationFrame(() => el.scrollIntoView({ behavior: 'smooth', block: 'nearest' }));
-      }
-      frag.appendChild(el);
-    });
-  }
-
-  if (!_selectedTerrainInGrid && wsTerrains.length === 0 && uncatMaps.length === 0 && !uncatGpx && uncatEvents.length === 0) {
-    const hint = document.createElement('div');
-    hint.className = 'expl-ws-hint';
-    hint.innerHTML = '<span>検索タブでテレインを探し「＋」で追加すると<br>ここにフォルダが作成されます</span>';
-    frag.appendChild(hint);
-  }
-
-  // ── ストレージバー（DB 保存レイヤーがある場合） ──
-  const hasDb = localMapLayers.some(e => e.dbId != null);
-  if (hasDb) {
-    const bar = document.createElement('div');
-    bar.className = 'expl-storage-bar';
-    bar.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0018 0V5"/><path d="M3 12a9 3 0 0018 0"/></svg>';
-    const text = document.createElement('span');
-    text.id = 'storage-usage-text';
-    text.className = 'storage-usage-text';
-    text.textContent = 'ストレージ使用量: ---';
-    const clearBtn = document.createElement('button');
-    clearBtn.className = 'expl-storage-clear';
-    clearBtn.textContent = '全消去';
-    clearBtn.id = 'storage-clear-btn';
-    clearBtn.title = '保存した地図をすべてストレージから削除する';
-    bar.appendChild(text);
-    bar.appendChild(clearBtn);
-    frag.appendChild(bar);
-  }
-
-  // 一括置換（ここでのみ DOM がちらつく可能性があるが、ほぼ1フレーム未満）
-  treeEl.innerHTML = '';
-  treeEl.appendChild(frag);
-}
-
-
-/** ＋ ポップオーバーメニューを構築して返す */
-let _openAddPopover = null;
-
-function _buildAddPopoverMenu(terrainId) {
-  const menu = document.createElement('div');
-  menu.className = 'expl-add-popover';
-
-  // SVG アイコン定数
-  const SVG_EVENT     = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4a2 2 0 01-2-2V5h4"/><path d="M18 9h2a2 2 0 002-2V5h-4"/><path d="M6 9a6 6 0 0012 0"/><path d="M12 15v4"/><path d="M8 19h8"/></svg>`;
-  const SVG_COURSESET = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/></svg>`;
-  const SVG_MAP       = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>`;
-  const SVG_GPX       = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>`;
-  const SVG_FILE      = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>`;
-
-  // ── ヘルパー ──
-  const addSection = label => {
-    const el = document.createElement('div');
-    el.className = 'expl-add-popover-section';
-    el.textContent = label;
-    menu.appendChild(el);
-  };
-  const addSep = () => {
-    const el = document.createElement('div');
-    el.className = 'expl-add-popover-sep';
-    menu.appendChild(el);
-  };
-  const addItem = (svgHtml, label, sub, action) => {
-    const btn = document.createElement('button');
-    btn.className = 'expl-add-popover-item';
-    const iconEl = document.createElement('span');
-    iconEl.className = 'expl-add-popover-icon';
-    iconEl.innerHTML = svgHtml;
-    const wrap = document.createElement('span');
-    wrap.className = 'expl-add-popover-text';
-    const labelEl = document.createElement('span');
-    labelEl.className = 'expl-add-popover-label';
-    labelEl.textContent = label;
-    wrap.appendChild(labelEl);
-    if (sub) {
-      const subEl = document.createElement('span');
-      subEl.className = 'expl-add-popover-sub';
-      subEl.textContent = sub;
-      wrap.appendChild(subEl);
-    }
-    btn.appendChild(iconEl);
-    btn.appendChild(wrap);
-    // mousedown を止めないと閉じるリスナーが先に発火してclickが届かない
-    btn.addEventListener('mousedown', e => e.stopPropagation());
-    btn.addEventListener('click', e => {
-      e.stopPropagation();
-      _closeAddPopover();
-      action();
-    });
-    menu.appendChild(btn);
-  };
-
-  // ── 新規作成 ──
-  addSection('新規作成');
-  addItem(SVG_EVENT, '大会', null, async () => {
-    await createEvent(terrainId, '大会');
-    await renderExplorer();
-    openCourseEditor();
-  });
-  addItem(SVG_COURSESET, 'コースセット', null, async () => {
-    await createCourseSet(null, terrainId, 'コースセット');
-    await renderExplorer();
-    openCourseEditor();
-  });
-
-  addSep();
-
-  // ── ファイルを読み込み ──
-  addSection('ファイルを読み込み');
-  addItem(SVG_MAP, '地図画像', 'png / jpg / kmz', () => {
-    _pendingImportTerrainId = terrainId;
-    document.getElementById('explorer-map-input')?.click();
-  });
-  addItem(SVG_GPX, 'GPSログ', 'gpx', () => {
-    _pendingGpxTerrainId = terrainId;
-    document.getElementById('explorer-gpx-input')?.click();
-  });
-  addItem(SVG_FILE, 'コースデータ', 'ppen / IOF XML', () => {
-    document.getElementById('explorer-json-input')?.click();
-  });
-
-  return menu;
-}
-
-/** ＋ ポップオーバーをアンカーボタン直下に表示する */
-function _showAddPopover(anchorBtn, terrainId) {
-  _openAddPopover?.remove();
-  _openAddPopover = null;
-  const menu = _buildAddPopoverMenu(terrainId);
-  document.body.appendChild(menu);
-  _openAddPopover = menu;
-  const r = anchorBtn.getBoundingClientRect();
-  menu.style.top  = (r.bottom + 4) + 'px';
-  menu.style.left = Math.max(4, r.right - menu.offsetWidth) + 'px';
-  setTimeout(() => {
-    document.addEventListener('mousedown', _closeAddPopover, { once: true });
-  }, 0);
-}
-
-/** ＋ ポップオーバーを座標指定で表示する（右クリック・ボトムボタン用） */
-function _showAddPopoverAt(x, y, terrainId) {
-  _openAddPopover?.remove();
-  _openAddPopover = null;
-  const menu = _buildAddPopoverMenu(terrainId);
-  document.body.appendChild(menu);
-  _openAddPopover = menu;
-  const vw = window.innerWidth, vh = window.innerHeight;
-  menu.style.left = Math.min(x, vw - menu.offsetWidth - 4) + 'px';
-  menu.style.top  = Math.min(y, vh - menu.offsetHeight - 4) + 'px';
-  setTimeout(() => {
-    document.addEventListener('mousedown', _closeAddPopover, { once: true });
-  }, 0);
-}
-
-function _closeAddPopover() {
-  _openAddPopover?.remove();
-  _openAddPopover = null;
-}
-
-// ================================================================
-// ドラッグ＆ドロップ
-// ================================================================
-
-/** ドラッグ中のアイテム情報 */
-let _dndItem = null; // { type:'map'|'gpx'|'course', id:string }
-
-/**
- * フォルダに DnD ドロップターゲットの設定をする
- * @param {HTMLElement}   folder
- * @param {string|null}   terrainId
- */
-function _setupFolderDropTarget(folder, terrainId) {
-  folder.addEventListener('dragover', e => {
-    if (!_dndItem) return;
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    folder.classList.add('dnd-over');
-  });
-  folder.addEventListener('dragleave', e => {
-    if (!folder.contains(e.relatedTarget)) folder.classList.remove('dnd-over');
-  });
-  folder.addEventListener('drop', async e => {
-    e.preventDefault();
-    folder.classList.remove('dnd-over');
-    if (!_dndItem) return;
-    const { type, id } = _dndItem;
-    _dndItem = null;
-    if (type === 'map') {
-      const entry = localMapLayers.find(m => m.id === id);
-      if (entry) entry.terrainId = terrainId;
-    } else if (type === 'gpx') {
-      gpxState.terrainId = terrainId;
-    } else if (type === 'courseSet') {
-      // コースセットをテレインフォルダ（または未分類）にドロップ → event_id=null, terrain_id=terrainId
-      await moveCourseSet(id, { eventId: null, terrainId: terrainId ?? null });
-    }
-    await renderExplorer();
-  });
-}
-
-/**
- * アイテム要素に draggable を設定する
- * @param {HTMLElement} el
- * @param {{ type:string, id:string }} item
- */
-function _makeDraggable(el, item) {
-  el.draggable = true;
-  el.classList.add('expl-draggable');
-  el.addEventListener('dragstart', e => {
-    _dndItem = item;
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', item.type + ':' + item.id);
-    el.classList.add('is-dragging');
-  });
-  el.addEventListener('dragend', () => {
-    el.classList.remove('is-dragging');
-    _dndItem = null;
-    // 全フォルダの dnd-over を解除
-    document.querySelectorAll('.dnd-over').forEach(f => f.classList.remove('dnd-over'));
-  });
-}
-
-/**
- * ラベル要素をインライン入力に置き換えてリネームを行う共通ヘルパー
- * @param {HTMLElement} lbl       — 置き換え対象のラベル要素
- * @param {string}      current   — 現在の名前
- * @param {Function}    onCommit  — async (newName: string) => void
- */
-function _startInlineRename(lbl, current, onCommit) {
-  const input = document.createElement('input');
-  input.type      = 'text';
-  input.value     = current;
-  input.className = 'expl-inline-rename';
-  input.maxLength = 60;
-  lbl.replaceWith(input);
-  input.focus();
-  input.select();
-  let _committed = false;
-  const commit = async () => {
-    if (_committed) return;
-    _committed = true;
-    const newName = input.value.trim() || current;
-    await onCommit(newName);
-  };
-  input.addEventListener('blur', commit);
-  input.addEventListener('keydown', e => {
-    if (e.key === 'Enter')  { e.preventDefault(); input.blur(); }
-    if (e.key === 'Escape') { _committed = true; input.value = current; input.blur(); }
-  });
-}
-
-/**
- * イベントの controlDefs からバウンディングボックスを計算して地図を移動する
- * @param {object} event — IndexedDB の events レコード（controlDefs を含む）
- */
-function _flyToEventControls(event) {
-  const defs = Object.values(event.controlDefs ?? {});
-  if (defs.length === 0) return;
-  let minLng = Infinity, maxLng = -Infinity, minLat = Infinity, maxLat = -Infinity;
-  for (const d of defs) {
-    if (d.lng < minLng) minLng = d.lng;
-    if (d.lng > maxLng) maxLng = d.lng;
-    if (d.lat < minLat) minLat = d.lat;
-    if (d.lat > maxLat) maxLat = d.lat;
-  }
-  if (!isFinite(minLng)) return;
-  const panelWidth = document.getElementById('sidebar')?.offsetWidth ?? SIDEBAR_DEFAULT_WIDTH;
-  if (defs.length === 1) {
-    map.easeTo({ center: [minLng, minLat], zoom: Math.max(map.getZoom(), 15), duration: EASE_DURATION });
-  } else {
-    map.fitBounds([[minLng, minLat], [maxLng, maxLat]], {
-      padding: { top: FIT_BOUNDS_PAD, bottom: FIT_BOUNDS_PAD,
-                 left: panelWidth + FIT_BOUNDS_PAD_SIDEBAR, right: FIT_BOUNDS_PAD },
-      duration: EASE_DURATION, maxZoom: 18,
-    });
-  }
-}
-
-/**
- * 大会フォルダ DOM を構築して返す
- * @param {object} event            — IndexedDB の events レコード（大会）
- * @param {Array}  courseSets       — [{ courseSet, courses[] }]
- * @param {Array}  sheetsWithImages — [{ sheet, images[] }]
- */
-
-
-/**
- * コースセットフォルダを構築して返す。
- * クリックで展開/折りたたみ + アクティブコースセットのロード（全コントロール表示）。
- * ドラッグで大会/テレインフォルダへ移動可能（DnD type='courseSet'）。
- *
- * @param {object} courseSet — course_sets レコード
- * @param {Array}  courses   — getCoursesBySet() の結果配列
- */
-
-
-/**
- * コース枠フォルダ（画像位置合わせ用フレーム）を構築して返す
- * @param {object} sheet  — map_sheets レコード
- * @param {Array}  images — このコース枠に紐づく localMapLayers エントリ
- */
-
-
-/** コースアイテムを構築して返す */
-
-
-/** 地図レイヤーのエクスプローラーアイテムを構築して返す */
-
-
-/** GPX アイテムのエクスプローラー DOM を構築して返す */
-
-
-/** GPX コンテキストメニューを表示する */
-function _showExplorerGpxCtx(x, y, onRename) {
-  _showExplorerCtx(x, y, [
-    { label: gpxState.isPlaying ? '一時停止' : '再生',
-      action: () => document.getElementById('gpx-play-pause')?.click()
-    },
-    { label: '名前を変更', action: onRename },
-    { separator: true },
-    { label: '削除', danger: true, action: () => {
-      if (confirm('GPXトラックを削除しますか？')) {
-        gpxState.trackPoints = [];
-        gpxState.fileName    = null;
-        gpxState.terrainId   = null;
-        const src = map.getSource('gpx-source');
-        if (src) src.setData({ type: 'FeatureCollection', features: [] });
-        document.getElementById('gpx-status').innerHTML = '';
-        renderExplorer();
-      }
-    }},
-  ]);
-}
-
-/** エクスプローラーセクションの DOM を構築して返す */
-
-
-
-
-// ── ファイル追加インプットのハンドラ ──
-document.getElementById('explorer-map-input')?.addEventListener('change', async e => {
-  const files = [...e.target.files];
-  if (!files.length) return;
-  const terrainId = _pendingImportTerrainId;
-  _pendingImportTerrainId = null;
-  e.target.value = '';
-  for (const f of files) {
-    const prevCount = localMapLayers.length;
-    if (/\.kmz$/i.test(f.name)) await loadKmz(f);
-    else await loadImageWithJgw(f, null);
-    // 新しく追加されたレイヤーにテレイン ID を付与
-    const added = localMapLayers.slice(prevCount);
-    added.forEach(entry => { entry.terrainId = terrainId ?? null; });
-  }
-  renderExplorer();
-});
-
-document.getElementById('explorer-gpx-input')?.addEventListener('change', async e => {
-  const file = e.target.files[0];
-  if (!file) return;
-  const terrainId = _pendingGpxTerrainId;
-  _pendingGpxTerrainId = null;
-  e.target.value = '';
-  await loadGpx(file, { terrainId: terrainId ?? null });
-});
-
-document.getElementById('explorer-json-input')?.addEventListener('change', async e => {
-  const file = e.target.files[0];
-  if (!file) return;
-  e.target.value = '';
-  const text = await file.text();
-  // course.js の import ハンドラと同じ処理をトリガー
-  const courseImportInput = document.getElementById('course-import-file');
-  if (courseImportInput) {
-    // DataTransfer を使って既存ハンドラに渡す（同ファイルのイベントを再発行）
-    const dt = new DataTransfer();
-    dt.items.add(file);
-    courseImportInput.files = dt.files;
-    courseImportInput.dispatchEvent(new Event('change'));
-  }
-  renderExplorer();
-});
-
 // ================================================================
 map.once('idle', () => { updateSidebarWidth(); });
 
 
 // スライダーの初期値をUIに反映（値を設定してからグラデーションを更新する）
-sliderCs.value = CS_INITIAL_OPACITY;
-updateSliderGradient(sliderCs); // 値変更後に再計算
 
 
 // 3D地形初期倍率をセレクトに反映（TERRAIN_EXAGGERATION = 1.0 なので ×1 がデフォルト選択済み）
@@ -3674,81 +2502,7 @@ initPrintDialog(map, { setTerrain3dEnabled, setBuilding3dEnabled });
    ================================================================ */
 
 
-// ================================================================
-// ツリーレンダラー初期化
-// ================================================================
-initRenderer({
-  // ── 折りたたみ状態 ──
-  collapsed: {
-    get: key  => _explorerCollapsed[key],
-    set: (key, val) => { _explorerCollapsed[key] = val; },
-  },
-  // ── アクティブアイテム ID ──
-  activeId: {
-    get: ()  => _explorerActiveId,
-    set: val => { _explorerActiveId = val; },
-  },
-  // ── F2 リネームハンドラーマップ ──
-  renameHandlers: _explorerRenameHandlers,
 
-  // ── DnD 状態 ──
-  dnd: {
-    get:   () => _dndItem,
-    set:   v  => { _dndItem = v; },
-    clear: () => { _dndItem = null; },
-  },
-
-  // ── DOM ヘルパー ──
-  startInlineRename: _startInlineRename,
-  showCtx:           _showExplorerCtx,
-  showExplorerGpxCtx: _showExplorerGpxCtx,
-  makeDraggable:     _makeDraggable,
-  setupFolderDropTarget: _setupFolderDropTarget,
-
-  // ── ナビゲーション ──
-  renderExplorer,
-  openCourseEditor,
-  openRightPanel,
-  buildMapLayerRightPanel: _buildMapLayerRightPanel,
-  buildGpxRightPanel:      _buildGpxRightPanel,
-
-  // ── モーダル ──
-  showTerrainDeleteModal,
-  showEventDeleteModal,
-  showCourseSetDeleteModal,
-  showCourseDeleteModal,
-
-  // ── DB 操作 ──
-  renameEvent,
-  createCourseSet,
-  moveCourseSet,
-  renameCourseSet,
-  renameCourse,
-  saveWsMapSheet,
-  deleteWsMapSheet,
-  removeLocalMapLayer,
-  flushSave,
-
-  // ── コース操作 ──
-  loadCourseSet,
-  getActiveCourseSetId,
-  setActiveCourse,
-  addCourseToActiveEvent,
-  deleteCourseById,
-  getCoursesSummary,
-  showAllControlsTab,
-  flyToEventControls: _flyToEventControls,
-
-  // ── 地図操作 ──
-  map,
-  renderOtherMapsTree,
-
-  // ── 定数 ──
-  EASE_DURATION,
-  FIT_BOUNDS_PAD,
-  FIT_BOUNDS_PAD_SIDEBAR,
-  SIDEBAR_DEFAULT_WIDTH,
-});
 
 // DOM 構築完了後に実行（<script type="module"> は defer 相当で DOM 準備済み）
 initCustomSelects();
