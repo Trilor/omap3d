@@ -29,7 +29,7 @@
 
    ================================================================ */
 
-import { getDeclination, setDeclinationModel } from './core/magneticDeclination.js';
+import { getDeclination } from './core/magneticDeclination.js';
 import { initCoursePlanner, setMapLayersGetter, setImportDoneCallback, migrateCourseSets } from './core/course.js';
 import {
   init as initLocalMapListPanel,
@@ -83,6 +83,7 @@ import {
 import { initBottomSheet } from './ui/bottomSheet.js';
 import { init as initMapContextMenu } from './ui/mapContextMenu.js';
 import { init as initDropHandler } from './ui/dropHandler.js';
+import { init as initMagneticPanel } from './ui/magneticPanel.js';
 import { on } from './store/eventBus.js';
 import { gpxState } from './gpx/gpxState.js';
 import {
@@ -108,10 +109,7 @@ import {
 } from './core/attribution.js';
 import {
   init as initMagneticLines,
-  setUserMagneticInterval,
-  clearGlobalMagneticCache, getLastMagneticNorthData,
   updateMagneticNorth, getMagneticLineColor,
-  handleMagneticColorChange,
 } from './core/magneticLines.js';
 import {
   init as initLocalMapStore,
@@ -191,10 +189,6 @@ import {
 let _globeBgEl = null;
 let _updateGlobeBg = null;
 
-// --- 初期化順の影響を受ける共有状態（TDZ 回避のため var で早期宣言） ---
-var selMagneticCombined = null;
-var selMagneticModel = null;
-var selMagneticColor = null;
 
 /*
   ========================================================
@@ -1270,53 +1264,7 @@ initDropHandler({
   onImageWithJgw: (imgs, jgw) => openImgwModal(imgs, jgw),
 });
 
-/* ========================================================
-    UIスライダー・チェックボックスのイベントリスナー設定
-    ======================================================== */
-
-// ---- スライダーのグラデーション更新ヘルパー ----
-// ユーザーが手動で設定した磁北線間隔（m）。zoom > 10 のときに使用する。
-// ---- 磁北線 タイルカード ----
-const magneticCard = document.getElementById('magnetic-card');
-selMagneticCombined = document.getElementById('sel-magnetic-combined');
-selMagneticModel    = document.getElementById('sel-magnetic-model');
-selMagneticColor    = document.getElementById('sel-magnetic-color');
-
-// ---- 磁北線カード クリックでトグル ----
-magneticCard?.addEventListener('click', (e) => {
-  if (e.target.closest('.custom-select-wrap') || e.target.closest('select')) return;
-  const isActive = magneticCard.classList.toggle('active');
-  if (map.getLayer('magnetic-north-layer')) {
-    map.setLayoutProperty('magnetic-north-layer', 'visibility', isActive ? 'visible' : 'none');
-  }
-  updateMagneticAttribution();
-  updateShareableUrl();
-  saveUiState();
-});
-
-// ---- 磁北線 モデルセレクト ----
-selMagneticModel?.addEventListener('change', async () => {
-  await setDeclinationModel(selMagneticModel.value);
-  clearGlobalMagneticCache();
-  updateMagneticNorth();
-  updateMagneticAttribution();
-  updateShareableUrl();
-  saveUiState();
-});
-// 初期モデルをロード（国土地理院2020 がデフォルト）
-if (selMagneticModel) setDeclinationModel(selMagneticModel.value);
-
-// ---- 磁北線 間隔セレクト ----
-selMagneticCombined?.addEventListener('change', () => {
-  const val = parseInt(selMagneticCombined.value, 10);
-  if (val) setUserMagneticInterval(val);
-  updateMagneticNorth();
-  updateShareableUrl();
-  saveUiState();
-});
-
-selMagneticColor?.addEventListener('input',  () => handleMagneticColorChange(saveUiState));
-selMagneticColor?.addEventListener('change', () => handleMagneticColorChange(saveUiState));
+initMagneticPanel(map, { saveUiState, updateShareableUrl });
 
 
 // ---- サムネイル生成関連 ----
