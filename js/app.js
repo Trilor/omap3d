@@ -82,6 +82,7 @@ import {
 } from './ui/uiState.js';
 import { initBottomSheet } from './ui/bottomSheet.js';
 import { init as initMapContextMenu } from './ui/mapContextMenu.js';
+import { init as initDropHandler } from './ui/dropHandler.js';
 import { on } from './store/eventBus.js';
 import { gpxState } from './gpx/gpxState.js';
 import {
@@ -1262,77 +1263,12 @@ map.on('click', (e) => {
 });
 
 
-/* ========================================================
-    ドラッグ＆ドロップの制御
-    ブラウザウィンドウ全体にドラッグしたとき、オーバーレイを表示して
-    ドロップされたファイルを loadKmz に渡します。
-    ======================================================== */
-
-const dropOverlay = document.getElementById('drop-overlay');
-let dragCounter = 0; // 子要素への出入りで誤作動しないようにカウンター管理
-
-document.addEventListener('dragenter', (e) => {
-  e.preventDefault();
-  dragCounter++;
-
-  // ファイルがドラッグされているときだけオーバーレイを表示する
-  // relatedTarget が null（ブラウザ外からの drag）かつ Files を含む場合のみ表示
-  if (e.dataTransfer.types.includes('Files') && e.relatedTarget === null) {
-    dropOverlay.classList.add('visible');
-  }
+initDropHandler({
+  onKmz:          file => openImportModalFromKmz(file),
+  onGpx:          file => loadGpx(file),
+  onImage:        file => openImportModal(file),
+  onImageWithJgw: (imgs, jgw) => openImgwModal(imgs, jgw),
 });
-
-document.addEventListener('dragleave', () => {
-  dragCounter--;
-
-  if (dragCounter <= 0) {
-    dragCounter = 0;
-    dropOverlay.classList.remove('visible');
-  }
-});
-
-document.addEventListener('dragover', (e) => {
-  // デフォルト動作（ブラウザがファイルを開く）を止める
-  e.preventDefault();
-});
-
-document.addEventListener('drop', async (e) => {
-  e.preventDefault();
-  dragCounter = 0;
-  dropOverlay.classList.remove('visible');
-
-  const allFiles = Array.from(e.dataTransfer.files);
-  // ファイルが含まれない drop（スライダードラッグ等のブラウザ誤検知）は無視する
-  if (allFiles.length === 0) return;
-
-  // ファイルを種類別に振り分ける
-  const kmzFiles = allFiles.filter(f => /\.kmz$/i.test(f.name));
-  const gpxFiles = allFiles.filter(f => /\.gpx$/i.test(f.name));
-  const imgFiles = allFiles.filter(f => /\.(jpe?g|png)$/i.test(f.name));
-  const jgwFiles = allFiles.filter(f => /\.(jgw|pgw|tfw|wld)$/i.test(f.name));
-
-  if (kmzFiles.length === 0 && gpxFiles.length === 0 &&
-      imgFiles.length === 0 && jgwFiles.length === 0) {
-    alert('.kmz・.gpx・または 画像+ワールドファイル をドロップしてください。');
-    return;
-  }
-
-  // KMZ もモーダル経由に統一。GPX は即座に処理する
-  for (const file of kmzFiles) await openImportModalFromKmz(file);
-  for (const file of gpxFiles) { await loadGpx(file); }
-
-  // 画像は統合インポートモーダルへ（1枚ずつ）
-  // ワールドファイル付きの場合は従来の imgwModal にフォールバック
-  if (imgFiles.length > 0 && jgwFiles.length === 0) {
-    for (const file of imgFiles) openImportModal(file);
-  } else if (imgFiles.length > 0 || jgwFiles.length > 0) {
-    openImgwModal(
-      imgFiles.length > 0 ? imgFiles       : [],
-      jgwFiles.length > 0 ? jgwFiles[0]    : null,
-    );
-  }
-});
-
 
 /* ========================================================
     UIスライダー・チェックボックスのイベントリスナー設定
