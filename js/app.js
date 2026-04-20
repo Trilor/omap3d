@@ -18,18 +18,14 @@
            ④ CS 立体図・色別標高図・磁北線ソース/レイヤー
            ⑤ テレインマスタ自動読み込み
      §5  ローカル地図リスト描画（renderLocalMapList / renderOtherMapsTree）
-     §6  レイヤーパネル（_renderLayersList / _makeLayerItem）
-     §7  テレイン検索 UI（renderTerrainSearchResults / renderWorkspaceTerrainList）
-     §8  CS立体図・オーバーレイ表示制御（updateCsVisibility）
-     §9  ローディング表示（showMapLoading 等）
-     §10 ベースマップ切り替え（switchBasemap）
-     §11 等高線 UI（applyContourInterval / updateContourAutoInterval）
-     §12 UI 状態管理（saveUiState / restoreUiState / updateShareableUrl）
-     §13 削除ダイアログ群
-     §14 3D ビル（PLATEAU LOD1/LOD2 / deck.gl）
-     §15 左パネル・右パネル制御
-     §16 エクスプローラー ファイルツリー
-     §17 その他 UI（ボトムシート・右クリックメニュー）
+     §6  テレイン検索 UI（renderTerrainSearchResults / renderWorkspaceTerrainList）
+     §7  CS立体図・オーバーレイ表示制御（updateCsVisibility）
+     §8  左パネル・右パネル制御
+     §9  エクスプローラー ファイルツリー
+     §10 その他 UI（ボトムシート・右クリックメニュー）
+     ※ ベースマップ切替   → js/core/basemapController.js
+     ※ PLATEAU 3D建物     → js/core/plateauController.js
+     ※ レイヤーパネル     → js/ui/layersPanel.js
 
    ================================================================ */
 
@@ -169,26 +165,29 @@ import {
   getUserContourInterval, setUserContourInterval,
   getLastAppliedContourInterval,
 } from './core/contourController.js';
+import {
+  init as initBasemapController,
+  getCurrentBasemap, getOriLibreLayers, setOriLibreLayers, addOriLibreLayer,
+  getOriLibreCachedStyle, setOriLibreCachedStyle, switchBasemap,
+} from './core/basemapController.js';
+import {
+  init as initPlateauController,
+  syncTerrainRasterOpacity, setBuilding3dEnabled, setTerrain3dEnabled, updateBuildingLayer,
+} from './core/plateauController.js';
+import {
+  init as initLayersPanel, openLayersPanel, renderLayersPanel,
+} from './ui/layersPanel.js';
+import { terrainMap } from './store/terrainStore.js';
 
 // ================================================================
 // §2  グローバル状態変数
 // ================================================================
 
-// --- ベースマップ ---
-// isomizer が追加したレイヤーを [{ id, defaultVisibility }] 形式で保持
-let oriLibreLayers = [];
-let currentBasemap = 'orilibre';
-let oriLibreCachedStyle = null; // isomizer構築完了後のスタイルをキャッシュ（読図マップ用）
+// --- グローブ背景 ---
 let _globeBgEl = null;
 let _updateGlobeBg = null;
 
-// --- テレイン名マスタ（ワークスペースDB からロード後に populate する） ---
-const terrainMap = new Map();
-
 // --- 初期化順の影響を受ける共有状態（TDZ 回避のため var で早期宣言） ---
-var _plateauCurrentLod = null;
-var _plateauCurrentDatasetSignature = '';
-var _plateauCurrentGeoidSignature = '';
 var selMagneticCombined = null;
 var selMagneticModel = null;
 var selMagneticColor = null;
@@ -558,25 +557,25 @@ map.on('load', async () => {
 
     // isomizer が追加したレイヤーを収集（ベースマップ切替で一括 visibility 制御するため）
     // contour-source のレイヤーは除外（等高線はベースマップ切替の影響を受けない）
-    oriLibreLayers = map.getStyle().layers
+    setOriLibreLayers(map.getStyle().layers
       .filter(l => !snapshotBeforeIsomizer.has(l.id) && l.source !== 'contour-source')
       .map(l => ({
         id: l.id,
         defaultVisibility: l.layout?.visibility ?? 'visible',
         ...(l.type === 'background' ? { origBgColor: l.paint?.['background-color'] } : {}),
-      }));
-    console.log(`OriLibre レイヤー収集完了: ${oriLibreLayers.length} レイヤー`);
+      })));
+    console.log(`OriLibre レイヤー収集完了: ${getOriLibreLayers().length} レイヤー`);
 
     // backgroundレイヤーを最下層に移動（ラスターベースマップの下に配置）
     // ベースマップ切替時に色を変えるだけで済むようにする
-    const bgInit = oriLibreLayers.find(l => l.id.endsWith('-background'));
+    const bgInit = getOriLibreLayers().find(l => l.id.endsWith('-background'));
     if (bgInit && map.getLayer(bgInit.id)) {
       const firstId = map.getStyle().layers[0]?.id;
       if (firstId && firstId !== bgInit.id) map.moveLayer(bgInit.id, firstId);
     }
 
     // 読図マップ用にOriLibreスタイルをキャッシュ（ベースマップ切替後も正しく参照できるよう）
-    oriLibreCachedStyle = map.getStyle();
+    setOriLibreCachedStyle(map.getStyle());
 
     // ── 低ズームで外洋が緑一色になる問題を修正 ──────────────────────────────
     // OriLibre の海記号は gsivt/waterarea（国土地理院ベクタータイル、日本域のみ）を使用。
@@ -601,7 +600,7 @@ map.on('load', async () => {
         paint: { 'fill-color': '#00ffff' },
       }, firstGsivtLayerId);
       // ベースマップ切替で非表示にできるよう oriLibreLayers に登録
-      oriLibreLayers.push({ id: 'water-ocean-fill', defaultVisibility: 'visible' });
+      addOriLibreLayer({ id: 'water-ocean-fill', defaultVisibility: 'visible' });
     }
 
     // ── 3D建物ソース（PLATEAU 全国 LOD1 PMTiles）──────────────────────────────
@@ -1061,9 +1060,15 @@ map.on('load', async () => {
     updateCsVisibility,
   });
 
+  // ベースマップ切替コントローラー初期化
+  initBasemapController(map, { updateCsVisibility });
+
+  // PLATEAU 3Dビル・地形コントローラー初期化
+  initPlateauController(map);
+
   // UI状態管理モジュール初期化（restoreUiState より前に必要）
   initUiStateManager({
-    getCurrentBasemap:       () => currentBasemap,
+    getCurrentBasemap,
     getCurrentOverlay:       () => currentOverlay,
     setCurrentOverlay:       (v) => { currentOverlay = v; },
     getUserContourInterval,
@@ -1100,12 +1105,15 @@ map.on('load', async () => {
 
   // 出典管理モジュール初期化（currentBasemap / currentOverlay をゲッターで注入）
   initAttribution(map, {
-    getBasemap: () => currentBasemap,
+    getBasemap: getCurrentBasemap,
     getOverlay: () => currentOverlay,
   });
 
   // 磁北線モジュール初期化（PCシム readmap をゲッターで遅延注入）
   initMagneticLines(map, { getReadMap: () => pcSimState.readMap });
+
+  // レイヤーパネルモジュール初期化
+  initLayersPanel(map, { onStorageClear: _updateStorageInfoBar });
 
   // ローカル地図レイヤーストア初期化
   initLocalMapStore(map);
@@ -1143,7 +1151,7 @@ map.on('load', async () => {
   initSim(map, {
     getUpdateGlobeBg:              () => _updateGlobeBg,
     getLastAppliedContourInterval,
-    getOriLibreCachedStyle:        () => oriLibreCachedStyle,
+    getOriLibreCachedStyle,
   });
 
   // 地名検索初期化
@@ -1360,495 +1368,6 @@ function renderLocalMapList() {
   renderSimReadmapList();
 }
 
-
-/* =====================================================================
-   レイヤーパネル — 2画面ナビゲーション管理
-   ・List view  : お気に入りテレイン + レイヤーがあるテレインの一覧
-   ・Detail view: 選択テレインのクイックアクション + レイヤーリスト
-   地図クリック（テレインポリゴン・画像レイヤー）で Detail view に遷移する。
-   ===================================================================== */
-
-// ---- お気に入りテレインの永続化 ----
-const _favTerrains = new Set(
-  JSON.parse(localStorage.getItem('fav-terrains') ?? '[]')
-);
-function _saveFavTerrains() {
-  localStorage.setItem('fav-terrains', JSON.stringify([..._favTerrains]));
-}
-function _toggleFavTerrain(tid) {
-  if (_favTerrains.has(tid)) { _favTerrains.delete(tid); }
-  else                       { _favTerrains.add(tid); }
-  _saveFavTerrains();
-}
-
-// ---- レイヤーパネルのビュー状態 ----
-let _layersView     = 'list'; // 'list' | 'detail'
-let _layersDetailId = null;   // detail view で表示中の terrain ID（null = 未分類）
-
-/** サイドバーの指定パネルを強制的に開く（同一パネルのトグル閉じを防ぐ） */
-// _openSidebarPanel → ui/uiState.js の openSidebarPanel に移動済み
-
-/**
- * レイヤータブを開いて指定テレインの詳細へ遷移する。
- * terrainId を省略すると一覧に戻る。
- * @param {string|null|undefined} terrainId
- */
-function openLayersPanel(terrainId) {
-  openSidebarPanel('layers');
-  if (terrainId !== undefined) {
-    showLayersDetail(terrainId);
-  } else {
-    showLayersList();
-  }
-}
-
-/** レイヤーパネルを一覧ビューに切り替えて再描画する */
-function showLayersList() {
-  _layersView = 'list';
-  const listEl   = document.getElementById('layers-view-list');
-  const detailEl = document.getElementById('layers-view-detail');
-  if (listEl)   listEl.style.display   = '';
-  if (detailEl) detailEl.style.display = 'none';
-  _renderLayersList();
-}
-
-/** レイヤーパネルを詳細ビューに切り替えて再描画する */
-function showLayersDetail(terrainId) {
-  _layersView     = 'detail';
-  _layersDetailId = terrainId ?? null;
-  const listEl   = document.getElementById('layers-view-list');
-  const detailEl = document.getElementById('layers-view-detail');
-  if (listEl)   listEl.style.display   = 'none';
-  if (detailEl) detailEl.style.display = '';
-  _renderLayersDetail(_layersDetailId);
-}
-
-/** renderLayersPanel — 現在のビュー状態に合わせて再描画する */
-function renderLayersPanel() {
-  if (_layersView === 'detail') {
-    _renderLayersDetail(_layersDetailId);
-  } else {
-    _renderLayersList();
-  }
-}
-
-/* ---- List view: テレインフォルダ一覧 ---- */
-function _renderLayersList() {
-  const listEl = document.getElementById('layers-view-list');
-  if (!listEl) return;
-  listEl.innerHTML = '';
-
-  // 表示対象: お気に入り ∪ レイヤーがあるテレイン ∪ 未分類(null)
-  const terrainIdsWithLayers = new Set(localMapLayers.map(e => e.terrainId));
-  const hasUncategorized = terrainIdsWithLayers.has(null);
-  const hasGpx = gpxState.trackPoints.length > 0;
-
-  // お気に入り + レイヤー持ちテレイン (null 除く) を unified Set で列挙
-  const allIds = new Set([..._favTerrains]);
-  terrainIdsWithLayers.forEach(id => { if (id !== null) allIds.add(id); });
-
-  // テレイン名でソートして表示
-  const sortedIds = [...allIds].sort((a, b) => {
-    const na = terrainMap.get(a)?.name ?? a;
-    const nb = terrainMap.get(b)?.name ?? b;
-    return na.localeCompare(nb, 'ja');
-  });
-
-  if (sortedIds.length === 0 && !hasUncategorized && !hasGpx) {
-    const hint = document.createElement('div');
-    hint.className = 'layers-empty-hint';
-    hint.innerHTML =
-      'テレインタブでテレインを選択し、<br>☆ をタップしてお気に入りに追加すると<br>ここにフォルダが表示されます。';
-    listEl.appendChild(hint);
-    return;
-  }
-
-  // ---- テレインフォルダアイテム ----
-  sortedIds.forEach(tid => {
-    const layerCount = localMapLayers.filter(e => e.terrainId === tid).length;
-    const isFav = _favTerrains.has(tid);
-    const terrainName = terrainMap.get(tid)?.name ?? tid;
-
-    const item = document.createElement('div');
-    item.className = 'layers-list-item';
-    item.setAttribute('role', 'button');
-    item.setAttribute('tabindex', '0');
-
-    // ★ お気に入りボタン
-    const starBtn = document.createElement('button');
-    starBtn.className = 'layers-list-star' + (isFav ? ' active' : '');
-    starBtn.title = isFav ? 'お気に入りから削除' : 'お気に入りに追加';
-    starBtn.setAttribute('aria-label', isFav ? 'お気に入りから削除' : 'お気に入りに追加');
-    starBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="${isFav ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`;
-
-    // テレイン名
-    const nameSpan = document.createElement('span');
-    nameSpan.className = 'layers-list-name';
-    nameSpan.textContent = terrainName;
-
-    // レイヤー数バッジ（0件でも表示）
-    const badge = document.createElement('span');
-    badge.className = 'layers-list-badge';
-    badge.textContent = layerCount;
-
-    // 右矢印
-    const arrow = document.createElement('span');
-    arrow.className = 'layers-list-arrow';
-    arrow.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>';
-
-    item.appendChild(starBtn);
-    item.appendChild(nameSpan);
-    item.appendChild(badge);
-    item.appendChild(arrow);
-    listEl.appendChild(item);
-
-    // クリック → 詳細ビューへ（starBtn 除く）
-    item.addEventListener('click', (ev) => {
-      if (ev.target.closest('.layers-list-star')) return;
-      showLayersDetail(tid);
-    });
-    item.addEventListener('keydown', (ev) => {
-      if (ev.key === 'Enter') showLayersDetail(tid);
-    });
-
-    // ★ ボタン
-    starBtn.addEventListener('click', (ev) => {
-      ev.stopPropagation();
-      _toggleFavTerrain(tid);
-      _renderLayersList(); // 一覧を再描画（お気に入りが0になればアイテムが消える場合も）
-    });
-  });
-
-  // ---- 未分類フォルダ ----
-  if (hasUncategorized) {
-    const uncatCount = localMapLayers.filter(e => e.terrainId === null).length;
-    const item = document.createElement('div');
-    item.className = 'layers-list-item layers-list-item--uncat';
-    item.setAttribute('role', 'button');
-    item.setAttribute('tabindex', '0');
-
-    const icon = document.createElement('span');
-    icon.className = 'layers-list-folder-icon';
-    icon.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>';
-
-    const nameSpan = document.createElement('span');
-    nameSpan.className = 'layers-list-name';
-    nameSpan.textContent = '未分類';
-
-    const badge = document.createElement('span');
-    badge.className = 'layers-list-badge';
-    badge.textContent = uncatCount;
-
-    const arrow = document.createElement('span');
-    arrow.className = 'layers-list-arrow';
-    arrow.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>';
-
-    item.appendChild(icon);
-    item.appendChild(nameSpan);
-    item.appendChild(badge);
-    item.appendChild(arrow);
-    listEl.appendChild(item);
-
-    item.addEventListener('click', () => showLayersDetail(null));
-    item.addEventListener('keydown', (ev) => {
-      if (ev.key === 'Enter') showLayersDetail(null);
-    });
-  }
-
-  // ---- GPX アイテム（常時表示） ----
-  if (hasGpx) {
-    const gpxItem = _makeGpxListItem();
-    listEl.appendChild(gpxItem);
-  }
-}
-
-/* ---- Detail view: テレイン詳細 ---- */
-function _renderLayersDetail(tid) {
-  const body = document.getElementById('layers-detail-body');
-  const titleEl = document.getElementById('layers-detail-title');
-  const favBtn  = document.getElementById('layers-fav-btn');
-  const favIcon = document.getElementById('layers-fav-icon');
-  if (!body) return;
-
-  // ---- ナビバーの更新 ----
-  const terrainName = (tid === null)
-    ? '未分類'
-    : (terrainMap.get(tid)?.name ?? tid ?? '未選択');
-
-  if (titleEl) titleEl.textContent = terrainName;
-
-  // お気に入りボタン（未分類には不要）
-  if (favBtn) {
-    favBtn.style.display = (tid === null) ? 'none' : '';
-    if (tid !== null && favIcon) {
-      const isFav = _favTerrains.has(tid);
-      favIcon.setAttribute('fill', isFav ? 'currentColor' : 'none');
-      favBtn.title = isFav ? 'お気に入りから削除' : 'お気に入りに追加';
-      favBtn.classList.toggle('active', isFav);
-    }
-  }
-
-  // ---- レイヤー一覧 ----
-  body.innerHTML = '';
-
-  const entries = localMapLayers.filter(e => e.terrainId === tid);
-  const hasGpx  = gpxState.trackPoints.length > 0;
-
-  if (entries.length === 0 && !hasGpx) {
-    const hint = document.createElement('div');
-    hint.className = 'layers-empty-hint';
-    hint.textContent = tid === null
-      ? '未分類のレイヤーはありません'
-      : '画像を追加かGPXを追加でデータを読み込んでください';
-    body.appendChild(hint);
-    return;
-  }
-
-  // 画像レイヤーセクション
-  if (entries.length > 0) {
-    const sec = document.createElement('div');
-    sec.className = 'layers-detail-section';
-    const secLabel = document.createElement('div');
-    secLabel.className = 'layers-detail-section-label';
-    secLabel.textContent = '画像レイヤー';
-    sec.appendChild(secLabel);
-    entries.forEach(e => sec.appendChild(_makeLayerItem(e)));
-    body.appendChild(sec);
-  }
-
-  // GPX セクション
-  if (hasGpx) {
-    body.appendChild(_makeGpxDetailItem());
-  }
-}
-
-/* ---- リスト用 GPX アイテム ---- */
-function _makeGpxListItem() {
-  const item = document.createElement('div');
-  item.className = 'layers-list-item layers-list-item--gpx';
-
-  const icon = document.createElement('span');
-  icon.className = 'layers-list-folder-icon';
-  icon.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>';
-
-  const gpxVis = map.getLayer('gpx-track')
-    ? map.getLayoutProperty('gpx-track', 'visibility') !== 'none' : true;
-
-  const chk = document.createElement('input');
-  chk.type = 'checkbox';
-  chk.className = 'layers-gpx-chk';
-  chk.checked = gpxVis;
-  chk.title = 'GPXトラックの表示/非表示';
-
-  const name = document.createElement('span');
-  name.className = 'layers-list-name' + (gpxVis ? '' : ' disabled');
-  name.textContent = gpxState.fileName ?? 'GPXトラック';
-
-  item.appendChild(icon);
-  item.appendChild(chk);
-  item.appendChild(name);
-
-  chk.addEventListener('change', () => {
-    const vis = chk.checked ? 'visible' : 'none';
-    name.classList.toggle('disabled', !chk.checked);
-    ['gpx-track', 'gpx-track-outline', 'gpx-marker'].forEach(lid => {
-      if (map.getLayer(lid)) map.setLayoutProperty(lid, 'visibility', vis);
-    });
-  });
-
-  return item;
-}
-
-/* ---- 詳細ビュー内 GPX アイテム ---- */
-function _makeGpxDetailItem() {
-  const sec = document.createElement('div');
-  sec.className = 'layers-detail-section';
-
-  const secLabel = document.createElement('div');
-  secLabel.className = 'layers-detail-section-label';
-  secLabel.textContent = 'GPXトラック';
-  sec.appendChild(secLabel);
-
-  const item = document.createElement('div');
-  item.className = 'layer-item';
-
-  const row = document.createElement('div');
-  row.className = 'layer-item-row1';
-
-  const gpxVis = map.getLayer('gpx-track')
-    ? map.getLayoutProperty('gpx-track', 'visibility') !== 'none' : true;
-
-  const chk = document.createElement('input');
-  chk.type = 'checkbox';
-  chk.className = 'layer-item-chk';
-  chk.checked = gpxVis;
-
-  const name = document.createElement('span');
-  name.className = 'layer-item-name' + (gpxVis ? '' : ' disabled');
-  name.textContent = gpxState.fileName ?? 'トラック';
-
-  row.appendChild(chk);
-  row.appendChild(name);
-  item.appendChild(row);
-  sec.appendChild(item);
-
-  chk.addEventListener('change', () => {
-    const vis = chk.checked ? 'visible' : 'none';
-    name.classList.toggle('disabled', !chk.checked);
-    ['gpx-track', 'gpx-track-outline', 'gpx-marker'].forEach(lid => {
-      if (map.getLayer(lid)) map.setLayoutProperty(lid, 'visibility', vis);
-    });
-  });
-
-  return sec;
-}
-
-/** レイヤー1件分のアイテム要素を生成する */
-function _makeLayerItem(entry) {
-  const item = document.createElement('div');
-  item.className = 'layer-item';
-
-  const row1 = document.createElement('div');
-  row1.className = 'layer-item-row1';
-
-  const chk = document.createElement('input');
-  chk.type = 'checkbox';
-  chk.className = 'layer-item-chk';
-  chk.checked = entry.visible;
-
-  const name = document.createElement('span');
-  name.className = 'layer-item-name' + (entry.visible ? '' : ' disabled');
-  name.textContent = entry.name.replace(/\.(kmz|jpg|jpeg|png|tif|tiff)$/i, '');
-  name.title = entry.name;
-
-  const delBtn = document.createElement('button');
-  delBtn.className = 'layer-item-del';
-  delBtn.title = '削除';
-  delBtn.innerHTML = '✕';
-
-  row1.appendChild(chk);
-  row1.appendChild(name);
-  row1.appendChild(delBtn);
-  item.appendChild(row1);
-
-  // 透明度スライダー行
-  const row2 = document.createElement('div');
-  row2.className = 'layer-item-row2';
-  const pct = Math.round(entry.opacity * 100);
-  const slider = document.createElement('input');
-  slider.type = 'range';
-  slider.className = 'ui-slider layer-item-slider';
-  slider.min = 0; slider.max = 100; slider.step = 5; slider.value = pct;
-  slider.disabled = !entry.visible;
-  const valSpan = document.createElement('span');
-  valSpan.className = 'layer-item-opacity-val';
-  valSpan.textContent = pct + '%';
-  row2.appendChild(slider);
-  row2.appendChild(valSpan);
-  item.appendChild(row2);
-
-  // チェックボックス：表示/非表示
-  chk.addEventListener('change', () => {
-    entry.visible = chk.checked;
-    name.classList.toggle('disabled', !entry.visible);
-    slider.disabled = !entry.visible;
-    if (map.getLayer(entry.layerId)) {
-      map.setLayoutProperty(entry.layerId, 'visibility', entry.visible ? 'visible' : 'none');
-    }
-    if (entry.dbId != null) {
-      updateMapLayerState(entry.dbId, { visible: entry.visible }).catch(() => {});
-    }
-    // kmz-list 側も同期
-    const masterChk = document.getElementById(`chk-kmz-${entry.id}`);
-    if (masterChk) masterChk.checked = entry.visible;
-  });
-
-  // スライダー：透明度
-  updateSliderGradient(slider);
-  slider.addEventListener('input', () => {
-    entry.opacity = parseInt(slider.value) / 100;
-    valSpan.textContent = slider.value + '%';
-    updateSliderGradient(slider);
-    if (entry.visible && map.getLayer(entry.layerId)) {
-      map.setPaintProperty(entry.layerId, 'raster-opacity', toRasterOpacity(entry.opacity));
-    }
-    if (entry.dbId != null) {
-      updateMapLayerState(entry.dbId, { opacity: entry.opacity }).catch(() => {});
-    }
-    // kmz-list 側も同期
-    const masterSlider = document.getElementById(`slider-kmz-${entry.id}`);
-    if (masterSlider) { masterSlider.value = slider.value; updateSliderGradient(masterSlider); }
-    const masterVal = document.getElementById(`val-kmz-${entry.id}`);
-    if (masterVal) masterVal.textContent = slider.value + '%';
-  });
-
-  // 削除ボタン
-  delBtn.addEventListener('click', () => {
-    removeLocalMapLayer(entry.id);
-  });
-
-  return item;
-}
-
-
-
-
-
-/* ========================================================
-    レイヤーパネル — 詳細ビューのイベントハンドラ
-    ======================================================== */
-
-// 戻るボタン
-document.getElementById('layers-back-btn')?.addEventListener('click', () => {
-  showLayersList();
-});
-
-// お気に入りボタン（ヘッダー右端）
-document.getElementById('layers-fav-btn')?.addEventListener('click', () => {
-  if (_layersDetailId === null) return; // 未分類はお気に入り対象外
-  _toggleFavTerrain(_layersDetailId);
-  _renderLayersDetail(_layersDetailId); // アイコン更新
-  // 一覧ビューに戻ったときに反映されるよう list も再描画（非表示なので軽量）
-  _renderLayersList();
-});
-
-// ---- クイックアクションボタン ----
-
-// 画像を追加 → 既存の画像+JGW モーダルを開く（インポートモーダル経由）
-document.getElementById('layers-qa-image')?.addEventListener('click', () => {
-  const input = document.getElementById('map-import-input-top');
-  if (input) input.click();
-});
-
-// GPXを追加 → 既存の GPX ファイル選択をトリガー
-document.getElementById('layers-qa-gpx')?.addEventListener('click', () => {
-  const input = document.getElementById('gpx-file-input');
-  if (input) input.click();
-});
-
-// コース作成 → コースタブに切り替え
-document.getElementById('layers-qa-course')?.addEventListener('click', () => {
-  openSidebarPanel('course');
-});
-
-/* ========================================================
-    ファイル選択ボタンの制御
-    ======================================================== */
-
-// ---- ストレージ全消去ボタン ----
-document.getElementById('storage-clear-btn')?.addEventListener('click', async () => {
-  if (!confirm('ストレージに保存されたすべての地図を削除しますか？\n地図の表示データは失われます。')) return;
-  try {
-    await clearAllMapLayers();
-    // localMapLayers から DB バック済みエントリを地図ごと削除する
-    const toRemove = localMapLayers.filter(e => e.dbId != null).map(e => e.id);
-    for (const id of toRemove) removeLocalMapLayer(id);
-    _updateStorageInfoBar();
-  } catch (e) {
-    console.error('ストレージ消去エラー:', e);
-    alert('ストレージの消去に失敗しました。');
-  }
-});
 
 // ---- 統合インポートボタン（KMZ / 画像 → すべて位置合わせモーダルへ） ----
 const mapImportInputTop = document.getElementById('map-import-input-top');
@@ -2534,7 +2053,7 @@ document.addEventListener('drop', async (e) => {
 let currentOverlay = 'none'; // 選択中のオーバーレイキー（'none' = オーバーレイなし）
 
 function updateCsVisibility() {
-  const basemap    = currentBasemap;
+  const basemap    = getCurrentBasemap();
   const overlayOn  = currentOverlay !== 'none';
   const overlay    = currentOverlay;
 
@@ -2733,473 +2252,6 @@ sliderCs.addEventListener('input', () => {
   });
 
 
-// ---- deck.gl 遅延ロード（PLATEAU LOD2/LOD3 選択時のみ読み込む）----
-// deck.gl v9 は luma.gl v9 の頂点属性バリデーション (size: 1) で PLATEAU b3dm が読めない
-// ため、安定動作する v8.9 系を使用する。
-
-// ---- PLATEAU 公式 API から建物モデルデータを動的取得 ----
-// API: https://api.plateauview.mlit.go.jp/datacatalog/plateau-datasets?type=bldg&format=3dtiles
-// キャッシュしてセッション中の重複リクエストを防ぐ
-const PLATEAU_API_URL = 'https://api.plateauview.mlit.go.jp/datacatalog/plateau-datasets?type=bldg&format=3dtiles';
-const PLATEAU_GEOID_API_URL_2011 = 'https://vldb.gsi.go.jp/sokuchi/surveycalc/geoid/calcgh2011/cgi/geoidcalc.pl';
-let _plateauApiCache = null; // { lod2: [...], lod3: [...] } | null
-const _plateauGeoidCache = new Map(); // key: "lat,lng"（小数第3位丸め） -> geoidHeight(m)
-
-async function _fetchPlateauDatasets() {
-  if (_plateauApiCache) return _plateauApiCache;
-  const res = await fetch(PLATEAU_API_URL);
-  if (!res.ok) throw new Error('PLATEAU API fetch failed: ' + res.status);
-  const json = await res.json();
-  const datasets = json.datasets ?? json;
-  const lod2 = datasets.filter(d => String(d.lod) === '2');
-  const lod3 = datasets.filter(d => String(d.lod) === '3');
-  console.log(`PLATEAU API: 全${datasets.length}件 LOD2=${lod2.length}件 LOD3=${lod3.length}件`);
-  _plateauApiCache = { lod2, lod3 };
-  return _plateauApiCache;
-}
-
-// ---- PLATEAU 位置連動：逆ジオコーダーで地図中心の市区町村を特定して自動表示 ----
-// 地理院逆ジオコーダー API（市区町村コード・名称を返す）
-const GSI_REVERSE_URL = 'https://mreversegeocoder.gsi.go.jp/reverse-geocoder/LonLatToAddress';
-
-// 現在表示中の PLATEAU データ状態
-_plateauCurrentLod = _plateauCurrentLod ?? null; // 最後に表示した lod（2 or 3）
-_plateauCurrentDatasetSignature = _plateauCurrentDatasetSignature ?? ''; // 最後に表示した tileset 群の署名
-_plateauCurrentGeoidSignature = _plateauCurrentGeoidSignature ?? ''; // 最後に適用したジオイド高署名
-let _plateauAutoTimer       = null; // moveend デバウンスタイマー
-
-// 地域ラベルを更新する
-function _updatePlateauAreaLabel(text) {
-  const el = document.getElementById('plateau-area-label');
-  if (el) el.innerHTML = text || '—';
-}
-
-// PLATEAU エリアラベルの表示/非表示
-function _showPlateauAreaLabel() {
-  const el = document.getElementById('plateau-area-label');
-  if (el) el.style.display = '';
-}
-function _hidePlateauAreaLabel() {
-  const el = document.getElementById('plateau-area-label');
-  if (el) el.style.display = 'none';
-}
-
-function _getApproxJapaneseGeoidHeight(latDeg) {
-  return latDeg >= 41 ? 31
-    : latDeg >= 38 ? 35
-    : latDeg >= 34 ? 38
-    : 37;
-}
-
-function _getPlateauGeoidCacheKey(lng, lat) {
-  return `${lat.toFixed(3)},${lng.toFixed(3)}`;
-}
-
-function _extractGeoidHeightValue(payload) {
-  if (payload == null) return null;
-  if (Array.isArray(payload)) {
-    for (const value of payload) {
-      const found = _extractGeoidHeightValue(value);
-      if (Number.isFinite(found)) return found;
-    }
-    return null;
-  }
-  if (typeof payload === 'object') {
-    const direct = Number(payload.geoidHeight);
-    if (Number.isFinite(direct)) return direct;
-    for (const value of Object.values(payload)) {
-      const found = _extractGeoidHeightValue(value);
-      if (Number.isFinite(found)) return found;
-    }
-  }
-  return null;
-}
-
-async function _fetchPlateauGeoidHeight(lng, lat) {
-  const cacheKey = _getPlateauGeoidCacheKey(lng, lat);
-  if (_plateauGeoidCache.has(cacheKey)) return _plateauGeoidCache.get(cacheKey);
-
-  const params = new URLSearchParams({
-    outputType: 'json',
-    latitude: lat.toFixed(8),
-    longitude: lng.toFixed(8),
-  });
-  const res = await fetch(`${PLATEAU_GEOID_API_URL_2011}?${params.toString()}`);
-  if (!res.ok) throw new Error(`ジオイド高 API fetch failed: ${res.status}`);
-  const payload = await res.json();
-  const geoidHeight = _extractGeoidHeightValue(payload);
-  if (!Number.isFinite(geoidHeight)) {
-    throw new Error('ジオイド高 API の応答から geoidHeight を取得できませんでした');
-  }
-  _plateauGeoidCache.set(cacheKey, geoidHeight);
-  return geoidHeight;
-}
-
-function _resetPlateauDeckState() {
-  _plateauCurrentLod = null;
-  _plateauCurrentDatasetSignature = '';
-  _plateauCurrentGeoidSignature = '';
-}
-
-// 地図中心の市区町村コードを地理院逆ジオコーダーで取得
-// 返り値: { muniCd: "13101", lv01Nm: "千代田区" } | null
-async function _reverseGeocode(lng, lat) {
-  const url = `${GSI_REVERSE_URL}?lat=${lat}&lon=${lng}`;
-  const res = await fetch(url);
-  if (!res.ok) return null;
-  const json = await res.json();
-  const result = json.results ?? null;
-  console.log('逆ジオコーダー結果:', result);
-  return result;
-}
-
-function _getPlateauGridSamplePoints() {
-  const bounds = map.getBounds();
-  const west = bounds.getWest();
-  const east = bounds.getEast();
-  const south = bounds.getSouth();
-  const north = bounds.getNorth();
-  const lngs = [west, (west + east) / 2, east];
-  const lats = [south, (south + north) / 2, north];
-  const points = [];
-  for (const lat of lats) {
-    for (const lng of lngs) {
-      points.push({ lng, lat });
-    }
-  }
-  return points;
-}
-
-function _findPlateauDatasetEntry(datasets, muniCd) {
-  return datasets.find(d => String(d.city_code) === muniCd)
-      ?? datasets.find(d => d.ward_code && String(d.ward_code) === muniCd)
-      ?? datasets.find(d => String(d.city_code) === muniCd.slice(0, 4) + '0' && !d.ward);
-}
-
-function _buildPlateauAreaSummary(entries) {
-  if (!entries.length) return '対象地域外';
-  const labels = entries.map(({ entry }) => `${entry.pref} ${entry.ward ? `${entry.city} ${entry.ward}` : entry.city}`);
-  return labels.join('<br>');
-}
-
-// 市区町村コード（5桁）でPLATEAUデータセットを検索して表示
-async function _autoShowPlateauByPosition(lod) {
-  if (!document.getElementById('building3d-card')?.classList.contains('active')) return;
-  if (map.getZoom() < 15) {
-    _deckPlateauLayers = [];
-    _commitDeckLayers();
-    _resetPlateauDeckState();
-    _updatePlateauAreaLabel('ズーム15以上で表示');
-    return;
-  }
-  try {
-    const samplePoints = _getPlateauGridSamplePoints();
-    const cache = await _fetchPlateauDatasets();
-    const datasets = lod === 2 ? cache.lod2 : cache.lod3;
-
-    // ① 9点を並列で逆ジオコーディング
-    const reverseResults = await Promise.all(samplePoints.map(async (point) => {
-      const geo = await _reverseGeocode(point.lng, point.lat);
-      if (!geo?.muniCd) return null;
-      const muniCd = String(geo.muniCd).padStart(5, '0');
-      const entry = _findPlateauDatasetEntry(datasets, muniCd);
-      if (!entry) return null;
-      let geoidHeight;
-      try {
-        geoidHeight = await _fetchPlateauGeoidHeight(point.lng, point.lat);
-      } catch (geoidError) {
-        geoidHeight = _getApproxJapaneseGeoidHeight(point.lat);
-        console.warn('PLATEAU ジオイド高 API 取得失敗。概算値で補正します:', geoidError);
-      }
-      return { point, muniCd, entry, geoidHeight };
-    }));
-
-    const grouped = new Map();
-    for (const result of reverseResults) {
-      if (!result) continue;
-      const key = result.entry.url;
-      if (!grouped.has(key)) {
-        grouped.set(key, { entry: result.entry, muniCodes: new Set(), geoidHeights: [] });
-      }
-      const item = grouped.get(key);
-      item.muniCodes.add(result.muniCd);
-      item.geoidHeights.push(result.geoidHeight);
-    }
-
-    const matchedEntries = Array.from(grouped.values()).map((item) => ({
-      entry: item.entry,
-      muniCodes: Array.from(item.muniCodes).sort(),
-      geoidHeight: item.geoidHeights.reduce((sum, value) => sum + value, 0) / item.geoidHeights.length,
-    })).sort((a, b) => a.entry.url.localeCompare(b.entry.url));
-
-    if (!matchedEntries.length) {
-      _deckPlateauLayers = [];
-      _commitDeckLayers();
-      _resetPlateauDeckState();
-      _updatePlateauAreaLabel(`データなし（LOD${lod}）`);
-      updatePlateauAttribution();
-      return;
-    }
-
-    const datasetSignature = matchedEntries.map(({ entry, muniCodes }) => `${entry.url}|${muniCodes.join(',')}`).join('||');
-    const geoidSignature = matchedEntries.map(({ entry, geoidHeight }) => `${entry.url}|${geoidHeight.toFixed(2)}`).join('||');
-
-    if (lod === _plateauCurrentLod
-      && datasetSignature === _plateauCurrentDatasetSignature
-      && geoidSignature === _plateauCurrentGeoidSignature) {
-      _updatePlateauAreaLabel(_buildPlateauAreaSummary(matchedEntries));
-      return;
-    }
-
-    // ② 必要な tileset 群をまとめて表示
-    _plateauCurrentLod = lod;
-    _plateauCurrentDatasetSignature = datasetSignature;
-    _plateauCurrentGeoidSignature = geoidSignature;
-    _updatePlateauAreaLabel(_buildPlateauAreaSummary(matchedEntries));
-    await _applyDeckTile3D(matchedEntries);
-    updatePlateauAttribution();
-
-  } catch (e) {
-    console.error('PLATEAU 自動取得失敗:', e);
-    _updatePlateauAreaLabel('取得エラー: ' + (e?.message ?? e));
-  }
-}
-
-// LOD2/LOD3 モードに切り替えたときにエリアラベルを表示して位置から検索
-async function _initPlateauAutoMode(lod) {
-  _showPlateauAreaLabel();
-  _updatePlateauAreaLabel('取得中…');
-  // LOD が変わった場合はキャッシュを無効化して再検索
-  if (lod !== _plateauCurrentLod) {
-    _resetPlateauDeckState();
-  }
-  await _autoShowPlateauByPosition(lod);
-}
-
-var _deckOverlay = null; // deck.MapboxOverlay インスタンス（PLATEAU 専用）
-var _deckPlateauLayers = []; // PLATEAU 用 deck.gl レイヤー群
-
-function _commitDeckLayers() {
-  if (!_deckOverlay) return;
-  _deckOverlay.setProps({ layers: [..._deckPlateauLayers] });
-}
-
-// deck.gl v8.9 + loaders.gl v3 は index.html で事前読み込み済み
-// window.deck の存在を確認するだけで済む（動的ロード不要）
-async function _loadDeckGl() {
-  if (window.deck) return;
-  // 万一 window.deck が未定義の場合は次フレームまで待機して再確認
-  await new Promise(r => requestAnimationFrame(r));
-  if (!window.deck) throw new Error('deck.gl の読み込みに失敗しました');
-}
-
-function _initDeckOverlay() {
-  if (_deckOverlay || !window.deck) return;
-  // interleaved: true で deck.gl を MapLibre の WebGL パイプライン内に挿入する。
-  _deckOverlay = new deck.MapboxOverlay({ interleaved: false, layers: [] });
-  map.addControl(_deckOverlay);
-  _commitDeckLayers();
-}
-
-
-
-// 指定 tileset.json URL の PLATEAU 3D Tiles を deck.gl で表示する汎用関数
-// （LOD2・LOD3 共用。visible=false で非表示）
-async function _applyDeckTile3D(tilesetEntries) {
-  if (!tilesetEntries?.length) {
-    _deckPlateauLayers = [];
-    _commitDeckLayers();
-    return;
-  }
-  showMapLoading();
-  try {
-    await _loadDeckGl();
-    _initDeckOverlay();
-    let remainingTilesets = tilesetEntries.length;
-    _deckPlateauLayers = tilesetEntries.map(({ entry, geoidHeight }, index) => new deck.Tile3DLayer({
-          id: `plateau-lod-${index}`,
-          data: entry.url,
-          loader: window.loaders?.Tiles3DLoader,
-          opacity: 0.8,
-          pointSize: 1,
-          // PBR ライティングを無効化してテクスチャ色をフラットに描画
-          _subLayerProps: {
-            scenegraph: { _lighting: 'flat' },
-          },
-          onTilesetLoad: (tileset) => {
-            const waitUntilLoaded = () => {
-              if (tileset.isLoaded) {
-                remainingTilesets -= 1;
-                if (remainingTilesets <= 0) hideMapLoading();
-                return;
-              }
-              requestAnimationFrame(waitUntilLoaded);
-            };
-            requestAnimationFrame(waitUntilLoaded);
-          },
-          // PLATEAU は楕円体高で、地形は標高ベースのためジオイド高分だけ下げる
-          onTileLoad: (tile) => {
-            if (tile.content?.cartographicOrigin) {
-              const o = tile.content.cartographicOrigin;
-              tile.content.cartographicOrigin = new Float64Array([o[0], o[1], o[2] - geoidHeight]);
-            }
-          },
-        }));
-    _commitDeckLayers();
-  } catch (e) {
-    hideMapLoading();
-    console.error('PLATEAU 3D Tiles の表示に失敗:', e);
-  }
-}
-
-// ---- 3D建物レイヤー切替 ----
-/* 建物モード:
-   'ofm'              OpenFreeMap（MapLibre fill-extrusion）
-   'plateau'          PLATEAU LOD1 全国（MapLibre fill-extrusion）
-   'plateau-lod2-api' PLATEAU LOD2 API動的取得（deck.gl Tile3DLayer）
-   'plateau-lod3-api' PLATEAU LOD3 API動的取得（deck.gl Tile3DLayer）
-   3D地形の ON/OFF とは独立して制御可能。 */
-var BUILDING_CFG = {
-  ofm: {
-    source:      'ofm',
-    sourceLayer: 'building',
-    height: ['coalesce', ['get', 'render_height'], 3],
-    base:   ['coalesce', ['get', 'render_min_height'], 0],
-  },
-  plateau: {
-    source:      'plateau-lod1',
-    sourceLayer: 'PLATEAU',
-    height: ['coalesce', ['get', 'measuredHeight'], 3],
-    base:   0,
-  },
-};
-
-async function updateBuildingLayer() {
-  const mode       = document.getElementById('sel-building')?.value ?? 'plateau';
-  const buildingOn = document.getElementById('building3d-card')?.classList.contains('active') ?? true;
-
-  // 既存 MapLibre レイヤーを一旦削除
-  if (map.getLayer('building-3d')) map.removeLayer('building-3d');
-
-  // PLATEAU LOD2/LOD3 API モード: 地図位置から自動取得して deck.gl で描画
-  if (mode === 'plateau-lod2-api' || mode === 'plateau-lod3-api') {
-    const lod = mode === 'plateau-lod2-api' ? 2 : 3;
-    if (!buildingOn) {
-      _deckPlateauLayers = [];
-      _commitDeckLayers();
-      _resetPlateauDeckState();
-      _hidePlateauAreaLabel();
-      updatePlateauAttribution();
-    } else {
-      await _initPlateauAutoMode(lod);
-    }
-    return;
-  }
-
-  // API モード以外: エリアラベルを非表示・deck.gl レイヤーをクリア
-  _hidePlateauAreaLabel();
-  _resetPlateauDeckState();
-  _deckPlateauLayers = [];
-  _commitDeckLayers();
-
-  if (!buildingOn) { updatePlateauAttribution(); return; }
-
-  const cfg = BUILDING_CFG[mode];
-  if (!cfg || !map.getSource(cfg.source)) return; // ソース未追加なら無視
-
-  map.addLayer({
-    id: 'building-3d',
-    type: 'fill-extrusion',
-    source: cfg.source,
-    'source-layer': cfg.sourceLayer,
-    minzoom: 15,
-    paint: {
-      'fill-extrusion-height':  cfg.height,
-      'fill-extrusion-base':    cfg.base,
-      'fill-extrusion-color':   'rgb(150, 150, 150)',
-      'fill-extrusion-opacity': 0.7,
-    },
-  });
-  updatePlateauAttribution();
-}
-
-document.getElementById('sel-building').addEventListener('change', () => {
-  updateBuildingLayer();
-  updateShareableUrl();
-  saveUiState();
-});
-
-// ---- 3D建物カード クリックでトグル ----
-const building3dCard = document.getElementById('building3d-card');
-function syncTerrainRasterOpacity() {
-  // 地形 ON/OFF で raster-opacity の補正有無が変わるため、全KMZレイヤーを再適用する
-  localMapLayers.forEach(entry => {
-    if (map.getLayer(entry.layerId)) {
-      map.setPaintProperty(entry.layerId, 'raster-opacity', toRasterOpacity(entry.opacity));
-    }
-  });
-}
-
-async function setBuilding3dEnabled(enabled, { updateCard = true } = {}) {
-  if (updateCard) building3dCard.classList.toggle('active', !!enabled);
-  await updateBuildingLayer();
-}
-
-building3dCard.addEventListener('click', (e) => {
-  if (e.target.closest('.custom-select-wrap') || e.target.closest('select')) return;
-  void setBuilding3dEnabled(!building3dCard.classList.contains('active'), { updateCard: true });
-  updateShareableUrl();
-  saveUiState();
-});
-
-// ---- 3D地形カード クリックでトグル + 誇張率セレクト ----
-const terrain3dCard = document.getElementById('terrain3d-card');
-const selTerrainExaggeration = document.getElementById('sel-terrain-exaggeration');
-// ズームレベルがこの値未満のとき3D地形を自動非表示にする
-const TERRAIN_AUTO_HIDE_ZOOM = 5;
-
-function setTerrain3dEnabled(enabled, { updateCard = true } = {}) {
-  if (updateCard) terrain3dCard.classList.toggle('active', !!enabled);
-  if (enabled) {
-    // ズームレベルが閾値未満のときは map.setTerrain を呼ばない（zoom イベントで復元される）
-    if (map.getZoom() >= TERRAIN_AUTO_HIDE_ZOOM) {
-      map.setTerrain({ source: 'terrain-dem', exaggeration: parseFloat(selTerrainExaggeration.value) });
-    }
-  } else {
-    map.setTerrain(null);
-  }
-  syncTerrainRasterOpacity();
-}
-
-terrain3dCard.addEventListener('click', (e) => {
-  if (e.target.closest('.custom-select-wrap') || e.target.closest('select')) return;
-  setTerrain3dEnabled(!terrain3dCard.classList.contains('active'), { updateCard: true });
-  updateShareableUrl();
-  saveUiState();
-});
-
-selTerrainExaggeration.addEventListener('change', () => {
-  if (terrain3dCard.classList.contains('active')) {
-    setTerrain3dEnabled(true, { updateCard: false });
-  }
-  updateShareableUrl();
-  saveUiState();
-});
-
-// ---- ズームレベル5未満で3D地形を自動非表示 ----
-// カードのON/OFF状態は変えず、map.setTerrain()のみ制御する。
-map.on('zoom', () => {
-  if (!terrain3dCard.classList.contains('active')) return; // もともとオフなら何もしない
-  const zoom = map.getZoom();
-  const terrainOn = !!map.getTerrain();
-  if (zoom < TERRAIN_AUTO_HIDE_ZOOM && terrainOn) {
-    map.setTerrain(null);
-    syncTerrainRasterOpacity();
-  } else if (zoom >= TERRAIN_AUTO_HIDE_ZOOM && !terrainOn) {
-    map.setTerrain({ source: 'terrain-dem', exaggeration: parseFloat(selTerrainExaggeration.value) });
-    syncTerrainRasterOpacity();
-  }
-});
 
 // ---- 磁北線 タイルカード ----
 const magneticCard = document.getElementById('magnetic-card');
@@ -3242,70 +2294,6 @@ selMagneticCombined?.addEventListener('change', () => {
 
 selMagneticColor?.addEventListener('input',  () => handleMagneticColorChange(saveUiState));
 selMagneticColor?.addEventListener('change', () => handleMagneticColorChange(saveUiState));
-
-// ---- ベースマップ切替 ----
-/**
- * ベースマップを切り替える。
- * setStyle() を使わず visibility の切り替えのみで実現するため、
- * KMZ / GPX / CS立体図 / 等高線 / 磁北線など後から追加した動的レイヤーには一切影響しない。
- *
- * レイヤー構成（下層 → 上層）:
- *   [ラスターベースマップ群] ← このグループを切り替える
- *   [OriLibre ベクターレイヤー群（isomizer 生成）]
- *   [等高線・CS立体図・KMZ・GPX・磁北線 …常時保持]
- *
- * @param {string} key - BASEMAPS のキー、または 'orilibre'
- */
-function switchBasemap(key) {
-  currentBasemap = key;
-
-  // ① すべてのベースマップレイヤーを非表示
-  Object.keys(BASEMAPS).filter(k => BASEMAPS[k].url).forEach(k => {
-    if (map.getLayer(k + '-layer')) map.setLayoutProperty(k + '-layer', 'visibility', 'none');
-  });
-  oriLibreLayers.forEach(({ id }) => {
-    if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', 'none');
-  });
-  if (map.getLayer('basemap-fallback-layer')) {
-    map.setLayoutProperty('basemap-fallback-layer', 'visibility', 'none');
-  }
-
-  // ② 選択されたベースマップのレイヤーを表示
-  if (key === 'orilibre') {
-    oriLibreLayers.forEach(({ id, defaultVisibility }) => {
-      if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', defaultVisibility);
-    });
-    if (map.getLayer('basemap-fallback-layer')) {
-      map.setLayoutProperty('basemap-fallback-layer', 'visibility', 'visible');
-    }
-  } else if (!key.startsWith('cs-')) {
-    if (map.getLayer(key + '-layer')) map.setLayoutProperty(key + '-layer', 'visibility', 'visible');
-  }
-
-  // ③ backgroundレイヤー（初期化時に最下層へ移動済み）の色を切り替えて常に表示
-  const bgLayer = oriLibreLayers.find(l => l.id.endsWith('-background'));
-  if (bgLayer && map.getLayer(bgLayer.id)) {
-    const bgColor = key === 'orilibre' ? bgLayer.origBgColor : (BASEMAPS[key]?.bgColor ?? '#ffffff');
-    map.setPaintProperty(bgLayer.id, 'background-color', bgColor);
-    map.setLayoutProperty(bgLayer.id, 'visibility', 'visible');
-  }
-
-  // CS 表示状態を更新（ベースマップとしての CS も updateCsVisibility で管理）
-  updateCsVisibility();
-  // 出典先頭のベースマップ表記を更新
-  updateBasemapAttribution();
-}
-
-// ---- ベースマップカード クリック処理 ----
-document.getElementById('basemap-cards').addEventListener('click', (e) => {
-  const card = e.target.closest('.bm-card');
-  if (!card) return;
-  document.querySelectorAll('#basemap-cards .bm-card').forEach(c => c.classList.remove('active'));
-  card.classList.add('active');
-  switchBasemap(card.dataset.key);
-  updateShareableUrl();
-  saveUiState();
-});
 
 
 // ---- サムネイル生成関連 ----
