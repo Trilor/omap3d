@@ -32,8 +32,9 @@
 import { getDeclination, setDeclinationModel } from './core/magneticDeclination.js';
 import { initCoursePlanner, setMapLayersGetter, setImportDoneCallback, migrateCourseSets } from './core/course.js';
 import {
-  updateMapLayerState, estimateStorageUsage,
-} from './api/mapImageDb.js';
+  init as initLocalMapListPanel,
+  renderOtherMapsTree, renderLocalMapList, updateStorageInfoBar,
+} from './ui/localMapListPanel.js';
 
 import {
   init as initExplorerController,
@@ -95,7 +96,6 @@ import {
   init as initScaleDisplay,
   getCurrentDevicePPI, updatePpiRuler, updatePpiSliderBubble, updateScaleDisplay,
 } from './ui/components/scaleDisplay.js';
-import { updateSliderGradient } from './utils/slider.js';
 import { escHtml } from './utils/dom.js';
 import {
   init as initAttribution,
@@ -1130,7 +1130,10 @@ map.on('load', async () => {
   initMagneticLines(map, { getReadMap: () => pcSimState.readMap });
 
   // レイヤーパネルモジュール初期化
-  initLayersPanel(map, { onStorageClear: _updateStorageInfoBar });
+  initLayersPanel(map, { onStorageClear: updateStorageInfoBar });
+
+  // ローカル地図リストパネルモジュール初期化
+  initLocalMapListPanel(map, { updateReadmapBgKmzOptions, renderSimReadmapList });
 
   // エクスプローラーモジュール初期化
   initExplorerController(map, { renderLocalMapList, renderOtherMapsTree });
@@ -1194,227 +1197,6 @@ map.on('load', async () => {
 
 
 
-
-// 「その他の地図」ノードの子要素（localMapLayers）を再描画する
-function renderOtherMapsTree() {
-  const otherEl = document.getElementById('frame-tree-other-children');
-  if (!otherEl) return;
-  otherEl.innerHTML = '';
-
-  if (localMapLayers.length === 0) {
-    _updateStorageInfoBar();
-    return;
-  }
-
-  localMapLayers.forEach(entry => {
-    const shortName = entry.name.replace(/\.(jpg|jpeg|png|kmz)$/i, '');
-
-    // ---- 名前行 ----
-    const childEl = document.createElement('div');
-    childEl.className = 'tree-child-item';
-
-    // 地図アイコン
-    const iconSpan = document.createElement('span');
-    iconSpan.textContent = '🗺️';
-    childEl.appendChild(iconSpan);
-
-    // DB 保存済みバッジ（💾）
-    if (entry.dbId != null) {
-      const badge = document.createElement('span');
-      badge.className = 'tree-saved-badge';
-      badge.title = 'ストレージに保存済み（次回起動時も表示されます）';
-      badge.textContent = '💾';
-      childEl.appendChild(badge);
-    }
-
-    // ファイル名ラベル（クリックで地図へジャンプ）
-    const nameSpan = document.createElement('span');
-    nameSpan.className = 'tree-child-name';
-    nameSpan.title = entry.name;
-    nameSpan.textContent = shortName;
-    nameSpan.addEventListener('click', () => {
-      if (entry.bbox) {
-        const pw = document.getElementById('sidebar')?.offsetWidth ?? SIDEBAR_DEFAULT_WIDTH;
-        map.fitBounds(
-          [[entry.bbox.west, entry.bbox.south], [entry.bbox.east, entry.bbox.north]],
-          { padding: { top: FIT_BOUNDS_PAD, bottom: FIT_BOUNDS_PAD,
-                       left: pw + FIT_BOUNDS_PAD_SIDEBAR, right: FIT_BOUNDS_PAD },
-            duration: EASE_DURATION }
-        );
-      }
-    });
-    childEl.appendChild(nameSpan);
-
-    // 削除ボタン
-    const delBtn = document.createElement('button');
-    delBtn.className = 'tree-child-del-btn';
-    delBtn.title = 'この地図を削除';
-    delBtn.textContent = '✕';
-    delBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      removeLocalMapLayer(entry.id);
-    });
-    childEl.appendChild(delBtn);
-
-    otherEl.appendChild(childEl);
-
-    // ---- コントロール行（トグル + 不透明度スライダー）----
-    otherEl.appendChild(_makeLayerCtrlRow(
-      entry.visible !== false,
-      Math.round((entry.opacity ?? 0.8) * 100),
-      (visible) => {
-        entry.visible = visible;
-        if (map.getLayer(entry.layerId)) {
-          map.setPaintProperty(entry.layerId, 'raster-opacity',
-            visible ? toRasterOpacity(entry.opacity) : 0);
-        }
-        // DB に可視状態を同期する
-        if (entry.dbId != null) {
-          updateMapLayerState(entry.dbId, { visible }).catch(() => {});
-        }
-      },
-      (pct) => {
-        entry.opacity = pct / 100;
-        if (map.getLayer(entry.layerId) && entry.visible !== false) {
-          map.setPaintProperty(entry.layerId, 'raster-opacity', toRasterOpacity(entry.opacity));
-        }
-        // DB に不透明度を同期する
-        if (entry.dbId != null) {
-          updateMapLayerState(entry.dbId, { opacity: entry.opacity }).catch(() => {});
-        }
-      }
-    ));
-  });
-
-  // ストレージ情報バーを更新する
-  _updateStorageInfoBar();
-}
-
-/** ストレージ情報バーの表示/非表示と使用量テキストを更新する */
-function _updateStorageInfoBar() {
-  const bar = document.getElementById('storage-info-bar');
-  if (!bar) return;
-  const hasDbLayers = localMapLayers.some(e => e.dbId != null);
-  bar.style.display = hasDbLayers ? '' : 'none';
-  if (!hasDbLayers) return;
-  estimateStorageUsage().then(({ usage }) => {
-    const el = bar.querySelector('.storage-usage-text');
-    if (el) el.textContent = usage
-      ? `ストレージ使用量: 約 ${(usage / 1024 / 1024).toFixed(1)} MB`
-      : 'ストレージ使用量: ---';
-  }).catch(() => {});
-}
-
-
-/*
-  ========================================================
-  読み込み済みKMZレイヤーの一覧をUIに描画する
-  ========================================================
-*/
-/*
-  KMZレイヤー一覧をUIに描画する。
-  各エントリに表示/非表示チェックボックス・透明度スライダー・削除ボタンを追加。
-*/
-function renderLocalMapList() {
-  const listEl = document.getElementById('kmz-list');
-  listEl.innerHTML = '';
-
-  // 読図地図セレクトのオプションを同期
-  updateReadmapBgKmzOptions();
-
-  if (localMapLayers.length === 0) return;
-
-  localMapLayers.forEach(entry => {
-    // 名前（拡張子なし）
-    const shortName = entry.name.replace(/\.kmz$/i, '');
-    const pct = Math.round(entry.opacity * 100);
-
-    const rowEl = document.createElement('div');
-    rowEl.className = 'layer-row';
-    rowEl.dataset.id = entry.id;
-
-    rowEl.innerHTML = `
-      <div class="layer-label-row">
-        <label class="toggle-switch">
-          <input type="checkbox" id="chk-kmz-${entry.id}" ${entry.visible ? 'checked' : ''} />
-          <span class="toggle-slider"></span>
-        </label>
-        <label class="layer-name${entry.visible ? '' : ' disabled'}" for="chk-kmz-${entry.id}" title="${entry.name}">${shortName}</label>
-        <button class="kmz-del-btn" title="削除" data-id="${entry.id}">✕</button>
-      </div>
-      <div class="opacity-row">
-        <input type="range" class="ui-slider" id="slider-kmz-${entry.id}" min="0" max="100" step="5" value="${pct}" ${entry.visible ? '' : 'disabled'} />
-        <span class="opacity-val" id="val-kmz-${entry.id}">${pct}%</span>
-      </div>`;
-    listEl.appendChild(rowEl);
-
-    // 削除ボタン
-    rowEl.querySelector('.kmz-del-btn').addEventListener('click', () => removeLocalMapLayer(entry.id));
-
-    // チェックボックス：表示/非表示
-    rowEl.querySelector(`#chk-kmz-${entry.id}`).addEventListener('change', (e) => {
-      entry.visible = e.target.checked;
-      const label = rowEl.querySelector('.layer-name');
-      const slider = rowEl.querySelector(`#slider-kmz-${entry.id}`);
-      label.classList.toggle('disabled', !entry.visible);
-      slider.disabled = !entry.visible;
-
-      if (map.getLayer(entry.layerId)) {
-        map.setLayoutProperty(entry.layerId, 'visibility', entry.visible ? 'visible' : 'none');
-      }
-    });
-
-    // スライダー：透明度
-    const sliderEl = rowEl.querySelector(`#slider-kmz-${entry.id}`);
-    const valEl = rowEl.querySelector(`#val-kmz-${entry.id}`);
-    updateSliderGradient(sliderEl);
-
-    sliderEl.addEventListener('input', () => {
-      entry.opacity = parseInt(sliderEl.value) / 100;
-      valEl.textContent = sliderEl.value + '%';
-      updateSliderGradient(sliderEl);
-
-      if (entry.visible && map.getLayer(entry.layerId)) {
-        map.setPaintProperty(entry.layerId, 'raster-opacity', toRasterOpacity(entry.opacity));
-      }
-    });
-  });
-
-  // シミュレータータブの読図地図リストも同期して更新
-  renderSimReadmapList();
-}
-
-
-// ---- 統合インポートボタン（KMZ / 画像 → すべて位置合わせモーダルへ） ----
-const mapImportInputTop = document.getElementById('map-import-input-top');
-document.getElementById('map-import-btn-top').addEventListener('click', () => mapImportInputTop.click());
-mapImportInputTop.addEventListener('change', async (e) => {
-  const files = Array.from(e.target.files);
-  for (const file of files) {
-    if (/\.kmz$/i.test(file.name)) {
-      await openImportModalFromKmz(file);
-    } else if (/\.(jpe?g|png)$/i.test(file.name)) {
-      openImportModal(file);
-    }
-  }
-  e.target.value = '';
-});
-
-// 「その他の地図」ドロップターゲット（手動位置合わせの受け皿）
-const otherMapsDropTarget = document.getElementById('other-maps-drop-target');
-if (otherMapsDropTarget) {
-  otherMapsDropTarget.addEventListener('dragover', e => { e.preventDefault(); otherMapsDropTarget.classList.add('drag-over'); });
-  otherMapsDropTarget.addEventListener('dragleave', () => otherMapsDropTarget.classList.remove('drag-over'));
-  otherMapsDropTarget.addEventListener('drop', async e => {
-    e.preventDefault();
-    otherMapsDropTarget.classList.remove('drag-over');
-    const files = Array.from(e.dataTransfer.files).filter(f => /\.(jpe?g|png|kmz)$/i.test(f.name));
-    for (const file of files) {
-      if (/\.kmz$/i.test(file.name)) await openImportModalFromKmz(file);
-      else openImportModal(file);
-    }
-  });
-}
 
 // GPXファイル選択ボタン
 const gpxFileInput = document.getElementById('gpx-file-input');
