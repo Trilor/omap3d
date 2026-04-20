@@ -57,7 +57,7 @@ import {
   contourState,
   contourLayerIds, DEM5A_CONTOUR_LAYER_IDS, DEM1A_CONTOUR_LAYER_IDS,
   COLOR_CONTOUR_Q_IDS, COLOR_CONTOUR_DEM5A_IDS, COLOR_CONTOUR_DEM1A_IDS,
-  setAllContourVisibility, buildColorContourExpr, buildContourThresholds,
+  buildColorContourExpr,
   buildContourTileUrl, buildSeamlessContourTileUrl, buildDem1aContourTileUrl,
 } from './core/contours.js';
 
@@ -163,6 +163,12 @@ import {
   init as initUiStateManager,
   saveUiState, updateShareableUrl, restoreUiState,
 } from './store/uiStateManager.js';
+import {
+  init as initContourController,
+  applyContourInterval, updateContourAutoInterval,
+  getUserContourInterval, setUserContourInterval,
+  getLastAppliedContourInterval,
+} from './core/contourController.js';
 
 // ================================================================
 // §2  グローバル状態変数
@@ -180,8 +186,6 @@ let _updateGlobeBg = null;
 const terrainMap = new Map();
 
 // --- 初期化順の影響を受ける共有状態（TDZ 回避のため var で早期宣言） ---
-var userContourInterval = 5;
-var lastAppliedContourInterval = null;
 var _plateauCurrentLod = null;
 var _plateauCurrentDatasetSignature = '';
 var _plateauCurrentGeoidSignature = '';
@@ -460,7 +464,7 @@ map.on('load', async () => {
     contourState.q1mSource.setupMaplibre(maplibregl);
     map.addSource('contour-source', {
       type: 'vector',
-      tiles: [buildContourTileUrl(userContourInterval)],
+      tiles: [buildContourTileUrl(5)], // 初期値5m; restoreUiState で上書きされる
       minzoom: 3,
       maxzoom: 15, // z15タイルをz16以上でオーバーズーム
       attribution: '',
@@ -485,7 +489,7 @@ map.on('load', async () => {
     contourState.dem5aSource.setupMaplibre(maplibregl);
     map.addSource('contour-source-dem5a', {
       type: 'vector',
-      tiles: [buildSeamlessContourTileUrl(userContourInterval)],
+      tiles: [buildSeamlessContourTileUrl(5)], // 初期値5m; restoreUiState で上書きされる
       minzoom: 3,
       maxzoom: 15, // z15タイルをz16以上でオーバーズーム
       attribution: '',
@@ -509,7 +513,7 @@ map.on('load', async () => {
     contourState.dem1aSource.setupMaplibre(maplibregl);
     map.addSource('contour-source-dem1a', {
       type: 'vector',
-      tiles: [buildDem1aContourTileUrl(userContourInterval)],
+      tiles: [buildDem1aContourTileUrl(5)], // 初期値5m; restoreUiState で上書きされる
       minzoom: 3,
       maxzoom: 15, // z15タイルをz16以上でオーバーズーム
       attribution: '',
@@ -1043,10 +1047,34 @@ map.on('load', async () => {
   map.on('zoom', _updateGlobeBg);
   _updateGlobeBg();
 
-  // ⑤ テレイン検索レイヤーを初期化する（Phase 1: ダミーデータ）
+  // ⑤ テレイン検索レイヤーを初期化する
   initTerrainLayers(map);
   // マップロード前に検索が完了していた場合、キャッシュ結果をレイヤーに反映する
   if (_lastTerrainResults) updateSearchTerrainSource(map, _lastTerrainResults);
+
+  // ローディングインジケーターモジュール初期化
+  initMapLoading(map);
+
+  // 等高線UIコントローラー初期化（restoreUiState より前に必要）
+  initContourController(map, {
+    getCurrentOverlay: () => currentOverlay,
+    updateCsVisibility,
+  });
+
+  // UI状態管理モジュール初期化（restoreUiState より前に必要）
+  initUiStateManager({
+    getCurrentBasemap:       () => currentBasemap,
+    getCurrentOverlay:       () => currentOverlay,
+    setCurrentOverlay:       (v) => { currentOverlay = v; },
+    getUserContourInterval,
+    setUserContourInterval,
+    getMap:                  () => map,
+    switchBasemap,
+    applyContourInterval,
+    updateCsVisibility,
+    setTerrain3dEnabled,
+    setBuilding3dEnabled,
+  });
 
   // UI状態全体をlocalStorageから復元（リロード時維持）
   restoreUiState();
@@ -1061,24 +1089,6 @@ map.on('load', async () => {
   setMapLayersGetter(() => localMapLayers);
   setImportDoneCallback(() => { renderExplorer(); openCourseEditor(); });
   initCoursePlanner(map);
-
-  // ローディングインジケーターモジュール初期化
-  initMapLoading(map);
-
-  // UI状態管理モジュール初期化
-  initUiStateManager({
-    getCurrentBasemap:       () => currentBasemap,
-    getCurrentOverlay:       () => currentOverlay,
-    setCurrentOverlay:       (v) => { currentOverlay = v; },
-    getUserContourInterval:  () => userContourInterval,
-    setUserContourInterval:  (v) => { userContourInterval = v; },
-    getMap:                  () => map,
-    switchBasemap,
-    applyContourInterval,
-    updateCsVisibility,
-    setTerrain3dEnabled,
-    setBuilding3dEnabled,
-  });
 
   // GPX モジュール初期化（map インスタンスを注入）
   initGpxCamera(map);
@@ -1132,7 +1142,7 @@ map.on('load', async () => {
   // シミュレーターモジュール初期化
   initSim(map, {
     getUpdateGlobeBg:              () => _updateGlobeBg,
-    getLastAppliedContourInterval: () => lastAppliedContourInterval,
+    getLastAppliedContourInterval,
     getOriLibreCachedStyle:        () => oriLibreCachedStyle,
   });
 
@@ -3189,108 +3199,6 @@ map.on('zoom', () => {
     map.setTerrain({ source: 'terrain-dem', exaggeration: parseFloat(selTerrainExaggeration.value) });
     syncTerrainRasterOpacity();
   }
-});
-
-// ---- 等高線 タイルカード ----
-const contourCard = document.getElementById('contour-card');
-const selContourDem      = document.getElementById('sel-contour-dem');
-const selContourInterval = document.getElementById('sel-contour-interval');
-
-// ユーザーが手動で選んだ等高線間隔（m）。zoom > 15（16以上）のときに使用する。
-userContourInterval = Number.isFinite(userContourInterval) ? userContourInterval : 5;
-// 最後に適用した間隔（連続 moveend での無駄な setTiles を防ぐ）
-lastAppliedContourInterval = lastAppliedContourInterval ?? null;
-
-// zoom レベルに応じた有効な等高線間隔（m）を返す
-// 地理院地形図スケールとの対応：
-//   z8  ≈ 1:1,000,000 → 200m（国スケール・山脈骨格）
-//   z9  ≈ 1:500,000   → 100m
-//   z10 ≈ 1:250,000   → 50m（20万図相当）
-//   z11 ≈ 1:125,000   → 25m（5万図=20m に近似）
-//   z12 ≈ 1:62,500    → 10m（2.5万図の標準 10m）
-//   z13 ≈ 1:31,000    → 5m
-//   z14+ ≈ 1:15,500–  → ユーザー設定（デフォルト 5m）
-function getEffectiveContourInterval() {
-  const z = map.getZoom();
-  if (z <=  8) return 200;
-  if (z <=  9) return 100;
-  if (z <= 10) return  50;
-  if (z <= 11) return  25;
-  if (z <= 12) return  10;
-  if (z <= 13) return   5;
-  return userContourInterval;
-}
-
-// 等高線タイルを intervalM に切り替える（旧タイルをフラッシュしてから URL を更新）
-// Q地図 + DEM5Aフォールバック + 湖水深ソースを同時に更新する。
-function applyContourInterval(intervalM) {
-  const newUrl      = buildContourTileUrl(intervalM);
-  const newUrlDem5a = buildSeamlessContourTileUrl(intervalM);
-  const newUrlDem1a = buildDem1aContourTileUrl(intervalM);
-  // 各ソースを個別にチェック（1つが未登録でも他のソースは更新し続ける）
-  const hasQchizu = newUrl      && map.getSource('contour-source');
-  const hasDem5a  = newUrlDem5a && map.getSource('contour-source-dem5a');
-  const hasDem1a  = newUrlDem1a && map.getSource('contour-source-dem1a');
-  if (!hasQchizu && !hasDem5a && !hasDem1a) return;
-  // setTiles でタイルキャッシュをクリアして新 URL を設定する。
-  // 空配列を一度セットしてから新 URL をセットすることで、
-  // MapLibre のタイルキャッシュを確実にフラッシュしてタイル再取得を強制する。
-  if (hasQchizu) { map.getSource('contour-source').setTiles([]); map.getSource('contour-source').setTiles([newUrl]); }
-  if (hasDem5a)  { map.getSource('contour-source-dem5a').setTiles([]); map.getSource('contour-source-dem5a').setTiles([newUrlDem5a]); }
-  if (hasDem1a)  { map.getSource('contour-source-dem1a').setTiles([]); map.getSource('contour-source-dem1a').setTiles([newUrlDem1a]); }
-  // 初期 visibility:none で追加されるため、ここで visible に設定する（フリック防止のため none は経由しない）
-  if (contourCard.classList.contains('active')) setAllContourVisibility(map, 'visible');
-  // マップがアイドル状態でもレンダーループを確実に起動してタイル再描画を促す
-  map.triggerRepaint();
-  lastAppliedContourInterval = intervalM;
-}
-
-// moveend 時に zoom に応じた間隔へ自動切り替え＆セレクト表示を更新
-function updateContourAutoInterval() {
-  if (!contourCard.classList.contains('active')) return;
-
-  // z0-z13 の等高線間隔は buildContourThresholds 内で固定値としてURLに埋め込み済みのため、
-  // ズームレベルが変わっても URL は変化しない → setTiles を呼ばない。
-  if (lastAppliedContourInterval === null) {
-    applyContourInterval(userContourInterval);
-  }
-}
-
-// ---- 等高線カード クリックでトグル ----
-contourCard.addEventListener('click', (e) => {
-  // セレクト（カスタムセレクトのボタン含む）のクリックはトグルしない
-  if (e.target.closest('.custom-select-wrap') || e.target.closest('select')) return;
-  const isActive = contourCard.classList.toggle('active');
-  const vis = isActive ? 'visible' : 'none';
-  setAllContourVisibility(map, vis);
-  updateShareableUrl();
-  saveUiState();
-});
-
-// ---- 等高線 DEMソースセレクト ----
-selContourDem.addEventListener('change', () => {
-  contourState.demMode = selContourDem.value; // 'q1m' / 'dem5a'
-  if (contourCard.classList.contains('active')) {
-    setAllContourVisibility(map, 'visible');
-  }
-  // 色別等高線オーバーレイ選択中の場合はソース切り替えに追従
-  if (currentOverlay === 'color-contour') {
-    updateCsVisibility();
-    map.triggerRepaint();
-  }
-  updateShareableUrl();
-  saveUiState();
-});
-
-// ---- 等高線 間隔セレクト ----
-selContourInterval.addEventListener('change', () => {
-  const iv = parseFloat(selContourInterval.value);
-  if (iv) {
-    userContourInterval = iv;
-    applyContourInterval(iv);
-  }
-  updateShareableUrl();
-  saveUiState();
 });
 
 // ---- 磁北線 タイルカード ----
