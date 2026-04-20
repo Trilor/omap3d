@@ -29,7 +29,7 @@
 
    ================================================================ */
 
-import { getDeclination } from './core/magneticDeclination.js';
+import { createMap } from './core/mapFactory.js';
 import { initCoursePlanner, setMapLayersGetter, setImportDoneCallback, migrateCourseSets } from './core/course.js';
 import {
   init as initLocalMapListPanel,
@@ -49,7 +49,7 @@ import {
 import { init as initLocalTerrainDrawer } from './features/localTerrain/localTerrainDrawer.js';
 import {
   QCHIZU_DEM_BASE, QCHIZU_PROXY_BASE, DEM5A_BASE, DEM1A_BASE,
-  TERRAIN_URL, CS_RELIEF_URL,
+  CS_RELIEF_URL,
   REGIONAL_CS_LAYERS, REGIONAL_RRIM_LAYERS,
   REGIONAL_RELIEF_LAYERS, REGIONAL_SLOPE_LAYERS, REGIONAL_CURVE_LAYERS,
   INITIAL_CENTER, INITIAL_ZOOM, INITIAL_PITCH, INITIAL_BEARING,
@@ -187,217 +187,11 @@ import {
 } from './features/globe/globeBackground.js';
 
 // ================================================================
-// §2  グローバル状態変数
+// §2  マップ初期化
 // ================================================================
 
-
-
-/*
-  ========================================================
-  MapLibre GL JS マップの初期化
-  new maplibregl.Map() でマップオブジェクトを生成します。
-  style はベースマップと DEM ソースだけを持つ最小構成で定義します。
-  KMZ から読み込んだ画像レイヤーは後から動的に追加します。
-  ========================================================
-*/
-let _restoredFromStorage = false; // localStorageから位置を復元した場合true（OriLibreのjumpTo抑制用）
-
-const map = new maplibregl.Map({
-
-  container: 'map',
-  attributionControl: false,
-  preserveDrawingBuffer: true, // スクリーンショット・サムネイル生成時に map.getCanvas() をピクセル読み取りするために必要
-  style: {
-    version: 8,
-    // OriLibreのisomizerがベクタースタイルを動的に注入するための基本設定
-    // glyphs/spriteはOpenMapTiles互換を使用（isomizer内部のシンボルが動作するよう）
-    glyphs: 'https://fonts.openmaptiles.org/{fontstack}/{range}.pbf',
-    sprite: 'https://openmaptiles.github.io/osm-bright-gl-style/sprite',
-
-    sources: {
-
-      /*
-        --- ソース① 標高（DEM）データ ---
-        3D地形のために初期styleに含める必要がある（setTerrainで参照するため）
-      */
-      'terrain-dem': {
-        type: 'raster-dem',
-        tiles: [TERRAIN_URL],
-        tileSize: 256,
-        minzoom: 1,
-        maxzoom: 15, // DEM5A の上限（z15タイルを z16+ で MapLibre がオーバーズーム）
-        encoding: 'terrarium',
-        attribution: '',
-      }
-
-      ,
-    }
-
-    ,
-
-    // OriLibreのisomizerがload時にlayersを動的に追加するため、初期は空
-    layers: [],
-  }
-
-  ,
-
-  // デフォルト値（後続のスプレッドで上書きされる）
-  center: INITIAL_CENTER,
-  zoom: INITIAL_ZOOM,
-  pitch: INITIAL_PITCH,
-  bearing: INITIAL_BEARING,
-  // URLハッシュがない場合は localStorage の最終状態を復元（後に書くことで上書き優先）
-  ...((() => {
-    const _LS_KEY = 'teledrop-map-state';
-    if (!location.hash) {
-      try {
-        const s = JSON.parse(localStorage.getItem(_LS_KEY));
-        if (s) {
-          _restoredFromStorage = true;
-          return { center: [s.lng, s.lat], zoom: s.zoom, pitch: s.pitch, bearing: s.bearing };
-        }
-      } catch {}
-    }
-    return {};
-  })()),
-  minZoom: 0,
-  maxZoom: 24,
-  maxPitch: 85,
-  locale: {
-    'NavigationControl.ZoomIn':           'ズームイン',
-    'NavigationControl.ZoomOut':          'ズームアウト',
-    'NavigationControl.ResetBearing':     '真北を上にする',
-    'FullscreenControl.Enter':            '全画面表示',
-    'FullscreenControl.Exit':             '全画面表示を終了',
-    'GeolocateControl.FindMyLocation':    '現在地を表示',
-    'GeolocateControl.LocationNotAvailable': '現在地を取得できません',
-    'AttributionControl.ToggleAttribution': '出典を表示',
-    'AttributionControl.MapFeedback':     'マップのフィードバック',
-    'LogoControl.Title':                  'MapLibre',
-  },
-  // URL ハッシュに地図状態を自動保存・復元（#zoom/lat/lng/bearing/pitch 形式）
-  // 再読込時に同じ位置・向き・傾きで復元される（MapLibre / OSM 標準形式）。
-  hash: true,
-});
-
-// 出典表示（customAttribution で固定表示、都道府県別CS出典は updateRegionalAttribution で追記）
-// 磁北線出典は updateMagneticAttribution() で動的に切り替え
-map.addControl(new maplibregl.AttributionControl({
-  compact: true,
-  customAttribution:
-    '<a href="https://www.geospatial.jp/ckan/dataset/qchizu_94dem_99gsi" target="_blank" rel="noopener">Q地図1mDEM</a>' +
-    '/<a href="https://maps.gsi.go.jp/development/ichiran.html#dem" target="_blank" rel="noopener">地理院DEM5A</a>' +
-    '/<a href="https://maps.gsi.go.jp/development/ichiran.html#dem" target="_blank" rel="noopener">地理院DEM10B</a>' +
-    'を加工して作成',
-}), 'bottom-right');
-
-// 出典パネルの開閉に応じて縮尺コントロールを移動（重なり防止）
-// MutationObserver: compact-show クラスの変化（開閉）を検知して .above-attrib を付与
-// ResizeObserver  : 出典の高さ変化（テキスト量・折り返し）を常時追従して --attrib-h を更新
-{
-  requestAnimationFrame(() => {
-    const attribEl = document.querySelector('.maplibregl-ctrl-attrib');
-    const scaleEl  = document.getElementById('scale-ctrl-container');
-    if (!attribEl || !scaleEl) return;
-
-    const updateHeight = () => {
-      document.documentElement.style.setProperty(
-        '--attrib-h', attribEl.getBoundingClientRect().height + 'px'
-      );
-    };
-
-    new MutationObserver(() => {
-      const open = attribEl.classList.contains('maplibregl-compact-show');
-      scaleEl.classList.toggle('above-attrib', open);
-    }).observe(attribEl, { attributes: true, attributeFilter: ['class'] });
-
-    new ResizeObserver(updateHeight).observe(attribEl);
-    updateHeight();
-  });
-}
-
-/*
-  ========================================================
-  3Dコントロール（NavigationControl）の追加
-  ズームボタン・コンパスボタンを右上に追加します。
-  visualizePitch: true でコンパスが現在の傾きを視覚的に示します。
-  右クリックドラッグ / Ctrl+ドラッグ で Pitch / Bearing を操作できます（MapLibre標準動作）。
-  ========================================================
-*/
-map.addControl(new maplibregl.FullscreenControl({ container: document.body }), 'top-right');
-
-map.addControl(new maplibregl.NavigationControl({
-  visualizePitch: true
-}),
-  'top-right'
-);
-
-// 磁北を上にするカスタムコントロール
-// NavigationControl の compass（真北リセット）ボタンの直下に配置する。
-// 地図中央の磁気偏角を getDeclination() で取得し、その分だけ bearing を回転させる。
-const magneticNorthControl = {
-  onAdd(m) {
-    this._map = m;
-    this._container = document.createElement('div');
-    this._container.className = 'maplibregl-ctrl maplibregl-ctrl-group';
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.title = '磁北を上にする';
-    // U字磁石SVGアイコン（コンパスと同配色: N極=濃色#333, S極=淡色#ccc）
-    // maplibregl-ctrl-icon を使い MapLibre のボタンスタイルに準拠
-    const icon = document.createElement('span');
-    icon.className = 'maplibregl-ctrl-icon';
-    icon.setAttribute('aria-hidden', 'true');
-    // U字磁石を二色のJ字で構成:
-    // 中心x=14.5, アーム上端y=4, 弧中心y=16, 外径r=9, 内径r=3
-    // 左J(N極#333): 外左縦→内縁弧CW→底→外弧CCW で閉じる
-    // 右J(S極#ccc): 外右縦→内縁弧CCW→底→外弧CW で閉じる
-    icon.style.backgroundImage = `url("data:image/svg+xml;charset=utf-8,${encodeURIComponent(
-      '<svg xmlns="http://www.w3.org/2000/svg" width="29" height="29" viewBox="0 0 29 29">' +
-      // 左J(N極#333): 内弧=CCW(sweep=0)で9時→6時短弧、外弧=CW(sweep=1)で6時→9時短弧
-      '<path d="M5.5,4 L11.5,4 L11.5,16 A3,3,0,0,0,14.5,19 L14.5,25 A9,9,0,0,1,5.5,16 Z" fill="#333"/>' +
-      // 右J(S極#ccc): 内弧=CW(sweep=1)で3時→6時短弧、外弧=CCW(sweep=0)で6時→3時短弧
-      '<path d="M23.5,4 L17.5,4 L17.5,16 A3,3,0,0,1,14.5,19 L14.5,25 A9,9,0,0,0,23.5,16 Z" fill="#ccc"/>' +
-      '</svg>'
-    )}")`;
-    btn.appendChild(icon);
-    btn.addEventListener('click', () => {
-      const center = m.getCenter();
-      const decl   = getDeclination(center.lat, center.lng);
-      // MapLibre bearing = 地図上方が真北から時計回りに何度か
-      // 磁北を上にする = 地図上方を磁北方向（真北から decl 度）に向ける → bearing = decl
-      m.easeTo({ bearing: decl, pitch: 0, duration: 300 });
-    });
-    this._container.appendChild(btn);
-    return this._container;
-  },
-  onRemove() {
-    this._container.parentNode?.removeChild(this._container);
-    this._map = undefined;
-  },
-};
-map.addControl(magneticNorthControl, 'top-right');
-
-/*
-  ========================================================
-  現在位置取得ボタン（GeolocateControl）
-  オリリブレと同様のスタイルで右上に配置。
-  enableHighAccuracy: true  → GPS使用（室内でも試みる）
-  trackUserLocation: true   → 移動中は自動追従
-  showUserHeading: true     → 向きも表示
-  ========================================================
-*/
-map.addControl(new maplibregl.GeolocateControl({
-  positionOptions: {
-    enableHighAccuracy: true
-  }
-
-  ,
-  trackUserLocation: true,
-  showUserHeading: true,
-}),
-  'top-right'
-);
+// マップ生成・コントロール追加 → js/core/mapFactory.js
+const { map, restoredFromStorage } = createMap();
 
 
 // テレイン検索 UI — map.on('load') より前に初期化して初回検索を即実行する
@@ -640,7 +434,7 @@ map.on('load', async () => {
     // ただし以下の場合は上書きしない:
     //   - URLハッシュあり: MapLibreのhash:trueが復元済み
     //   - localStorageから復元済み: Map初期化時に前回位置を適用済み
-    if (!location.hash && !_restoredFromStorage) {
+    if (!location.hash && !restoredFromStorage) {
       map.jumpTo({
         center: INITIAL_CENTER, zoom: INITIAL_ZOOM, pitch: INITIAL_PITCH, bearing: INITIAL_BEARING
       });
