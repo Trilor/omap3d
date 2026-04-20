@@ -78,6 +78,12 @@ git commit -m "種別: 変更内容の説明"
 - スモールステップで実施し、各ステップで動作確認
 - イベントリスナー登録はDOMと同じ関数に書かず、独立した `initXxxListeners()` に分離する
 
+### ES Modules 状態管理の絶対ルール
+- `export let myVar = ...` でプリミティブを直接エクスポートし他ファイルから再代入する実装は**禁止**（Read-onlyエラー）
+- 状態を別ファイルに切り出す際は以下いずれかを使用:
+  1. **状態オブジェクトパターン**: `export const fooState = { activeId: null };`（プロパティ書き換えは可）
+  2. **Getter/Setterパターン**: `let _activeId = null; export const getActiveId = () => _activeId; export const setActiveId = (id) => { _activeId = id; };`
+
 ## UI コンポーネント — 設計ルール
 
 ### モーダル統一デザイン

@@ -9,28 +9,27 @@
 
    【本ファイルの内容（論理セクション）】
      §1  Import
-     §2  マップ初期化・コントロール追加
-     §3  map.on('load') ハンドラ
+     §2  グローバル状態変数
+     §3  マップ初期化・コントロール追加
+     §4  map.on('load') ハンドラ
            ① ラスターベースマップ ソース/レイヤー
-           ② 等高線 DemSource 初期化
+           ② 等高線 DemSource 初期化（Q地図/DEM5A/DEM1A）
            ③ isomizer（OriLibre ベクタースタイル）
            ④ CS 立体図・色別標高図・磁北線ソース/レイヤー
-           ⑤ テレインマスタ自動読み込み（autoLoadTerrains）
-     §4  KMZ 読み込み・レイヤー管理（loadKmz / renderLocalMapList）
-     §5  JGW + 画像（worldfile 位置合わせ）
-     §6  フレーム / テレイン境界（GeoJSON・mapFrames・terrainMap）
-     §7  Miller Columns UI（地図インポートタブ）
-     §8  GPX 再生（loadGpx・gpxAnimationLoop・カメラ制御）
-     §9  UI イベントハンドラ（ファイル選択・D&D・スライダー等）
-     §10 出典（Attribution）動的管理
-     §11 ベースマップ切り替え（switchBasemap）
-     §12 CS 立体図・色別標高図・ベースマップカード
-     §13 等高線 UI イベント（間隔・DEMソース切り替え）
-     §14 3D ビル（PLATEAU LOD1/LOD2）
-     §15 PCシミュレーター（pcSim）
-     §16 地図インポートモーダル（画像 + 縮尺/回転）
-     §17 プレビューマップ生成
-     §18 その他 UI（カラーピッカー・右クリックメニュー）
+           ⑤ テレインマスタ自動読み込み
+     §5  ローカル地図リスト描画（renderLocalMapList / renderOtherMapsTree）
+     §6  レイヤーパネル（_renderLayersList / _makeLayerItem）
+     §7  テレイン検索 UI（renderTerrainSearchResults / renderWorkspaceTerrainList）
+     §8  CS立体図・オーバーレイ表示制御（updateCsVisibility）
+     §9  ローディング表示（showMapLoading 等）
+     §10 ベースマップ切り替え（switchBasemap）
+     §11 等高線 UI（applyContourInterval / updateContourAutoInterval）
+     §12 UI 状態管理（saveUiState / restoreUiState / updateShareableUrl）
+     §13 削除ダイアログ群
+     §14 3D ビル（PLATEAU LOD1/LOD2 / deck.gl）
+     §15 左パネル・右パネル制御
+     §16 エクスプローラー ファイルツリー
+     §17 その他 UI（ボトムシート・右クリックメニュー）
 
    ================================================================ */
 
@@ -44,7 +43,6 @@ import { buildTreeData }          from './ui/tree/treeStore.js';
 import { initRenderer, renderItem } from './ui/tree/treeRenderer.js';
 import {
   QCHIZU_DEM_BASE, QCHIZU_PROXY_BASE, DEM5A_BASE, DEM1A_BASE,
-  // LAKEDEPTH_BASE, LAKEDEPTH_STANDARD_BASE, // 湖水深タイルは廃止（2026-03-23）
   TERRAIN_URL, CS_RELIEF_URL,
   REGIONAL_CS_LAYERS, REGIONAL_RRIM_LAYERS,
   REGIONAL_RELIEF_LAYERS, REGIONAL_SLOPE_LAYERS, REGIONAL_CURVE_LAYERS,
@@ -152,20 +150,28 @@ import {
   getReliefPalette, crMin, crMax, crPaletteId,
   initPalettePickers,
 } from './core/reliefOverlay.js';
+import {
+  init as initMapLoading,
+  showMapLoading, hideMapLoading,
+  showMapTileLoading,
+} from './ui/mapLoading.js';
 
-// ベースマップ切替の状態管理
-// oriLibreLayers: isomizer が追加したレイヤーを [{ id, defaultVisibility }] 形式で保持
+// ================================================================
+// §2  グローバル状態変数
+// ================================================================
+
+// --- ベースマップ ---
+// isomizer が追加したレイヤーを [{ id, defaultVisibility }] 形式で保持
 let oriLibreLayers = [];
 let currentBasemap = 'orilibre';
 let oriLibreCachedStyle = null; // isomizer構築完了後のスタイルをキャッシュ（読図マップ用）
 let _globeBgEl = null;
 let _updateGlobeBg = null;
 
-// テレイン名マスタ（Phase 1: 空 Map。Phase 2 で Supabase データに差し替え予定）
+// --- テレイン名マスタ（ワークスペースDB からロード後に populate する） ---
 const terrainMap = new Map();
 
-// ---- 初期化順の影響を受ける共有状態（早期宣言） ----
-// map.on('load') 内や関数参照がファイル後半の宣言より先に走っても TDZ で落ちないようにする。
+// --- 初期化順の影響を受ける共有状態（TDZ 回避のため var で早期宣言） ---
 var userContourInterval = 5;
 var lastAppliedContourInterval = null;
 var _plateauCurrentLod = null;
@@ -1047,6 +1053,9 @@ map.on('load', async () => {
   setMapLayersGetter(() => localMapLayers);
   setImportDoneCallback(() => { renderExplorer(); openCourseEditor(); });
   initCoursePlanner(map);
+
+  // ローディングインジケーターモジュール初期化
+  initMapLoading(map);
 
   // GPX モジュール初期化（map インスタンスを注入）
   initGpxCamera(map);
@@ -2575,36 +2584,6 @@ function updateCsVisibility() {
   updateRegionalAttribution();
 }
 
-// 読み込み中インジケーター（中央・オーバーレイ選択時）
-const _mapLoadingEl = document.getElementById('map-loading');
-let _mapLoadingIdleRegistered = false;
-
-function showMapLoading() {
-  if (_mapLoadingEl) _mapLoadingEl.style.display = 'flex';
-  if (_mapLoadingIdleRegistered) return;
-  _mapLoadingIdleRegistered = true;
-  map.once('idle', hideMapLoading);
-}
-function hideMapLoading() {
-  _mapLoadingIdleRegistered = false;
-  if (_mapLoadingEl) _mapLoadingEl.style.display = 'none';
-}
-
-// タイル生成インジケーター（右下・地図移動/ズーム時）
-const _mapTileLoadingEl = document.getElementById('map-tile-loading');
-let _mapTileLoadingIdleRegistered = false;
-
-function showMapTileLoading() {
-  if (_mapTileLoadingEl) _mapTileLoadingEl.style.display = 'flex';
-  if (_mapTileLoadingIdleRegistered) return;
-  _mapTileLoadingIdleRegistered = true;
-  map.once('idle', hideMapTileLoading);
-}
-function hideMapTileLoading() {
-  _mapTileLoadingIdleRegistered = false;
-  if (_mapTileLoadingEl) _mapTileLoadingEl.style.display = 'none';
-}
-
 // CS立体図レイヤーが現在表示中かどうか
 function isCsLayerVisible() {
   return !!(map.getLayer('cs-relief-layer') &&
@@ -3205,13 +3184,10 @@ function applyContourInterval(intervalM) {
   const newUrl      = buildContourTileUrl(intervalM);
   const newUrlDem5a = buildSeamlessContourTileUrl(intervalM);
   const newUrlDem1a = buildDem1aContourTileUrl(intervalM);
-  // 湖水深等高線は廃止（2026-03-23）
-  // const newUrlLake  = buildLakeContourTileUrl(intervalM);
   // 各ソースを個別にチェック（1つが未登録でも他のソースは更新し続ける）
   const hasQchizu = newUrl      && map.getSource('contour-source');
   const hasDem5a  = newUrlDem5a && map.getSource('contour-source-dem5a');
   const hasDem1a  = newUrlDem1a && map.getSource('contour-source-dem1a');
-  // const hasLake   = newUrlLake  && map.getSource('contour-source-lake');
   if (!hasQchizu && !hasDem5a && !hasDem1a) return;
   // setTiles でタイルキャッシュをクリアして新 URL を設定する。
   // 空配列を一度セットしてから新 URL をセットすることで、
@@ -3219,7 +3195,6 @@ function applyContourInterval(intervalM) {
   if (hasQchizu) { map.getSource('contour-source').setTiles([]); map.getSource('contour-source').setTiles([newUrl]); }
   if (hasDem5a)  { map.getSource('contour-source-dem5a').setTiles([]); map.getSource('contour-source-dem5a').setTiles([newUrlDem5a]); }
   if (hasDem1a)  { map.getSource('contour-source-dem1a').setTiles([]); map.getSource('contour-source-dem1a').setTiles([newUrlDem1a]); }
-  // if (hasLake)   map.getSource('contour-source-lake').setTiles([newUrlLake]);
   // 初期 visibility:none で追加されるため、ここで visible に設定する（フリック防止のため none は経由しない）
   if (contourCard.classList.contains('active')) setAllContourVisibility(map, 'visible');
   // マップがアイドル状態でもレンダーループを確実に起動してタイル再描画を促す
@@ -4025,7 +4000,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ================================================================
-// Phase 1 — 左パネル Pin/Overlay モード ＋ 右パネル
+// §15 左パネル・右パネル制御
 // ================================================================
 
 // ピン留め状態（true=固定Push / false=オーバーレイ、localStorage で永続化）
@@ -4155,7 +4130,7 @@ document.getElementById('right-panel-close-btn')?.addEventListener('click', clos
 })();
 
 // ================================================================
-// Phase 2 — エクスプローラー ファイルツリー
+// §16 エクスプローラー ファイルツリー
 // ================================================================
 
 /** 現在選択中のエクスプローラーアイテムの ID */
