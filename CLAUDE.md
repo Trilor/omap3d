@@ -7,16 +7,21 @@
 
 ## ファイル構成
 
-| ファイル | 役割 |
+| パス | 役割 |
 |---|---|
 | `index.html` | HTML 構造 |
 | `style.css` | CSS 全体 |
 | `js/main.js` | エントリーポイント |
-| `js/app.js` | アプリ本体（地図・KMZ・GPX・UI） |
-| `js/config.js` | 定数・URL |
-| `js/protocols.js` | `gsjdem://` / `dem2cs://` プロトコル |
-| `js/contours.js` | 等高線・DEM レイヤー管理 |
-| `js/isomizer/` | OriLibre スタイル構築 |
+| `js/app.js` | 起動オーケストレーション（地図初期化・モジュール結線のみ） |
+| `js/core/config.js` | 定数・URL |
+| `js/core/protocols.js` | `gsjdem://` / `dem2cs://` / `dem2relief://` プロトコル |
+| `js/core/contours.js` | 等高線・DEM レイヤー管理 |
+| `js/core/` | 純粋ドメインロジック（UI非依存の計算・状態） |
+| `js/features/<feature>/` | 機能単位の垂直スライス（UI + ロジック + 状態） |
+| `js/store/` | EventBus・状態管理・永続化 |
+| `js/ui/` | 汎用UIコンポーネント・モーダル |
+| `js/api/` | DB通信（IndexedDB等） |
+| `js/utils/` | 汎用ユーティリティ（純粋関数のみ） |
 
 ## Tech Stack
 
@@ -55,11 +60,18 @@ git commit -m "種別: 変更内容の説明"
 - **1ファイル1000行超で再分割を検討すること**
 - 推奨ディレクトリ構成:
   - `js/features/<feature>/` — 特定機能の垂直スライス（UI + ロジック + 状態）
-  - `js/core/` — ドメインロジック（UI非依存）
-  - `js/ui/` — UIコンポーネント・モーダル・パネル
+  - `js/core/` — **純粋ドメインロジックのみ**（UI非依存・副作用なし）
+  - `js/ui/` — **汎用** UIコンポーネント・モーダル（アプリ固有データに依存しないもの）
   - `js/store/` — 状態管理・永続化
   - `js/api/` — 外部API・DB通信
   - `js/utils/` — 汎用ユーティリティ（特定ドメイン知識を持たない純粋関数のみ）
+- **`app.js` の役割はオーケストレーションのみ**: マップ初期化・モジュールの `init()` 呼び出し・イベント結線に限定。ビジネスロジックを書かない
+
+### core/ と features/ の責務区別（重要）
+- `js/core/` に置くもの: 純粋な計算ロジック・アルゴリズム・データ変換（例: `magneticDeclination.js`, `contours.js`）
+- `js/features/<feature>/` に置くもの: MapLibre への直接操作・DOM操作・UI制御を伴うコントローラー（例: `basemapController.js`, `plateauController.js`）
+  - 判断基準: **「MapLibre の `map` オブジェクトを受け取って操作するか」→ `features/` へ**
+- `gpx/`, `isomizer/` は独立ドメインとして `features/gpx/`, `features/isomizer/` への移行を目標とする
 
 ### 疎結合の徹底（尋ねるな、命じろ）
 - モジュール間の通信は原則として `js/store/eventBus.js` 経由
@@ -72,6 +84,9 @@ git commit -m "種別: 変更内容の説明"
 - DOM構築（View）・データ取得（Model）・イベント制御（Controller）を同一関数に混在させない
 - グローバル変数を新たに増やさない。状態は専用モジュール（store）でカプセル化する
 - 新機能追加時: まず機能が収まるべきモジュールを決めてから実装を始める
+
+### 命名規則
+- ファイル名はキャメルケースに統一（例: `workspace-db.js` → `workspaceDb.js`）
 
 ### リファクタリング時の注意
 - 機能追加とリファクタリングを同時に行わない（別コミット）
